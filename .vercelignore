@@ -1,0 +1,21 @@
+.env
+.env*
+service-account*.json
+*.pem
+*.key
+
+.emulator-data
+.firebase
+firebase-debug.log
+*-debug.log
+
+scripts/dev-users.json
+scripts/dev-materials.json
+scripts/dev-business-data.json
+
+test/
+docs/
+README.md
+SHA256SUMS.txt
+
+index (1)(4).html

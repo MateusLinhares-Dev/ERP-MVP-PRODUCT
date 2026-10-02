@@ -1,0 +1,217 @@
+{
+  "elaine": {
+    "name": "Elaine",
+    "role": "Dona / Financeiro",
+    "descricao": "Administração",
+    "admin": true,
+    "tabs": [
+      "dashboard",
+      "usuarios",
+      "config",
+      "fornecedores",
+      "precos_fornecedores",
+      "adiantamentos",
+      "cheques",
+      "cheques_compensar",
+      "fin_clientes",
+      "rod_balanca",
+      "balanceiro",
+      "compra_sucata",
+      "canhoto_compra",
+      "contas_pagar",
+      "estoque",
+      "despesas_grupo",
+      "contas_banco",
+      "fluxo_caixa",
+      "contratos",
+      "custo_casa",
+      "lista_compras",
+      "viagem_motorista",
+      "vendas",
+      "clientes",
+      "precos_clientes",
+      "contas_receber",
+      "funcionarios",
+      "ponto",
+      "folha_pagamento",
+      "vales",
+      "epi",
+      "caminhoes",
+      "combustivel_rudnick",
+      "almoxarifado",
+      "coordenacao",
+      "documentos_empresas",
+      "fiscal",
+      "chat",
+      "suporte_tecnico",
+      "agenda_entregas",
+      "senhas",
+      "afazeres"
+    ]
+  },
+  "thais": {
+    "name": "Thais",
+    "role": "Secretária / Pesagem",
+    "descricao": "",
+    "admin": false,
+    "tabs": [
+      "compra_sucata",
+      "canhoto_compra",
+      "adiantamentos",
+      "cheques_compensar",
+      "fornecedores",
+      "precos_fornecedores",
+      "contas_pagar",
+      "chat",
+      "agenda_entregas"
+    ]
+  },
+  "rafael": {
+    "name": "Rafael",
+    "role": "Tabelas de Preço",
+    "descricao": "",
+    "admin": false,
+    "tabs": [
+      "precos_fornecedores",
+      "precos_clientes",
+      "adiantamentos",
+      "cheques",
+      "estoque",
+      "contas_banco",
+      "chat"
+    ]
+  },
+  "derick": {
+    "name": "Derick",
+    "role": "Operacional",
+    "descricao": "",
+    "admin": false,
+    "tabs": [
+      "dashboard",
+      "rod_balanca",
+      "compra_sucata",
+      "canhoto_compra",
+      "estoque",
+      "fornecedores",
+      "clientes",
+      "vendas",
+      "caminhoes",
+      "adiantamentos",
+      "ponto",
+      "contratos",
+      "contas_pagar",
+      "contas_receber",
+      "cheques",
+      "fluxo_caixa",
+      "funcionarios",
+      "vales",
+      "precos_fornecedores",
+      "precos_clientes",
+      "config",
+      "custo_casa",
+      "almoxarifado",
+      "documentos_empresas",
+      "chat",
+      "agenda_entregas"
+    ]
+  },
+  "rh": {
+    "name": "RH",
+    "role": "Recursos Humanos",
+    "descricao": "",
+    "admin": false,
+    "tabs": [
+      "ponto",
+      "epi",
+      "chat"
+    ]
+  },
+  "balanceiro": {
+    "name": "Balanceiro",
+    "role": "Operador de Balança",
+    "descricao": "",
+    "admin": false,
+    "tabs": [
+      "balanceiro",
+      "almoxarifado",
+      "chat",
+      "agenda_entregas"
+    ]
+  },
+  "rodbalanca": {
+    "name": "Balancão Rodoviário",
+    "role": "Operador Balança Rodoviária",
+    "descricao": "",
+    "admin": false,
+    "tabs": [
+      "rod_balanca",
+      "almoxarifado",
+      "epi",
+      "chat",
+      "agenda_entregas"
+    ]
+  },
+  "coordenador": {
+    "name": "Coordenador",
+    "role": "Coordenador / Almoxarifado",
+    "descricao": "",
+    "admin": false,
+    "tabs": [
+      "almoxarifado",
+      "coordenacao",
+      "epi",
+      "chat"
+    ]
+  },
+  "carlos": {
+    "name": "Carlos",
+    "role": "Auxiliar de Escritório",
+    "descricao": "",
+    "admin": false,
+    "tabs": [
+      "compra_sucata",
+      "agenda_entregas",
+      "rod_balanca",
+      "balanceiro",
+      "estoque",
+      "fornecedores",
+      "clientes",
+      "vendas",
+      "caminhoes",
+      "adiantamentos",
+      "canhoto_compra",
+      "contas_pagar",
+      "contas_receber",
+      "contas_banco",
+      "cheques",
+      "cheques_compensar",
+      "fin_clientes",
+      "fluxo_caixa",
+      "funcionarios",
+      "vales",
+      "folha_pagamento",
+      "precos_fornecedores",
+      "precos_clientes",
+      "contratos",
+      "custo_casa",
+      "lista_compras",
+      "combustivel_rudnick",
+      "viagem_motorista",
+      "despesas_grupo",
+      "almoxarifado",
+      "chat",
+      "epi",
+      "coordenacao"
+    ]
+  },
+  "evelin": {
+    "name": "Evelin",
+    "role": "Fiscal / Contabilidade",
+    "descricao": "Acesso Fiscal",
+    "admin": false,
+    "tabs": [
+      "fiscal",
+      "chat"
+    ]
+  }
+}

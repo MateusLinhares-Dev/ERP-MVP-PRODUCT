@@ -1,0 +1,36 @@
+name: manuela-erp-dev
+
+services:
+  erp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: manuela-erp-dev
+    working_dir: /workspace
+    environment:
+      DOCKER_DEV: "true"
+      VERCEL_TOKEN: ${VERCEL_TOKEN:-}
+    ports:
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:4000:4000"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9099:9099"
+      - "127.0.0.1:9199:9199"
+    volumes:
+      - .:/workspace
+      - erp_node_modules:/workspace/node_modules
+      - erp_emulator_data:/workspace/.emulator-data
+    stdin_open: true
+    tty: true
+    init: true
+    stop_grace_period: 20s
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/ >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  erp_node_modules:
+  erp_emulator_data:

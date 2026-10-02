@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {normalizeLogin,sanitizeProfile} from '../server/domain/user.js';
+test('normaliza login',()=>assert.equal(normalizeLogin('  Fiscal Novo  '),'fiscalnovo'));test('perfil nunca carrega password',()=>{const p=sanitizeProfile({name:'A',role:'B',tabs:['x','x'],password:'segredo'});assert.equal('password' in p,false);assert.deepEqual(p.tabs,['x']);});

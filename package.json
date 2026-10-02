@@ -1,0 +1,43 @@
+{
+  "name": "manuela-metais-erp-clean",
+  "version": "1.0.30",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "emulators": "node scripts/emulators.mjs",
+    "seed:emulator": "node scripts/prepare-local-env.mjs && node --env-file=.env.erp.local scripts/seed-emulator.mjs",
+    "dev:vercel": "node scripts/prepare-local-env.mjs && node scripts/vercel-dev.mjs",
+    "dev": "node scripts/prepare-local-env.mjs && concurrently -k -n FIREBASE,APP \"npm:emulators\" \"wait-on http://127.0.0.1:4000 && npm run seed:emulator && npm run dev:vercel\"",
+    "test": "node --test test/*.test.js",
+    "migrate:auth": "node scripts/migrate-legacy-auth.mjs",
+    "migrate:storage": "node scripts/migrate-storage.mjs",
+    "smoke:local": "node scripts/prepare-local-env.mjs && node --env-file=.env.erp.local scripts/smoke-local.mjs",
+    "dev:static": "node scripts/static-dev.mjs",
+    "check:demo": "npm test && npm run build",
+    "prepare:env": "node scripts/prepare-local-env.mjs",
+    "check:release": "npm test && npm run build && node scripts/release-security-check.mjs && node scripts/verify-deployment-artifacts.mjs",
+    "preflight:hml": "node scripts/preflight-env.mjs hml .env.hml",
+    "preflight:prod": "node scripts/preflight-env.mjs prod .env.production",
+    "deploy:rules:hml": "node scripts/deploy-rules.mjs hml",
+    "deploy:rules:prod": "node scripts/deploy-rules.mjs prod",
+    "diagnose:emulator": "node scripts/prepare-local-env.mjs && node --env-file=.env.erp.local scripts/diagnose-emulator.mjs",
+    "verify:deploy": "node scripts/verify-deployment-artifacts.mjs",
+    "encode:service-account": "node scripts/service-account-to-base64.mjs",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f erp"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "firebase-tools": "^14.0.0",
+    "vercel": "^48.0.0",
+    "wait-on": "^8.0.0"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}

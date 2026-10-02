@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.vercel/
+.env
+.env.*
+!.env.erp.local.example
+!.env.vercel.example
+.firebase/
+.emulator-data/
+*.log
+service-account*.json
+
+!.env.hml.example
+!.env.production.example
+
+.vercel
+.env*.local

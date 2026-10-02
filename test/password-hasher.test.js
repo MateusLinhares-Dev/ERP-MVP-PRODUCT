@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {hashPassword,verifyPassword} from '../server/infrastructure/password-hasher.js';
+test('hash scrypt valida a senha e não guarda texto puro',async()=>{const h=await hashPassword('SenhaForte@123');assert.equal(h.includes('SenhaForte@123'),false);assert.equal(await verifyPassword('SenhaForte@123',h),true);assert.equal(await verifyPassword('errada',h),false);});
