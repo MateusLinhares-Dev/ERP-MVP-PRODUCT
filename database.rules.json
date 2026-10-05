@@ -2,126 +2,97 @@
   "rules": {
     ".read": false,
     ".write": false,
+    "erpAuth": {
+      ".read": false,
+      ".write": false
+    },
+    "security": {
+      ".read": false,
+      ".write": false
+    },
     "erp": {
+      "$node": {
+        ".read": "auth != null && auth.token.erpAccess == true && $node != 'users' && $node != 'usersDeleted' && $node != 'config' && $node != 'chat' && $node != 'chatRead' && $node != 'alertState' && $node != 'funcDocs' && $node != 'empresaDocs' && $node != 'frotaDocs' && $node != 'senhasCofre' && $node != 'senhasCofreEnc' && $node != 'senhasCofreMeta' && $node != 'suporte_patches' && $node != '_reset'",
+        ".write": "auth != null && auth.token.erpAccess == true && $node != 'users' && $node != 'usersDeleted' && $node != 'config' && $node != 'chat' && $node != 'chatRead' && $node != 'alertState' && $node != 'funcDocs' && $node != 'empresaDocs' && $node != 'frotaDocs' && $node != 'senhasCofre' && $node != 'senhasCofreEnc' && $node != 'senhasCofreMeta' && $node != 'suporte_patches' && $node != '_reset'"
+      },
       "users": {
-        ".read": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true && root.child('erp/users').child(auth.uid).child('role').val() === 'admin'",
-        "$uid": {
-          ".read": "auth != null && (auth.uid === $uid || (root.child('erp/users').child(auth.uid).child('active').val() === true && root.child('erp/users').child(auth.uid).child('role').val() === 'admin'))",
-          ".write": false,
-          ".validate": "newData.hasChildren(['name', 'email', 'role', 'active'])",
-          "name": {
-            ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 120"
-          },
-          "email": {
-            ".validate": "newData.isString() && newData.val().length <= 200"
-          },
-          "role": {
-            ".validate": "newData.isString() && (newData.val() === 'admin' || newData.val() === 'finance' || newData.val() === 'operations' || newData.val() === 'hr' || newData.val() === 'fiscal' || newData.val() === 'user')"
-          },
-          "active": {
-            ".validate": "newData.isBoolean()"
-          },
-          "permissions": {
-            "$module": {
-              "read": {
-                ".validate": "newData.isBoolean()"
-              },
-              "write": {
-                ".validate": "newData.isBoolean()"
-              },
-              "delete": {
-                ".validate": "newData.isBoolean()"
-              }
-            }
-          }
-        }
+        ".read": "auth != null && auth.token.erpAccess == true",
+        ".write": false
       },
-      "userDirectory": {
-        ".read": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true",
-        ".write": false,
-        "$uid": {
-          ".validate": "newData.hasChildren(['name', 'role', 'active'])",
-          "name": {
-            ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 120"
-          },
-          "role": {
-            ".validate": "newData.isString() && (newData.val() === 'admin' || newData.val() === 'finance' || newData.val() === 'operations' || newData.val() === 'hr' || newData.val() === 'fiscal' || newData.val() === 'user')"
-          },
-          "active": {
-            ".validate": "newData.isBoolean()"
-          }
-        }
+      "usersDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true",
+        ".write": false
       },
-      "data": {
-        "$module": {
-          ".read": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true && ($module === 'checks' || $module === 'suppliers' || $module === 'clients' || $module === 'accountsPayable' || $module === 'accountsReceivable' || $module === 'inventory' || $module === 'scrapPurchases' || $module === 'deliverySchedule' || $module === 'roadScale' || $module === 'weighmaster' || $module === 'purchaseReceipts' || $module === 'supplierPrices' || $module === 'sales' || $module === 'clientPrices' || $module === 'advances' || $module === 'checksControl' || $module === 'customerLedger' || $module === 'bankAccounts' || $module === 'cashFlow' || $module === 'employees' || $module === 'attendance' || $module === 'payroll' || $module === 'vouchers' || $module === 'epi' || $module === 'fleet' || $module === 'fuel' || $module === 'trips' || $module === 'fiscal' || $module === 'groupExpenses' || $module === 'contracts' || $module === 'homeCosts' || $module === 'shoppingList' || $module === 'support' || $module === 'vault' || $module === 'warehouse' || $module === 'coordination' || $module === 'tasks' || $module === 'alerts' || $module === 'systemConfig') && (root.child('erp/users').child(auth.uid).child('role').val() === 'admin' || root.child('erp/users').child(auth.uid).child('permissions').child($module).child('read').val() === true)",
-          "$id": {
-            ".write": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true && ($module === 'checks' || $module === 'suppliers' || $module === 'clients' || $module === 'accountsPayable' || $module === 'accountsReceivable' || $module === 'inventory' || $module === 'deliverySchedule' || $module === 'roadScale' || $module === 'weighmaster' || $module === 'purchaseReceipts' || $module === 'supplierPrices' || $module === 'sales' || $module === 'clientPrices' || $module === 'advances' || $module === 'checksControl' || $module === 'customerLedger' || $module === 'bankAccounts' || $module === 'cashFlow' || $module === 'employees' || $module === 'attendance' || $module === 'payroll' || $module === 'vouchers' || $module === 'epi' || $module === 'fleet' || $module === 'fuel' || $module === 'trips' || $module === 'fiscal' || $module === 'groupExpenses' || $module === 'contracts' || $module === 'homeCosts' || $module === 'shoppingList' || $module === 'support' || $module === 'vault' || $module === 'warehouse' || $module === 'coordination' || $module === 'tasks' || $module === 'alerts' || $module === 'systemConfig') && (root.child('erp/users').child(auth.uid).child('role').val() === 'admin' || (newData.exists() && root.child('erp/users').child(auth.uid).child('permissions').child($module).child('write').val() === true) || (!newData.exists() && root.child('erp/users').child(auth.uid).child('permissions').child($module).child('delete').val() === true))",
-            ".validate": "newData.hasChildren(['createdAt','updatedAt','createdBy','updatedBy']) && newData.child('createdAt').isNumber() && newData.child('updatedAt').isNumber() && newData.child('createdBy').isString() && newData.child('updatedBy').isString() && ((!data.exists() && newData.child('createdBy').val() === auth.uid) || (data.exists() && newData.child('createdBy').val() === data.child('createdBy').val() && newData.child('createdAt').val() === data.child('createdAt').val())) && newData.child('updatedBy').val() === auth.uid"
-          }
-        }
-      },
-      "hardware": {
-        ".read": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true",
-        "scales": {
-          "$scaleId": {
-            ".write": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true && (root.child('erp/users').child(auth.uid).child('role').val() === 'admin' || root.child('erp/users').child(auth.uid).child('permissions').child('systemConfig').child('write').val() === true)",
-            ".validate": "!newData.exists() || (newData.hasChildren(['name','purpose','supplier','model','active','connection','createdAt','createdBy','updatedAt','updatedBy']) && newData.child('name').isString() && newData.child('name').val().length >= 2 && newData.child('name').val().length <= 120 && newData.child('purpose').isString() && (newData.child('purpose').val() === 'road' || newData.child('purpose').val() === 'bag') && newData.child('supplier').isString() && newData.child('supplier').val().length <= 160 && newData.child('model').isString() && newData.child('model').val().length <= 160 && newData.child('active').isBoolean() && newData.child('connection').child('transport').isString() && (newData.child('connection').child('transport').val() === 'ip' || newData.child('connection').child('transport').val() === 'serial' || newData.child('connection').child('transport').val() === 'bluetooth') && (newData.child('connection').child('transport').val() !== 'ip' || (newData.child('connection').child('protocol').val() === 'websocket' && newData.child('connection').child('host').isString() && newData.child('connection').child('host').val().length > 0 && newData.child('connection').child('host').val().length <= 255 && newData.child('connection').child('port').isNumber() && newData.child('connection').child('port').val() > 0 && newData.child('connection').child('port').val() <= 65535)) && (newData.child('connection').child('transport').val() !== 'serial' || (newData.child('connection').child('baudRate').isNumber() && newData.child('connection').child('baudRate').val() > 0 && newData.child('connection').child('dataBits').isNumber() && (newData.child('connection').child('dataBits').val() === 7 || newData.child('connection').child('dataBits').val() === 8) && newData.child('connection').child('stopBits').isNumber() && (newData.child('connection').child('stopBits').val() === 1 || newData.child('connection').child('stopBits').val() === 2) && newData.child('connection').child('parity').isString() && (newData.child('connection').child('parity').val() === 'none' || newData.child('connection').child('parity').val() === 'even' || newData.child('connection').child('parity').val() === 'odd'))) && (newData.child('connection').child('transport').val() !== 'bluetooth' || (newData.child('connection').child('protocol').val() === 'ble-gatt' && newData.child('connection').child('profiles').hasChildren() && newData.child('connection').child('namePrefix').isString() && newData.child('connection').child('lastDeviceId').isString() && newData.child('connection').child('lastDeviceName').isString())) && newData.child('createdAt').isNumber() && newData.child('updatedAt').isNumber() && newData.child('createdBy').isString() && newData.child('updatedBy').isString() && ((!data.exists() && newData.child('createdBy').val() === auth.uid) || (data.exists() && newData.child('createdBy').val() === data.child('createdBy').val() && newData.child('createdAt').val() === data.child('createdAt').val())) && newData.child('updatedBy').val() === auth.uid)",
-            "connection": {
-              "profiles": {
-                "$profileIndex": {
-                  ".validate": "newData.hasChildren(['id','label','serviceUuid','characteristicUuid']) && newData.child('id').isString() && newData.child('id').val().length > 0 && newData.child('label').isString() && newData.child('label').val().length <= 120 && newData.child('serviceUuid').isString() && newData.child('serviceUuid').val().length > 0 && newData.child('serviceUuid').val().length <= 100 && newData.child('characteristicUuid').isString() && newData.child('characteristicUuid').val().length > 0 && newData.child('characteristicUuid').val().length <= 100"
-                }
-              }
-            }
-          }
-        },
-        "cameras": {
-          "$cameraId": {
-            ".write": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true && (root.child('erp/users').child(auth.uid).child('role').val() === 'admin' || root.child('erp/users').child(auth.uid).child('permissions').child('systemConfig').child('write').val() === true)",
-            ".validate": "!newData.exists() || (newData.hasChildren(['name','purpose','active','preferredDeviceId','preferredLabel','createdAt','createdBy','updatedAt','updatedBy']) && newData.child('name').isString() && newData.child('name').val().length >= 2 && newData.child('name').val().length <= 120 && newData.child('purpose').isString() && (newData.child('purpose').val() === 'road-entry' || newData.child('purpose').val() === 'road-exit') && newData.child('active').isBoolean() && newData.child('preferredDeviceId').isString() && newData.child('preferredDeviceId').val().length <= 500 && newData.child('preferredLabel').isString() && newData.child('preferredLabel').val().length <= 300 && (newData.child('preferredDeviceId').val().length > 0 || newData.child('preferredLabel').val().length > 0) && newData.child('createdAt').isNumber() && newData.child('updatedAt').isNumber() && newData.child('createdBy').isString() && newData.child('updatedBy').isString() && ((!data.exists() && newData.child('createdBy').val() === auth.uid) || (data.exists() && newData.child('createdBy').val() === data.child('createdBy').val() && newData.child('createdAt').val() === data.child('createdAt').val())) && newData.child('updatedBy').val() === auth.uid)"
-          }
-        }
-      },
-      "documents": {
-        ".read": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true && (root.child('erp/users').child(auth.uid).child('role').val() === 'admin' || root.child('erp/users').child(auth.uid).child('permissions').child('documents').child('read').val() === true)",
-        "$docId": {
-          ".write": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true && (root.child('erp/users').child(auth.uid).child('role').val() === 'admin' || (!data.exists() && newData.exists() && root.child('erp/users').child(auth.uid).child('permissions').child('documents').child('write').val() === true) || (data.exists() && !newData.exists() && data.child('uploadedBy').val() === auth.uid && root.child('erp/users').child(auth.uid).child('permissions').child('documents').child('delete').val() === true))",
-          ".validate": "newData.hasChildren(['name','category','storagePath','uploadedBy','createdAt']) && newData.child('name').isString() && newData.child('category').isString() && newData.child('storagePath').isString() && newData.child('uploadedBy').isString() && newData.child('createdAt').isNumber() && ((!data.exists() && newData.child('uploadedBy').val() === auth.uid) || (data.exists() && newData.child('uploadedBy').val() === data.child('uploadedBy').val())) && (!newData.child('companyType').exists() || newData.child('companyType').isString()) && (!newData.child('companyName').exists() || newData.child('companyName').isString()) && (!newData.child('documentDate').exists() || newData.child('documentDate').isString()) && (!newData.child('validity').exists() || newData.child('validity').isString()) && (!newData.child('warningDays').exists() || newData.child('warningDays').isNumber()) && (!newData.child('contentType').exists() || newData.child('contentType').isString()) && (!newData.child('size').exists() || (newData.child('size').isNumber() && newData.child('size').val() >= 0))"
-        }
-      },
-      "imports": {
-        ".read": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true && root.child('erp/users').child(auth.uid).child('role').val() === 'admin'",
-        "$id": {
-          ".write": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true && !data.exists() && newData.child('actorUid').val() === auth.uid && (root.child('erp/users').child(auth.uid).child('role').val() === 'admin' || root.child('erp/users').child(auth.uid).child('permissions').child('imports').child('write').val() === true)",
-          ".validate": "newData.hasChildren(['module','fileName','imported','actorUid','at']) && newData.child('module').isString() && newData.child('fileName').isString() && newData.child('imported').isNumber() && newData.child('imported').val() >= 0 && newData.child('actorUid').val() === auth.uid && newData.child('at').isNumber()"
-        }
-      },
-      "audit": {
-        ".read": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true && root.child('erp/users').child(auth.uid).child('role').val() === 'admin'",
-        "$id": {
-          ".write": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true && !data.exists() && newData.child('actorUid').val() === auth.uid",
-          ".validate": "newData.hasChildren(['action','module','entityId','actorUid','at']) && (newData.child('action').val() === 'create' || newData.child('action').val() === 'update' || newData.child('action').val() === 'delete') && newData.child('module').isString() && newData.child('entityId').isString() && newData.child('actorUid').val() === auth.uid && newData.child('at').isNumber()"
-        }
+      "config": {
+        ".read": "auth != null && auth.token.erpAccess == true",
+        ".write": false
       },
       "chat": {
-        "conversations": {
-          "$conversationId": {
-            "meta": {
-              ".read": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true && (root.child('erp/users').child(auth.uid).child('role').val() === 'admin' || root.child('erp/users').child(auth.uid).child('permissions').child('chat').child('read').val() === true) && ($conversationId === 'general' || data.child('member1').val() === auth.uid || data.child('member2').val() === auth.uid)",
-              ".write": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true && (root.child('erp/users').child(auth.uid).child('role').val() === 'admin' || root.child('erp/users').child(auth.uid).child('permissions').child('chat').child('write').val() === true) && ($conversationId === 'general' || (!data.exists() && (newData.child('member1').val() === auth.uid || newData.child('member2').val() === auth.uid)) || (data.exists() && (data.child('member1').val() === auth.uid || data.child('member2').val() === auth.uid)))",
-              ".validate": "$conversationId === 'general' || (newData.hasChildren(['member1','member2']) && newData.child('member1').isString() && newData.child('member2').isString() && newData.child('member1').val() !== newData.child('member2').val() && ((!data.exists()) || (newData.child('member1').val() === data.child('member1').val() && newData.child('member2').val() === data.child('member2').val())))"
-            },
-            "messages": {
-              ".read": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true && (root.child('erp/users').child(auth.uid).child('role').val() === 'admin' || root.child('erp/users').child(auth.uid).child('permissions').child('chat').child('read').val() === true) && ($conversationId === 'general' || root.child('erp/chat/conversations').child($conversationId).child('meta/member1').val() === auth.uid || root.child('erp/chat/conversations').child($conversationId).child('meta/member2').val() === auth.uid)",
-              "$messageId": {
-                ".write": "auth != null && root.child('erp/users').child(auth.uid).child('active').val() === true && (root.child('erp/users').child(auth.uid).child('role').val() === 'admin' || root.child('erp/users').child(auth.uid).child('permissions').child('chat').child('write').val() === true) && !data.exists() && newData.child('senderId').val() === auth.uid && ($conversationId === 'general' || root.child('erp/chat/conversations').child($conversationId).child('meta/member1').val() === auth.uid || root.child('erp/chat/conversations').child($conversationId).child('meta/member2').val() === auth.uid)",
-                ".validate": "newData.hasChildren(['senderId','senderName','createdAt']) && newData.child('senderId').val() === auth.uid && newData.child('senderName').isString() && newData.child('senderName').val().length <= 120 && newData.child('createdAt').isNumber() && (newData.child('text').exists() || newData.child('imagePath').exists()) && (!newData.child('text').exists() || (newData.child('text').isString() && newData.child('text').val().length <= 4000)) && (!newData.child('imagePath').exists() || newData.child('imagePath').isString())"
-              }
-            }
-          }
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.canChat == true",
+        "$messageId": {
+          ".write": "auth != null && auth.token.erpAccess == true && auth.token.canChat == true && !data.exists() && newData.child('autorLogin').val() == auth.token.erpUser",
+          ".validate": "newData.hasChildren(['autor','autorLogin','ts','conv']) && newData.child('autor').isString() && newData.child('autorLogin').isString() && newData.child('autorLogin').val() == auth.token.erpUser && newData.child('ts').isString() && newData.child('conv').isString() && (!newData.child('texto').exists() || newData.child('texto').isString()) && (!newData.child('img').exists() || newData.child('img').isString())"
         }
+      },
+      "chatRead": {
+        "$uid": {
+          ".read": "auth != null && auth.token.erpAccess == true && auth.uid == $uid",
+          ".write": "auth != null && auth.token.erpAccess == true && auth.uid == $uid"
+        }
+      },
+      "alertState": {
+        "$uid": {
+          ".read": "auth != null && auth.token.erpAccess == true && auth.uid == $uid",
+          ".write": "auth != null && auth.token.erpAccess == true && auth.uid == $uid"
+        }
+      },
+      "funcDocs": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.canEmployeeDocs == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.canEmployeeDocs == true"
+      },
+      "empresaDocs": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.canBusinessDocs == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.canBusinessDocs == true"
+      },
+      "frotaDocs": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.canFleetDocs == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.canFleetDocs == true"
+      },
+      "senhasCofre": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.canPasswords == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.canPasswords == true"
+      },
+      "senhasCofreEnc": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.canPasswords == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.canPasswords == true"
+      },
+      "senhasCofreMeta": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.canPasswords == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.canPasswords == true"
+      },
+      "suporte_patches": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.canSupport == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.canSupport == true"
+      },
+      "_reset": {
+        ".read": "auth != null && auth.token.erpAccess == true",
+        ".write": false
       }
+    },
+    "erpAudit": {
+      ".read": "auth != null && auth.token.erpAccess == true && auth.token.admin == true",
+      "$eventId": {
+        ".write": "auth != null && auth.token.erpAccess == true && !data.exists() && newData.child('actorUid').val() == auth.uid && newData.child('actorLogin').val() == auth.token.erpUser && newData.child('source').val() == 'browser'",
+        ".validate": "newData.hasChildren(['actorUid','actorLogin','action','module','entityType','entityId','scope','source','ts']) && newData.child('actorUid').isString() && newData.child('actorLogin').isString() && newData.child('action').isString() && newData.child('module').isString() && newData.child('entityType').isString() && newData.child('entityId').isString() && newData.child('scope').isString() && newData.child('source').val() == 'browser'"
+      }
+    },
+    "erp_snapshots": {
+      ".read": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.erpUser == 'elaine'",
+      ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.erpUser == 'elaine'"
+    },
+    "erpManualBackups": {
+      ".read": false,
+      ".write": false
     }
   }
 }

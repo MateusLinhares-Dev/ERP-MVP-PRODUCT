@@ -1,34 +1,20 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    function authorized() {
-      return request.auth != null && request.auth.token.erpAccess == true;
+    match /erp-files/funcDocs/{employee}/{fileName} {
+      allow read: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canEmployeeDocs == true;
+      allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canEmployeeDocs == true && request.resource.size <= 5 * 1024 * 1024;
+      allow delete: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canEmployeeDocs == true;
     }
-    function validBusinessFile() {
-      return request.resource.size <= 5 * 1024 * 1024
-        && (request.resource.contentType.matches('image/.*')
-            || request.resource.contentType == 'application/pdf'
-            || request.resource.contentType == 'application/octet-stream');
+    match /erp-files/empresaDocs/{fileName} {
+      allow read: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canBusinessDocs == true;
+      allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canBusinessDocs == true && request.resource.size <= 5 * 1024 * 1024;
+      allow delete: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canBusinessDocs == true;
     }
-
-    match /erp-files/funcDocs/{allPaths=**} {
-      allow read: if authorized() && request.auth.token.canEmployeeDocs == true;
-      allow create, update: if authorized() && request.auth.token.canEmployeeDocs == true && validBusinessFile();
-      allow delete: if authorized() && request.auth.token.canEmployeeDocs == true;
+    match /erp-files/frotaDocs/{vehicle}/{fileName} {
+      allow read: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canFleetDocs == true;
+      allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canFleetDocs == true && request.resource.size <= 5 * 1024 * 1024;
+      allow delete: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canFleetDocs == true;
     }
-
-    match /erp-files/empresaDocs/{allPaths=**} {
-      allow read: if authorized() && request.auth.token.canBusinessDocs == true;
-      allow create, update: if authorized() && request.auth.token.canBusinessDocs == true && validBusinessFile();
-      allow delete: if authorized() && request.auth.token.canBusinessDocs == true;
-    }
-
-    match /erp-files/frotaDocs/{allPaths=**} {
-      allow read: if authorized() && request.auth.token.canFleetDocs == true;
-      allow create, update: if authorized() && request.auth.token.canFleetDocs == true && validBusinessFile();
-      allow delete: if authorized() && request.auth.token.canFleetDocs == true;
-    }
-
-    // Qualquer caminho fora dos três namespaces gerenciados é negado por padrão.
   }
 }

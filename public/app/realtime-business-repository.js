@@ -21,9 +21,9 @@ export function createRealtimeBusinessRepository(db) {
   async function upsertMany(collection, objectById) {
     const updates = {};
     Object.entries(objectById || {}).forEach(([id, value]) => {
-      if (id && value != null) updates[pathOf(`${collection}/${id}`)] = value;
+      if (id && value != null) updates[id] = value;
     });
-    if (Object.keys(updates).length) await db.ref().update(updates);
+    if (Object.keys(updates).length) await db.ref(pathOf(collection)).update(updates);
   }
 
   return Object.freeze({ read, upsert, remove, upsertMany });
