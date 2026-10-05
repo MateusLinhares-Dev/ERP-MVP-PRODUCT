@@ -1350,33 +1350,38 @@ function startApp(username) {
   }
 }
 
-function doLogout(){
-  try{ if(typeof window.erpAudit==='function') window.erpAudit('logout','auth',{entityType:'session',entityId:''}); }catch(e){}
-  _secCancelarInatividade();
-  clearTimeout(_fbTimer);
-  try{ if(typeof window.__alertStateResetForLogout==='function') window.__alertStateResetForLogout(); }catch(e){}
-  try{ sessionStorage.removeItem('mm_sessao'); }catch(e){}
-
-  
-  cu=null;
-  document.getElementById('app-screen').style.display='none';
-  document.getElementById('login-screen').style.display='flex';
-  const _inpU=document.getElementById('inp-u'); if(_inpU) _inpU.value='';
-  document.getElementById('inp-p').value='';
-
-  
+async function doLogout(){
+  if(window.__ERP_LOGOUT_IN_PROGRESS__) return;
+  window.__ERP_LOGOUT_IN_PROGRESS__=true;
   try{
-    const p = _fbSalvarAgora();
-    if(p && typeof p.then === 'function'){
-      p.then(()=>{ try{_fbAuthLogout();}catch(e){} },
-             ()=>{ try{_fbAuthLogout();}catch(e){} });
-    } else {
-      
-      setTimeout(()=>{ try{_fbAuthLogout();}catch(e){}}, 2000);
-    }
-  }catch(e){ try{_fbAuthLogout();}catch(e2){} }
-}
+    try{ if(typeof window.erpAudit==='function') window.erpAudit('logout','auth',{entityType:'session',entityId:''}); }catch(e){}
+    _secCancelarInatividade();
+    clearTimeout(_fbTimer);
+    try{ if(typeof window.__alertStateResetForLogout==='function') window.__alertStateResetForLogout(); }catch(e){}
 
+    const app=document.getElementById('app-screen');
+    const login=document.getElementById('login-screen');
+    if(app) app.style.display='none';
+    if(login) login.style.display='none';
+
+    try{
+      if(typeof _fbSalvarAgora==='function') await _fbSalvarAgora();
+    }catch(e){}
+
+    try{
+      if(window.secureAuth && typeof window.secureAuth.logout==='function') await window.secureAuth.logout();
+      else if(typeof _fbAuthLogout==='function') await Promise.resolve(_fbAuthLogout());
+    }catch(e){}
+
+    try{ sessionStorage.removeItem('mm_sessao'); }catch(e){}
+    cu=null;
+    if(login) login.style.display='flex';
+    const _inpU=document.getElementById('inp-u'); if(_inpU) _inpU.value='';
+    const _inpP=document.getElementById('inp-p'); if(_inpP) _inpP.value='';
+  }finally{
+    window.__ERP_LOGOUT_IN_PROGRESS__=false;
+  }
+}
 
 
 function _restaurarSessao(){
@@ -3527,7 +3532,7 @@ function _cfgBankDisplayToken(key){
 function _cfgEmployeeCompanyOptionsHtml(sel){
   const values=_cfgEmployeeCompanies();
   if(sel && values.indexOf(sel)<0) values.push(sel);
-  return values.map(function(v){return '<option'+(v===sel?' selected':'')+'>'+esc(v)+'</option>';}).join('');
+  return '<option value="">— Selecione —</option>'+values.map(function(v){return '<option value="'+esc(v)+'"'+(v===sel?' selected':'')+'>'+esc(v)+'</option>';}).join('');
 }
 function _empresaPrincipalContatosInline(){
   const e=_empresaPrincipalInfo(), a=[];
@@ -7007,6 +7012,22 @@ function excluirVale(idx){
 function renderPontoTab(){
   const tb=document.getElementById('tb-ponto');
   if(!tb) return;
+  const agora=new Date();
+  const mes=String(agora.getMonth()+1).padStart(2,'0');
+  const ano=String(agora.getFullYear());
+  const lancamentosMes=PONTO_DB.filter(function(p){
+    const partes=String(p&&p.data||'').split('/');
+    return partes.length===3 && partes[1]===mes && partes[2]===ano;
+  });
+  const ativos=FUNCIONARIOS.filter(function(f){ return f && f.status!=='Inativo'; }).length;
+  const faltasMes=lancamentosMes.filter(function(p){ return p.tipo==='Falta'; }).length;
+  const horasExtrasMes=lancamentosMes.filter(function(p){ return p.tipo==='HE'; }).reduce(function(total,p){ return total+Number(p.horas||0); },0);
+  const kFunc=document.getElementById('kpi-ponto-funcionarios');
+  const kFaltas=document.getElementById('kpi-ponto-faltas');
+  const kHe=document.getElementById('kpi-ponto-he');
+  if(kFunc) kFunc.textContent=String(ativos);
+  if(kFaltas) kFaltas.textContent=String(faltasMes);
+  if(kHe) kHe.textContent=(Number.isInteger(horasExtrasMes)?String(horasExtrasMes):horasExtrasMes.toLocaleString('pt-BR',{maximumFractionDigits:2}))+'h';
   
   
   
@@ -12740,14 +12761,15 @@ function excluirFuncionario(mat){
 function salvarNovoFuncionario(){
   const nome=(document.getElementById('nfu-nome')?.value||'').trim().toUpperCase();
   if(!nome){ showToast('Digite o nome do funcionário','error'); return; }
-  
+  const empresa=(document.getElementById('nfu-emp')?.value||'').trim();
+  if(!empresa){ showToast('Selecione a empresa do funcionário','error'); return; }
   let maxN=0;
   FUNCIONARIOS.forEach(f=>{ const m=String(f.mat||'').match(/(\d+)/); if(m){ const n=parseInt(m[1]); if(n>maxN) maxN=n; } });
   const mat='F'+String(maxN+1).padStart(3,'0');
   const novo={
     mat, nome,
     cpf:(document.getElementById('nfu-cpf')?.value||'').trim(),
-    empresa:document.getElementById('nfu-emp')?.value||_empresaPrincipalChave(),
+    empresa,
     cargo:(document.getElementById('nfu-cargo')?.value||'').trim(),
     sal:_parseMoney(document.getElementById('nfu-sal')?.value||''),
     valeTransporte:parseFloat(document.getElementById('nfu-vt')?.value)||0,
@@ -13203,9 +13225,11 @@ function salvarEditFuncionario(){
   const idx=parseInt(document.getElementById('efn-idx').value);
   const f=FUNCIONARIOS[idx];
   if(!f) return;
+  const empresa=(document.getElementById('efn-emp')?.value||'').trim();
+  if(!empresa){ showToast('Selecione a empresa do funcionário','error'); return; }
   f.nome   = document.getElementById('efn-nome').value.trim().toUpperCase();
   f.cpf    = document.getElementById('efn-cpf').value.trim();
-  f.empresa= document.getElementById('efn-emp').value;
+  f.empresa=empresa;
   f.cargo  = document.getElementById('efn-cargo').value.trim();
   f.sal      = _parseMoney(document.getElementById('efn-sal').value);
   f.adicional= parseFloat(document.getElementById('efn-adicional').value)||0;
@@ -19423,7 +19447,7 @@ function om(k){
       
       
       setTimeout(()=>{ try{
-        if(k==='novo_funcionario'){
+        if(k==='funcionario'){
           const sel=document.getElementById('nfu-emp'); if(sel) sel.innerHTML=_cfgEmployeeCompanyOptionsHtml(sel.value||'');
         }
         if(k==='cheque'){
@@ -19493,7 +19517,21 @@ function getMes(){
   }
   return el.value;
 }
-function getEmp(){ return document.getElementById('fil-emp').value; }
+function getEmp(){ return document.getElementById('fil-emp')?.value||''; }
+function _popularEmpresasDespesa(){
+  const filtro=document.getElementById('fil-emp');
+  const lancamento=document.getElementById('f-emp');
+  if(filtro){
+    const atual=filtro.value||'';
+    filtro.innerHTML='<option value="">Todas as empresas</option>'+EMPRESAS.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
+    if(atual && EMPRESAS.indexOf(atual)>=0) filtro.value=atual;
+  }
+  if(lancamento){
+    const atual=lancamento.value||'';
+    lancamento.innerHTML='<option value="">— Selecione —</option>'+EMPRESAS.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
+    if(atual && EMPRESAS.indexOf(atual)>=0) lancamento.value=atual;
+  }
+}
 
 
 
@@ -19558,6 +19596,7 @@ function switchDespTab(id){
 }
 
 function despAtualizar(){
+  _popularEmpresasDespesa();
   renderKpis();
   renderExtrato();
   renderResumo();

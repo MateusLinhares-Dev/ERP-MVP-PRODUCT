@@ -192,8 +192,13 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         Object.keys(EMP_COLORS).forEach(function(k){ delete EMP_COLORS[k]; });
         Object.assign(EMP_COLORS, cfg.expenseGroupColors);
       }
-      
-      
+      try{ if(typeof _popularEmpresasDespesa==='function') _popularEmpresasDespesa(); }catch(_e){}
+      try{
+        var nf=document.getElementById('nfu-emp');
+        if(nf && typeof _cfgEmployeeCompanyOptionsHtml==='function') nf.innerHTML=_cfgEmployeeCompanyOptionsHtml(nf.value||'');
+        var ef=document.getElementById('efn-emp');
+        if(ef && typeof _cfgEmployeeCompanyOptionsHtml==='function') ef.innerHTML=_cfgEmployeeCompanyOptionsHtml(ef.value||'');
+      }catch(_e){}
       try{
         var dlEmp=document.getElementById('dlist-empresas');
         if(dlEmp && Array.isArray(cfg.transferCompanies)){

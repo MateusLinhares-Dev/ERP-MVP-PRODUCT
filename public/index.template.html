@@ -1179,9 +1179,9 @@
       <div class="sec-title">🕐 Controle de Ponto</div>
       <div class="kpi-grid">
         <div class="kpi"><div class="kpi-lbl">Dias Úteis</div><div class="kpi-val">22</div><div class="kpi-sub">Mês atual</div></div>
-        <div class="kpi g"><div class="kpi-lbl">Funcionários</div><div class="kpi-val">28</div><div class="kpi-sub">No controle</div></div>
-        <div class="kpi r"><div class="kpi-lbl">Faltas</div><div class="kpi-val">0</div><div class="kpi-sub">Mês atual</div></div>
-        <div class="kpi o"><div class="kpi-lbl">Horas Extras</div><div class="kpi-val">0h</div><div class="kpi-sub">Mês atual</div></div>
+        <div class="kpi g"><div class="kpi-lbl">Funcionários</div><div class="kpi-val" id="kpi-ponto-funcionarios">0</div><div class="kpi-sub">No controle</div></div>
+        <div class="kpi r"><div class="kpi-lbl">Faltas</div><div class="kpi-val" id="kpi-ponto-faltas">0</div><div class="kpi-sub">Mês atual</div></div>
+        <div class="kpi o"><div class="kpi-lbl">Horas Extras</div><div class="kpi-val" id="kpi-ponto-he">0h</div><div class="kpi-sub">Mês atual</div></div>
       </div>
       <div class="tcard">
         <div class="tcard-hdr"><div class="tcard-title">Ponto Mensal (lançamento manual)</div><button class="btn-add" onclick="om('ponto_lancamento')">+ Lançar Falta/HE</button></div>
@@ -2522,11 +2522,6 @@
         <input type="month" id="fil-mes" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:.88rem" onchange="despAtualizar()">
         <select id="fil-emp" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:.88rem" onchange="despAtualizar()">
           <option value="">Todas as empresas</option>
-          <option>MABOR</option>
-          <option>GRATUS</option>
-          <option>MANUELA</option>
-          <option>ELAINE</option>
-          <option>RAFAEL</option>
         </select>
       </div>
       <!-- TABS -->
@@ -2553,11 +2548,6 @@
           <label>Empresa</label>
           <select id="f-emp">
             <option value="">— Selecione —</option>
-            <option>MABOR</option>
-            <option>GRATUS</option>
-            <option>MANUELA</option>
-            <option>ELAINE</option>
-            <option>RAFAEL</option>
           </select>
         </div>
         <div class="fg">
