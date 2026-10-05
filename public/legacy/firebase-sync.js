@@ -468,6 +468,42 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     if(typeof o==='number' && !isFinite(o)) return undefined; 
     return o;
   }
+  function _agruparAtualizacoesErp(dados){
+    const grupos={};
+    Object.keys(dados||{}).forEach(function(chave){
+      const partes=String(chave).split('/');
+      const raiz=partes.shift();
+      if(!raiz) return;
+      if(!grupos[raiz]) grupos[raiz]={temValor:false,valor:undefined,patch:{}};
+      if(!partes.length){
+        grupos[raiz].temValor=true;
+        grupos[raiz].valor=dados[chave];
+      }else{
+        grupos[raiz].patch[partes.join('/')]=dados[chave];
+      }
+    });
+    return grupos;
+  }
+
+  async function _enviarMapaErp(dados){
+    const grupos=_agruparAtualizacoesErp(dados);
+    const entradas=Object.entries(grupos);
+    const concorrencia=8;
+    for(let inicio=0;inicio<entradas.length;inicio+=concorrencia){
+      const faixa=entradas.slice(inicio,inicio+concorrencia);
+      await Promise.all(faixa.map(async function(par){
+        const raiz=par[0], grupo=par[1];
+        const ref=window._fbDB.ref('erp/'+raiz);
+        if(grupo.temValor){
+          await _comTimeoutFirebase(ref.set(grupo.valor),75000);
+          if(Object.keys(grupo.patch).length) await _comTimeoutFirebase(ref.update(grupo.patch),75000);
+          return;
+        }
+        if(Object.keys(grupo.patch).length) await _comTimeoutFirebase(ref.update(grupo.patch),75000);
+      }));
+    }
+  }
+
   async function _enviarDadosEmLotes(dados, limiteBytes){
     dados = _fbFiltrarJaEnviado(dados);
     dados = _fbLimparUndefined(dados);
@@ -475,7 +511,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     try{ tamanhoTotal=JSON.stringify(dados).length; }catch(e){ tamanhoTotal=0; }
     if(tamanhoTotal<=limiteBytes && Object.keys(dados).length<=MAX_ITENS_POR_LOTE){
       try{
-        const _r = await _comTimeoutFirebase(window._fbDB.ref('erp').update(dados), 75000);
+        const _r = await _enviarMapaErp(dados);
         _fbMarcarEnviado(dados);
         return _r;
       }catch(e){
@@ -483,16 +519,12 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         throw e;
       }
     }
-    
-    
-    
-    
     const _ts=dados._ts, _user=dados._user;
     const resto={}; Object.keys(dados).forEach(function(k){ if(k!=='_ts'&&k!=='_user') resto[k]=dados[k]; });
     const lotes=_dividirEmLotes(resto, limiteBytes);
     for(let i=0;i<lotes.length;i++){
       try{
-        await _comTimeoutFirebase(window._fbDB.ref('erp').update(lotes[i]), 75000);
+        await _enviarMapaErp(lotes[i]);
         _fbMarcarEnviado(lotes[i]);
         try{ _fbSetStatus('saving', 'Enviando '+(i+1)+' de '+lotes.length+' pacotes...'); }catch(_){ }
       }catch(e){
@@ -501,7 +533,10 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         throw e;
       }
     }
-    return _comTimeoutFirebase(window._fbDB.ref('erp').update({_ts:_ts,_user:_user}), 75000);
+    const meta={};
+    if(_ts!==undefined) meta._ts=_ts;
+    if(_user!==undefined) meta._user=_user;
+    if(Object.keys(meta).length){ await _enviarMapaErp(meta); _fbMarcarEnviado(meta); }
   }
 
   function fbSalvar() {
@@ -943,31 +978,133 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   
   
   const _ERP_NOS_PESADOS = { frotaDocs:1, funcDocs:1, empresaDocs:1 };
+  const _ERP_NOS_SINCRONIZADOS = [
+    '_ts',
+    '_user',
+    '_untomb',
+    'config',
+    'metais',
+    'custosCasa',
+    'veicPess',
+    'manutPess',
+    'tanque',
+    'precosForn',
+    'precosCli',
+    'saldoDevedor',
+    'users',
+    'usersDeleted',
+    'funcEdit',
+    'funcEditDel',
+    'fornVeiculos',
+    'viagemLimite',
+    'fiscal',
+    'fiscalApur',
+    'bags',
+    'ticketsDeleted',
+    'adtPorFornDeleted',
+    'chequesPorFornDeleted',
+    'saldoDevedorDeleted',
+    'estoqueDeleted',
+    'fcSaldoIniDeleted',
+    'adtItensDeleted',
+    'chequeItensDeleted',
+    'contasReceberDeleted',
+    'afazeresDeleted',
+    'vendasDeleted',
+    'valesDeleted',
+    'lancBancoDeleted',
+    'viagemDeleted',
+    'combustivelDeleted',
+    'frotaDeleted',
+    'manutencaoDeleted',
+    'almoxaDeleted',
+    'almoxaMovDeleted',
+    'clientesDeleted',
+    'fornecedoresDeleted',
+    'bancosDeleted',
+    'despGrupoDeleted',
+    'coordNotasDeleted',
+    'contratosDeleted',
+    'docsEmpresasDeleted',
+    'epiDeleted',
+    'reunioesDeleted',
+    'agendaEntregasDeleted',
+    'advertenciasDeleted',
+    'bagsMovDeleted',
+    'historicoDeleted',
+    'pontoDeleted',
+    'pontoBatidasDeleted',
+    'fornDespesaDeleted',
+    'tickets',
+    'historico',
+    'ponto',
+    'pontoBatidas',
+    'folha',
+    'fornDespesa',
+    'contasPagar',
+    'contasPagarDeleted',
+    'contasReceber',
+    'afazeres',
+    'vendas',
+    'vales',
+    'lancBanco',
+    'viagem',
+    'combustivel',
+    'frota',
+    'manutencao',
+    'almoxa',
+    'almoxaMov',
+    'clientes',
+    'fornecedores',
+    'fornDeleted',
+    'bancos',
+    'despGrupo',
+    'coordNotas',
+    'contratos',
+    'docsEmpresas',
+    'epi',
+    'reunioes',
+    'agendaEntregas',
+    'advertencias',
+    'bagsMov',
+    'coordFuncObs',
+    'adiantamentos',
+    'cheques',
+    'saldos',
+    'estoque',
+    'fcSaldoIni',
+    'adtCli',
+    'chequesCli',
+    'fcLanc'
+  ];
   function _lerErpSemPesados(onOk, onErr){
     (async function(){
       try{
-        var u = (firebase.auth && firebase.auth().currentUser) || null;
-        var tok = u ? await u.getIdToken() : '';
-        var shallowUrl = window.__firebaseRestUrl('erp', {auth:tok, shallow:'true'});
-        var shallow = await fetch(shallowUrl).then(function(r){ return r.json(); });
-        if(!shallow || typeof shallow !== 'object'){ onOk(null); return; }
-        var keys = Object.keys(shallow).filter(function(k){ return !_ERP_NOS_PESADOS[k]; });
-        var partes = await Promise.all(keys.map(function(k){
-          return fetch(window.__firebaseRestUrl('erp/' + encodeURIComponent(k), {auth:tok})).then(function(r){ return r.json(); })
-            .then(function(v){ return [k, v]; }).catch(function(){ return [k, undefined]; });
+        var u=(firebase.auth && firebase.auth().currentUser)||null;
+        if(!u) throw new Error('Sessão Firebase não autenticada.');
+        var tokenResult=await u.getIdTokenResult();
+        var claims=(tokenResult&&tokenResult.claims)||{};
+        if(claims.erpAccess!==true) throw new Error('Sessão sem acesso ao ERP.');
+        var keys=_ERP_NOS_SINCRONIZADOS.slice();
+        if(claims.canChat===true) keys.push('chat');
+        var partes=await Promise.all(keys.map(async function(k){
+          try{
+            var snap=await window._fbDB.ref('erp/'+k).once('value');
+            return [k,snap.val(),true];
+          }catch(error){
+            var code=String((error&&error.code)||'').toUpperCase();
+            if(code.indexOf('PERMISSION')>=0) return [k,undefined,false];
+            throw error;
+          }
         }));
-        var d = {};
-        partes.forEach(function(p){ if(p[1] !== undefined && p[1] !== null) d[p[0]] = p[1]; });
-        
-        
-        
-        
-        
-        try{ Object.defineProperty(d, '_shallowKeys', {value:Object.keys(shallow), enumerable:false, configurable:true}); }
-        catch(e){ try{ d._shallowKeys = Object.keys(shallow); }catch(_e){} }
-        
-        
-        
+        var d={};
+        var shallowKeys=[];
+        partes.forEach(function(p){
+          if(!p[2]) return;
+          if(p[1]!==undefined && p[1]!==null){ d[p[0]]=p[1]; shallowKeys.push(p[0]); }
+        });
+        try{ Object.defineProperty(d,'_shallowKeys',{value:shallowKeys,enumerable:false,configurable:true}); }
+        catch(e){ try{ d._shallowKeys=shallowKeys; }catch(_e){} }
         onOk(d);
       }catch(e){ if(onErr) onErr(e); else onOk(null); }
     })();
@@ -1673,7 +1810,11 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     
     
     let _chatListenerAtivo = false;
-    if(!_chatListenerAtivo){
+    let _chatPermitido = false;
+    try{
+      _chatPermitido = typeof window.erpCanAccessTab==='function' ? !!window.erpCanAccessTab('chat') : !!(typeof cu!=='undefined' && cu && Array.isArray(cu.tabs) && cu.tabs.includes('chat'));
+    }catch(e){ _chatPermitido=false; }
+    if(!_chatListenerAtivo && _chatPermitido){
       _chatListenerAtivo = true;
       window._fbDB.ref('erp/chat').on('value', snap => {
         const d = snap.val();
