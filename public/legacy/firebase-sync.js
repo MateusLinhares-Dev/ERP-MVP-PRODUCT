@@ -115,6 +115,21 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     try{ firebase.auth().signOut(); }catch(e){}
   }
 
+  function _fbTemUsuarioAuth(){
+    try{ return !!(typeof firebase!=='undefined' && firebase.auth && firebase.auth().currentUser); }catch(e){ return false; }
+  }
+
+  function _fbRestaurarAuthEExecutar(fn, atrasoErro){
+    if(_fbTemUsuarioAuth()){ fn&&fn(); return true; }
+    if(window.__ERP_LOGOUT_IN_PROGRESS__) return false;
+    let un=''; try{ un=sessionStorage.getItem('mm_sessao')||''; }catch(e){}
+    if(!un) return false;
+    _fbAuthLogin(un, function(){ setTimeout(function(){ try{ fn&&fn(); }catch(e){} },50); }, function(){
+      if(atrasoErro) setTimeout(function(){ try{ fn&&fn(); }catch(e){} }, atrasoErro);
+    });
+    return false;
+  }
+
   
   function _estoqueAplicarDaNuvem(remoto, confiavel, shallowKeys){
     try{
@@ -193,6 +208,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         Object.assign(EMP_COLORS, cfg.expenseGroupColors);
       }
       try{ if(typeof _popularEmpresasDespesa==='function') _popularEmpresasDespesa(); }catch(_e){}
+      try{ if(typeof window.__erpRefreshCompanySources==='function') window.__erpRefreshCompanySources(); }catch(_e){}
       try{
         var nf=document.getElementById('nfu-emp');
         if(nf && typeof _cfgEmployeeCompanyOptionsHtml==='function') nf.innerHTML=_cfgEmployeeCompanyOptionsHtml(nf.value||'');
@@ -594,6 +610,11 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(!temDados){ console.warn('fbSalvar bloqueado: Firebase não carregou dados e local está vazio.'); return; }
     }
     if(!window._fbDB){ _fbSetStatus('offline'); return; }
+    if(!_fbTemUsuarioAuth()){
+      _fbSetStatus('saving','Restaurando sessão...');
+      _fbRestaurarAuthEExecutar(_fbSalvarAgora,1500);
+      return;
+    }
     
     
     
@@ -1454,6 +1475,10 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   function fbIniciarListener() {
     if(_fbListenerAtivo) return;
     if(!window._fbDB) return;
+    if(!_fbTemUsuarioAuth()){
+      _fbRestaurarAuthEExecutar(fbIniciarListener,1500);
+      return;
+    }
     _fbListenerAtivo = true;
 
     
@@ -1741,12 +1766,11 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       
       
       
-      console.warn('Listener erp/_ts cancelado:', errCancel && errCancel.code);
       _fbListenerAtivo = false;
+      if(window.__ERP_LOGOUT_IN_PROGRESS__) return;
+      console.warn('Listener erp/_ts cancelado:', errCancel && errCancel.code);
       _fbSetStatus('error');
-      let _un=''; try{ _un=sessionStorage.getItem('mm_sessao')||''; }catch(e){}
-      if(_un){ _fbAuthLogin(_un, function(){ setTimeout(fbIniciarListener, 1000); }, function(){ setTimeout(fbIniciarListener, 10000); }); }
-      else { setTimeout(fbIniciarListener, 10000); }
+      _fbRestaurarAuthEExecutar(fbIniciarListener,3000);
     });
 
     

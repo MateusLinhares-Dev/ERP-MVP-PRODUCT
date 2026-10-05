@@ -92,10 +92,7 @@ export function createLegacyDatabaseAdapter(rawDb, storage) {
               const value = snapshot.val();
               if (!value || value.__storageV !== 1 || !value.path) return snapshot;
               const url = await storage.ref(value.path).getDownloadURL();
-              const response = await fetch(url);
-              if (!response.ok) throw new Error(`Falha ao baixar arquivo (${response.status})`);
-              const dataUrl = await blobToDataUrl(await response.blob());
-              return snapshotWithValue(snapshot, dataUrl);
+              return snapshotWithValue(snapshot, url);
             });
             if (typeof success === 'function') promise.then(success, failure);
             return promise;

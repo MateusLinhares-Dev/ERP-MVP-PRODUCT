@@ -3491,9 +3491,34 @@ function _empresaPorTexto(valor){
   }
   return _empresaPrincipalChave();
 }
+function _cfgPublicBusiness(){
+  return window.__PUBLIC_BUSINESS_CONFIG__&&typeof window.__PUBLIC_BUSINESS_CONFIG__==='object'?window.__PUBLIC_BUSINESS_CONFIG__:{};
+}
+function _cfgRegisteredCompanies(){
+  const out=[], seen={};
+  function add(v){
+    const x=String(v||'').trim();
+    if(!x||seen[x.toLowerCase()]) return;
+    seen[x.toLowerCase()]=1;
+    out.push(x);
+  }
+  const pub=_cfgPublicBusiness();
+  const primary=String((ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.primaryCompanyKey)||(pub.company&&pub.company.key)||'').trim();
+  add(primary);
+  Object.keys((ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.companies)||{}).forEach(add);
+  Object.keys(EMPRESAS_INFO||{}).forEach(add);
+  (Array.isArray(pub.companyKeys)?pub.companyKeys:[]).forEach(add);
+  (Array.isArray(ERP_BUSINESS_CONFIG.financeCompanies)?ERP_BUSINESS_CONFIG.financeCompanies:[]).forEach(add);
+  (Array.isArray(pub.financeCompanies)?pub.financeCompanies:[]).forEach(add);
+  (Array.isArray(ERP_BUSINESS_CONFIG.transferCompanies)?ERP_BUSINESS_CONFIG.transferCompanies:[]).forEach(add);
+  (Array.isArray(pub.transferCompanies)?pub.transferCompanies:[]).forEach(add);
+  return out;
+}
 function _cfgFinanceCompanies(){
   const a=Array.isArray(ERP_BUSINESS_CONFIG.financeCompanies)?ERP_BUSINESS_CONFIG.financeCompanies:[];
-  return a.length?a.slice():Object.keys(EMPRESAS_INFO||{});
+  const pub=_cfgPublicBusiness();
+  const b=Array.isArray(pub.financeCompanies)?pub.financeCompanies:[];
+  return a.length?a.slice():(b.length?b.slice():_cfgRegisteredCompanies());
 }
 function _cfgFinanceCompanyColor(company){
   const colors=['#1a5e2a','#8e44ad','#c0392b']; 
@@ -3502,15 +3527,19 @@ function _cfgFinanceCompanyColor(company){
 }
 function _cfgEmployeeCompanies(){
   const a=Array.isArray(ERP_BUSINESS_CONFIG.employeeCompanies)?ERP_BUSINESS_CONFIG.employeeCompanies:[];
-  return a.slice();
+  const pub=_cfgPublicBusiness();
+  const b=Array.isArray(pub.employeeCompanies)?pub.employeeCompanies:[];
+  return a.length?a.slice():b.slice();
 }
 function _cfgTransferCompanies(){
   const a=Array.isArray(ERP_BUSINESS_CONFIG.transferCompanies)?ERP_BUSINESS_CONFIG.transferCompanies:[];
-  return a.slice();
+  const pub=_cfgPublicBusiness();
+  const b=Array.isArray(pub.transferCompanies)?pub.transferCompanies:[];
+  return a.length?a.slice():(b.length?b.slice():_cfgRegisteredCompanies());
 }
 function _cfgChequeCompanies(){
   const a=Array.isArray(ERP_BUSINESS_CONFIG.chequeCompanies)?ERP_BUSINESS_CONFIG.chequeCompanies:[];
-  return a.slice();
+  return a.length?a.slice():_cfgRegisteredCompanies();
 }
 function _cfgExpenseGroupCompanyMap(){
   const m=ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.expenseGroupCompanyMap;
@@ -3554,24 +3583,91 @@ function _legacyRepairConfig(key){
 }
 
 function _cfgChequeBanks(){
-  const arr=Array.isArray(ERP_BUSINESS_CONFIG.chequeBanks)?ERP_BUSINESS_CONFIG.chequeBanks:[];
-  return arr.slice().sort((a,b)=>Number(a.order||0)-Number(b.order||0));
+  const legacy=Array.isArray(ERP_BUSINESS_CONFIG.chequeBanks)?ERP_BUSINESS_CONFIG.chequeBanks:[];
+  const live=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB)?BANCOS_DB:[]).filter(function(b){
+    if(!b||!String(b.banco||'').trim()) return false;
+    const t=String(b.tipo||'').toLowerCase();
+    return t.indexOf('aplica')<0&&t!=='caixa';
+  });
+  const palette=['#c0392b','#1565c0','#2e7d32','#e67e22','#8e44ad','#1a5276','#117864','#7d6608','#566573','#922b21'];
+  return live.map(function(b,i){
+    const name=String(b.banco||'').trim();
+    const match=legacy.find(function(x){
+      if(!x) return false;
+      if(x.code&&b.cod&&String(x.code)===String(b.cod)) return true;
+      const xn=String(x.name||'').toLowerCase(), bn=name.toLowerCase();
+      return xn===bn||xn.indexOf(bn)>=0||bn.indexOf(xn)>=0;
+    })||{};
+    const code=String(b.cod||b.id||'');
+    const slug=String(match.slug||code||name).replace(/[^A-Za-z0-9]/g,'').slice(-8).toUpperCase()||'BK'+String(i+1);
+    return {name:name,code:code,slug:slug,color:String(match.color||palette[i%palette.length]),order:i+1,aliases:Array.isArray(match.aliases)?match.aliases:[]};
+  });
 }
-function _cfgChequeBankNames(){ return _cfgChequeBanks().map(x=>String(x.name||'')).filter(Boolean); }
-function _cfgChequeBank(name){ return _cfgChequeBanks().find(x=>String(x.name||'')===String(name||''))||null; }
-function _cfgChequeBankOptionsHtml(sel){ return _cfgChequeBankNames().map(b=>'<option'+(b===sel?' selected':'')+'>'+esc(b)+'</option>').join(''); }
-function _cfgChequeBankSlug(name){ const x=_cfgChequeBank(name); return x&&x.slug?String(x.slug):'XX'; }
+function _cfgChequeBankNames(){
+  const out=_cfgChequeBanks().map(x=>String(x.name||'')).filter(Boolean);
+  const terceiro=String((ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.thirdPartyChequeBank)||'').trim();
+  if(terceiro&&out.indexOf(terceiro)<0) out.push(terceiro);
+  if(typeof CHQ_CTRL==='object'&&CHQ_CTRL){ Object.keys(CHQ_CTRL).forEach(function(k){ const b=String((CHQ_CTRL[k]&&CHQ_CTRL[k].b)||'').trim(); if(b&&out.indexOf(b)<0) out.push(b); }); }
+  return out;
+}
+function _cfgChequeBank(name){
+  const target=String(name||'');
+  const live=_cfgChequeBanks().find(x=>String(x.name||'')===target);
+  if(live) return live;
+  const legacy=Array.isArray(ERP_BUSINESS_CONFIG.chequeBanks)?ERP_BUSINESS_CONFIG.chequeBanks:[];
+  return legacy.find(x=>String(x.name||'')===target)||null;
+}
+function _cfgChequeBankOptionsHtml(sel){
+  const names=_cfgChequeBankNames();
+  if(sel&&names.indexOf(sel)<0) names.push(sel);
+  return names.map(b=>'<option value="'+esc(b)+'"'+(b===sel?' selected':'')+'>'+esc(b)+'</option>').join('');
+}
+function _cfgChequeBankSlug(name){ const x=_cfgChequeBank(name); return x&&x.slug?String(x.slug):String(name||'XX').replace(/[^A-Za-z0-9]/g,'').slice(0,8).toUpperCase()||'XX'; }
 function _cfgChequeBankCode(name){ const x=_cfgChequeBank(name); return x&&x.code?String(x.code):''; }
 function _cfgChequeBankColor(name){ const x=_cfgChequeBank(name); return x&&x.color?String(x.color):'#888'; }
 function _cfgChequeBankNormalize(value){
   const raw=String(value||'').toLowerCase();
-  const item=_cfgChequeBanks().find(x=>Array.isArray(x.aliases)&&x.aliases.some(a=>raw.includes(String(a).toLowerCase())));
+  const direct=_cfgChequeBanks().find(x=>String(x.name||'').toLowerCase()===raw);
+  if(direct) return String(direct.name||'');
+  const legacy=Array.isArray(ERP_BUSINESS_CONFIG.chequeBanks)?ERP_BUSINESS_CONFIG.chequeBanks:[];
+  const item=legacy.find(x=>Array.isArray(x.aliases)&&x.aliases.some(a=>raw.includes(String(a).toLowerCase())));
   return item?String(item.name||''):String(value||'');
 }
-function _empresasOptions(sel){
-  return Object.keys(EMPRESAS_INFO).map(k=>'<option'+(k===sel?' selected':'')+'>'+k+'</option>').join('')
-    + '<option'+(sel==='Outra'?' selected':'')+'>Outra</option>';
+function _empresasOptions(sel, incluirOutra){
+  const values=_cfgRegisteredCompanies();
+  if(sel&&sel!=='Outra'&&values.indexOf(sel)<0) values.push(sel);
+  const other=incluirOutra===false?'':'<option value="Outra"'+(sel==='Outra'?' selected':'')+'>Outra</option>';
+  return values.map(function(k){return '<option value="'+esc(k)+'"'+(k===sel?' selected':'')+'>'+esc(k)+'</option>';}).join('')+other;
 }
+function _sincronizarEmpresaPorBanco(bancoSelId, empresaSelId){
+  const bs=document.getElementById(bancoSelId), es=document.getElementById(empresaSelId);
+  if(!bs||!es) return;
+  const val=bs.value;
+  if(!val) return;
+  const b=(BANCOS_DB||[]).find(x=>String(x.cod||'')===String(val)||String(x.banco||'')===String(val));
+  if(!b||!b.empresa) return;
+  const empresa=String(b.empresa||'').trim();
+  if(es.tagName==='SELECT'){
+    if(![...es.options].some(function(o){return o.value===empresa;})) es.insertAdjacentHTML('beforeend','<option value="'+esc(empresa)+'">'+esc(empresa)+'</option>');
+    es.value=empresa;
+  }else es.value=empresa;
+}
+function _erpRefreshCompanySources(){
+  const transfer=_cfgTransferCompanies();
+  const dl=document.getElementById('dlist-empresas');
+  if(dl) dl.innerHTML=transfer.map(function(v){return '<option value="'+esc(v)+'">';}).join('');
+  function repop(id, blankLabel, incluirOutra){
+    const el=document.getElementById(id); if(!el) return;
+    const cur=el.value||'';
+    el.innerHTML=(blankLabel?'<option value="">'+blankLabel+'</option>':'')+_empresasOptions(cur,incluirOutra);
+    if(cur&&[...el.options].some(function(o){return o.value===cur;})) el.value=cur;
+  }
+  repop('cp-empresa','— Selecione a empresa —',true);
+  repop('ecp-empresa','— Selecione a empresa —',true);
+  repop('bc-empresa','',true);
+  repop('eb-empresa','',true);
+}
+window.__erpRefreshCompanySources=_erpRefreshCompanySources;
 function _bcPreencheEndereco(selId, endId){
   const sel=document.getElementById(selId), end=document.getElementById(endId);
   if(!sel||!end) return;
@@ -3767,7 +3863,7 @@ const FORMS={
       <details style="margin-top:10px">
         <summary style="font-size:.74rem;color:#1565c0;cursor:pointer;font-weight:700">⚡ Vários iguais em sequência (mesmo banco e valor)</summary>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;background:#dcecfa;border-radius:7px;padding:8px 10px">
-          <label style="font-size:.72rem;color:#456">Banco<select id="adt-seq-banco" style="width:100%;padding:6px;border:1px solid #b6d3f2;border-radius:6px;font-size:.8rem">${_cfgChequeBankOptionsHtml()}</select></label>
+          <label style="font-size:.72rem;color:#456">Banco<select id="adt-seq-banco" style="width:100%;padding:6px;border:1px solid #b6d3f2;border-radius:6px;font-size:.8rem"><option value="">— Selecione —</option></select></label>
           <label style="font-size:.72rem;color:#456">Valor de cada (R$)<input id="adt-seq-val" placeholder="4990,00" style="width:100%;padding:6px;border:1px solid #b6d3f2;border-radius:6px;font-size:.8rem;box-sizing:border-box"></label>
           <label style="font-size:.72rem;color:#456">Nº do 1º<input id="adt-seq-ini" placeholder="250" style="width:100%;padding:6px;border:1px solid #b6d3f2;border-radius:6px;font-size:.8rem;box-sizing:border-box"></label>
           <label style="font-size:.72rem;color:#456">Quantos<input id="adt-seq-qtd" type="number" min="1" max="200" value="3" style="width:100%;padding:6px;border:1px solid #b6d3f2;border-radius:6px;font-size:.8rem;box-sizing:border-box"></label>
@@ -3820,7 +3916,7 @@ const FORMS={
         </div>
       </div>
     </div>
-    <div class="fg"><label>Empresa <span style="font-weight:400;color:var(--gray)">(de qual empresa é essa despesa)</span></label><select id="cp-empresa"><option value="">— (opcional)</option>${_empresasOptions()}</select></div>
+    <div class="fg"><label>Empresa <span style="font-weight:400;color:var(--gray)">(de qual empresa é essa despesa)</span></label><select id="cp-empresa"><option value="">— Selecione a empresa —</option>${_empresasOptions('',true)}</select></div>
     <div class="fg"><label>Categoria <span style="font-weight:400;color:var(--gray)">(escolha ou digite)</span></label>
     <input id="cp-cat" list="cp-cat-list" placeholder="Ex: Aluguel, Energia...">
     <datalist id="cp-cat-list">
@@ -3832,7 +3928,7 @@ const FORMS={
       <option>Financiamento</option><option>Limpeza</option><option>Alimentação</option>
       <option>Transporte</option><option>Equipamentos</option><option>Peças e Insumos</option><option>Outros</option>
     </datalist></div>
-    <div class="fg"><label>Banco de Pagamento</label><select id="cp-banco"><option value="">— Selecione o banco —</option></select></div>
+    <div class="fg"><label>Banco de Pagamento</label><select id="cp-banco" onchange="_sincronizarEmpresaPorBanco('cp-banco','cp-empresa')"><option value="">— Selecione o banco —</option></select></div>
     <div class="fg"><label>Valor R$ <span style="font-weight:400;color:var(--gray)">(por parcela)</span></label><input id="cp-valor" type="number" min="0" step="0.01" placeholder="0,00"></div>
     <div class="fg" style="background:#f0f7ff;border-radius:10px;padding:12px 14px;border:1px solid #c5dff8">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:700;font-size:.9rem">
@@ -8219,11 +8315,7 @@ function _renderAdiantamentosLista(all, _qtdCargaOculta){
 
 
 function _adtSincronizaEmpresa(bancoSelId, empresaSelId){
-  const bs=document.getElementById(bancoSelId), es=document.getElementById(empresaSelId);
-  if(!bs||!es) return;
-  const val=bs.value;
-  const b=(BANCOS_DB||[]).find(x=>x.cod===val||x.banco===val);
-  if(b && b.empresa) es.value=b.empresa;
+  _sincronizarEmpresaPorBanco(bancoSelId,empresaSelId);
 }
 
 
@@ -8236,7 +8328,12 @@ function _adtFormaChange(){
   const ehCheque=(forma==='Cheque'||forma==='Cheque de Terceiro');
   if(box) box.style.display=ehCheque?'block':'none';
   _ADT_CHQ_BANCOS=_cfgChequeBankNames();
-  _adtChqDefBanco = (forma==='Cheque de Terceiro') ? (ERP_BUSINESS_CONFIG.thirdPartyChequeBank||_ADT_CHQ_BANCOS.find(x=>/terceiro/i.test(x))||'') : (ERP_BUSINESS_CONFIG.defaultChequeBank||_ADT_CHQ_BANCOS[0]||'');
+  const bancosConta=_cfgChequeBanks().map(function(x){return String(x.name||'');}).filter(Boolean);
+  const terceiro=String((ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.thirdPartyChequeBank)||'').trim();
+  const padrao=String((ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.defaultChequeBank)||'').trim();
+  _adtChqDefBanco = forma==='Cheque de Terceiro'
+    ? (terceiro&&_ADT_CHQ_BANCOS.includes(terceiro)?terceiro:(_ADT_CHQ_BANCOS.find(x=>/terceiro/i.test(x))||''))
+    : (padrao&&bancosConta.includes(padrao)?padrao:(bancosConta[0]||''));
   if(ehCheque){
     const rows=document.getElementById('adt-chq-rows');
     if(rows && !rows.children.length) _adtChqAddRow(); 
@@ -8247,7 +8344,7 @@ function _adtFormaChange(){
 
 function _adtChqRowBankOptions(sel){
   _ADT_CHQ_BANCOS=_cfgChequeBankNames();
-  return _ADT_CHQ_BANCOS.map(function(b){ return '<option'+(b===sel?' selected':'')+'>'+esc(b)+'</option>'; }).join('');
+  return _cfgChequeBankOptionsHtml(sel||'');
 }
 function _adtDefData(){ return document.getElementById('adt-data')?.value||''; }
 function _adtChqAddRow(banco, num, valor, dataISO, vencISO, cli){
@@ -8340,21 +8437,18 @@ function _adtParseVal(s){
   var n=parseFloat(s); return isFinite(n)?n:0;
 }
 function _populateBancosSelects(){
-  const opts='<option value="">— Selecione o banco —</option>'+
-    (BANCOS_DB&&BANCOS_DB.length>0
-      ? BANCOS_DB.map(b=>`<option value="${b.cod||b.banco}">${b.banco}${b.empresa?' — '+b.empresa:''}${b.tipo==='Conta Terceiro'?' 👤 '+b.titular:''}</option>`).join('')
-      : BANCOS.map(b=>`<option value="${b.cod}">${b.banco}</option>`).join('')
-    );
-  
-  
-  
+  const bancos=Array.isArray(BANCOS_DB)?BANCOS_DB.filter(function(b){return b&&String(b.banco||'').trim();}):[];
+  const opts='<option value="">— Selecione o banco —</option>'+bancos.map(function(b){
+    const label=String(b.banco||'')+(b.empresa?' — '+b.empresa:'')+(b.tipo==='Conta Terceiro'&&b.titular?' 👤 '+b.titular:'');
+    return '<option value="'+esc(String(b.cod||b.id||b.banco||''))+'">'+esc(label)+'</option>';
+  }).join('')+(bancos.length?'':'<option value="" disabled>Nenhuma conta cadastrada em Bancos</option>');
   ['adt-banco','cheq-banco','cp-banco','ct-banco','adtcli-banco','rcr-banco','ecr-banco'].forEach(function(id){
-    const s=document.getElementById(id); if(s) s.innerHTML=opts;
+    const el=document.getElementById(id); if(!el) return;
+    const cur=el.value||'';
+    el.innerHTML=opts;
+    if(cur&&[...el.options].some(function(o){return o.value===cur;})) el.value=cur;
   });
 }
-
-
-
 
 
 let _camDest='';
@@ -13436,6 +13530,7 @@ function _fdAbrirDataUrl(d, dataUrl){
   if(!dataUrl){ showToast('Não consegui carregar o documento.','error'); return; }
   const win=window.open('','_blank');
   if(!win){showToast('Permita popups no navegador para visualizar.','error',5000);return;}
+  if(/^https?:\/\//i.test(String(dataUrl))){ win.location.href=String(dataUrl); return; }
   if(d.mimeType&&d.mimeType.startsWith('image/')){
     win.document.write('<!DOCTYPE html><html><head><title>'+esc(d.nomeArq)+'</title><style>body{margin:0;background:#111;display:flex;justify-content:center}img{max-width:100%;height:auto}</style></head><body><img src="'+dataUrl+'" alt="'+esc(d.nomeArq)+'"></body></html>');
   } else {
@@ -14348,7 +14443,7 @@ function renderChequesCompensar(){
   if(!_chqSec && cardBancos.length){
     h+='<div style="display:flex;flex-wrap:wrap;gap:10px;margin:4px 0 16px">';
     cardBancos.forEach(function(b){
-      var cor=_CHQ_BANCO_COR[b]||'#888';
+      var cor=_cfgChequeBankColor(b);
       h+='<div onclick="chqVerBanco(\''+esc(b)+'\')" title="Ver todos os cheques deste banco em ordem" style="background:#fff;border:1px solid #eee;border-top:4px solid '+cor+';border-radius:10px;padding:9px 14px;min-width:180px;cursor:pointer">'+
          '<div style="font-size:.74rem;font-weight:800;color:'+cor+';text-transform:uppercase;margin-bottom:5px">'+esc(b)+'</div>'+
          '<div style="display:flex;justify-content:space-between;gap:12px;font-size:.79rem"><span style="color:#e67e22;font-weight:700">🟠 A descontar</span><b>'+_chqFmt(abBanco[b].av)+'</b></div>'+
@@ -14505,7 +14600,7 @@ function chqMarcarComp(id){
   }
   
   var movId='';
-  if(descontarBanco && !c.movBancoId){ movId=_chqMovBancoCriar(_CHQ_BANCO_COD[c.b], (d||'').trim(), 'Cheque nº '+c.n+' compensado (controle)', +c.v||0); }
+  if(descontarBanco && !c.movBancoId){ movId=_chqMovBancoCriar(_cfgChequeBankCode(c.b), (d||'').trim(), 'Cheque nº '+c.n+' compensado (controle)', +c.v||0); }
   
   c.s='C'; c.cd=(d||'').trim(); if(movId) c.movBancoId=movId; try{ renderChequesCompensar(); }catch(e){}
   var upd={s:'C', cd:(d||'').trim()}; if(movId) upd.movBancoId=movId;
@@ -14579,7 +14674,7 @@ function chqRemessaDepConfirmar(){
     var id=chk.dataset.id; var c=CHQ_CTRL[id]; if(!c||(c.s||'A')!=='A') return;
     var descontarBanco=!c.dc; 
     var movId='';
-    if(descontarBanco && !c.movBancoId){ movId=_chqMovBancoCriar(_CHQ_BANCO_COD[c.b], dBR, 'Cheque nº '+c.n+' compensado (remessa '+dBR+')', +c.v||0); }
+    if(descontarBanco && !c.movBancoId){ movId=_chqMovBancoCriar(_cfgChequeBankCode(c.b), dBR, 'Cheque nº '+c.n+' compensado (remessa '+dBR+')', +c.v||0); }
     c.s='C'; c.cd=dBR; if(movId) c.movBancoId=movId;
     var upd={s:'C', cd:dBR}; if(movId) upd.movBancoId=movId;
     if(r){ try{ r.child(id).update(upd); }catch(e){} }
@@ -17129,6 +17224,7 @@ function salvarContaPagar(){
     else tipoForn='despesa';
   }
   const empresa=document.getElementById('cp-empresa')?.value||'';
+  if(!empresa){alert('Selecione a empresa responsável por esta conta.');return;}
 
   if(parcelado){
     
@@ -17183,7 +17279,7 @@ function editContaPagar(idx, id){
   if(!c) return;
   const vencISO=c.venc.split('/').reverse().join('-');
   const catOpts=c.cat||'';
-  const _bcSrc=(typeof BANCOS_DB!=='undefined'&&BANCOS_DB.length)?BANCOS_DB:BANCOS;
+  const _bcSrc=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB))?BANCOS_DB:[];
   const bancoOpts='<option value="">— Selecione —</option>'+_bcSrc.map(b=>{
     const nomeComp=b.banco+(b.tipo==='Conta Terceiro'&&b.titular?' ('+b.titular+')':'');
     const sel=(b.cod===c.bancoCod)||(c.bancoNome&&(c.bancoNome===b.banco||c.bancoNome===nomeComp));
@@ -17211,8 +17307,8 @@ function editContaPagar(idx, id){
     '<option>Limpeza</option><option>Alimentação</option><option>Transporte</option>'+
     '<option>Equipamentos</option><option>Peças e Insumos</option><option>Outros</option>'+
     '</datalist></div>'+
-    '<div class="fg"><label>Empresa</label><select id="ecp-empresa"><option value="">— (opcional)</option>'+_empresasOptions(c.empresa||'')+'</select></div>'+
-    '<div class="fg"><label>Banco de Pagamento</label><select id="ecp-banco">'+bancoOpts+'</select></div>'+
+    '<div class="fg"><label>Empresa</label><select id="ecp-empresa"><option value="">— Selecione a empresa —</option>'+_empresasOptions(c.empresa||'',true)+'</select></div>'+
+    '<div class="fg"><label>Banco de Pagamento</label><select id="ecp-banco" onchange="_sincronizarEmpresaPorBanco(&#39;ecp-banco&#39;,&#39;ecp-empresa&#39;)">'+bancoOpts+'</select></div>'+
     '<div class="fg"><label>Vencimento</label><input id="ecp-venc" type="date" value="'+vencISO+'"></div>'+
     '<div class="fg"><label>Valor R$</label><input id="ecp-valor" type="number" min="0" step="0.01" value="'+c.valor+'"></div>'+
     '<div class="fg"><label>Status</label><select id="ecp-status">'+stOpts+'</select></div>'+
@@ -17238,7 +17334,9 @@ function salvarEditContaPagar(){
   c.cat=document.getElementById('ecp-cat').value.trim()||'Outros';
   c.bancoCod=bancoCod;
   c.bancoNome=_bancoNomePorCod(bancoCod);
-  c.empresa=document.getElementById('ecp-empresa')?.value||'';
+  const empresaEdit=document.getElementById('ecp-empresa')?.value||'';
+  if(!empresaEdit){alert('Selecione a empresa responsável por esta conta.');return;}
+  c.empresa=empresaEdit;
   c.venc=document.getElementById('ecp-venc').value.split('-').reverse().join('/');
   c.valor=parseFloat(document.getElementById('ecp-valor').value)||0;
   c.status=document.getElementById('ecp-status').value;
@@ -18501,16 +18599,15 @@ function toggleCpfCnpj(fgId, tipo){
 }
 
 function rebuildBancosDropdowns(){
-  
   ['cr-banco','ecr-banco','cp-banco','ecp-banco'].forEach(id=>{
     const sel=document.getElementById(id);
     if(!sel) return;
     const cur=sel.value;
-    sel.innerHTML='<option value="">— Selecione —</option>'+
-      BANCOS_DB.map(b=>{
-        const label=b.banco+(b.tipo==='Conta Terceiro'?' 👤 '+b.titular:'');
-        return '<option value="'+esc(label)+'"'+(label===cur?' selected':'')+'>'+esc(label)+'</option>';
-      }).join('');
+    sel.innerHTML='<option value="">— Selecione —</option>'+BANCOS_DB.map(b=>{
+      const value=String(b.cod||b.id||b.banco||'');
+      const label=String(b.banco||'')+(b.empresa?' — '+b.empresa:'')+(b.tipo==='Conta Terceiro'&&b.titular?' 👤 '+b.titular:'');
+      return '<option value="'+esc(value)+'"'+(value===cur?' selected':'')+'>'+esc(label)+'</option>';
+    }).join('');
   });
 }
 let VENDAS_DB = [];
@@ -18519,11 +18616,13 @@ const _syncVendas = _criarSincroniaPorChave('vendas', VENDAS_DB, 'VD');
 function populateBancoSelect(selId, selectedVal){
   const sel=document.getElementById(selId);
   if(!sel) return;
-  const list = BANCOS_DB.length>0
-    ? BANCOS_DB.map(b=>({nome: b.banco+(b.tipo==='Conta Terceiro'?' 👤 '+b.titular:''), cod: b.cod}))
-    : BANCOS_LIST;
-  sel.innerHTML='<option value="">— Selecione —</option>'+
-    list.map(b=>'<option value="'+esc(b.nome)+'"'+(b.nome===selectedVal?' selected':'')+'>'+esc(b.nome)+'</option>').join('');
+  const list=BANCOS_DB.map(function(b){
+    return {nome:String(b.banco||'')+(b.empresa?' — '+b.empresa:'')+(b.tipo==='Conta Terceiro'&&b.titular?' 👤 '+b.titular:''),cod:String(b.cod||b.id||b.banco||'')};
+  });
+  sel.innerHTML='<option value="">— Selecione —</option>'+list.map(function(b){
+    const selected=b.cod===selectedVal||b.nome===selectedVal;
+    return '<option value="'+esc(b.cod)+'"'+(selected?' selected':'')+'>'+esc(b.nome)+'</option>';
+  }).join('');
 }
 
 function saveVendas(){
@@ -19414,7 +19513,7 @@ function om(k){
       body.innerHTML='<div style="padding:40px;text-align:center;color:#777">⏳ Buscando snapshots...</div>';
     } else if(k==='conta_pagar'){
       body.innerHTML=FORMS['conta_pagar']||'';
-      setTimeout(()=>{ try{atualizarSelectFornDespesa();}catch(e){} try{_populateBancosSelects();}catch(e){} },30);
+      setTimeout(()=>{ try{_erpRefreshCompanySources();}catch(e){} try{atualizarSelectFornDespesa();}catch(e){} try{_populateBancosSelects();}catch(e){} },30);
     } else if(k==='venda'){
       let html; try{ html=buildVendaForm(); }catch(e){ showFormError('buildVendaForm: '+e.message); return; }
       body.innerHTML=html;
@@ -19459,7 +19558,16 @@ function om(k){
           }
         }
         if(k==='banco'){
+          _erpRefreshCompanySources();
+          const sel=document.getElementById('bc-empresa');
+          const principal=_empresaPrincipalChave()||((_cfgRegisteredCompanies()[0])||'');
+          if(sel&&!sel.value&&principal&&[...sel.options].some(function(o){return o.value===principal;})) sel.value=principal;
           const tit=document.getElementById('bc-titular'); if(tit && _empresaPrincipalRazao()) tit.placeholder=_empresaPrincipalRazao()+' ou nome do terceiro';
+        }
+        if(k==='adiantamento'){
+          _erpRefreshCompanySources();
+          const sb=document.getElementById('adt-seq-banco');
+          if(sb) sb.innerHTML=_cfgChequeBankOptionsHtml('');
         }
       }catch(e){} },20);
       
