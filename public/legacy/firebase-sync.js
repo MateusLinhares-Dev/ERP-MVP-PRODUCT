@@ -47,7 +47,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
        window._fbDB = window.__legacyDbAdapter ? window.__legacyDbAdapter(window._fbRawDB) : window._fbRawDB;
       try{ if(typeof _fbSetStatus==='function') _fbSetStatus('ok'); }catch(e){}
       var banner=document.getElementById('fb-offline-banner'); if(banner) banner.remove();
-      try{ _iniciarChecagemVersao(); }catch(e){}
+      try{ if(firebase.auth && firebase.auth().currentUser) _iniciarChecagemVersao(); }catch(e){}
 
       try{ if(typeof cu!=='undefined' && cu && typeof fbCarregar==='function'){ var _goFb=function(){ fbCarregar(function(){ try{ if(typeof fbIniciarListener==='function') fbIniciarListener(); }catch(e){} }); }; var _unFb=''; try{ _unFb=sessionStorage.getItem('mm_sessao')||''; }catch(e){} if(_unFb && firebase.auth && !firebase.auth().currentUser){ _fbAuthLogin(_unFb, _goFb, _goFb); } else { _goFb(); } } }catch(e){}
       return true;
