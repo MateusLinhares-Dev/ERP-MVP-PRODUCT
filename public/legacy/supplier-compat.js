@@ -152,13 +152,21 @@
       r+='<td>'+_safe(f.cnpj||f.cpf||'—')+'</td>';
       r+='<td>'+_safe(f.cidade||'—')+'</td>';
       r+='<td style="white-space:nowrap">';
-      r+='<button data-ficha-cod="'+c+'" onclick="event.stopPropagation()" style="padding:4px 10px;font-size:.78rem;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">📋 Ficha</button>';
+      r+='<button type="button" class="forn-ficha-btn" data-ficha-cod="'+c+'" style="padding:4px 10px;font-size:.78rem;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">📋 Ficha</button>';
       if(contas.length){ r+='<button type="button" onclick="event.stopPropagation();fornAbrirPix(\''+c+'\')" style="padding:4px 10px;font-size:.78rem;background:#159447;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px;font-weight:800">'+pixLabel+'</button>'; }
       r+='<button class="btn-edit" onclick="event.stopPropagation();editFornecedor(\''+c+'\')">✏️</button>';
       r+=' <button class="btn-edit" onclick="event.stopPropagation();fornDocsModal(\''+c+'\')" title="Documentos" style="background:#0277bd;color:#fff">📄 Docs</button>';
       if(isElaine) r+=' <button class="btn-edit-danger" onclick="event.stopPropagation();excluirFornecedor(\''+c+'\')" title="Excluir">🗑️</button>';
       r+='</td></tr>'; return r;
     }).join('');
+    tb.querySelectorAll('.forn-ficha-btn[data-ficha-cod]').forEach(function(btn){
+      btn.addEventListener('click',function(event){
+        event.preventDefault();
+        event.stopPropagation();
+        var cod=this.getAttribute('data-ficha-cod')||'';
+        if(cod && typeof window.abrirFichaForn==='function') window.abrirFichaForn(cod);
+      });
+    });
     _populatePriceSupplierSelect();
   };
 
