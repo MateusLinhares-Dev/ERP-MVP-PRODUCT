@@ -931,13 +931,21 @@ function renderTabelaFornecedores(){
     var _bin=(_bco&&_obs)?(_bco+' | '+_obs):(_bco||_obs||'—');
     r+='<td style="font-size:.78rem;white-space:nowrap">'+(_bco?'<b style="color:#1a5e2a">🏦 </b>':'')+esc(_bin)+'</td>';
     r+='<td style="white-space:nowrap">';
-    r+='<button type="button" data-ficha-cod="'+c+'" onclick="return window.__abrirFichaFornAcao(this,event)" style="padding:4px 10px;font-size:.78rem;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">&#x1F4CB; Ficha</button>';
+    r+='<button type="button" class="forn-ficha-btn" data-ficha-cod="'+c+'" style="padding:4px 10px;font-size:.78rem;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">&#x1F4CB; Ficha</button>';
     r+='<button class="btn-edit" onclick="editFornecedor(&#39;'+c+'&#39;)">&#x270F;&#xFE0F;</button>';
     r+=' <button class="btn-edit" onclick="fornDocsModal(&#39;'+c+'&#39;)" title="Documentos" style="background:#0277bd;color:#fff">&#x1F4C4; Docs</button>';
     if(_isEl) r+=' <button class="btn-edit-danger" onclick="excluirFornecedor(&#39;'+c+'&#39;)" title="Excluir">&#x1F5D1;&#xFE0F;</button>';
     r+='</td></tr>';
     return r;
   }).join('');
+  tbForn.querySelectorAll('.forn-ficha-btn[data-ficha-cod]').forEach(function(btn){
+    btn.addEventListener('click',function(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      var cod=this.getAttribute('data-ficha-cod')||'';
+      abrirFichaForn(cod);
+    });
+  });
 }
 
 function fornSelLinha(tr){
