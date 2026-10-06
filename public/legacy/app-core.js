@@ -931,7 +931,7 @@ function renderTabelaFornecedores(){
     var _bin=(_bco&&_obs)?(_bco+' | '+_obs):(_bco||_obs||'—');
     r+='<td style="font-size:.78rem;white-space:nowrap">'+(_bco?'<b style="color:#1a5e2a">🏦 </b>':'')+esc(_bin)+'</td>';
     r+='<td style="white-space:nowrap">';
-    r+='<button data-ficha-cod="'+c+'" onclick="event.stopPropagation();abrirFichaForn(&#39;'+c+'&#39;)" style="padding:4px 10px;font-size:.78rem;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">&#x1F4CB; Ficha</button>';
+    r+='<button type="button" data-ficha-cod="'+c+'" onclick="return window.__abrirFichaFornAcao(this,event)" style="padding:4px 10px;font-size:.78rem;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">&#x1F4CB; Ficha</button>';
     r+='<button class="btn-edit" onclick="editFornecedor(&#39;'+c+'&#39;)">&#x270F;&#xFE0F;</button>';
     r+=' <button class="btn-edit" onclick="fornDocsModal(&#39;'+c+'&#39;)" title="Documentos" style="background:#0277bd;color:#fff">&#x1F4C4; Docs</button>';
     if(_isEl) r+=' <button class="btn-edit-danger" onclick="excluirFornecedor(&#39;'+c+'&#39;)" title="Excluir">&#x1F5D1;&#xFE0F;</button>';
@@ -20518,19 +20518,33 @@ function initDespesas(){
       var _ffCodAtual = null;
 
       function abrirFichaForn(cod){
+        cod=String(cod==null?'':cod).trim();
+        var ativos=getFornAtivos()||[];
         var dl=document.getElementById('ff-forn-list');
-        if(dl) dl.innerHTML=(getFornAtivos()||[]).map(function(f){ return '<option value="'+f.nome+'">'; }).join('');
+        if(dl) dl.innerHTML=ativos.map(function(f){ return '<option value="'+esc(f.nome||'')+'">'; }).join('');
+        var forn=ativos.find(function(f){ return String(f&&f.cod!=null?f.cod:'').trim()===cod; })
+          ||(FORNECEDORES||[]).find(function(f){ return String(f&&f.cod!=null?f.cod:'').trim()===cod; });
         var modal=document.getElementById('modal-ficha-forn');
         if(modal) modal.style.display='flex';
-        var forn=FORNECEDORES.find(function(f){ return f.cod===cod; });
         if(!forn){
           var tb=document.getElementById('ff-tbody');
           if(tb) tb.innerHTML='<tr><td colspan="5" style="padding:16px;color:#c0392b;text-align:center">Fornecedor nao encontrado.</td></tr>';
-          return;
+          return false;
         }
-        var busca=document.getElementById('ff-busca'); if(busca) busca.value=forn.nome;
-        _ffCodAtual=cod;
-        ffRenderFicha(cod,'','');
+        var codReal=String(forn.cod==null?cod:forn.cod).trim();
+        var busca=document.getElementById('ff-busca'); if(busca) busca.value=forn.nome||'';
+        _ffCodAtual=codReal;
+        ffRenderFicha(codReal,'','');
+        return false;
+      }
+
+      function __abrirFichaFornAcao(btn,ev){
+        if(ev){
+          if(typeof ev.preventDefault==='function') ev.preventDefault();
+          if(typeof ev.stopPropagation==='function') ev.stopPropagation();
+        }
+        var cod=btn&&btn.getAttribute?btn.getAttribute('data-ficha-cod'):'';
+        return abrirFichaForn(cod);
       }
 
 
@@ -21748,6 +21762,7 @@ function initDespesas(){
       window['ffImprimir']=ffImprimir;
       window['ffWhatsApp']=ffWhatsApp;
       window['abrirFichaForn']=abrirFichaForn;
+      window['__abrirFichaFornAcao']=__abrirFichaFornAcao;
       window['filtrarTabelaForn']=filtrarTabelaForn;
 
       
