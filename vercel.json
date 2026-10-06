@@ -50,7 +50,8 @@
   "git": {
     "deploymentEnabled": {
       "*": false,
-      "hml": true
+      "hml": false,
+      "main": true
     }
   }
 }
