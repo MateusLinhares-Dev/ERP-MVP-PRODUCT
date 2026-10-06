@@ -152,6 +152,20 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }catch(e){ console.warn('_estoqueAplicarDaNuvem:',e); return false; }
   }
 
+  function _tanqueAplicarNuvem(remoto,confiavel){
+    try{
+      if(typeof TANQUE_DB==='undefined') return false;
+      if(remoto==null){ if(confiavel&&Array.isArray(TANQUE_DB)) TANQUE_DB.length=0; return false; }
+      const lista=Array.isArray(remoto)?remoto.filter(Boolean):(remoto&&typeof remoto==='object'?Object.values(remoto).filter(Boolean):[]);
+      if(!Array.isArray(TANQUE_DB)) return false;
+      TANQUE_DB.length=0;
+      lista.forEach(function(x){ TANQUE_DB.push(x); });
+      try{ localStorage.setItem('mm_tanque',JSON.stringify(TANQUE_DB)); }catch(e){}
+      try{ const aba=document.getElementById('tab-combustivel_rudnick'); if(aba&&aba.classList.contains('active')){ if(typeof renderTanque==='function') renderTanque(); if(typeof renderSaidasTanque==='function') renderSaidasTanque(); if(typeof renderHistoricoEntradasTanque==='function') renderHistoricoEntradasTanque(); } }catch(e){}
+      return true;
+    }catch(e){ console.warn('tanque sync:',e); return false; }
+  }
+
   function _fcAplicarNuvem(d){
     if(!d || !Array.isArray(d._shallowKeys)) return false;
     const refs=[
@@ -1291,7 +1305,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _syncViagem.aplicarTombstonesRemotos(d.viagemDeleted);
           _syncCombustivel.carregarDeRemoto(d.combustivel, _fbConfiavel);
           _syncCombustivel.aplicarTombstonesRemotos(d.combustivelDeleted);
-          if(d.tanque) Object.assign(TANQUE_DB, d.tanque);
+          _tanqueAplicarNuvem(d.tanque, _fbConfiavel);
           if(d.precosForn) Object.assign(PRECOS_FORN_DATA, d.precosForn);
           if(d.precosCli) Object.assign(PRECOS_CLI_DATA, d.precosCli);
           _syncClientes.carregarDeRemoto(d.clientes, _fbConfiavel);
@@ -1650,6 +1664,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _syncViagem.aplicarTombstonesRemotos(d.viagemDeleted);
           _syncCombustivel.carregarDeRemoto(d.combustivel, !!d._ts);
           _syncCombustivel.aplicarTombstonesRemotos(d.combustivelDeleted);
+          _tanqueAplicarNuvem(d.tanque, !!d._ts);
           
           
           
