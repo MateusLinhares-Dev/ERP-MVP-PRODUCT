@@ -6695,6 +6695,95 @@ function valeGerarRecibo(idx){
 }
 
 
+function _valeMesChave(v){
+  const data=String(v&&v.data||'').trim();
+  let m=data.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(m) return m[3]+'-'+m[2];
+  m=data.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(m) return m[1]+'-'+m[2];
+  return '';
+}
+
+function _valeMesFiltroAtual(){
+  const el=document.getElementById('vales-filtro-mes');
+  if(!el) return '';
+  if(!el.dataset.inicializado){
+    const d=new Date();
+    el.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    el.dataset.inicializado='1';
+  }
+  return String(el.value||'');
+}
+
+function _valeListaFiltrada(){
+  const mes=_valeMesFiltroAtual();
+  if(!mes) return VALES_DB.slice();
+  return VALES_DB.filter(function(v){ return _valeMesChave(v)===mes; });
+}
+
+function valeVerTodos(){
+  const el=document.getElementById('vales-filtro-mes');
+  if(el){ el.dataset.inicializado='1'; el.value=''; }
+  renderVales();
+}
+
+function _valeReciboHtml(v,compacto){
+  const f=FUNCIONARIOS.find(function(x){return x.mat===v.mat;});
+  const nome=f?f.nome:v.mat;
+  const cargo=f?f.cargo||'':'';
+  const empresa=(f&&f.empresa)||'';
+  const fmt=function(n){return _numFinito(n,0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  const assinatura=v.assinatura
+    ? '<img src="'+v.assinatura+'" style="max-height:58px;display:block;margin:0 auto">'
+    : '<div style="border-top:1px solid #333;width:260px;margin:26px auto 0;padding-top:4px;font-size:10px;color:#555;text-align:center">Assinatura do Funcionário</div>';
+  return '<section class="vale-recibo '+(compacto?'compacto':'')+'">'+
+    '<div class="vale-recibo-titulo">RECIBO DE VALE / ADIANTAMENTO</div>'+
+    '<div class="vale-recibo-empresa">'+esc(empresa||_empresaPrincipalRazao())+'</div>'+
+    '<div class="vale-recibo-linha"></div>'+
+    '<div class="vale-recibo-info">'+
+      '<div><span>Funcionário</span><b>'+esc(nome)+'</b></div>'+
+      '<div><span>Cargo</span><b>'+esc(cargo||'—')+'</b></div>'+
+      '<div><span>Empresa</span><b>'+esc(empresa||'—')+'</b></div>'+
+      '<div><span>Data do Vale</span><b>'+esc(v.data||'—')+'</b></div>'+
+      '<div><span>Mês Referência</span><b>'+esc(v.mes||'—')+'</b></div>'+
+      '<div><span>Forma de Pagamento</span><b>'+esc(v.forma||'—')+'</b></div>'+
+      '<div style="grid-column:1 / -1"><span>Obs.</span><b>'+esc(v.obs||'—')+'</b></div>'+
+    '</div>'+
+    '<div class="vale-recibo-total">R$ '+fmt(v.valor)+'</div>'+
+    '<div class="vale-recibo-decl">Declaro ter recebido a quantia acima referente a vale/adiantamento salarial.</div>'+
+    '<div class="vale-recibo-ass">'+assinatura+'</div>'+
+    (v.assinadoEm?'<div class="vale-recibo-assdata">Assinado em: '+esc(_fmtDataBR(v.assinadoEm))+'</div>':'')+
+    '<div class="vale-recibo-rodape">Documento gerado pelo sistema ERP · '+new Date().toLocaleDateString('pt-BR')+'</div>'+
+  '</section>';
+}
+
+function valeGerarTodosRecibosMes(){
+  const mes=_valeMesFiltroAtual();
+  if(!mes){ showToast('Selecione um mês para gerar os recibos.','error'); return; }
+  const lista=_valeListaFiltrada().slice().sort(function(a,b){
+    const na=String((FUNCIONARIOS.find(function(f){return f.mat===a.mat;})||{}).nome||a.mat||'');
+    const nb=String((FUNCIONARIOS.find(function(f){return f.mat===b.mat;})||{}).nome||b.mat||'');
+    return na.localeCompare(nb,'pt-BR');
+  });
+  if(!lista.length){ showToast('Não há vales no mês selecionado.','error'); return; }
+  const win=window.open('','_blank','width=950,height=850');
+  if(!win){ showToast('Permita pop-ups no navegador para gerar os recibos.','error',5000); return; }
+  const [ano,mn]=mes.split('-');
+  const meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const titulo=(meses[Number(mn)-1]||mn)+'/'+ano;
+  let paginas='';
+  for(let i=0;i<lista.length;i+=2){
+    paginas+='<div class="folha-recibos">'+_valeReciboHtml(lista[i],true);
+    if(lista[i+1]) paginas+='<div class="corte">✂ corte aqui</div>'+_valeReciboHtml(lista[i+1],true);
+    paginas+='</div>';
+  }
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Recibos de Vale - '+esc(titulo)+'</title><style>'+ 
+    '@page{size:A4 portrait;margin:7mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;color:#111;background:#fff}.toolbar{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #ddd;padding:8px;text-align:center}.toolbar button{background:#1a5e2a;color:#fff;border:0;border-radius:6px;padding:8px 18px;font-weight:700;cursor:pointer}.folha-recibos{height:283mm;page-break-after:always;display:flex;flex-direction:column;justify-content:flex-start}.folha-recibos:last-child{page-break-after:auto}.vale-recibo{height:139mm;padding:8mm 2mm 4mm;position:relative}.vale-recibo-titulo{text-align:center;font-size:15px;font-weight:800}.vale-recibo-empresa{text-align:center;font-size:11px;font-weight:700;margin-top:2px}.vale-recibo-linha{border-top:1px solid #333;margin:5px 0 8px}.vale-recibo-info{display:grid;grid-template-columns:1fr 1fr;gap:5px 18px;background:#fafafa;border-radius:4px;padding:8px}.vale-recibo-info span{display:block;font-size:9px;color:#777}.vale-recibo-info b{display:block;font-size:11px;margin-top:1px}.vale-recibo-total{text-align:center;font-size:18px;font-weight:900;color:#1a3a2a;background:#e8f5e9;border-radius:5px;padding:7px;margin:9px 0}.vale-recibo-decl{text-align:center;font-size:10px;color:#555}.vale-recibo-ass{text-align:center;margin-top:8px;height:42px}.vale-recibo-assdata{text-align:center;font-size:9px;color:#777}.vale-recibo-rodape{text-align:center;color:#aaa;font-size:8px;margin-top:7px;border-top:1px solid #eee;padding-top:5px}.corte{height:5mm;border-top:1px dashed #aaa;text-align:center;color:#999;font-size:8px;line-height:5mm}@media print{.toolbar{display:none}.folha-recibos{height:283mm}}'+
+    '</style></head><body><div class="toolbar"><b>'+lista.length+' recibo(s) · '+esc(titulo)+'</b> &nbsp; <button onclick="window.print()">🖨️ Imprimir todos</button></div>'+paginas+'</body></html>');
+  win.document.close();
+}
+
+
 
 function getFolhaMes(){
   const el=document.getElementById('folha-mes');
@@ -6928,8 +7017,14 @@ function renderFolha(){
   const [ano,mn]=mes.split('-');
   const nomeMes=meses[parseInt(mn)-1]+'/'+ano;
   const titulo=document.getElementById('folha-titulo');
-  if(titulo) titulo.textContent='Folha – '+nomeMes;
-  const lista=FUNCIONARIOS.filter(f=>f.status!=='Inativo');
+  const listaTodos=FUNCIONARIOS.filter(function(f){return f.status!=='Inativo';});
+  const termoEl=document.getElementById('folha-pesquisa');
+  const termo=String(termoEl&&termoEl.value||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const lista=termo?listaTodos.filter(function(f){
+    const texto=[f.mat,f.nome,f.cargo,f.empresa,f.role,f.descricao].map(function(v){return String(v||'');}).join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    return texto.includes(termo);
+  }):listaTodos;
+  if(titulo) titulo.textContent='Folha – '+nomeMes+(termo?' · '+lista.length+' de '+listaTodos.length+' funcionário(s)':'');
   let totalBruto=0,totalInss=0,totalLiq=0,totalDec=0,totalFer=0,totalDiariasAll=0;
   tbFolha.innerHTML=lista.map(f=>{
     const key=mes+'-'+f.mat;
@@ -7134,16 +7229,14 @@ function verCustoAnual(){
 function renderVales(){
   const tb=document.getElementById('tb-vales');
   if(!tb) return;
-  const fmt=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=function(v){return _numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  const filtroMes=_valeMesFiltroAtual();
+  const listaFiltrada=_valeListaFiltrada();
   const agora=new Date();
-  const mes=String(agora.getMonth()+1).padStart(2,'0');
-  const ano=String(agora.getFullYear());
-  const doMes=VALES_DB.filter(function(v){
-    const p=String(v&&v.data||'').split('/');
-    return p.length===3&&p[1]===mes&&p[2]===ano;
-  });
-  const totalMes=doMes.reduce((s,v)=>s+Number(v.valor||0),0);
-  const totalGeral=VALES_DB.reduce((s,v)=>s+Number(v.valor||0),0);
+  const mesKpi=filtroMes||agora.getFullYear()+'-'+String(agora.getMonth()+1).padStart(2,'0');
+  const doMes=VALES_DB.filter(function(v){return _valeMesChave(v)===mesKpi;});
+  const totalMes=doMes.reduce(function(s,v){return s+_numFinito(v.valor,0);},0);
+  const totalGeral=VALES_DB.reduce(function(s,v){return s+_numFinito(v.valor,0);},0);
   const cfgV=(ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.employeeBenefits)||{};
   const diaVale=Math.max(1,Math.min(31,Number(cfgV.voucherPaymentDay)||20));
   const tituloVales=document.getElementById('vales-titulo');
@@ -7151,34 +7244,43 @@ function renderVales(){
   const kSub=document.getElementById('kpi-vales-mes-sub');
   const kAberto=document.getElementById('kpi-vales-aberto');
   const kTotal=document.getElementById('kpi-vales-total');
+  const count=document.getElementById('vales-filtro-count');
+  const [anoK,mnK]=mesKpi.split('-');
+  const nomeMesK=new Date(Number(anoK),Number(mnK)-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
   if(tituloVales) tituloVales.textContent='💳 Controle de Vales – Pagamento Dia '+diaVale;
   if(kMes) kMes.textContent='R$ '+fmt(totalMes);
-  if(kSub) kSub.textContent='Dia '+diaVale+' de '+agora.toLocaleDateString('pt-BR',{month:'long'});
+  if(kSub) kSub.textContent='Dia '+diaVale+' · '+nomeMesK;
   if(kAberto) kAberto.textContent=String(doMes.length);
   if(kTotal) kTotal.textContent='R$ '+fmt(totalGeral);
-  if(VALES_DB.length===0){
-    tb.innerHTML='<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum vale lançado ainda</td></tr>';
+  if(count) count.textContent=filtroMes?('Vales encontrados: '+listaFiltrada.length):('Todos os vales: '+VALES_DB.length);
+  if(listaFiltrada.length===0){
+    tb.innerHTML='<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum vale encontrado para o período selecionado</td></tr>';
     return;
   }
-  const sorted=[...VALES_DB].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')));
-  tb.innerHTML=sorted.map((v,i)=>{
+  const sorted=listaFiltrada.slice().sort(function(a,b){
+    const pa=String(a&&a.data||'').split('/'), pb=String(b&&b.data||'').split('/');
+    const da=pa.length===3?new Date(Number(pa[2]),Number(pa[1])-1,Number(pa[0])).getTime():Date.parse(a&&a.data||'')||0;
+    const db=pb.length===3?new Date(Number(pb[2]),Number(pb[1])-1,Number(pb[0])).getTime():Date.parse(b&&b.data||'')||0;
+    return db-da;
+  });
+  tb.innerHTML=sorted.map(function(v){
     const gi=VALES_DB.indexOf(v);
-    const f=FUNCIONARIOS.find(x=>x.mat===v.mat);
+    const f=FUNCIONARIOS.find(function(x){return x.mat===v.mat;});
     const nome=f?f.nome:v.mat;
     const assBadge=v.assinatura
       ?'<span style="background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:2px 8px;font-size:.72rem;font-weight:700">✅ Assinado</span>'
       :'<span style="background:#fff3cd;color:#856404;border-radius:10px;padding:2px 8px;font-size:.72rem;font-weight:700">⏳ Pendente</span>';
     return '<tr>'+ 
-      '<td>'+v.mat+'</td>'+ 
-      '<td>'+v.data+'</td>'+ 
+      '<td>'+esc(v.mat||'—')+'</td>'+ 
+      '<td>'+esc(_fmtDataBR(v.data)||'—')+'</td>'+ 
       '<td>'+esc(v.mes||'—')+'</td>'+ 
-      '<td><b>'+esc(nome)+'</b></td>'+ 
+      '<td><b>'+esc(nome||'—')+'</b></td>'+ 
       '<td style="font-weight:700">R$ '+fmt(v.valor)+'</td>'+ 
       '<td>'+esc(v.forma||'—')+'</td>'+ 
       '<td style="font-size:.78rem">'+esc(v.obs||'—')+'</td>'+ 
       '<td style="white-space:nowrap;text-align:center">'+assBadge+
         '<br><div style="margin-top:4px;display:flex;gap:4px;justify-content:center">'+
-        '<button class="btn-edit" style="font-size:.72rem;background:#1565c0;color:#fff" onclick="valeAssinarModal('+gi+',\''+v.mat+'\')" title="Capturar assinatura">✍️ Assinar</button>'+ 
+        '<button class="btn-edit" style="font-size:.72rem;background:#1565c0;color:#fff" onclick="valeAssinarModal('+gi+',\''+String(v.mat||'').replace(/'/g,"\\'")+'\')" title="Capturar assinatura">✍️ Assinar</button>'+ 
         '<button class="btn-edit" style="font-size:.72rem;background:#2e7d32;color:#fff" onclick="valeGerarRecibo('+gi+')" title="Gerar recibo">📄 Recibo</button>'+ 
         '</div></td>'+ 
       '<td style="white-space:nowrap"><button class="btn-edit" onclick="editVale('+gi+')" title="Editar" style="margin-right:4px">✏️</button>'+ 

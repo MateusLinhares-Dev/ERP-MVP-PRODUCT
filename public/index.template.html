@@ -1880,6 +1880,15 @@
           <div class="tcard-title">Vales Lançados</div>
           <button class="btn-add" onclick="om('vale')">+ Novo Vale</button>
         </div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:10px 4px 12px">
+          <div>
+            <label style="font-size:.78rem;font-weight:700;color:var(--gray);display:block;margin-bottom:4px">FILTRAR POR MÊS</label>
+            <input type="month" id="vales-filtro-mes" onchange="renderVales()" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:.88rem">
+          </div>
+          <button class="btn-edit" onclick="valeVerTodos()" style="padding:8px 14px">Ver todos</button>
+          <button class="btn-add" onclick="valeGerarTodosRecibosMes()" style="background:#2e7d32;padding:8px 16px">🖨️ Gerar todos os recibos</button>
+          <span id="vales-filtro-count" style="font-size:.82rem;color:var(--gray);padding-bottom:8px"></span>
+        </div>
         <table>
           <thead><tr><th>Matr.</th><th>Data</th><th>Mês Ref.</th><th>Nome</th><th>Valor R$</th><th>Forma</th><th>Obs.</th><th>Recibo</th><th>Ações</th></tr></thead>
           <tbody id="tb-vales"><tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum vale lançado ainda</td></tr></tbody>
@@ -1928,6 +1937,7 @@
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
         <label style="font-weight:600;color:var(--primary)">Mês de referência:</label>
         <input type="month" id="folha-mes" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:.95rem" onchange="renderFolha()">
+        <input type="search" id="folha-pesquisa" placeholder="🔎 Pesquisar nome, matrícula, cargo ou empresa..." oninput="renderFolha()" style="min-width:320px;flex:1;max-width:520px;padding:7px 12px;border:1px solid #ddd;border-radius:8px;font-size:.9rem">
         <button class="btn-add" style="background:#8e44ad;padding:7px 16px" onclick="verCustoAnual()">📅 Custo Anual por Funcionário</button>
         <button class="btn-add" style="background:#27ae60;padding:7px 16px" onclick="fecharFolha()">📋 Fechar Folha / Lançar C.Pagar</button>
       </div>
