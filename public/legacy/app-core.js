@@ -7,8 +7,10 @@ window.addEventListener('unhandledrejection',function(e){
   try{ showToast('⚠️ Erro: '+(e.reason?.message||e.reason||'desconhecido'),'error',8000); }catch(e){}
 });
 
-const fmt = v => Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
-const fmtDate = s => s ? s.split('-').reverse().join('/') : '';
+function _numFinito(v,fallback=0){ const n=Number(v); return Number.isFinite(n)?n:fallback; }
+function _fmtDataBR(v){ const s=String(v??'').trim(); if(!s) return ''; const iso=s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/); if(iso) return iso[3]+'/'+iso[2]+'/'+iso[1]; if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s; return s; }
+const fmt = v => _numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+const fmtDate = _fmtDataBR;
 
 let FORN_DELETED = new Set();
 function getFornAtivos(){
@@ -929,13 +931,21 @@ function renderTabelaFornecedores(){
     var _bin=(_bco&&_obs)?(_bco+' | '+_obs):(_bco||_obs||'—');
     r+='<td style="font-size:.78rem;white-space:nowrap">'+(_bco?'<b style="color:#1a5e2a">🏦 </b>':'')+esc(_bin)+'</td>';
     r+='<td style="white-space:nowrap">';
-    r+='<button data-ficha-cod="'+c+'" style="padding:4px 10px;font-size:.78rem;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">&#x1F4CB; Ficha</button>';
+    r+='<button type="button" class="forn-ficha-btn" data-ficha-cod="'+c+'" style="padding:4px 10px;font-size:.78rem;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">&#x1F4CB; Ficha</button>';
     r+='<button class="btn-edit" onclick="editFornecedor(&#39;'+c+'&#39;)">&#x270F;&#xFE0F;</button>';
     r+=' <button class="btn-edit" onclick="fornDocsModal(&#39;'+c+'&#39;)" title="Documentos" style="background:#0277bd;color:#fff">&#x1F4C4; Docs</button>';
     if(_isEl) r+=' <button class="btn-edit-danger" onclick="excluirFornecedor(&#39;'+c+'&#39;)" title="Excluir">&#x1F5D1;&#xFE0F;</button>';
     r+='</td></tr>';
     return r;
   }).join('');
+  tbForn.querySelectorAll('.forn-ficha-btn[data-ficha-cod]').forEach(function(btn){
+    btn.addEventListener('click',function(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      var cod=this.getAttribute('data-ficha-cod')||'';
+      abrirFichaForn(cod);
+    });
+  });
 }
 
 function fornSelLinha(tr){
@@ -1350,33 +1360,38 @@ function startApp(username) {
   }
 }
 
-function doLogout(){
-  try{ if(typeof window.erpAudit==='function') window.erpAudit('logout','auth',{entityType:'session',entityId:''}); }catch(e){}
-  _secCancelarInatividade();
-  clearTimeout(_fbTimer);
-  try{ if(typeof window.__alertStateResetForLogout==='function') window.__alertStateResetForLogout(); }catch(e){}
-  try{ sessionStorage.removeItem('mm_sessao'); }catch(e){}
-
-  
-  cu=null;
-  document.getElementById('app-screen').style.display='none';
-  document.getElementById('login-screen').style.display='flex';
-  const _inpU=document.getElementById('inp-u'); if(_inpU) _inpU.value='';
-  document.getElementById('inp-p').value='';
-
-  
+async function doLogout(){
+  if(window.__ERP_LOGOUT_IN_PROGRESS__) return;
+  window.__ERP_LOGOUT_IN_PROGRESS__=true;
   try{
-    const p = _fbSalvarAgora();
-    if(p && typeof p.then === 'function'){
-      p.then(()=>{ try{_fbAuthLogout();}catch(e){} },
-             ()=>{ try{_fbAuthLogout();}catch(e){} });
-    } else {
-      
-      setTimeout(()=>{ try{_fbAuthLogout();}catch(e){}}, 2000);
-    }
-  }catch(e){ try{_fbAuthLogout();}catch(e2){} }
-}
+    try{ if(typeof window.erpAudit==='function') window.erpAudit('logout','auth',{entityType:'session',entityId:''}); }catch(e){}
+    _secCancelarInatividade();
+    clearTimeout(_fbTimer);
+    try{ if(typeof window.__alertStateResetForLogout==='function') window.__alertStateResetForLogout(); }catch(e){}
 
+    const app=document.getElementById('app-screen');
+    const login=document.getElementById('login-screen');
+    if(app) app.style.display='none';
+    if(login) login.style.display='none';
+
+    try{
+      if(typeof _fbSalvarAgora==='function') await _fbSalvarAgora();
+    }catch(e){}
+
+    try{
+      if(window.secureAuth && typeof window.secureAuth.logout==='function') await window.secureAuth.logout();
+      else if(typeof _fbAuthLogout==='function') await Promise.resolve(_fbAuthLogout());
+    }catch(e){}
+
+    try{ sessionStorage.removeItem('mm_sessao'); }catch(e){}
+    cu=null;
+    if(login) login.style.display='flex';
+    const _inpU=document.getElementById('inp-u'); if(_inpU) _inpU.value='';
+    const _inpP=document.getElementById('inp-p'); if(_inpP) _inpP.value='';
+  }finally{
+    window.__ERP_LOGOUT_IN_PROGRESS__=false;
+  }
+}
 
 
 function _restaurarSessao(){
@@ -1869,7 +1884,7 @@ function populateAll(){
   
   const tbP=document.getElementById('tb-ponto');
   if(tbP) tbP.innerHTML=FUNCIONARIOS.map(f=>
-    `<tr><td>${f.mat}</td><td>${f.nome}</td><td>22</td><td>0</td><td>0</td><td>0</td><td>0</td><td>—</td></tr>`).join('');
+    `<tr><td>${f.mat}</td><td>${f.nome}</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>—</td></tr>`).join('');
 
   
   const tbFolha=document.getElementById('tb-folha');
@@ -1895,10 +1910,7 @@ function populateAll(){
   }
 
   
-  const tbB=document.getElementById('tb-bancos');
-  if(tbB) tbB.innerHTML=BANCOS.map(b=>
-    `<tr><td>${b.cod}</td><td><b>${b.banco}</b></td><td>${b.tipo}</td><td>${b.titular}</td>
-     <td>R$ 0,00</td><td>R$ 0,00</td><td>—</td></tr>`).join('');
+  try{ renderBancos(); }catch(e){}
 
   
   renderFrota();
@@ -2136,6 +2148,27 @@ function salvarNovoUsuario(){
 
 const TICKETS_DB = {};
 
+function _normalizarTicketFinanceiro(tk){
+  if(!tk||typeof tk!=='object') return false;
+  let mudou=false;
+  if(!Array.isArray(tk.itens)){ tk.itens=[]; mudou=true; }
+  tk.itens.forEach(function(it){
+    if(!it||typeof it!=='object') return;
+    const peso=_numFinito(it.pesoLiqAjust!=null?it.pesoLiqAjust:(it.pesoLiq!=null?it.pesoLiq:(it.lq!=null?it.lq:(it.pesoBruto!=null?it.pesoBruto:(it.br!=null?it.br:it.qt)))),0);
+    const preco=_numFinito(it.preco!=null?it.preco:(it.pr!=null?it.pr:it.valorKg),0);
+    const totalAtual=Number(it.total);
+    if(!Number.isFinite(totalAtual)){ it.total=Math.round((peso*preco+Number.EPSILON)*100)/100; mudou=true; }
+    if(!Number.isFinite(Number(it.pesoLiq)) && peso>0){ it.pesoLiq=peso; mudou=true; }
+    if(!Number.isFinite(Number(it.preco)) && preco>=0){ it.preco=preco; mudou=true; }
+  });
+  const somaItens=tk.itens.reduce(function(acc,it){ return acc+_numFinito(it&&it.total,0); },0)+_numFinito(tk.acrescimo,0);
+  if(!Number.isFinite(Number(tk.totalGeral))){ tk.totalGeral=Math.round((somaItens+Number.EPSILON)*100)/100; mudou=true; }
+  if(!Number.isFinite(Number(tk.adiantamento))){ tk.adiantamento=0; mudou=true; }
+  if(!Number.isFinite(Number(tk.saldoAnterior))){ tk.saldoAnterior=0; mudou=true; }
+  if(!Number.isFinite(Number(tk.saldoPagar))){ tk.saldoPagar=Math.round((_numFinito(tk.totalGeral,0)-_numFinito(tk.adiantamento,0)+_numFinito(tk.saldoAnterior,0)+Number.EPSILON)*100)/100; mudou=true; }
+  return mudou;
+}
+
 function getTicketsPorForn(cod){
   const forn = FORNECEDORES.find(f=>f.cod===cod);
   const nome = forn?.nome||'';
@@ -2165,15 +2198,16 @@ function onCanhotFornChange(){
   if(forn && forn.tel) document.getElementById('wpp-phone').value=forn.tel.replace(/\D/g,'');
 
   const tickets=getTicketsPorForn(cod);
+  tickets.forEach(_normalizarTicketFinanceiro);
   const tbTk=document.getElementById('canhoto-ticket-list');
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   if(tickets.length===0){
     tbTk.innerHTML=`<tr><td colspan="8" style="color:var(--gray);text-align:center;padding:12px">Nenhum ticket registrado</td></tr>`;
   } else {
     tbTk.innerHTML=tickets.map(tk=>`
       <tr>
         <td><b>${tk.ticket||tk._dbKey}</b></td>
-        <td>${tk.data}</td>
+        <td>${fmtDate(tk.data)||'—'}</td>
         <td>${tk.itens.length} item(s)</td>
         <td>R$ ${fmt(tk.totalGeral)}</td>
         <td>R$ ${fmt(tk.adiantamento)}</td>
@@ -2196,7 +2230,7 @@ function onCanhotFornChange(){
     tbAdt.innerHTML=adts.map((a,i)=>`
       <tr style="${a.forma==='Crédito'?'':''}">
         <td>${a.cod}</td>
-        <td>${a.data}</td>
+        <td>${fmtDate(a.data)||'—'}</td>
         <td style="font-weight:700">R$ ${fmt(a.valor)}</td>
         <td>${a.forma||'—'}</td>
         <td style="font-size:.75rem">${a.bancoNome||'—'}</td>
@@ -2233,7 +2267,7 @@ function onCanhotFornChange(){
     tbCheq.innerHTML=cheqs.map(c=>`
       <tr>
         <td>${c.num||c.numero||'—'}</td>
-        <td>${c.bomPara||c.data||'—'}</td>
+        <td>${fmtDate(c.bomPara||c.data)||'—'}</td>
         <td style="font-weight:700">R$ ${fmt(c.valor)}</td>
         <td style="font-size:.75rem">${c.banco||'—'}</td>
         <td><span class="b ${c.status==='Compensado'?'b-compensado':c.status==='Quitado'?'b-pago':'b-pendente'}">${c.status}</span></td>
@@ -2255,7 +2289,7 @@ function _adtDescontadosRowsHtml(tk,fmt,pad){
   if(!lista.length) return '';
   return lista.map(a=>
     `<tr style="color:#5a7a68">
-      <td colspan="5" style="padding:2px ${pad}px;text-align:right;font-size:10.5px">↳ Adiantamento ${a.data||''}${a.forma?' ('+a.forma+')':''}${a.cod?' – '+a.cod:''}</td>
+      <td colspan="5" style="padding:2px ${pad}px;text-align:right;font-size:10.5px">↳ Adiantamento ${fmtDate(a.data)||''}${a.forma?' ('+a.forma+')':''}${a.cod?' – '+a.cod:''}</td>
       <td style="padding:2px ${pad}px;text-align:right;font-size:10.5px">R$ ${fmt(a.valor)}</td>
     </tr>`
   ).join('');
@@ -2265,7 +2299,7 @@ function _adtDescontadosTexto(tk,fmt){
   if(!lista.length) return '';
   let t='';
   lista.forEach(a=>{
-    t+=`   ↳ ${a.data||''}${a.forma?' ('+a.forma+')':''} – R$ ${fmt(a.valor)}\n`;
+    t+=`   ↳ ${fmtDate(a.data)||''}${a.forma?' ('+a.forma+')':''} – R$ ${fmt(a.valor)}\n`;
   });
   return t;
 }
@@ -2276,11 +2310,12 @@ function selecionarTicket(tNum){
   document.getElementById('ticket-input').value=tNum;
   if(tk.fornecedorTel) document.getElementById('wpp-phone').value=tk.fornecedorTel;
 
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const itensHtml=tk.itens.map((it,i)=>
+  _normalizarTicketFinanceiro(tk);
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const itensHtml=(tk.itens||[]).map((it,i)=>
     `<tr><td style="padding:5px 8px">${i+1}</td><td>${it.mat}</td><td>${it.ident||''}</td>
-     <td style="text-align:right">${it.pesoLiq} kg</td>
-     <td style="text-align:right">R$ ${Number(it.preco).toFixed(2).replace('.',',')}</td>
+     <td style="text-align:right">${_numFinito(it.pesoLiq,0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:3})} kg</td>
+     <td style="text-align:right">R$ ${_numFinito(it.preco,0).toFixed(2).replace('.',',')}</td>
      <td style="text-align:right"><b>R$ ${fmt(it.total)}</b></td></tr>`
   ).join('');
 
@@ -2292,7 +2327,7 @@ function selecionarTicket(tNum){
         <td style="font-weight:700;width:100px">Ticket Nº:</td>
         <td><b>${tk.ticket}</b></td>
       </tr>
-      <tr><td style="font-weight:700;padding:4px 8px">Data:</td><td>${tk.data}</td>
+      <tr><td style="font-weight:700;padding:4px 8px">Data:</td><td>${fmtDate(tk.data)||'—'}</td>
           <td style="font-weight:700">Responsável:</td><td>${tk.resp}</td></tr>
       <tr><td style="font-weight:700;padding:4px 8px">Adiantamento:</td>
           <td>R$ ${fmt(tk.adiantamento)}</td>
@@ -2335,10 +2370,10 @@ function getMsgTicket(){
   if(!tk) return null;
 
   const div='━━━━━━━━━━━━━━━━━━━━━━━━━';
-  const fmt=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
 
 
-  let msg=`🏭 *MANUELA METAIS*\n`;
+  let msg=`🏭 *${_empresaPrincipalLabel()}*\n`;
   msg+=`_${_empresaPrincipalRazao()}_\n`;
   msg+=`CNPJ: ${_empresaPrincipalInfo().cnpj||''}\n`;
   msg+=`${_empresaPrincipalEnderecoCurto()}\n`;
@@ -2349,7 +2384,7 @@ function getMsgTicket(){
   msg+=`${div}\n`;
 
   msg+=`🎫 *Ticket Nº:*    ${tk.ticket}\n`;
-  msg+=`📅 *Data:*         ${tk.data}\n`;
+  msg+=`📅 *Data:*         ${fmtDate(tk.data)||'—'}\n`;
   msg+=`👤 *Fornecedor:*   ${tk.fornecedor}\n`;
   msg+=`🔧 *Responsável:*  ${tk.resp}\n`;
   if(tk.adiantamento>0)
@@ -2387,7 +2422,7 @@ function gerarExtrato(){
   if(!cod){alert('Selecione um fornecedor primeiro.');return;}
   const forn=FORNECEDORES.find(f=>f.cod===cod);
   const fornNome=forn?forn.nome:cod;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
 
   const adts=ADT_FILTRADO!==null?ADT_FILTRADO:(ADT_POR_FORN[cod]||[]);
@@ -2406,7 +2441,7 @@ function gerarExtrato(){
     :adts.map((a,i)=>`
     <tr style="${a.forma==='Crédito'?'':a.status==='Quitado'?'background:#f9fff9':'background:#fffbea'}">
       <td style="padding:5px 8px;text-align:center">${i+1}</td>
-      <td style="padding:5px 8px">${a.data}</td>
+      <td style="padding:5px 8px">${fmtDate(a.data)||'—'}</td>
       <td style="padding:5px 8px;text-align:right;font-weight:700">R$ ${fmt(a.valor)}</td>
       <td style="padding:5px 8px">${a.forma||'—'}</td>
       <td style="padding:5px 8px;font-size:.78rem">${a.bancoNome||'—'}</td>
@@ -2419,7 +2454,7 @@ function gerarExtrato(){
     :tickets.map((tk,i)=>`
     <tr style="${tk.status==='Pago'?'background:#f9fff9':'background:#fffbea'}">
       <td style="padding:5px 8px"><b>${tk.ticket}</b></td>
-      <td style="padding:5px 8px">${tk.data}</td>
+      <td style="padding:5px 8px">${fmtDate(tk.data)||'—'}</td>
       <td style="padding:5px 8px;font-size:.78rem">${tk.itens.map(it=>it.mat).join(', ')}</td>
       <td style="padding:5px 8px;text-align:right;font-weight:700">R$ ${fmt(tk.totalGeral)}</td>
       <td style="padding:5px 8px;text-align:right;color:var(--warn)">R$ ${fmt(tk.adiantamento)}</td>
@@ -2503,7 +2538,7 @@ function getMsgExtrato(){
   if(!cod) return null;
   const forn=FORNECEDORES.find(f=>f.cod===cod);
   const fornNome=forn?forn.nome:cod;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
   const div='━━━━━━━━━━━━━━━━━━━━━━━━━';
   const adts=ADT_FILTRADO!==null?ADT_FILTRADO:(ADT_POR_FORN[cod]||[]);
@@ -2536,7 +2571,7 @@ ${div}
 `;
     adts.forEach((a,i)=>{
       const st=a.status==='Quitado'?'✅ Quitado':a.forma==='Crédito'?'💳 Crédito':'⏳ Pendente';
-      msg+=`*${i+1}.* ${a.data} — *R$ ${fmt(a.valor)}*
+      msg+=`*${i+1}.* ${fmtDate(a.data)||'—'} — *R$ ${fmt(a.valor)}*
    ${a.forma||'—'} | ${a.bancoNome||'—'}${a.ticket?' | Ticket: '+a.ticket:''} | ${st}
 `;
     });
@@ -2548,7 +2583,7 @@ ${div}
     msg+=`🛒 *COMPRAS (TICKETS)*
 `;
     tickets.forEach((tk,i)=>{
-      msg+=`*${tk.ticket}* (${tk.data})
+      msg+=`*${tk.ticket}* (${fmtDate(tk.data)||'—'})
    Total: R$ ${fmt(tk.totalGeral)} | Adiant.: R$ ${fmt(tk.adiantamento)} | Saldo: *R$ ${fmt(tk.saldoPagar)}* | ${tk.status==='Pago'?'✅ Pago':'⏳ Pendente'}
 `;
     });
@@ -2598,7 +2633,7 @@ function imprimirExtrato(){
   if(!cod){alert('Selecione um fornecedor primeiro.');return;}
   const forn=FORNECEDORES.find(f=>f.cod===cod);
   const fornNome=forn?forn.nome:cod;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
   const adts=(ADT_POR_FORN[cod]||[]);
   const tickets=getTicketsPorForn(cod);
@@ -2612,7 +2647,7 @@ function imprimirExtrato(){
 
   const rowsAdt=adts.map((a,i)=>`
     <tr style="${a.forma==='Crédito'?'':a.status==='Quitado'?'background:#f9fff9':'background:#fffbea'}">
-      <td>${i+1}</td><td>${a.data}</td>
+      <td>${i+1}</td><td>${fmtDate(a.data)||'—'}</td>
       <td align="right"><b>R$ ${fmt(a.valor)}</b></td>
       <td>${a.forma||'—'}</td><td>${a.bancoNome||'—'}</td><td>${a.ticket||'—'}</td>
       <td>${a.status==='Quitado'?'✅ Quitado':a.forma==='Crédito'?'💳 Crédito':'⏳ Pendente'}</td>
@@ -2620,7 +2655,7 @@ function imprimirExtrato(){
 
   const rowsTk=tickets.map((tk,i)=>`
     <tr style="${tk.status==='Pago'?'background:#f9fff9':'background:#fffbea'}">
-      <td><b>${tk.ticket}</b></td><td>${tk.data}</td>
+      <td><b>${tk.ticket}</b></td><td>${fmtDate(tk.data)||'—'}</td>
       <td style="font-size:11px">${tk.itens.map(it=>it.mat).join(', ')}</td>
       <td align="right"><b>R$ ${fmt(tk.totalGeral)}</b></td>
       <td align="right" style="color:#e67e22">R$ ${fmt(tk.adiantamento)}</td>
@@ -2767,7 +2802,7 @@ function filtrarPeriodo(){
   if(!cod) return;
   const de=document.getElementById('filtro-de').value;
   const ate=document.getElementById('filtro-ate').value;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
 
   const dtDe = de ? new Date(de+'T00:00:00') : null;
   const dtAte = ate ? new Date(ate+'T23:59:59') : null;
@@ -2800,7 +2835,7 @@ function filtrarPeriodo(){
   } else {
     tbAdt.innerHTML=ADT_FILTRADO.map(a=>`
       <tr style="${a.forma==='Crédito'?'':''}">
-        <td>${a.cod}</td><td>${a.data}</td>
+        <td>${a.cod}</td><td>${fmtDate(a.data)||'—'}</td>
         <td style="font-weight:700">R$ ${fmt(a.valor)}</td>
         <td>${a.forma||'—'}</td>
         <td style="font-size:.75rem">${a.bancoNome||'—'}</td>
@@ -2816,7 +2851,7 @@ function filtrarPeriodo(){
     tbCheq.innerHTML=CHEQUES_FILTRADO.map(c=>`
       <tr>
         <td>${c.num||c.numero||'—'}</td>
-        <td>${c.bomPara||c.data||'—'}</td>
+        <td>${fmtDate(c.bomPara||c.data)||'—'}</td>
         <td style="font-weight:700">R$ ${fmt(c.valor)}</td>
         <td style="font-size:.75rem">${c.banco||'—'}</td>
         <td><span class="b ${c.status==='Compensado'?'b-compensado':c.status==='Quitado'?'b-pago':'b-pendente'}">${c.status}</span></td>
@@ -2862,7 +2897,7 @@ function gerarFichaAdiantamentos(){
   if(adts.length===0&&cheqsFicha.length===0){alert('Nenhum lançamento para este fornecedor.');return;}
   const forn=FORNECEDORES.find(f=>f.cod===cod);
   const fornNome=forn?forn.nome:cod;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
   const periodoLabel=(()=>{
     const de=document.getElementById('filtro-de').value;
@@ -2881,7 +2916,7 @@ function gerarFichaAdiantamentos(){
   const linhas=adts.map(a=>`
     <tr style="${a.forma==='Crédito'?'':a.status==='Quitado'?'':'background:#fffbea'}">
       <td style="padding:5px 8px">${a.cod}</td>
-      <td style="padding:5px 8px">${a.data}</td>
+      <td style="padding:5px 8px">${fmtDate(a.data)||'—'}</td>
       <td style="padding:5px 8px;text-align:right;font-weight:700">R$ ${fmt(a.valor)}</td>
       <td style="padding:5px 8px">${a.forma||'—'}</td>
       <td style="padding:5px 8px;font-size:.78rem">${a.bancoNome||'—'}</td>
@@ -2920,7 +2955,7 @@ function gerarFichaAdiantamentos(){
       </tr></thead>
       <tbody>${cheqsFicha.map(c=>`<tr>
         <td style="padding:5px 8px">${c.num||c.numero||'—'}</td>
-        <td style="padding:5px 8px">${c.bomPara||c.data||'—'}</td>
+        <td style="padding:5px 8px">${fmtDate(c.bomPara||c.data)||'—'}</td>
         <td style="padding:5px 8px;text-align:right;font-weight:700">R$ ${fmt(c.valor)}</td>
         <td style="padding:5px 8px;font-size:.78rem">${c.banco||'—'}</td>
         <td style="padding:5px 8px"><span class="b ${c.status==='Compensado'?'b-compensado':c.status==='Quitado'?'b-pago':'b-pendente'}">${c.status}</span></td>
@@ -2950,7 +2985,7 @@ function getMsgAdiantamentos(){
   if(adts.length===0) return null;
   const forn=FORNECEDORES.find(f=>f.cod===cod);
   const fornNome=forn?forn.nome:cod;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
   const div='━━━━━━━━━━━━━━━━━━━━━━━━━';
 
@@ -2994,7 +3029,7 @@ function getMsgAdiantamentos(){
     msg+=`💵 *ADIANTAMENTOS*\n`;
     adts.forEach((a,i)=>{
       const statusLabel=a.status==='Quitado'?'✅ Quitado':a.forma==='Crédito'?'💳 Crédito':'⏳ Pendente';
-      msg+=`*${i+1}.* ${a.data} — *R$ ${fmt(a.valor)}*
+      msg+=`*${i+1}.* ${fmtDate(a.data)||'—'} — *R$ ${fmt(a.valor)}*
 `;
       msg+=`   Forma: ${a.forma||'—'} | Banco: ${a.bancoNome||'—'}
 `;
@@ -3010,7 +3045,7 @@ function getMsgAdiantamentos(){
 `;
     msg+=`🏦 *CHEQUES*\n`;
     cheqsMsg.forEach((c,i)=>{
-      msg+=`*${i+1}.* ${c.bomPara||c.data||'—'} — *R$ ${fmt(c.valor)}*
+      msg+=`*${i+1}.* ${fmtDate(c.bomPara||c.data)||'—'} — *R$ ${fmt(c.valor)}*
 `;
       msg+=`   Banco: ${c.banco||'—'} | Nº ${c.num||c.numero||'—'}
 `;
@@ -3066,7 +3101,7 @@ function imprimirFichaAdiantamentos(){
   if(adts.length===0){alert('Nenhum adiantamento.');return;}
   const forn=FORNECEDORES.find(f=>f.cod===cod);
   const fornNome=forn?forn.nome:cod;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
   const totalGeral=adts.reduce((s,a)=>s+Number(a.valor),0);
   const totalQuitado=adts.filter(a=>a.status==='Quitado').reduce((s,a)=>s+Number(a.valor),0);
@@ -3075,7 +3110,7 @@ function imprimirFichaAdiantamentos(){
 
   const rows=adts.map((a,i)=>`
     <tr style="${a.forma==='Crédito'?'':a.status==='Quitado'?'':'background:#fffbea'}">
-      <td>${i+1}</td><td>${a.cod}</td><td>${a.data}</td>
+      <td>${i+1}</td><td>${a.cod}</td><td>${fmtDate(a.data)||'—'}</td>
       <td align="right"><b>R$ ${fmt(a.valor)}</b></td>
       <td>${a.forma||'—'}</td>
       <td>${a.bancoNome||'—'}</td>
@@ -3194,7 +3229,7 @@ function imprimirCanhoto(){
   const tk=TICKETS_DB[t];
   if(!tk){alert('Nenhum ticket selecionado.');return;}
 
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const fornCod=tk.fornecedorCod||tk.fornCod||'';
 
   
@@ -3227,7 +3262,7 @@ function imprimirCanhoto(){
   if(adtsNaoQuit.length>0){
     adtsNaoQuit.forEach(a=>{
       extrasHtml+=`<tr style="color:#e67e22">
-        <td colspan="5" style="padding:4px 8px;text-align:right;font-size:11px">💰 Adiantamento não quitado – ${a.data||''}</td>
+        <td colspan="5" style="padding:4px 8px;text-align:right;font-size:11px">💰 Adiantamento não quitado – ${fmtDate(a.data)||''}</td>
         <td style="padding:4px 8px;text-align:right;font-size:11px">R$ ${fmt(a.valor)}</td>
       </tr>`;
     });
@@ -3258,7 +3293,7 @@ function imprimirCanhoto(){
   <div class="titulo">RECIBO DE COMPRA DE SUCATA</div>
   <div class="info-grid">
     <div><b style="color:#555">Ticket Nº:</b> ${tk.ticket}</div>
-    <div><b style="color:#555">Data:</b> ${tk.data}</div>
+    <div><b style="color:#555">Data:</b> ${fmtDate(tk.data)||'—'}</div>
     <div><b style="color:#555">Fornecedor:</b> <b>${tk.fornecedor}</b></div>
     <div><b style="color:#555">Responsável:</b> ${tk.resp||'—'}</div>
     <div><b style="color:#555">Adiantamento:</b> R$ ${fmt(tk.adiantamento)}</div>
@@ -3306,7 +3341,7 @@ async function compartilharImagem(){
   btn.textContent='⏳ Gerando imagem...';
   btn.disabled=true;
 
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const fornCod=tk.fornecedorCod||tk.fornCod||'';
 
   const adtsNaoQuit=(ADT_POR_FORN[fornCod]||[]).filter(a=>a.status!=='Quitado'&&Number(a.valor||0)>0);
@@ -3332,7 +3367,7 @@ async function compartilharImagem(){
   }
   adtsNaoQuit.forEach(a=>{
     extrasHtml+=`<tr style="color:#e67e22">
-      <td colspan="5" style="padding:3px 7px;text-align:right;font-size:11px">💰 Adiantamento não quitado – ${a.data||''}</td>
+      <td colspan="5" style="padding:3px 7px;text-align:right;font-size:11px">💰 Adiantamento não quitado – ${fmtDate(a.data)||''}</td>
       <td style="padding:3px 7px;text-align:right;font-size:11px">R$ ${fmt(a.valor)}</td></tr>`;
   });
 
@@ -3340,14 +3375,14 @@ async function compartilharImagem(){
   wrapper.style.cssText='position:fixed;left:-9999px;top:0;width:620px;background:#fff;padding:32px;font-family:Segoe UI,Arial,sans-serif;font-size:13px;color:#111;z-index:-1';
   wrapper.innerHTML=`
     <div style="text-align:center;margin-bottom:10px">
-      <div style="font-size:22px;font-weight:900;color:#1a3a2a;letter-spacing:1px">Manuela<span style="color:#c8a400">Metais</span></div>
+      <div style="font-size:22px;font-weight:900;color:#1a3a2a;letter-spacing:1px">${esc(_empresaPrincipalLabel())}</div>
       <div style="font-size:11px;color:#555;margin-top:2px">${_empresaPrincipalRazao()} · CNPJ: ${_empresaPrincipalInfo().cnpj||''}</div>
       <div style="font-size:11px;color:#555">${_empresaPrincipalEnderecoCurto()} · 📞 ${[_empresaPrincipalInfo().financeiro,_empresaPrincipalInfo().escritorio].filter(Boolean).join(' · ')}</div>
     </div>
     <div style="text-align:center;font-size:14px;font-weight:800;border:2px solid #333;padding:8px;border-radius:4px;margin:12px 0;letter-spacing:1px">RECIBO DE COMPRA DE SUCATA</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;margin-bottom:12px;font-size:12px">
       <div><b style="color:#555">Ticket Nº:</b> ${tk.ticket}</div>
-      <div><b style="color:#555">Data:</b> ${tk.data}</div>
+      <div><b style="color:#555">Data:</b> ${fmtDate(tk.data)||'—'}</div>
       <div><b style="color:#555">Fornecedor:</b> <b>${tk.fornecedor}</b></div>
       <div><b style="color:#555">Responsável:</b> ${tk.resp||'—'}</div>
       <div><b style="color:#555">Adiantamento:</b> R$ ${fmt(tk.adiantamento)}</div>
@@ -3486,9 +3521,34 @@ function _empresaPorTexto(valor){
   }
   return _empresaPrincipalChave();
 }
+function _cfgPublicBusiness(){
+  return window.__PUBLIC_BUSINESS_CONFIG__&&typeof window.__PUBLIC_BUSINESS_CONFIG__==='object'?window.__PUBLIC_BUSINESS_CONFIG__:{};
+}
+function _cfgRegisteredCompanies(){
+  const out=[], seen={};
+  function add(v){
+    const x=String(v||'').trim();
+    if(!x||seen[x.toLowerCase()]) return;
+    seen[x.toLowerCase()]=1;
+    out.push(x);
+  }
+  const pub=_cfgPublicBusiness();
+  const primary=String((ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.primaryCompanyKey)||(pub.company&&pub.company.key)||'').trim();
+  add(primary);
+  Object.keys((ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.companies)||{}).forEach(add);
+  Object.keys(EMPRESAS_INFO||{}).forEach(add);
+  (Array.isArray(pub.companyKeys)?pub.companyKeys:[]).forEach(add);
+  (Array.isArray(ERP_BUSINESS_CONFIG.financeCompanies)?ERP_BUSINESS_CONFIG.financeCompanies:[]).forEach(add);
+  (Array.isArray(pub.financeCompanies)?pub.financeCompanies:[]).forEach(add);
+  (Array.isArray(ERP_BUSINESS_CONFIG.transferCompanies)?ERP_BUSINESS_CONFIG.transferCompanies:[]).forEach(add);
+  (Array.isArray(pub.transferCompanies)?pub.transferCompanies:[]).forEach(add);
+  return out;
+}
 function _cfgFinanceCompanies(){
   const a=Array.isArray(ERP_BUSINESS_CONFIG.financeCompanies)?ERP_BUSINESS_CONFIG.financeCompanies:[];
-  return a.length?a.slice():Object.keys(EMPRESAS_INFO||{});
+  const pub=_cfgPublicBusiness();
+  const b=Array.isArray(pub.financeCompanies)?pub.financeCompanies:[];
+  return a.length?a.slice():(b.length?b.slice():_cfgRegisteredCompanies());
 }
 function _cfgFinanceCompanyColor(company){
   const colors=['#1a5e2a','#8e44ad','#c0392b']; 
@@ -3497,15 +3557,19 @@ function _cfgFinanceCompanyColor(company){
 }
 function _cfgEmployeeCompanies(){
   const a=Array.isArray(ERP_BUSINESS_CONFIG.employeeCompanies)?ERP_BUSINESS_CONFIG.employeeCompanies:[];
-  return a.slice();
+  const pub=_cfgPublicBusiness();
+  const b=Array.isArray(pub.employeeCompanies)?pub.employeeCompanies:[];
+  return a.length?a.slice():b.slice();
 }
 function _cfgTransferCompanies(){
   const a=Array.isArray(ERP_BUSINESS_CONFIG.transferCompanies)?ERP_BUSINESS_CONFIG.transferCompanies:[];
-  return a.slice();
+  const pub=_cfgPublicBusiness();
+  const b=Array.isArray(pub.transferCompanies)?pub.transferCompanies:[];
+  return a.length?a.slice():(b.length?b.slice():_cfgRegisteredCompanies());
 }
 function _cfgChequeCompanies(){
   const a=Array.isArray(ERP_BUSINESS_CONFIG.chequeCompanies)?ERP_BUSINESS_CONFIG.chequeCompanies:[];
-  return a.slice();
+  return a.length?a.slice():_cfgRegisteredCompanies();
 }
 function _cfgExpenseGroupCompanyMap(){
   const m=ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.expenseGroupCompanyMap;
@@ -3527,7 +3591,7 @@ function _cfgBankDisplayToken(key){
 function _cfgEmployeeCompanyOptionsHtml(sel){
   const values=_cfgEmployeeCompanies();
   if(sel && values.indexOf(sel)<0) values.push(sel);
-  return values.map(function(v){return '<option'+(v===sel?' selected':'')+'>'+esc(v)+'</option>';}).join('');
+  return '<option value="">— Selecione —</option>'+values.map(function(v){return '<option value="'+esc(v)+'"'+(v===sel?' selected':'')+'>'+esc(v)+'</option>';}).join('');
 }
 function _empresaPrincipalContatosInline(){
   const e=_empresaPrincipalInfo(), a=[];
@@ -3549,24 +3613,91 @@ function _legacyRepairConfig(key){
 }
 
 function _cfgChequeBanks(){
-  const arr=Array.isArray(ERP_BUSINESS_CONFIG.chequeBanks)?ERP_BUSINESS_CONFIG.chequeBanks:[];
-  return arr.slice().sort((a,b)=>Number(a.order||0)-Number(b.order||0));
+  const legacy=Array.isArray(ERP_BUSINESS_CONFIG.chequeBanks)?ERP_BUSINESS_CONFIG.chequeBanks:[];
+  const live=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB)?BANCOS_DB:[]).filter(function(b){
+    if(!b||!String(b.banco||'').trim()) return false;
+    const t=String(b.tipo||'').toLowerCase();
+    return t.indexOf('aplica')<0&&t!=='caixa';
+  });
+  const palette=['#c0392b','#1565c0','#2e7d32','#e67e22','#8e44ad','#1a5276','#117864','#7d6608','#566573','#922b21'];
+  return live.map(function(b,i){
+    const name=String(b.banco||'').trim();
+    const match=legacy.find(function(x){
+      if(!x) return false;
+      if(x.code&&b.cod&&String(x.code)===String(b.cod)) return true;
+      const xn=String(x.name||'').toLowerCase(), bn=name.toLowerCase();
+      return xn===bn||xn.indexOf(bn)>=0||bn.indexOf(xn)>=0;
+    })||{};
+    const code=String(b.cod||b.id||'');
+    const slug=String(match.slug||code||name).replace(/[^A-Za-z0-9]/g,'').slice(-8).toUpperCase()||'BK'+String(i+1);
+    return {name:name,code:code,slug:slug,color:String(match.color||palette[i%palette.length]),order:i+1,aliases:Array.isArray(match.aliases)?match.aliases:[]};
+  });
 }
-function _cfgChequeBankNames(){ return _cfgChequeBanks().map(x=>String(x.name||'')).filter(Boolean); }
-function _cfgChequeBank(name){ return _cfgChequeBanks().find(x=>String(x.name||'')===String(name||''))||null; }
-function _cfgChequeBankOptionsHtml(sel){ return _cfgChequeBankNames().map(b=>'<option'+(b===sel?' selected':'')+'>'+esc(b)+'</option>').join(''); }
-function _cfgChequeBankSlug(name){ const x=_cfgChequeBank(name); return x&&x.slug?String(x.slug):'XX'; }
+function _cfgChequeBankNames(){
+  const out=_cfgChequeBanks().map(x=>String(x.name||'')).filter(Boolean);
+  const terceiro=String((ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.thirdPartyChequeBank)||'').trim();
+  if(terceiro&&out.indexOf(terceiro)<0) out.push(terceiro);
+  if(typeof CHQ_CTRL==='object'&&CHQ_CTRL){ Object.keys(CHQ_CTRL).forEach(function(k){ const b=String((CHQ_CTRL[k]&&CHQ_CTRL[k].b)||'').trim(); if(b&&out.indexOf(b)<0) out.push(b); }); }
+  return out;
+}
+function _cfgChequeBank(name){
+  const target=String(name||'');
+  const live=_cfgChequeBanks().find(x=>String(x.name||'')===target);
+  if(live) return live;
+  const legacy=Array.isArray(ERP_BUSINESS_CONFIG.chequeBanks)?ERP_BUSINESS_CONFIG.chequeBanks:[];
+  return legacy.find(x=>String(x.name||'')===target)||null;
+}
+function _cfgChequeBankOptionsHtml(sel){
+  const names=_cfgChequeBankNames();
+  if(sel&&names.indexOf(sel)<0) names.push(sel);
+  return names.map(b=>'<option value="'+esc(b)+'"'+(b===sel?' selected':'')+'>'+esc(b)+'</option>').join('');
+}
+function _cfgChequeBankSlug(name){ const x=_cfgChequeBank(name); return x&&x.slug?String(x.slug):String(name||'XX').replace(/[^A-Za-z0-9]/g,'').slice(0,8).toUpperCase()||'XX'; }
 function _cfgChequeBankCode(name){ const x=_cfgChequeBank(name); return x&&x.code?String(x.code):''; }
 function _cfgChequeBankColor(name){ const x=_cfgChequeBank(name); return x&&x.color?String(x.color):'#888'; }
 function _cfgChequeBankNormalize(value){
   const raw=String(value||'').toLowerCase();
-  const item=_cfgChequeBanks().find(x=>Array.isArray(x.aliases)&&x.aliases.some(a=>raw.includes(String(a).toLowerCase())));
+  const direct=_cfgChequeBanks().find(x=>String(x.name||'').toLowerCase()===raw);
+  if(direct) return String(direct.name||'');
+  const legacy=Array.isArray(ERP_BUSINESS_CONFIG.chequeBanks)?ERP_BUSINESS_CONFIG.chequeBanks:[];
+  const item=legacy.find(x=>Array.isArray(x.aliases)&&x.aliases.some(a=>raw.includes(String(a).toLowerCase())));
   return item?String(item.name||''):String(value||'');
 }
-function _empresasOptions(sel){
-  return Object.keys(EMPRESAS_INFO).map(k=>'<option'+(k===sel?' selected':'')+'>'+k+'</option>').join('')
-    + '<option'+(sel==='Outra'?' selected':'')+'>Outra</option>';
+function _empresasOptions(sel, incluirOutra){
+  const values=_cfgRegisteredCompanies();
+  if(sel&&sel!=='Outra'&&values.indexOf(sel)<0) values.push(sel);
+  const other=incluirOutra===false?'':'<option value="Outra"'+(sel==='Outra'?' selected':'')+'>Outra</option>';
+  return values.map(function(k){return '<option value="'+esc(k)+'"'+(k===sel?' selected':'')+'>'+esc(k)+'</option>';}).join('')+other;
 }
+function _sincronizarEmpresaPorBanco(bancoSelId, empresaSelId){
+  const bs=document.getElementById(bancoSelId), es=document.getElementById(empresaSelId);
+  if(!bs||!es) return;
+  const val=bs.value;
+  if(!val) return;
+  const b=(BANCOS_DB||[]).find(x=>String(x.cod||'')===String(val)||String(x.banco||'')===String(val));
+  if(!b||!b.empresa) return;
+  const empresa=String(b.empresa||'').trim();
+  if(es.tagName==='SELECT'){
+    if(![...es.options].some(function(o){return o.value===empresa;})) es.insertAdjacentHTML('beforeend','<option value="'+esc(empresa)+'">'+esc(empresa)+'</option>');
+    es.value=empresa;
+  }else es.value=empresa;
+}
+function _erpRefreshCompanySources(){
+  const transfer=_cfgTransferCompanies();
+  const dl=document.getElementById('dlist-empresas');
+  if(dl) dl.innerHTML=transfer.map(function(v){return '<option value="'+esc(v)+'">';}).join('');
+  function repop(id, blankLabel, incluirOutra){
+    const el=document.getElementById(id); if(!el) return;
+    const cur=el.value||'';
+    el.innerHTML=(blankLabel?'<option value="">'+blankLabel+'</option>':'')+_empresasOptions(cur,incluirOutra);
+    if(cur&&[...el.options].some(function(o){return o.value===cur;})) el.value=cur;
+  }
+  repop('cp-empresa','— Selecione a empresa —',true);
+  repop('ecp-empresa','— Selecione a empresa —',true);
+  repop('bc-empresa','',true);
+  repop('eb-empresa','',true);
+}
+window.__erpRefreshCompanySources=_erpRefreshCompanySources;
 function _bcPreencheEndereco(selId, endId){
   const sel=document.getElementById(selId), end=document.getElementById(endId);
   if(!sel||!end) return;
@@ -3623,7 +3754,7 @@ const FORMS={
     <div style="font-size:.78rem;font-weight:800;color:#1a5e2a;margin:10px 0 6px">🏦 DADOS BANCÁRIOS / PIX</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="fg" style="grid-column:1/-1"><label>Chave PIX</label><input id="nf-pix" placeholder="CPF, CNPJ, telefone, e-mail..."></div>
-      <div class="fg" style="grid-column:1/-1"><label>Banco</label><input id="nf-banco" placeholder="Ex: Sicredi, Santander, Nubank..."></div>
+      <div class="fg" style="grid-column:1/-1"><label>Banco</label><input id="nf-banco" placeholder="Nome do banco"></div>
       <div class="fg"><label>Agência</label><input id="nf-agencia" placeholder="0000"></div>
       <div class="fg"><label>Conta</label><input id="nf-conta" placeholder="00000-0"></div>
     </div>
@@ -3677,7 +3808,7 @@ const FORMS={
       <div class="fg" style="margin:0"><label>Tipo</label><select id="cheqcli-tipo" style="width:100%"><option value="Adiantamento">💰 Adiantamento (antes da venda)</option><option value="Pagamento">✅ Pagamento (de venda já fechada)</option></select></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-      <div class="fg" style="margin:0"><label>Banco / Agência (padrão para todos)</label><input id="cheqcli-banco" placeholder="Ex: Sicredi Ag. 0101" style="width:100%;box-sizing:border-box"></div>
+      <div class="fg" style="margin:0"><label>Banco / Agência (padrão para todos)</label><input id="cheqcli-banco" placeholder="Banco / agência" style="width:100%;box-sizing:border-box"></div>
       <div class="fg" style="margin:0"><label>Vinculado a (padrão)</label><input id="cheqcli-vinculo" placeholder="Venda, NF..." style="width:100%;box-sizing:border-box"></div>
     </div>
 
@@ -3762,7 +3893,7 @@ const FORMS={
       <details style="margin-top:10px">
         <summary style="font-size:.74rem;color:#1565c0;cursor:pointer;font-weight:700">⚡ Vários iguais em sequência (mesmo banco e valor)</summary>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;background:#dcecfa;border-radius:7px;padding:8px 10px">
-          <label style="font-size:.72rem;color:#456">Banco<select id="adt-seq-banco" style="width:100%;padding:6px;border:1px solid #b6d3f2;border-radius:6px;font-size:.8rem">${_cfgChequeBankOptionsHtml()}</select></label>
+          <label style="font-size:.72rem;color:#456">Banco<select id="adt-seq-banco" style="width:100%;padding:6px;border:1px solid #b6d3f2;border-radius:6px;font-size:.8rem"><option value="">— Selecione —</option></select></label>
           <label style="font-size:.72rem;color:#456">Valor de cada (R$)<input id="adt-seq-val" placeholder="4990,00" style="width:100%;padding:6px;border:1px solid #b6d3f2;border-radius:6px;font-size:.8rem;box-sizing:border-box"></label>
           <label style="font-size:.72rem;color:#456">Nº do 1º<input id="adt-seq-ini" placeholder="250" style="width:100%;padding:6px;border:1px solid #b6d3f2;border-radius:6px;font-size:.8rem;box-sizing:border-box"></label>
           <label style="font-size:.72rem;color:#456">Quantos<input id="adt-seq-qtd" type="number" min="1" max="200" value="3" style="width:100%;padding:6px;border:1px solid #b6d3f2;border-radius:6px;font-size:.8rem;box-sizing:border-box"></label>
@@ -3776,9 +3907,9 @@ const FORMS={
       <div id="adt-chq-prev" style="font-size:.82rem;font-weight:700;color:#1565c0;background:#dcecfa;border-radius:7px;padding:8px 11px">Nenhum cheque na lista ainda.</div>
     </div>
     <div class="fg"><label>Banco de Saída <span style="font-weight:400;color:#888;font-size:.8rem">(pra PIX/dinheiro — no cheque pode deixar em branco)</span></label><select id="adt-banco" onchange="_adtSincronizaEmpresa('adt-banco','adt-empresa')"><option value="">— Selecione o banco —</option></select></div>
-    <div class="fg"><label>Empresa que transferiu <span style="font-weight:400;color:#888;font-size:.8rem">(Manuela/Gratus/Mabor, ou digite outra se for terceiro)</span></label><input id="adt-empresa" list="dlist-empresas" placeholder="Ex: Manuela Metais, ou nome de quem enviou"></div>
+    <div class="fg"><label>Empresa que transferiu <span style="font-weight:400;color:#888;font-size:.8rem">(selecione a empresa responsável ou informe terceiro)</span></label><input id="adt-empresa" list="dlist-empresas" placeholder="Selecione ou informe quem transferiu"></div>
     <div class="fg"><label>Vinculado ao Ticket</label><input id="adt-ticket" placeholder="T004"></div>
-    <div class="fg"><label>Observação <span style="font-weight:400;color:#888;font-size:.8rem">(ex: pago em nome de outra pessoa)</span></label><input id="adt-obs" placeholder="Ex: Saiu no nome de Rafael, mas é para João"></div>
+    <div class="fg"><label>Observação <span style="font-weight:400;color:#888;font-size:.8rem">(ex: pago em nome de outra pessoa)</span></label><input id="adt-obs" placeholder="Ex: Pago em nome de outra pessoa"></div>
     <div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarAdiantamento()">💾 Salvar</button></div>`,
   veiculo:`<h3>🚛 Novo Veículo</h3>
     <div class="fg"><label>Tipo</label><select id="nv-tipo"><option>Caminhão</option><option>Empilhadeira</option><option>Máquina</option><option>Balança</option><option>Prensa Hidráulica</option><option>Moedor de Alumínio</option><option>Retroescavadeira</option><option>Carro</option><option>Outros</option></select></div>
@@ -3815,7 +3946,7 @@ const FORMS={
         </div>
       </div>
     </div>
-    <div class="fg"><label>Empresa <span style="font-weight:400;color:var(--gray)">(de qual empresa é essa despesa)</span></label><select id="cp-empresa"><option value="">— (opcional)</option>${_empresasOptions()}</select></div>
+    <div class="fg"><label>Empresa <span style="font-weight:400;color:var(--gray)">(de qual empresa é essa despesa)</span></label><select id="cp-empresa"><option value="">— Selecione a empresa —</option>${_empresasOptions('',true)}</select></div>
     <div class="fg"><label>Categoria <span style="font-weight:400;color:var(--gray)">(escolha ou digite)</span></label>
     <input id="cp-cat" list="cp-cat-list" placeholder="Ex: Aluguel, Energia...">
     <datalist id="cp-cat-list">
@@ -3827,7 +3958,7 @@ const FORMS={
       <option>Financiamento</option><option>Limpeza</option><option>Alimentação</option>
       <option>Transporte</option><option>Equipamentos</option><option>Peças e Insumos</option><option>Outros</option>
     </datalist></div>
-    <div class="fg"><label>Banco de Pagamento</label><select id="cp-banco"><option value="">— Selecione o banco —</option></select></div>
+    <div class="fg"><label>Banco de Pagamento</label><select id="cp-banco" onchange="_sincronizarEmpresaPorBanco('cp-banco','cp-empresa')"><option value="">— Selecione o banco —</option></select></div>
     <div class="fg"><label>Valor R$ <span style="font-weight:400;color:var(--gray)">(por parcela)</span></label><input id="cp-valor" type="number" min="0" step="0.01" placeholder="0,00"></div>
     <div class="fg" style="background:#f0f7ff;border-radius:10px;padding:12px 14px;border:1px solid #c5dff8">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:700;font-size:.9rem">
@@ -3875,7 +4006,7 @@ const FORMS={
     <div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarContaReceber()">💾 Salvar</button></div>`,
   banco:`<h3>🏦 Nova Conta Bancária</h3>
     <div class="fg"><label>Empresa dona da conta</label><select id="bc-empresa" onchange="_bcPreencheEndereco('bc-empresa','bc-endereco')">${_empresasOptions()}</select></div>
-    <div class="fg"><label>Banco</label><input id="bc-banco" placeholder="Ex: Sicredi"></div>
+    <div class="fg"><label>Banco</label><input id="bc-banco" placeholder="Nome do banco"></div>
     <div class="fg"><label>Tipo</label><select id="bc-tipo"><option>Conta Corrente</option><option>Poupança</option><option>Caixa</option><option>Aplicação</option><option>Conta Terceiro</option></select></div>
     <div class="fg"><label>Titular / Dono</label><input id="bc-titular" placeholder="Razão social ou nome do terceiro"></div>
     <div class="fg" id="bc-cpfcnpj-fg" style="display:none"><label>CPF/CNPJ do Terceiro</label><input id="bc-cpfcnpj" class="mask-doc" placeholder="000.000.000-00"></div>
@@ -4313,8 +4444,39 @@ function fiscalMarcarPagas2026(){
   fiscalSalvar();
 }
 
-let _fiscalEmpresa = 'manuela'; 
-function _fPfx(){ return _fiscalEmpresa==='gratus'?'g-':''; }
+let _fiscalEmpresa = '';
+function _fiscalCompanyKeys(){
+  const all=ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.fiscalCompanies;
+  return all&&typeof all==='object'?Object.keys(all).filter(function(k){return all[k]&&typeof all[k]==='object';}):[];
+}
+function _fiscalEnsureEmpresa(){
+  const keys=_fiscalCompanyKeys();
+  if(!_fiscalEmpresa||keys.indexOf(_fiscalEmpresa)<0) _fiscalEmpresa=keys[0]||'';
+  return _fiscalEmpresa;
+}
+function _fiscalDataPrefix(key){
+  const cfg=_cfgFiscalCompany(key||_fiscalEnsureEmpresa());
+  return cfg&&cfg.dataPrefix!=null?String(cfg.dataPrefix):'';
+}
+function _fPfx(){ return _fiscalDataPrefix(_fiscalEnsureEmpresa()); }
+function _fiscalKeyMatchesCompany(key,companyKey){
+  const pfx=_fiscalDataPrefix(companyKey);
+  const raw=String(key||'');
+  if(pfx) return raw.startsWith(pfx) && /^\d{4}-\d{2}$/.test(raw.slice(pfx.length));
+  return /^\d{4}-\d{2}$/.test(raw);
+}
+function _fiscalRenderEmpresaBotoes(){
+  const wrap=document.getElementById('fiscal-company-buttons');
+  if(!wrap) return;
+  const keys=_fiscalCompanyKeys();
+  _fiscalEnsureEmpresa();
+  wrap.innerHTML=keys.map(function(key){
+    const cfg=_cfgFiscalCompany(key), ativo=key===_fiscalEmpresa;
+    const label=String(cfg.shortLabel||cfg.label||key), icon=String(cfg.icon||'');
+    return '<button data-fiscal-company="'+esc(key)+'" style="background:'+(ativo?'#1565c0':'#f5f5f5')+';color:'+(ativo?'#fff':'#555')+';border:'+(ativo?'none':'1.5px solid #ccc')+';border-radius:7px;padding:6px 18px;cursor:pointer;font-weight:700;font-size:.85rem">'+(icon?esc(icon)+' ':'')+esc(label)+'</button>';
+  }).join('');
+  wrap.querySelectorAll('[data-fiscal-company]').forEach(function(btn){ btn.onclick=function(){ fiscalSetEmpresa(btn.getAttribute('data-fiscal-company')||''); }; });
+}
 const CHEQUES_POR_FORN = {
   
 };
@@ -4413,44 +4575,93 @@ function previewCcParc(){
 }
 
 
-let _ccArea = 'Casa';
-const _CC_AREAS = ['Casa','Sítio','Casa Glória','Veículos Pessoais'];
-function _ccMatch(x){ return (x && (x.area||'Casa'))===_ccArea; }
-function ccSetArea(a){
-  _ccArea=a;
-  _CC_AREAS.concat('__resumo__').forEach(function(nome){
-    const b=document.getElementById('cc-aba-'+nome); if(!b) return;
-    const ativo=nome===a;
-    const corAtiva=nome==='__resumo__'?'#8e44ad':'#1a5e2a';
-    b.style.borderBottomColor=ativo?corAtiva:'transparent';
-    b.style.color=ativo?corAtiva:'#999';
+let _ccArea = '';
+function _ccConfigAreas(){
+  const cfg=(ERP_BUSINESS_CONFIG&&Array.isArray(ERP_BUSINESS_CONFIG.homeCostAreas))?ERP_BUSINESS_CONFIG.homeCostAreas:[];
+  const out=[];
+  cfg.forEach(function(item){
+    const obj=typeof item==='string'?{name:item}:item;
+    const name=String((obj&&obj.name)||'').trim();
+    if(!name||out.some(function(x){return x.name===name;})) return;
+    out.push({name:name,icon:String((obj&&obj.icon)||'📌'),vehicleExpenses:!!(obj&&obj.vehicleExpenses)});
   });
+  try{
+    Object.keys(CUSTO_CASA||{}).forEach(function(mes){
+      (CUSTO_CASA[mes]||[]).forEach(function(x){
+        const name=String((x&&x.area)||'').trim();
+        if(name&&!out.some(function(a){return a.name===name;})) out.push({name:name,icon:'📌',vehicleExpenses:false});
+      });
+    });
+  }catch(e){}
+  return out;
+}
+function _ccDefaultArea(){
+  const cfg=String((ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.homeCostDefaultArea)||'').trim();
+  const areas=_ccConfigAreas();
+  if(cfg&&areas.some(function(x){return x.name===cfg;})) return cfg;
+  return areas.length?areas[0].name:'';
+}
+function _ccVehicleArea(){
+  const item=_ccConfigAreas().find(function(x){return x.vehicleExpenses;});
+  return item?item.name:'';
+}
+function _ccAreaIcon(name){
+  const item=_ccConfigAreas().find(function(x){return x.name===name;});
+  return item?item.icon:'📌';
+}
+function _ccEnsureArea(){
+  const areas=_ccConfigAreas();
+  if(!_ccArea||(!areas.some(function(x){return x.name===_ccArea;})&&_ccArea!=='__resumo__')) _ccArea=_ccDefaultArea();
+}
+function _ccMatch(x){
+  _ccEnsureArea();
+  const fallback=_ccDefaultArea();
+  return (x&&String(x.area||fallback))===_ccArea;
+}
+function _ccRenderAreaTabs(){
+  const wrap=document.getElementById('cc-area-tabs');
+  if(!wrap) return;
+  _ccEnsureArea();
+  const areas=_ccConfigAreas();
+  wrap.innerHTML=areas.map(function(item){
+    const ativo=item.name===_ccArea;
+    return '<button data-cc-area="'+esc(item.name)+'" style="padding:8px 18px;border:none;border-bottom:3px solid '+(ativo?'#1a5e2a':'transparent')+';background:transparent;font-weight:700;font-size:.88rem;color:'+(ativo?'#1a5e2a':'#999')+';cursor:pointer">'+esc(item.icon)+' '+esc(item.name)+'</button>';
+  }).join('')+'<button data-cc-area="__resumo__" style="padding:8px 18px;border:none;border-bottom:3px solid '+(_ccArea==='__resumo__'?'#8e44ad':'transparent')+';background:transparent;font-weight:800;font-size:.88rem;color:'+(_ccArea==='__resumo__'?'#8e44ad':'#8e44ad')+';cursor:pointer;margin-left:auto">📊 Resumo (Tudo)</button>';
+  wrap.querySelectorAll('[data-cc-area]').forEach(function(btn){ btn.onclick=function(){ccSetArea(btn.getAttribute('data-cc-area')||'');}; });
+}
+function ccSetArea(a){
+  const areas=_ccConfigAreas();
+  if(a!=='__resumo__'&&!areas.some(function(x){return x.name===a;})) return;
+  _ccArea=a;
+  _ccRenderAreaTabs();
   renderCustoCasa();
 }
 function renderCustoCasa(){
+  _ccEnsureArea();
+  _ccRenderAreaTabs();
   const mesEl=document.getElementById('cc-filtro-mes');
   if(mesEl&&!mesEl.value) mesEl.value=new Date().toISOString().slice(0,7);
   const mes=mesEl?.value||new Date().toISOString().slice(0,7);
   const todas=(CUSTO_CASA[mes]||[]);
   const fmt=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
 
-  
   if(_ccArea==='__resumo__'){
-    const areasIcone={'Casa':'🏠','Sítio':'🌳','Casa Glória':'🏡','Veículos Pessoais':'🚗'};
+    const areas=_ccConfigAreas();
+    const vehicleArea=_ccVehicleArea();
     let gPrev=0,gPago=0;
-    const linhasR=_CC_AREAS.map(function(area){
-      const ls=todas.filter(function(x){return (x.area||'Casa')===area;});
+    const linhasR=areas.map(function(item){
+      const area=item.name;
+      const ls=todas.filter(function(x){return String((x&&x.area)||_ccDefaultArea())===area;});
       let prev=ls.reduce((s,x)=>s+Number(x.valor||0),0);
       let pago=ls.filter(x=>x.pago).reduce((s,x)=>s+Number(x.valor||0),0);
-      
-      if(area==='Veículos Pessoais'){
+      if(vehicleArea&&area===vehicleArea){
         const ml=MANUTPESS_DB.filter(function(m){return (m.mes||_mnpMes(m.data))===mes;});
         prev+=ml.reduce((s,m)=>s+Number(m.custo||0),0);
         pago+=ml.filter(m=>m.status==='Concluída').reduce((s,m)=>s+Number(m.custo||0),0);
       }
       gPrev+=prev; gPago+=pago;
       return '<tr>'
-        +'<td style="font-weight:700">'+(areasIcone[area]||'')+' '+esc(area)+'</td>'
+        +'<td style="font-weight:700">'+esc(item.icon||'📌')+' '+esc(area)+'</td>'
         +'<td style="text-align:center;color:#888">'+ls.length+'</td>'
         +'<td style="text-align:right;font-weight:700">R$ '+fmt(prev)+'</td>'
         +'<td style="text-align:right;color:#1a5c35">R$ '+fmt(pago)+'</td>'
@@ -4470,21 +4681,17 @@ function renderCustoCasa(){
         +'<td style="text-align:right">R$ '+fmt(gPrev)+'</td>'
         +'<td style="text-align:right">R$ '+fmt(gPago)+'</td>'
         +'<td style="text-align:right">R$ '+fmt(gPrev-gPago)+'</td></tr>';
-      
       const thead=tbR.closest('table')?.querySelector('thead tr');
       if(thead) thead.innerHTML='<th>Área</th><th style="text-align:center">Lançamentos</th><th style="text-align:right">Total Previsto</th><th style="text-align:right">Total Pago</th><th style="text-align:right">A Pagar</th>';
     }
     return;
   }
-  
   (function(){ const _tb=document.getElementById('tb-custo-casa'); const _th=_tb&&_tb.closest('table')?_tb.closest('table').querySelector('thead tr'):null; if(_th) _th.innerHTML='<th>Nº</th><th>Vencimento</th><th>Descrição</th><th>Categoria</th><th style="text-align:right">Valor R$</th><th>Forma Pgto</th><th>Status</th><th>Pago em</th><th>Obs.</th><th>Ações</th>'; })();
-  
-  const ehVeic=(_ccArea==='Veículos Pessoais');
+  const ehVeic=!!_ccVehicleArea()&&_ccArea===_ccVehicleArea();
   const wrapV=document.getElementById('cc-veiculos-wrap');
   if(wrapV) wrapV.style.display=ehVeic?'block':'none';
   const tituloDesp=document.getElementById('cc-despesas-titulo');
   if(tituloDesp) tituloDesp.textContent=ehVeic?'Outras Despesas dos Veículos (IPVA, seguro, combustível…)':'Despesas do Mês';
-  
   let manutPrev=0, manutPago=0;
   if(ehVeic){
     const mlist=MANUTPESS_DB.filter(function(m){return (m.mes||_mnpMes(m.data))===mes;});
@@ -4492,7 +4699,6 @@ function renderCustoCasa(){
     manutPago=mlist.filter(m=>m.status==='Concluída').reduce((s,m)=>s+Number(m.custo||0),0);
     renderVeicPess(); renderManutPess();
   }
-  
   const lista=todas.map(function(x,i){return {x:x,i:i};}).filter(function(o){return _ccMatch(o.x);});
   const hoje=new Date().toISOString().slice(0,10);
   const totalPrev=lista.reduce((s,o)=>s+Number(o.x.valor||0),0)+manutPrev;
@@ -4592,6 +4798,9 @@ function ccSalvarEdicao(mes,idx){
   showToast('✅ Despesa atualizada!','success');
 }
 function salvarCustoCasa(){
+  _ccEnsureArea();
+  if(_ccArea==='__resumo__') _ccArea=_ccDefaultArea();
+  if(!_ccArea){ alert('Configure ao menos uma área de custo no Firebase.'); return; }
   const mesEl=document.getElementById('cc-filtro-mes');
   const mes=mesEl?.value||new Date().toISOString().slice(0,7);
   const desc=(document.getElementById('cc-desc')?.value||'').trim();
@@ -4981,7 +5190,7 @@ function _senhasDesenhar(){
     +'</div>'
     +'<div class="tcard" style="margin-bottom:14px"><div class="tcard-hdr"><div class="tcard-title">➕ Nova senha</div></div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 14px">'
-        +'<div class="fg" style="margin:0"><label>Serviço / Site</label><input id="sn-titulo" placeholder="Ex: Vercel, Gmail, Banco Sicredi..."></div>'
+        +'<div class="fg" style="margin:0"><label>Serviço / Site</label><input id="sn-titulo" placeholder="Ex: e-mail, sistema, banco..."></div>'
         +'<div class="fg" style="margin:0"><label>Login / Usuário</label><input id="sn-login" placeholder="e-mail ou usuário"></div>'
         +'<div class="fg" style="margin:0"><label>Senha</label><input id="sn-senha" placeholder="senha"></div>'
         +'<div class="fg" style="margin:0"><label>Observação</label><input id="sn-obs" placeholder="Opcional"></div>'
@@ -5530,7 +5739,7 @@ function editAdiantamento(fornCod, adtCod){
   const lista=ADT_POR_FORN[fornCod]||[];
   const a=lista.find(x=>x.cod===adtCod);
   if(!a){alert('Adiantamento não encontrado.');return;}
-  const fmt=v=>Number(v).toFixed(2).replace('.',',');
+  const fmt=v=>_numFinito(v,0).toFixed(2).replace('.',',');
   om('editAdiantamento');
   const body=document.getElementById('modal-body');
   if(!body) return;
@@ -5559,9 +5768,9 @@ function editAdiantamento(fornCod, adtCod){
       </select>
     </div>
     <div class="fg"><label>Banco de Saída</label><select id="ea-banco" onchange="_adtSincronizaEmpresa('ea-banco','ea-empresa')"><option value="">— Selecione o banco —</option></select></div>
-    <div class="fg"><label>Empresa que transferiu <span style="font-weight:400;color:#888;font-size:.8rem">(Manuela/Gratus/Mabor, ou digite outra se for terceiro)</span></label><input id="ea-empresa" list="dlist-empresas" value="${esc(a.empresa||'')}" placeholder="Ex: Manuela Metais, ou nome de quem enviou"></div>
+    <div class="fg"><label>Empresa que transferiu <span style="font-weight:400;color:#888;font-size:.8rem">(selecione a empresa responsável ou informe terceiro)</span></label><input id="ea-empresa" list="dlist-empresas" value="${esc(a.empresa||'')}" placeholder="Selecione ou informe quem transferiu"></div>
     <div class="fg"><label>Ticket</label><input id="ea-ticket" value="${a.ticket||''}"></div>
-    <div class="fg"><label>Observação</label><input id="ea-obs" value="${esc(a.obs||'')}" placeholder="Ex: Saiu no nome de Rafael, mas é para João"></div>
+    <div class="fg"><label>Observação</label><input id="ea-obs" value="${esc(a.obs||'')}" placeholder="Ex: Pago em nome de outra pessoa"></div>
     <div style="display:flex;gap:10px;margin-top:14px">
       <button class="btn-save" onclick="salvarEditAdiantamento('${fornCod}','${adtCod}')">💾 Salvar</button>
       <button class="btn-cancel" onclick="cm()">Cancelar</button>
@@ -5596,7 +5805,7 @@ function salvarEditAdiantamento(fornCod, adtCod){
   a.status=document.getElementById('ea-status').value;
   const eaBanco=document.getElementById('ea-banco');
   if(eaBanco && eaBanco.value){
-    const _bancosList=(BANCOS_DB&&BANCOS_DB.length)?BANCOS_DB:BANCOS;
+    const _bancosList=Array.isArray(BANCOS_DB)?BANCOS_DB:[];
     a.bancoCod=eaBanco.value;
     a.bancoNome=_bancosList.find(b=>b.cod===eaBanco.value||b.banco===eaBanco.value)?.banco||eaBanco.value;
   }
@@ -5847,7 +6056,7 @@ function verValesFunc(mat){
   const f=FUNCIONARIOS.find(x=>x.mat===mat);
   const nome=f?f.nome:mat;
   const vales=VALES_DB.filter(v=>v.mat===mat);
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const total=vales.reduce((s,v)=>s+Number(v.valor),0);
   const body=document.getElementById('modal-body');
   body.className='modal';
@@ -5971,7 +6180,7 @@ function renderEpi(){
       ?'<span style="background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:2px 7px;font-size:.72rem;font-weight:700">✅ Assinado</span>'
       :'<span style="background:#fff3cd;color:#856404;border-radius:10px;padding:2px 7px;font-size:.72rem;font-weight:700">⏳ Pendente</span>';
     return `<tr>
-      <td style="font-size:.8rem">${esc(e.data||'')}</td>
+      <td style="font-size:.8rem">${esc(fmtDate(e.data)||'')}</td>
       <td><b>${esc(nome)}</b></td>
       <td style="font-size:.78rem">${esc(cargo)}</td>
       <td style="font-size:.78rem">${esc(e.atividade||'')}</td>
@@ -6070,7 +6279,7 @@ function epiAssinarModal(id){
   body.style.maxWidth='520px';
   body.innerHTML=`<h3>✍️ Assinatura de Recebimento de EPI</h3>
     <div style="background:#f9f9f9;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:.85rem">
-      <b>${esc(nome)}</b> &nbsp;·&nbsp; <b>${esc(e.epi)}</b> &nbsp;·&nbsp; ${esc(e.data||'')}
+      <b>${esc(nome)}</b> &nbsp;·&nbsp; <b>${esc(e.epi)}</b> &nbsp;·&nbsp; ${esc(fmtDate(e.data)||'')}
     </div>
     <p style="font-size:.82rem;color:#555;margin:0 0 8px">Colaborador assina confirmando o recebimento do EPI:</p>
     <div style="border:2px solid #1565c0;border-radius:10px;background:#fff;margin-bottom:10px;position:relative">
@@ -6146,7 +6355,7 @@ function epiGerarRecibo(id){
   <table><tr><th>Colaborador</th><td>${esc(nome)}</td><th>Função</th><td>${esc(cargo)}</td></tr>
   <tr><th>Atividade</th><td>${esc(e.atividade||'')}</td><th>Risco</th><td>${esc(e.risco||'')}</td></tr>
   <tr><th>EPI Fornecido</th><td>${esc(e.epi||'')}</td><th>Nº CA</th><td>${esc(e.ca||'')}</td></tr>
-  <tr><th>Motivo</th><td>${esc(e.motivo||'')}</td><th>Data Entrega</th><td>${esc(e.data||'')}</td></tr></table>
+  <tr><th>Motivo</th><td>${esc(e.motivo||'')}</td><th>Data Entrega</th><td>${esc(fmtDate(e.data)||'')}</td></tr></table>
   <p style="font-size:11px">Declaro ter recebido o EPI acima descrito em perfeito estado de conservação, comprometendo-me a usá-lo sempre que necessário, conservá-lo e comunicar qualquer defeito.</p>
   <div style="margin:20px 0 6px">${assHtml}</div>
   ${e.assinadoEm?`<p style="text-align:center;font-size:10px;color:#888">Assinado em: ${e.assinadoEm}</p>`:''}
@@ -6218,7 +6427,7 @@ function epiImprimirFicha(){
       </tr></thead>
       <tbody>
         ${itens.map(e=>`<tr>
-          <td style="text-align:center">${esc(e.data||'')}</td>
+          <td style="text-align:center">${esc(fmtDate(e.data)||'')}</td>
           <td>${esc(e.atividade||'')}</td>
           <td>${esc(e.risco||'')}</td>
           <td style="font-weight:700">${esc(e.epi||'')}</td>
@@ -6291,7 +6500,7 @@ function epiImprimirRelatorioMensal(){
     @media print{@page{size:landscape}}
   </style></head><body>
   <div class="hdr">
-    <b>MANUELA METAIS</b><br>
+    <b>${esc(_empresaPrincipalLabel())}</b><br>
     CNPJ: ${esc((_documentHeaderConfig('epi').cnpj)||'')} &nbsp;·&nbsp; ${esc((_documentHeaderConfig('epi').address)||'')}
   </div>
   <div class="titulo">PLANILHA DE CONTROLE DE ENTREGA DE EPI – NR-06</div>
@@ -6321,7 +6530,7 @@ function epiImprimirRelatorioMensal(){
           <td style="font-weight:700">${esc2(e.epi||'')}</td>
           <td style="text-align:center">${esc2(e.ca||'')}</td>
           <td style="text-align:center">${esc2(e.motivo||'')}</td>
-          <td style="text-align:center">${esc2(e.data||'')}</td>
+          <td style="text-align:center">${esc2(fmtDate(e.data)||'')}</td>
           <td class="ass-cell">${e.assinatura?`<img src="${e.assinatura}">`:'&nbsp;'}</td>
         </tr>`;
       }).join('')}
@@ -6343,7 +6552,7 @@ function valeAssinarModal(idx, mat){
   if(!v) return;
   const f=FUNCIONARIOS.find(x=>x.mat===v.mat);
   const nome=f?f.nome:v.mat;
-  const fmt=n=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=n=>_numFinito(n,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   om('valeAssinar');
   const body=document.getElementById('modal-body');
   body.style.maxWidth='520px';
@@ -6441,7 +6650,7 @@ function valeGerarRecibo(idx){
   const f=FUNCIONARIOS.find(x=>x.mat===v.mat);
   const nome=f?f.nome:v.mat;
   const cargo=f?f.cargo||'':'';
-  const fmt=n=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fmt=n=>_numFinito(n,0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   const assSrc=v.assinatura||'';
   const assHtml=assSrc
     ?`<img src="${assSrc}" style="max-height:70px;display:block;margin:0 auto">`
@@ -6482,6 +6691,95 @@ function valeGerarRecibo(idx){
   <div class="footer">Documento gerado pelo sistema ERP · ${new Date().toLocaleDateString('pt-BR')}</div>
   <div style="text-align:center;margin-top:12px"><button onclick="window.print()" style="background:#1a3a2a;color:#fff;border:none;border-radius:6px;padding:8px 20px;cursor:pointer;font-size:13px">🖨️ Imprimir</button></div>
   </body></html>`);
+  win.document.close();
+}
+
+
+function _valeMesChave(v){
+  const data=String(v&&v.data||'').trim();
+  let m=data.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(m) return m[3]+'-'+m[2];
+  m=data.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(m) return m[1]+'-'+m[2];
+  return '';
+}
+
+function _valeMesFiltroAtual(){
+  const el=document.getElementById('vales-filtro-mes');
+  if(!el) return '';
+  if(!el.dataset.inicializado){
+    const d=new Date();
+    el.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    el.dataset.inicializado='1';
+  }
+  return String(el.value||'');
+}
+
+function _valeListaFiltrada(){
+  const mes=_valeMesFiltroAtual();
+  if(!mes) return VALES_DB.slice();
+  return VALES_DB.filter(function(v){ return _valeMesChave(v)===mes; });
+}
+
+function valeVerTodos(){
+  const el=document.getElementById('vales-filtro-mes');
+  if(el){ el.dataset.inicializado='1'; el.value=''; }
+  renderVales();
+}
+
+function _valeReciboHtml(v,compacto){
+  const f=FUNCIONARIOS.find(function(x){return x.mat===v.mat;});
+  const nome=f?f.nome:v.mat;
+  const cargo=f?f.cargo||'':'';
+  const empresa=(f&&f.empresa)||'';
+  const fmt=function(n){return _numFinito(n,0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  const assinatura=v.assinatura
+    ? '<img src="'+v.assinatura+'" style="max-height:58px;display:block;margin:0 auto">'
+    : '<div style="border-top:1px solid #333;width:260px;margin:26px auto 0;padding-top:4px;font-size:10px;color:#555;text-align:center">Assinatura do Funcionário</div>';
+  return '<section class="vale-recibo '+(compacto?'compacto':'')+'">'+
+    '<div class="vale-recibo-titulo">RECIBO DE VALE / ADIANTAMENTO</div>'+
+    '<div class="vale-recibo-empresa">'+esc(empresa||_empresaPrincipalRazao())+'</div>'+
+    '<div class="vale-recibo-linha"></div>'+
+    '<div class="vale-recibo-info">'+
+      '<div><span>Funcionário</span><b>'+esc(nome)+'</b></div>'+
+      '<div><span>Cargo</span><b>'+esc(cargo||'—')+'</b></div>'+
+      '<div><span>Empresa</span><b>'+esc(empresa||'—')+'</b></div>'+
+      '<div><span>Data do Vale</span><b>'+esc(v.data||'—')+'</b></div>'+
+      '<div><span>Mês Referência</span><b>'+esc(v.mes||'—')+'</b></div>'+
+      '<div><span>Forma de Pagamento</span><b>'+esc(v.forma||'—')+'</b></div>'+
+      '<div style="grid-column:1 / -1"><span>Obs.</span><b>'+esc(v.obs||'—')+'</b></div>'+
+    '</div>'+
+    '<div class="vale-recibo-total">R$ '+fmt(v.valor)+'</div>'+
+    '<div class="vale-recibo-decl">Declaro ter recebido a quantia acima referente a vale/adiantamento salarial.</div>'+
+    '<div class="vale-recibo-ass">'+assinatura+'</div>'+
+    (v.assinadoEm?'<div class="vale-recibo-assdata">Assinado em: '+esc(_fmtDataBR(v.assinadoEm))+'</div>':'')+
+    '<div class="vale-recibo-rodape">Documento gerado pelo sistema ERP · '+new Date().toLocaleDateString('pt-BR')+'</div>'+
+  '</section>';
+}
+
+function valeGerarTodosRecibosMes(){
+  const mes=_valeMesFiltroAtual();
+  if(!mes){ showToast('Selecione um mês para gerar os recibos.','error'); return; }
+  const lista=_valeListaFiltrada().slice().sort(function(a,b){
+    const na=String((FUNCIONARIOS.find(function(f){return f.mat===a.mat;})||{}).nome||a.mat||'');
+    const nb=String((FUNCIONARIOS.find(function(f){return f.mat===b.mat;})||{}).nome||b.mat||'');
+    return na.localeCompare(nb,'pt-BR');
+  });
+  if(!lista.length){ showToast('Não há vales no mês selecionado.','error'); return; }
+  const win=window.open('','_blank','width=950,height=850');
+  if(!win){ showToast('Permita pop-ups no navegador para gerar os recibos.','error',5000); return; }
+  const [ano,mn]=mes.split('-');
+  const meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const titulo=(meses[Number(mn)-1]||mn)+'/'+ano;
+  let paginas='';
+  for(let i=0;i<lista.length;i+=2){
+    paginas+='<div class="folha-recibos">'+_valeReciboHtml(lista[i],true);
+    if(lista[i+1]) paginas+='<div class="corte">✂ corte aqui</div>'+_valeReciboHtml(lista[i+1],true);
+    paginas+='</div>';
+  }
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Recibos de Vale - '+esc(titulo)+'</title><style>'+ 
+    '@page{size:A4 portrait;margin:7mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;color:#111;background:#fff}.toolbar{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #ddd;padding:8px;text-align:center}.toolbar button{background:#1a5e2a;color:#fff;border:0;border-radius:6px;padding:8px 18px;font-weight:700;cursor:pointer}.folha-recibos{height:283mm;page-break-after:always;display:flex;flex-direction:column;justify-content:flex-start}.folha-recibos:last-child{page-break-after:auto}.vale-recibo{height:139mm;padding:8mm 2mm 4mm;position:relative}.vale-recibo-titulo{text-align:center;font-size:15px;font-weight:800}.vale-recibo-empresa{text-align:center;font-size:11px;font-weight:700;margin-top:2px}.vale-recibo-linha{border-top:1px solid #333;margin:5px 0 8px}.vale-recibo-info{display:grid;grid-template-columns:1fr 1fr;gap:5px 18px;background:#fafafa;border-radius:4px;padding:8px}.vale-recibo-info span{display:block;font-size:9px;color:#777}.vale-recibo-info b{display:block;font-size:11px;margin-top:1px}.vale-recibo-total{text-align:center;font-size:18px;font-weight:900;color:#1a3a2a;background:#e8f5e9;border-radius:5px;padding:7px;margin:9px 0}.vale-recibo-decl{text-align:center;font-size:10px;color:#555}.vale-recibo-ass{text-align:center;margin-top:8px;height:42px}.vale-recibo-assdata{text-align:center;font-size:9px;color:#777}.vale-recibo-rodape{text-align:center;color:#aaa;font-size:8px;margin-top:7px;border-top:1px solid #eee;padding-top:5px}.corte{height:5mm;border-top:1px dashed #aaa;text-align:center;color:#999;font-size:8px;line-height:5mm}@media print{.toolbar{display:none}.folha-recibos{height:283mm}}'+
+    '</style></head><body><div class="toolbar"><b>'+lista.length+' recibo(s) · '+esc(titulo)+'</b> &nbsp; <button onclick="window.print()">🖨️ Imprimir todos</button></div>'+paginas+'</body></html>');
   win.document.close();
 }
 
@@ -6553,10 +6851,11 @@ function fluxoSumAdt(mes, ano){
 }
 
 function renderFluxo(){
+  const fluxoAnoEl=document.getElementById('fluxo-ano'); if(fluxoAnoEl&&!fluxoAnoEl.value) fluxoAnoEl.value=_anoAtual();
   const tbody=document.getElementById('tb-fluxo-body');
   if(!tbody) return;
   const ano=parseInt(document.getElementById('fluxo-ano')?.value)||new Date().getFullYear();
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const mNomes=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
   
@@ -6637,7 +6936,7 @@ function fecharFolha(){
   const [ano,mn]=mes.split('-');
   const meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const nomeMes=meses[parseInt(mn)-1]+'/'+ano;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
 
   
   let totalLiq=0;
@@ -6713,13 +7012,19 @@ function renderFolha(){
   
   try{ if(_syncPonto.limparDuplicatasExatas()){ saveDB(); } }catch(e){}
   const mes=getFolhaMes();
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const [ano,mn]=mes.split('-');
   const nomeMes=meses[parseInt(mn)-1]+'/'+ano;
   const titulo=document.getElementById('folha-titulo');
-  if(titulo) titulo.textContent='Folha – '+nomeMes;
-  const lista=FUNCIONARIOS.filter(f=>f.status!=='Inativo');
+  const listaTodos=FUNCIONARIOS.filter(function(f){return f.status!=='Inativo';});
+  const termoEl=document.getElementById('folha-pesquisa');
+  const termo=String(termoEl&&termoEl.value||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const lista=termo?listaTodos.filter(function(f){
+    const texto=[f.mat,f.nome,f.cargo,f.empresa,f.role,f.descricao].map(function(v){return String(v||'');}).join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    return texto.includes(termo);
+  }):listaTodos;
+  if(titulo) titulo.textContent='Folha – '+nomeMes+(termo?' · '+lista.length+' de '+listaTodos.length+' funcionário(s)':'');
   let totalBruto=0,totalInss=0,totalLiq=0,totalDec=0,totalFer=0,totalDiariasAll=0;
   tbFolha.innerHTML=lista.map(f=>{
     const key=mes+'-'+f.mat;
@@ -6814,7 +7119,7 @@ function renderFolha(){
 function verCustoAnual(){
   
   try{ if(_syncPonto.limparDuplicatasExatas()){ saveDB(); } }catch(e){}
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const mes=getFolhaMes();
   const ano=mes.split('-')[0];
   const meses=['01','02','03','04','05','06','07','08','09','10','11','12'];
@@ -6872,12 +7177,15 @@ function verCustoAnual(){
       totalBruto+=bruto; totalLiq+=liq; totalVales+=vales; totalInss+=inss;
     });
     
-    const encargos=totalBruto*0.28;
+    const cfgFolha=(ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.payrollDefaults)||{};
+    const taxaEncargos=Math.max(0,Number(cfgFolha.employerCostRate)||0);
+    const encargos=totalBruto*taxaEncargos;
     const custoTotal=totalBruto+encargos;
     return {f,totalBruto,totalLiq,totalVales,totalInss,encargos,custoTotal,mesesAtivos};
   }).sort((a,b)=>b.custoTotal-a.custoTotal);
 
   const totalGeral=rows.reduce((s,r)=>s+r.custoTotal,0);
+  const taxaEncargosRel=Math.max(0,Number(((ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.payrollDefaults)||{}).employerCostRate)||0);
   const tableRows=rows.map(r=>
     '<tr>'+
     '<td>'+r.f.mat+'</td>'+
@@ -6897,7 +7205,7 @@ function verCustoAnual(){
   body.style.maxWidth='900px';
   body.innerHTML=
     '<h3>📅 Custo Anual por Funcionário — '+ano+'</h3>'+
-    '<p style="color:var(--gray);font-size:.83rem">Encargos patronais estimados em 28% (INSS patronal, FGTS, férias, 13º). Valores baseados nos lançamentos registrados no sistema.</p>'+
+    '<p style="color:var(--gray);font-size:.83rem">Encargos patronais estimados em '+(taxaEncargosRel*100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%. Valores baseados nos lançamentos registrados no sistema.</p>'+
     '<div style="overflow-x:auto"><table>'+
       '<thead><tr>'+
         '<th>Matr.</th><th>Nome</th><th>Cargo</th><th>Meses</th>'+
@@ -6921,42 +7229,64 @@ function verCustoAnual(){
 function renderVales(){
   const tb=document.getElementById('tb-vales');
   if(!tb) return;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  if(VALES_DB.length===0){
-    tb.innerHTML='<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum vale lançado ainda</td></tr>';
+  const fmt=function(v){return _numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  const filtroMes=_valeMesFiltroAtual();
+  const listaFiltrada=_valeListaFiltrada();
+  const agora=new Date();
+  const mesKpi=filtroMes||agora.getFullYear()+'-'+String(agora.getMonth()+1).padStart(2,'0');
+  const doMes=VALES_DB.filter(function(v){return _valeMesChave(v)===mesKpi;});
+  const totalMes=doMes.reduce(function(s,v){return s+_numFinito(v.valor,0);},0);
+  const totalGeral=VALES_DB.reduce(function(s,v){return s+_numFinito(v.valor,0);},0);
+  const cfgV=(ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.employeeBenefits)||{};
+  const diaVale=Math.max(1,Math.min(31,Number(cfgV.voucherPaymentDay)||20));
+  const tituloVales=document.getElementById('vales-titulo');
+  const kMes=document.getElementById('kpi-vales-mes');
+  const kSub=document.getElementById('kpi-vales-mes-sub');
+  const kAberto=document.getElementById('kpi-vales-aberto');
+  const kTotal=document.getElementById('kpi-vales-total');
+  const count=document.getElementById('vales-filtro-count');
+  const [anoK,mnK]=mesKpi.split('-');
+  const nomeMesK=new Date(Number(anoK),Number(mnK)-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  if(tituloVales) tituloVales.textContent='💳 Controle de Vales – Pagamento Dia '+diaVale;
+  if(kMes) kMes.textContent='R$ '+fmt(totalMes);
+  if(kSub) kSub.textContent='Dia '+diaVale+' · '+nomeMesK;
+  if(kAberto) kAberto.textContent=String(doMes.length);
+  if(kTotal) kTotal.textContent='R$ '+fmt(totalGeral);
+  if(count) count.textContent=filtroMes?('Vales encontrados: '+listaFiltrada.length):('Todos os vales: '+VALES_DB.length);
+  if(listaFiltrada.length===0){
+    tb.innerHTML='<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum vale encontrado para o período selecionado</td></tr>';
     return;
   }
-  const sorted=[...VALES_DB].sort((a,b)=>b.data.localeCompare(a.data));
-  tb.innerHTML=sorted.map((v,i)=>{
+  const sorted=listaFiltrada.slice().sort(function(a,b){
+    const pa=String(a&&a.data||'').split('/'), pb=String(b&&b.data||'').split('/');
+    const da=pa.length===3?new Date(Number(pa[2]),Number(pa[1])-1,Number(pa[0])).getTime():Date.parse(a&&a.data||'')||0;
+    const db=pb.length===3?new Date(Number(pb[2]),Number(pb[1])-1,Number(pb[0])).getTime():Date.parse(b&&b.data||'')||0;
+    return db-da;
+  });
+  tb.innerHTML=sorted.map(function(v){
     const gi=VALES_DB.indexOf(v);
-    const f=FUNCIONARIOS.find(x=>x.mat===v.mat);
+    const f=FUNCIONARIOS.find(function(x){return x.mat===v.mat;});
     const nome=f?f.nome:v.mat;
     const assBadge=v.assinatura
       ?'<span style="background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:2px 8px;font-size:.72rem;font-weight:700">✅ Assinado</span>'
       :'<span style="background:#fff3cd;color:#856404;border-radius:10px;padding:2px 8px;font-size:.72rem;font-weight:700">⏳ Pendente</span>';
-    return '<tr>'+
-      '<td>'+v.mat+'</td>'+
-      '<td>'+v.data+'</td>'+
-      '<td>'+esc(v.mes||'—')+'</td>'+
-      '<td><b>'+esc(nome)+'</b></td>'+
-      '<td style="font-weight:700">R$ '+fmt(v.valor)+'</td>'+
-      '<td>'+esc(v.forma||'—')+'</td>'+
-      '<td style="font-size:.78rem">'+esc(v.obs||'—')+'</td>'+
+    return '<tr>'+ 
+      '<td>'+esc(v.mat||'—')+'</td>'+ 
+      '<td>'+esc(_fmtDataBR(v.data)||'—')+'</td>'+ 
+      '<td>'+esc(v.mes||'—')+'</td>'+ 
+      '<td><b>'+esc(nome||'—')+'</b></td>'+ 
+      '<td style="font-weight:700">R$ '+fmt(v.valor)+'</td>'+ 
+      '<td>'+esc(v.forma||'—')+'</td>'+ 
+      '<td style="font-size:.78rem">'+esc(v.obs||'—')+'</td>'+ 
       '<td style="white-space:nowrap;text-align:center">'+assBadge+
         '<br><div style="margin-top:4px;display:flex;gap:4px;justify-content:center">'+
-        '<button class="btn-edit" style="font-size:.72rem;background:#1565c0;color:#fff" onclick="valeAssinarModal('+gi+',\''+v.mat+'\')" title="Capturar assinatura">✍️ Assinar</button>'+
-        '<button class="btn-edit" style="font-size:.72rem;background:#2e7d32;color:#fff" onclick="valeGerarRecibo('+gi+')" title="Gerar recibo">📄 Recibo</button>'+
-        '</div></td>'+
-      '<td style="white-space:nowrap"><button class="btn-edit" onclick="editVale('+gi+')" title="Editar" style="margin-right:4px">✏️</button>'+
-      '<button class="btn-edit-danger" onclick="excluirVale('+gi+')" title="Excluir">🗑️</button></td>'+
+        '<button class="btn-edit" style="font-size:.72rem;background:#1565c0;color:#fff" onclick="valeAssinarModal('+gi+',\''+String(v.mat||'').replace(/'/g,"\\'")+'\')" title="Capturar assinatura">✍️ Assinar</button>'+ 
+        '<button class="btn-edit" style="font-size:.72rem;background:#2e7d32;color:#fff" onclick="valeGerarRecibo('+gi+')" title="Gerar recibo">📄 Recibo</button>'+ 
+        '</div></td>'+ 
+      '<td style="white-space:nowrap"><button class="btn-edit" onclick="editVale('+gi+')" title="Editar" style="margin-right:4px">✏️</button>'+ 
+      '<button class="btn-edit-danger" onclick="excluirVale('+gi+')" title="Excluir">🗑️</button></td>'+ 
       '</tr>';
   }).join('');
-  
-  const total=VALES_DB.reduce((s,v)=>s+Number(v.valor),0);
-  const k=document.querySelectorAll('#tab-vales .kpi-val');
-  if(k[0]) k[0].textContent='R$ '+fmt(total);
-  if(k[1]) k[1].textContent=VALES_DB.length;
-  if(k[2]) k[2].textContent='R$ '+fmt(total);
 }
 
 function salvarPontoLancamento(){
@@ -7004,9 +7334,37 @@ function excluirVale(idx){
 }
 
 
+function _diasUteisNoMes(ano,mesIndex){
+  let total=0;
+  const dias=new Date(ano,mesIndex+1,0).getDate();
+  for(let d=1;d<=dias;d++){
+    const wd=new Date(ano,mesIndex,d).getDay();
+    if(wd!==0&&wd!==6) total++;
+  }
+  return total;
+}
 function renderPontoTab(){
   const tb=document.getElementById('tb-ponto');
   if(!tb) return;
+  const agora=new Date();
+  const mes=String(agora.getMonth()+1).padStart(2,'0');
+  const ano=String(agora.getFullYear());
+  const lancamentosMes=PONTO_DB.filter(function(p){
+    const partes=String(p&&p.data||'').split('/');
+    return partes.length===3 && partes[1]===mes && partes[2]===ano;
+  });
+  const diasUteis=_diasUteisNoMes(agora.getFullYear(),agora.getMonth());
+  const ativos=FUNCIONARIOS.filter(function(f){ return f && f.status!=='Inativo'; }).length;
+  const faltasMes=lancamentosMes.filter(function(p){ return p.tipo==='Falta'; }).length;
+  const horasExtrasMes=lancamentosMes.filter(function(p){ return p.tipo==='HE'; }).reduce(function(total,p){ return total+Number(p.horas||0); },0);
+  const kDias=document.getElementById('kpi-ponto-dias-uteis');
+  const kFunc=document.getElementById('kpi-ponto-funcionarios');
+  const kFaltas=document.getElementById('kpi-ponto-faltas');
+  const kHe=document.getElementById('kpi-ponto-he');
+  if(kDias) kDias.textContent=String(diasUteis);
+  if(kFunc) kFunc.textContent=String(ativos);
+  if(kFaltas) kFaltas.textContent=String(faltasMes);
+  if(kHe) kHe.textContent=(Number.isInteger(horasExtrasMes)?String(horasExtrasMes):horasExtrasMes.toLocaleString('pt-BR',{maximumFractionDigits:2}))+'h';
   
   
   
@@ -7020,12 +7378,12 @@ function renderPontoTab(){
   
   try{ if(_syncPonto.limparDuplicatasExatas()){ saveDB(); } }catch(e){}
   tb.innerHTML=FUNCIONARIOS.map(f=>{
-    const lancs=PONTO_DB.filter(p=>p.mat===f.mat);
+    const lancs=lancamentosMes.filter(p=>p.mat===f.mat);
     const faltas=lancs.filter(p=>p.tipo==='Falta').length;
     const he=lancs.filter(p=>p.tipo==='HE').reduce((s,p)=>s+Number(p.horas||0),0);
     const hf=lancs.filter(p=>p.tipo==='Falta').reduce((s,p)=>s+8,0);
     const ates=lancs.filter(p=>p.tipo==='Atestado').length;
-    const diasTrab=22-faltas;
+    const diasTrab=Math.max(0,diasUteis-faltas);
     return '<tr>'+
       '<td>'+f.mat+'</td><td><b>'+esc(f.nome)+'</b></td>'+
       '<td>'+diasTrab+'</td><td>'+faltas+'</td>'+
@@ -7156,7 +7514,9 @@ function saveChequesCli(){ localStorage.setItem('mm_cheques_cli', JSON.stringify
 
 let _fcAba='extrato';
 let _fcCliente='';
-function _fcMoneyFmt(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2}); }
+function _fcMoneyFmt(v){ return 'R$ '+_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2}); }
+function _fcNomeKey(v){ return String(v||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' '); }
+function _fcMesmoNome(a,b){ return _fcNomeKey(a)===_fcNomeKey(b); }
 function _fcData2Ord(d){ if(!d) return '00000000'; if(d.indexOf('/')>=0){ const p=d.split('/'); return (p[2]||'0000')+(p[1]||'00')+(p[0]||'00'); } return d.replace(/-/g,''); }
 function _fcClientesAtivos(){
   return [...new Set((CLIENTES||[]).map(c=>c&&c.nome).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
@@ -7175,21 +7535,21 @@ function _fcListaClientes(){return _fcClientesAtivos().concat(_fcClientesHistori
 function _fcMovimentos(cli){
   const mov=[];
   (typeof VENDAS_DB!=='undefined'?VENDAS_DB:[]).forEach(function(v){
-    if(!v||v.cliente!==cli) return;
+    if(!v||!_fcMesmoNome(v.cliente,cli)) return;
     const kg=(v.itens||[]).reduce((s,it)=>s+Number(it.qt||0),0);
     mov.push({ord:_fcData2Ord(v.data), data:v.data||'—', tipo:'venda', desc:'Venda'+(v.nf?' NF '+v.nf:'')+(v.itens&&v.itens[0]?' — '+esc(v.itens[0].mat||''):''), kg:kg, deb:Number(v.total||0), cred:0});
   });
-  (ADT_CLI[cli]||[]).forEach(function(a){
+  Object.keys(ADT_CLI||{}).filter(function(k){return _fcMesmoNome(k,cli);}).forEach(function(k){ (ADT_CLI[k]||[]).forEach(function(a){
     mov.push({ord:_fcData2Ord(a.data), data:a.data||'—', tipo:'adt', desc:'Adiantamento'+(a.forma?' ('+esc(a.forma)+')':'')+(a.vinculo?' — '+esc(a.vinculo):''), kg:0, deb:0, cred:Number(a.valor||0)});
-  });
-  (CHEQUES_CLI[cli]||[]).forEach(function(c){
+  }); });
+  Object.keys(CHEQUES_CLI||{}).filter(function(k){return _fcMesmoNome(k,cli);}).forEach(function(k){ (CHEQUES_CLI[k]||[]).forEach(function(c){
     mov.push({ord:_fcData2Ord(c.bomPara||c.data), data:(c.bomPara||c.data||'—'), tipo:'cheq', desc:'Cheque nº '+esc(c.num||'—')+(c.banco?' — '+esc(c.banco):''), kg:0, deb:0, cred:Number(c.valor||0)});
-  });
+  }); });
   try{
-    const _ja=new Set((CHEQUES_CLI[cli]||[]).map(function(c){ return String(c.num||'')+'|'+Number(c.valor||0).toFixed(2)+'|'+String(c.bomPara||c.data||''); }));
+    const _ja=new Set(Object.keys(CHEQUES_CLI||{}).filter(function(k){return _fcMesmoNome(k,cli);}).flatMap(function(k){return CHEQUES_CLI[k]||[];}).map(function(c){ return String(c.num||'')+'|'+Number(c.valor||0).toFixed(2)+'|'+String(c.bomPara||c.data||''); }));
     Object.values(CHQ_CTRL||{}).forEach(function(c){
       if(!c) return;
-      const ligado=(c.clienteNome===cli) || (!c.clienteNome && String(c.c||'').trim()===cli);
+      const ligado=_fcMesmoNome(c.clienteNome||c.c,cli);
       if(!ligado) return;
       const chave=String(c.n||'')+'|'+Number(c.v||0).toFixed(2)+'|'+String(c.venc||c.d||'');
       if(_ja.has(chave)) return;
@@ -7197,7 +7557,7 @@ function _fcMovimentos(cli){
     });
   }catch(e){}
   (typeof CONTAS_RECEBER!=='undefined'?CONTAS_RECEBER:[]).forEach(function(cr){
-    if(!cr||cr.cli!==cli) return;
+    if(!cr||!_fcMesmoNome(cr.cli,cli)) return;
     if(cr.status!=='Recebido') return;
     if(cr.forma==='Adiantamento'||cr.forma==='Cheque') return; 
     mov.push({ord:_fcData2Ord(cr.dataReceb||cr.data), data:(cr.dataReceb||cr.data||'—'), tipo:'pag', desc:'Pagamento'+(cr.forma?' ('+esc(cr.forma)+')':'')+(cr.nf?' — NF '+esc(cr.nf):'')+(cr.obs?' — '+esc(cr.obs):''), kg:0, deb:0, cred:Number(cr.valor||0)});
@@ -7216,16 +7576,12 @@ function fcSetAba(a){
     const v=document.getElementById('fc-view-'+n); if(v) v.style.display=(n===a?'':'none');
     const b=document.getElementById('fc-aba-'+n); if(b){ const at=(n===a); b.style.borderBottomColor=at?'#1a5e2a':'transparent'; b.style.color=at?'#1a5e2a':'#999'; }
   });
-  if(a==='resumo' && window.__ERP_FINANCE_CLOUD_READY__) fcRenderResumo();
+  if(a==='resumo') fcRenderResumo();
   if(a==='antigo'){ try{ renderAdtCli(); }catch(e){} try{ renderChequesCli(); }catch(e){} }
 }
 let _fcFiltroChip='';
 function renderFichaCliente(){
-  if(!window.__ERP_FINANCE_CLOUD_READY__){
-    const box=document.getElementById('fc-cli-box');
-    if(box) box.innerHTML='<span style="color:#888;font-size:.85rem">Carregando histórico financeiro do Firebase...</span>';
-    return;
-  }
+  if(!window.__ERP_FINANCE_CLOUD_READY__){ const box=document.getElementById('fc-cli-box'); if(box&&!box.children.length) box.innerHTML='<span style="color:#888;font-size:.85rem">Sincronizando histórico financeiro...</span>'; }
   if(_fcCliente && !_fcListaClientes().includes(_fcCliente)) _fcCliente='';
   fcRenderChips();
   if(_fcCliente) fcSelecionarCliente(_fcCliente);
@@ -7317,7 +7673,7 @@ function fcLancarPagamento(){
   const ov=document.createElement('div'); ov.className='modal-ov open'; ov.id='modal-ov'; ov.dataset.dynamic='1';
   const bx=document.createElement('div'); bx.id='modal-body'; bx.className='modal';
   ov.appendChild(bx); document.body.appendChild(ov);
-  const bancos=(typeof BANCOS_DB!=='undefined'&&BANCOS_DB.length?BANCOS_DB:BANCOS).map(b=>'<option value="'+esc(b.banco)+'">'+esc(b.banco)+'</option>').join('');
+  const bancos=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB)?BANCOS_DB:[]).map(b=>'<option value="'+esc(b.banco)+'">'+esc(b.banco)+'</option>').join('');
   bx.innerHTML='<h3>💵 Pagamento recebido — '+esc(_fcCliente)+'</h3>'+
     '<div style="font-size:.8rem;color:#666;margin-bottom:10px">Use para registrar um pagamento recebido (inclusive quando o cliente do seu cliente paga direto pra sua empresa).</div>'+
     '<div class="fg"><label>Data</label><input id="fcp-data" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
@@ -7411,7 +7767,7 @@ function salvarAdiantamentoCli(){
   const cod='ADTC'+String(Date.now()).slice(-6);
   const dataFmt=data.split('-').reverse().join('/');
   const bancoCod=document.getElementById('adtcli-banco')?.value||'';
-  const bancoNome=bancoCod?(typeof BANCOS!=='undefined'?BANCOS.find(b=>b.cod===bancoCod)?.banco||'':''):'';
+  const bancoNome=bancoCod?((BANCOS_DB.find(b=>b.cod===bancoCod)?.banco)||''):'';
   ADT_CLI[cliNome].push({
     cod, data:dataFmt, valor,
     forma: document.getElementById('adtcli-forma')?.value||'PIX',
@@ -7430,7 +7786,7 @@ function salvarAdiantamentoCli(){
 function renderAdtCli(){
   const tbody=document.getElementById('tb-adtcli-list');
   if(!tbody) return;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const all=[];
   Object.entries(ADT_CLI).forEach(([cliNome,lista])=>{
     lista.forEach((a,i)=>all.push({...a,cliNome,_idx:i}));
@@ -7440,7 +7796,7 @@ function renderAdtCli(){
     tbody.innerHTML='<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum adiantamento de cliente lançado ainda</td></tr>';
   } else {
     tbody.innerHTML=all.map(a=>`<tr>
-      <td>${a.cod}</td><td>${a.data}</td>
+      <td>${a.cod}</td><td>${fmtDate(a.data)||'—'}</td>
       <td><b>${esc(a.cliNome)}</b></td>
       <td style="font-weight:700;color:#1a5c35">R$ ${fmt(a.valor)}</td>
       <td>${a.forma||'—'}</td>
@@ -7495,7 +7851,7 @@ function salvarChequeCli(){
 function renderChequesCli(){
   const tbody=document.getElementById('tb-cheques-cli-list');
   if(!tbody) return;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const all=[];
   Object.entries(CHEQUES_CLI).forEach(([cliNome,lista])=>{
     lista.forEach(c=>all.push({...c,cliNome}));
@@ -7518,7 +7874,7 @@ function renderChequesCli(){
         ? `<span class="b b-pago">✅ Pago (devolv.)</span>`+(c.motivoDevolucao?`<br><span style="font-size:.66rem;color:#888" title="${esc(c.motivoDevolucao)}">havia voltado: ${esc(c.motivoDevolucao)}</span>`:'')
         : `<span class="b ${stCls}">${atrasado?'Atrasado':c.status}</span>`;
     return `<tr style="${devolvido?'background:#fff8e1':atrasado?'background:#fff5f5':''}">
-      <td>${esc(c.num)}</td><td>${c.data||'—'}</td><td>${c.bomPara||'—'}</td>
+      <td>${esc(c.num)}</td><td>${fmtDate(c.data)||'—'}</td><td>${fmtDate(c.bomPara)||'—'}</td>
       <td><b>${esc(c.cliNome)}</b></td>
       <td style="font-size:.82rem">${esc(c.emitente||'—')}</td>
       <td style="font-weight:700;color:#1a5c35">R$ ${fmt(c.valor)}</td>
@@ -7898,125 +8254,13 @@ function _adtIso(d){
   if(d.indexOf('/')>=0){ var p=d.split(' ')[0].split('/'); if(p.length===3) return p[2]+'-'+String(p[1]).padStart(2,'0')+'-'+String(p[0]).padStart(2,'0'); }
   var m=d.match(/^(\d{4})-(\d{2})-(\d{2})/); return m?m[0]:'';
 }
-function arrumarAdiantamentosCorte(){
-  try{
-    var corte=prompt('Vou deixar SÓ os adiantamentos que você LANÇOU do novo sistema pra cá (a partir da data de corte), e trazer de volta os que sumiram.\n\nConfirme a DATA DE CORTE (dd/mm/aaaa):','14/09/2026');
-    if(!corte) return;
-    var corteIso=_adtIso(corte);
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(corteIso)){ alert('Data inválida. Use dd/mm/aaaa, ex: 14/09/2026.'); return; }
-    var _cp=corte.split('/'); var cutoffTs=new Date(+_cp[2], (+_cp[1])-1, +_cp[0], 0,0,0).getTime();
-    var _pv=function(s){ s=String(s||'').replace(/[^0-9.,]/g,''); if(s.indexOf(',')>=0){ s=s.replace(/\./g,'').replace(',','.'); } var n=parseFloat(s); return isFinite(n)?n:0; };
-
-    var hist=(typeof HISTORICO_DB!=='undefined'?HISTORICO_DB:[])||[];
-    
-    
-    
-    var logTs={};
-    hist.filter(function(h){ return h&&h.modulo==='Adiantamento'&&h.acao==='Criado'; }).forEach(function(h){
-      var c=(h.extra&&h.extra.cod)||''; if(!c) return; var t=Number(h.ts||0);
-      if(!logTs[c] || t>logTs[c]) logTs[c]=t;
-    });
-
-    
-    function _ehVelho(a){
-      if(!a) return true;
-      var di=_adtIso(a.data); if(di && di<corteIso) return true;               
-      var t=logTs[String(a.cod)]; if(t && t<cutoffTs) return true;              
-      return false;
-    }
-    var removeriam=0;
-    Object.keys(ADT_POR_FORN||{}).forEach(function(fc){ (ADT_POR_FORN[fc]||[]).forEach(function(a){ if(_ehVelho(a)) removeriam++; }); });
-
-    
-    var existe=new Set(); Object.keys(ADT_POR_FORN||{}).forEach(function(fc){ (ADT_POR_FORN[fc]||[]).forEach(function(a){ if(a&&a.cod) existe.add(String(a.cod)); }); });
-    var vistos={}, recup=[];
-    hist.filter(function(h){ return h&&h.modulo==='Adiantamento'&&h.acao==='Criado'&&Number(h.ts||0)>=cutoffTs; }).sort(function(a,b){ return Number(b.ts||0)-Number(a.ts||0); }).forEach(function(h){
-      var cod=(h.extra&&h.extra.cod)||''; var fornCod=(h.extra&&h.extra.fornCod)||'';
-      if(!cod||vistos[cod]) return; vistos[cod]=1;
-      if(existe.has(String(cod))) return;
-      var p=String(h.resumo||'').split(' — '); var valor=_pv(p[1]||''); var data=(p[2]||'').trim();
-      if(!(valor>0)||!fornCod) return;
-      recup.push({cod,fornCod, nome:(p[0]||'').trim(), valor, data, banco:(p[3]||'').trim()});
-    });
-
-    if(!confirm('Resumo (corte '+corte+'):\n\n• TIRAR '+removeriam+' adiantamento(s) do sistema ANTIGO (de antes do corte).\n• TRAZER DE VOLTA '+recup.length+' que você lançou do corte pra frente e sumiram.\n\nFaço backup antes. Continuar?')) return;
-
-    
-    try{
-      var ts=Date.now();
-      var copia=JSON.parse(JSON.stringify(ADT_POR_FORN));
-      if(window._fbDB){ window._fbDB.ref('erp/_bkp_corte_adt_'+ts).set({quando:new Date().toISOString(), adiantamentos:copia}); }
-      localStorage.setItem('mm_bkp_corte_adt', JSON.stringify({ts:ts, adiantamentos:copia}));
-    }catch(e){}
-
-    
-    var nrem=0;
-    Object.keys(ADT_POR_FORN).forEach(function(fc){
-      var antes=(ADT_POR_FORN[fc]||[]).length;
-      ADT_POR_FORN[fc]=(ADT_POR_FORN[fc]||[]).filter(function(a){ return !_ehVelho(a); });
-      nrem += antes-(ADT_POR_FORN[fc]||[]).length;
-      if(!ADT_POR_FORN[fc].length) delete ADT_POR_FORN[fc];
-    });
-    
-    var nrec=0;
-    recup.forEach(function(f){
-      if(!ADT_POR_FORN[f.fornCod]) ADT_POR_FORN[f.fornCod]=[];
-      if(ADT_POR_FORN[f.fornCod].some(function(a){ return a&&String(a.cod)===String(f.cod); })) return;
-      ADT_POR_FORN[f.fornCod].push({ cod:f.cod, data:f.data, valor:f.valor, status:'Pendente',
-        forma:(/terceiro/i.test(f.banco)?'Cheque de Terceiro':'PIX'), bancoCod:'', bancoNome:f.banco||'', empresa:'',
-        obs:'♻ Recuperado do log em '+new Date().toLocaleDateString('pt-BR') });
-      nrec++;
-    });
-    
-    try{ _DEL_SETS.adtItens.clear(); _DEL_SETS.adtPorForn.clear(); localStorage.removeItem(_DEL_LS_KEY.adtItens); localStorage.removeItem(_DEL_LS_KEY.adtPorForn); }catch(e){}
-    saveDB();
-    
-    try{ if(window._fbDB){ window._fbDB.ref('erp/adiantamentos').set(ADT_POR_FORN); window._fbDB.ref('erp/adtItensDeleted').set(null); window._fbDB.ref('erp/adtPorFornDeleted').set(null); window._fbDB.ref('erp/_ts').set(Date.now()); } }catch(e){}
-    try{ renderAdiantamentos(); }catch(e){}
-    try{ registrarHistorico('Adiantamento','Arrumado no corte','Tirei '+nrem+' antigos e recuperei '+nrec+' (corte '+corte+')', null, null); }catch(e){}
-    alert('✅ Pronto!\n\n• Tirei '+nrem+' adiantamento(s) antigos (antes de '+corte+').\n• Recuperei '+nrec+' que tinham sumido.\n\nConfira a lista. Tem backup — se algo ficou errado, me chame.');
-  }catch(e){ alert('Erro: '+(e&&e.message||e)); }
-}
-window['arrumarAdiantamentosCorte']=arrumarAdiantamentosCorte;
-
-
-
-
-function _autoArrumarCorte(){
-  try{
-    if(localStorage.getItem('mm_auto_corte_adt_v3')) return;
-    var hist=(typeof HISTORICO_DB!=='undefined'?HISTORICO_DB:[])||[];
-    if(!hist.length) return; 
-    var corteIso='2026-09-14', cutoffTs=new Date(2026,8,14,0,0,0).getTime();
-    var logTs={};
-    hist.filter(function(h){ return h&&h.modulo==='Adiantamento'&&h.acao==='Criado'; }).forEach(function(h){ var c=(h.extra&&h.extra.cod)||''; if(!c)return; var t=Number(h.ts||0); if(!logTs[c]||t>logTs[c])logTs[c]=t; });
-    var ehVelho=function(a){ if(!a) return true; var di=_adtIso(a.data); if(di&&di<corteIso) return true; var t=logTs[String(a.cod)]; if(t&&t<cutoffTs) return true; return false; };
-    var velhos=0; Object.keys(ADT_POR_FORN||{}).forEach(function(fc){ (ADT_POR_FORN[fc]||[]).forEach(function(a){ if(ehVelho(a)) velhos++; }); });
-    if(!velhos){ localStorage.setItem('mm_auto_corte_adt_v3','1'); return; }
-    localStorage.setItem('mm_auto_corte_adt_v3','1'); 
-    if(!confirm('👋 '+_usuarioAdminNome()+', achei '+velhos+' adiantamento(s) do sistema ANTIGO (de agosto, antes do corte do dia 14) que voltaram sem querer.\n\nQuer que eu TIRE eles agora e deixe só os do novo sistema?\n\n(Faço backup antes. Se clicar Cancelar, eles ficam e você pode usar o botão "♻ Arrumar" depois.)')) return;
-    try{ var ts=Date.now(); var copia=JSON.parse(JSON.stringify(ADT_POR_FORN)); if(window._fbDB){ window._fbDB.ref('erp/_bkp_corte_adt_'+ts).set({quando:new Date().toISOString(),adiantamentos:copia}); } localStorage.setItem('mm_bkp_corte_adt', JSON.stringify({ts:ts,adiantamentos:copia})); }catch(e){}
-    var nrem=0;
-    Object.keys(ADT_POR_FORN).forEach(function(fc){ var antes=(ADT_POR_FORN[fc]||[]).length; ADT_POR_FORN[fc]=(ADT_POR_FORN[fc]||[]).filter(function(a){ return !ehVelho(a); }); nrem+=antes-(ADT_POR_FORN[fc]||[]).length; if(!ADT_POR_FORN[fc].length) delete ADT_POR_FORN[fc]; });
-    try{ _DEL_SETS.adtItens.clear(); _DEL_SETS.adtPorForn.clear(); localStorage.removeItem(_DEL_LS_KEY.adtItens); localStorage.removeItem(_DEL_LS_KEY.adtPorForn); }catch(e){}
-    saveDB();
-    
-    
-    
-    try{ if(window._fbDB){ window._fbDB.ref('erp/adiantamentos').set(ADT_POR_FORN); window._fbDB.ref('erp/adtItensDeleted').set(null); window._fbDB.ref('erp/adtPorFornDeleted').set(null); window._fbDB.ref('erp/_ts').set(Date.now()); } }catch(e){}
-    try{ registrarHistorico('Adiantamento','Auto-limpeza corte','Tirei '+nrem+' do sistema antigo',null,null); }catch(e){}
-    try{ renderAdiantamentos(); }catch(e){}
-    alert('✅ Pronto, '+_usuarioAdminNome()+'! Tirei '+nrem+' adiantamento(s) do sistema antigo — apaguei direto na nuvem, então não volta mais. Ficou só o do novo sistema. Tem backup.');
-  }catch(e){}
-}
-window['_autoArrumarCorte']=_autoArrumarCorte;
 
 function renderAdiantamentos(){
   const tbody=document.getElementById('tb-adiantamentos-list');
   if(!tbody)return;
   try{ adtCorrigeEmpresa(); }catch(_){}
   try{ _adtCorrigirDataCompensacaoParcial(); }catch(_){}
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const empCor={}; _cfgFinanceCompanies().forEach(function(n){ empCor[n]=_cfgFinanceCompanyColor(n); });
   const all=[];
   Object.entries(ADT_POR_FORN).forEach(([cod,lista])=>{
@@ -8040,7 +8284,7 @@ function _adtEhPagamentoCarga(a){
 function _renderAdiantamentosLista(all, _qtdCargaOculta){
   const tbody=document.getElementById('tb-adiantamentos-list');
   if(!tbody)return;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const empCor={}; _cfgFinanceCompanies().forEach(function(n){ empCor[n]=_cfgFinanceCompanyColor(n); });
   if(all.length===0){
     tbody.innerHTML=`<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum adiantamento lançado ainda</td></tr>`;
@@ -8064,7 +8308,7 @@ function _renderAdiantamentosLista(all, _qtdCargaOculta){
   else tbody.innerHTML=allFiltrado.map(a=>`
     <tr style="${a.status==='Quitado'?'background:#eaf7ee':''}">
       <td>${a.cod}</td>
-      <td>${a.data}</td>
+      <td>${fmtDate(a.data)||'—'}</td>
       <td><b>${a.fornNome}</b></td>
       <td style="font-weight:700">R$ ${fmt(a.valor)}</td>
       <td>${a.forma||'—'}</td>
@@ -8124,13 +8368,13 @@ function _renderAdiantamentosLista(all, _qtdCargaOculta){
     const bc=temPend?'#c0392b':'#1a5c35';
     const pendRows=pendentes.map(a=>
       `<div style="display:flex;gap:8px;padding:5px 10px;border-bottom:1px solid #fde8e8;background:#fff9f9;align-items:center">
-        <span style="font-size:.8rem;color:#555;flex:1">${a.fornNome} · ${a.data}</span>
+        <span style="font-size:.8rem;color:#555;flex:1">${a.fornNome} · ${fmtDate(a.data)||'—'}</span>
         <span style="font-weight:800;color:#c0392b;font-size:.85rem">R$ ${fmt(a.valor)}</span>
         <span style="font-size:.72rem;color:#888">${a.forma||'—'}</span>
       </div>`).join('');
     const quitRows=quitados.slice(0,5).map(a=>
       `<div style="display:flex;gap:8px;padding:5px 10px;border-bottom:1px solid #e8f5e9;background:#f6fff8;align-items:center">
-        <span style="font-size:.78rem;color:#777;flex:1">${a.fornNome} · ${a.data}</span>
+        <span style="font-size:.78rem;color:#777;flex:1">${a.fornNome} · ${fmtDate(a.data)||'—'}</span>
         <span style="font-weight:700;color:#27ae60;font-size:.82rem">R$ ${fmt(a.valor)}</span>
         <span style="font-size:.7rem;color:#27ae60">${a.ticket||'quitado'}</span>
       </div>`).join('');
@@ -8198,11 +8442,7 @@ function _renderAdiantamentosLista(all, _qtdCargaOculta){
 
 
 function _adtSincronizaEmpresa(bancoSelId, empresaSelId){
-  const bs=document.getElementById(bancoSelId), es=document.getElementById(empresaSelId);
-  if(!bs||!es) return;
-  const val=bs.value;
-  const b=(BANCOS_DB||[]).find(x=>x.cod===val||x.banco===val);
-  if(b && b.empresa) es.value=b.empresa;
+  _sincronizarEmpresaPorBanco(bancoSelId,empresaSelId);
 }
 
 
@@ -8215,7 +8455,11 @@ function _adtFormaChange(){
   const ehCheque=(forma==='Cheque'||forma==='Cheque de Terceiro');
   if(box) box.style.display=ehCheque?'block':'none';
   _ADT_CHQ_BANCOS=_cfgChequeBankNames();
-  _adtChqDefBanco = (forma==='Cheque de Terceiro') ? (ERP_BUSINESS_CONFIG.thirdPartyChequeBank||_ADT_CHQ_BANCOS.find(x=>/terceiro/i.test(x))||'') : (ERP_BUSINESS_CONFIG.defaultChequeBank||_ADT_CHQ_BANCOS[0]||'');
+  const bancosConta=_cfgChequeBanks().map(function(x){return String(x.name||'');}).filter(Boolean);
+  const terceiro=String((ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.thirdPartyChequeBank)||'').trim();
+  _adtChqDefBanco = forma==='Cheque de Terceiro'
+    ? (terceiro&&_ADT_CHQ_BANCOS.includes(terceiro)?terceiro:(_ADT_CHQ_BANCOS.find(x=>/terceiro/i.test(x))||''))
+    : (bancosConta[0]||'');
   if(ehCheque){
     const rows=document.getElementById('adt-chq-rows');
     if(rows && !rows.children.length) _adtChqAddRow(); 
@@ -8226,7 +8470,7 @@ function _adtFormaChange(){
 
 function _adtChqRowBankOptions(sel){
   _ADT_CHQ_BANCOS=_cfgChequeBankNames();
-  return _ADT_CHQ_BANCOS.map(function(b){ return '<option'+(b===sel?' selected':'')+'>'+esc(b)+'</option>'; }).join('');
+  return _cfgChequeBankOptionsHtml(sel||'');
 }
 function _adtDefData(){ return document.getElementById('adt-data')?.value||''; }
 function _adtChqAddRow(banco, num, valor, dataISO, vencISO, cli){
@@ -8319,21 +8563,18 @@ function _adtParseVal(s){
   var n=parseFloat(s); return isFinite(n)?n:0;
 }
 function _populateBancosSelects(){
-  const opts='<option value="">— Selecione o banco —</option>'+
-    (BANCOS_DB&&BANCOS_DB.length>0
-      ? BANCOS_DB.map(b=>`<option value="${b.cod||b.banco}">${b.banco}${b.empresa?' — '+b.empresa:''}${b.tipo==='Conta Terceiro'?' 👤 '+b.titular:''}</option>`).join('')
-      : BANCOS.map(b=>`<option value="${b.cod}">${b.banco}</option>`).join('')
-    );
-  
-  
-  
+  const bancos=Array.isArray(BANCOS_DB)?BANCOS_DB.filter(function(b){return b&&String(b.banco||'').trim();}):[];
+  const opts='<option value="">— Selecione o banco —</option>'+bancos.map(function(b){
+    const label=String(b.banco||'')+(b.empresa?' — '+b.empresa:'')+(b.tipo==='Conta Terceiro'&&b.titular?' 👤 '+b.titular:'');
+    return '<option value="'+esc(String(b.cod||b.id||b.banco||''))+'">'+esc(label)+'</option>';
+  }).join('')+(bancos.length?'':'<option value="" disabled>Nenhuma conta cadastrada em Bancos</option>');
   ['adt-banco','cheq-banco','cp-banco','ct-banco','adtcli-banco','rcr-banco','ecr-banco'].forEach(function(id){
-    const s=document.getElementById(id); if(s) s.innerHTML=opts;
+    const el=document.getElementById(id); if(!el) return;
+    const cur=el.value||'';
+    el.innerHTML=opts;
+    if(cur&&[...el.options].some(function(o){return o.value===cur;})) el.value=cur;
   });
 }
-
-
-
 
 
 let _camDest='';
@@ -8567,7 +8808,7 @@ function renderCheqHistorico(){
         <td style="padding:6px 10px">${c.fornNome}</td>
         <td style="padding:6px 10px">${c.empresa||'—'}</td>
         <td style="padding:6px 10px;font-weight:700">R$ ${fmt(c.valor)}</td>
-        <td style="padding:6px 10px">${c.bomPara||'—'}</td>
+        <td style="padding:6px 10px">${fmtDate(c.bomPara)||'—'}</td>
         <td style="padding:6px 10px">${c.finalidade?`<span style="font-size:.7rem;font-weight:700;padding:2px 5px;border-radius:3px;background:${c.finalidade==='Adiantamento'?'#1a3a2a':'#1565c0'};color:#fff">${c.finalidade==='Adiantamento'?'ADT':'PGTO'}</span>`:'—'}</td>
         <td style="padding:6px 10px">
           ${comp
@@ -8689,7 +8930,7 @@ function renderDescontoForn(){
         return `<tr style="${pend?'':'background:#f0fff4'}">
           <td>${esc(c.num)}</td>
           <td style="font-weight:700">R$ ${fmt(c.valor)}</td>
-          <td>${c.bomPara||'—'}</td>
+          <td>${fmtDate(c.bomPara)||'—'}</td>
           <td style="font-size:.78rem;color:#666">${bankTxt}</td>
           <td>${pend?'<span class="b" style="background:#fff3cd;color:#8a6d00">📉 A descontar</span>':'<span class="b b-pago">✅ Descontado</span>'}</td>
           <td>${pend
@@ -8706,7 +8947,7 @@ function renderDescontoForn(){
 function renderCheques(){
   const tbody=document.getElementById('tb-cheques-list');
   if(!tbody)return;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const isSecretaria=cu&&(cuKey==='thais'||cu.role?.includes('Secretária'));
   const banner=document.getElementById('cheq-secretaria-banner');
   if(banner) banner.style.display=isSecretaria?'block':'none';
@@ -8850,7 +9091,7 @@ function renderCheques(){
           <span style="font-size:1rem;font-weight:900;color:#c0392b;min-width:80px">Nº ${c.num||'—'}</span>
           <span style="flex:1;font-size:.78rem;color:#555">${c.fornNome} · ${c.empresa||'—'}</span>
           <span style="font-weight:800;color:#c0392b;font-size:.88rem">R$ ${fmt(c.valor)}</span>
-          <span style="font-size:.72rem;color:#888;min-width:70px;text-align:right">📅 ${c.bomPara||'—'}</span>
+          <span style="font-size:.72rem;color:#888;min-width:70px;text-align:right">📅 ${fmtDate(c.bomPara)||'—'}</span>
         </div>`
       ).join('');
 
@@ -9327,6 +9568,7 @@ function renderTickets(){
   
   
   
+  let _ticketsReparados=false; Object.values(TICKETS_DB).forEach(function(tk){ if(_normalizarTicketFinanceiro(tk)) _ticketsReparados=true; }); if(_ticketsReparados){ try{ saveDB(); }catch(e){} }
   const baseTodos=Object.values(TICKETS_DB).filter(tk=>!tk._balSessao && !tk._rodEntrada && tk.status!=='Aguard. Saída');
   const creditosTodos=[];
   Object.entries(ADT_POR_FORN).forEach(([cod,lista])=>{
@@ -9407,7 +9649,7 @@ function renderTickets(){
     const adtCell=(tk.status==='Aguard. Preço'||!adtFinito)?'—':'R$ '+fmt(tk.adiantamento);
     return `<tr style="${bgRow}">
       <td><b>${tk.ticket}</b></td>
-      <td>${tk.data}</td>
+      <td>${fmtDate(tk.data)||'—'}</td>
       <td style="cursor:pointer;color:#1565c0;text-decoration:underline" onclick="abrirDetalheCompra('${tk._dbKey}')" title="Ver todos os itens desta compra">${tk.fornecedor}</td>
       <td>${(tk.itens||[]).reduce((s,i)=>s+Number(i.pesoLiq||0),0).toFixed(1)} kg</td>
       <td style="cursor:pointer;color:#1565c0;text-decoration:underline" onclick="abrirDetalheCompra('${tk._dbKey}')" title="Ver todos os itens desta compra">${totalCell}</td>
@@ -9433,7 +9675,7 @@ function renderTickets(){
     rows+=creditos.map(c=>`
       <tr>
         <td><b style="color:#c0392b;font-size:.95rem">⚠️ ${c.cod}</b></td>
-        <td style="color:#c0392b">${c.data}</td>
+        <td style="color:#c0392b">${fmtDate(c.data)||'—'}</td>
         <td style="color:#c0392b;font-weight:700">${c.fornNome}</td>
         <td colspan="2" style="color:#c0392b;font-style:italic">SALDO DEVEDOR da carga anterior${c.obs?' – '+c.obs:''}</td>
         <td>—</td>
@@ -9556,7 +9798,7 @@ function getPrecosFornMsg(){
   const precos=PRECOS_FORN_DATA[cod]||{};
   const forn=FORNECEDORES.find(f=>f.cod===cod);
   const fornNome=forn?forn.nome:cod;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
   const div='━━━━━━━━━━━━━━━━━━━━━━━━━';
   const itens=Object.entries(precos).filter(([,v])=>v>0);
@@ -9603,7 +9845,7 @@ async function compartilharImagemPrecosForn(){
   if(itens.length===0){alert('Nenhum preço definido para este fornecedor.');return;}
   const forn=FORNECEDORES.find(f=>f.cod===cod);
   const fornNome=forn?forn.nome:cod;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
 
   
@@ -9665,7 +9907,7 @@ function imprimirPrecosForn(){
   const precos=PRECOS_FORN_DATA[cod]||{};
   const forn=FORNECEDORES.find(f=>f.cod===cod);
   const fornNome=forn?forn.nome:cod;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
   const itens=Object.entries(precos).filter(([,v])=>v>0);
   if(itens.length===0){alert('Nenhum preço definido.');return;}
@@ -9712,7 +9954,7 @@ function precoNavKey(e, el, prefix){
 function renderPrecosFornTab(){
   const div=document.getElementById('precos-forn-container');
   if(!div)return;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const cod=document.getElementById('pf-forn-sel')?.value;
   const shareBar=document.getElementById('pf-share-btns');
   if(!cod){
@@ -9884,7 +10126,7 @@ function salvarCompra(forcar, ignorarFaltantes){
     return;
   }
   const totalGeral=_r2(itens.reduce((s,it)=>s+it.total,0) + valorExtra);
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const dataFmt=data?data.split('-').reverse().join('/'):'';
 
   
@@ -10075,7 +10317,7 @@ function salvarAdiantamento(){
   const _chqLista=_ehCheque?_adtChqLer():[];
   const bancoSel=document.getElementById('adt-banco');
   const bancoCod=bancoSel?.value||'';
-  const _bancosList=(BANCOS_DB&&BANCOS_DB.length)?BANCOS_DB:BANCOS;
+  const _bancosList=Array.isArray(BANCOS_DB)?BANCOS_DB:[];
   const bancoNome=bancoCod?(_bancosList.find(b=>b.cod===bancoCod||b.banco===bancoCod)?.banco||bancoCod):'Não informado';
   const empresa=(document.getElementById('adt-empresa')?.value||'').trim();
   const ticket=document.getElementById('adt-ticket')?.value.trim()||'';
@@ -10153,7 +10395,7 @@ function salvarAdiantamento(){
       const batch={};
       const _isoBR=function(s){ return s? String(s).split('-').reverse().join('/') : ''; };
       _chqLista.forEach(function(item){
-        const banco=item.b||ERP_BUSINESS_CONFIG.defaultChequeBank||_cfgChequeBankNames()[0]||'';
+        const banco=item.b||_cfgChequeBanks().map(function(x){return x.name;})[0]||'';
         const num=String(item.n||'').trim();
         if(!num||!banco) return;
         const slug=_cfgChequeBankSlug(banco);
@@ -10371,9 +10613,9 @@ function downloadTemplateCheques(){
     
     const headers=['N do Cheque','Banco (SELECIONAR)','Data de saida','Cliente Destino','Valor','Compensado Dia:','Situacao (SELECIONAR)'];
     
-    const exemplos=Array.isArray(ERP_BUSINESS_CONFIG.chequeTemplateExamples)
-      ? ERP_BUSINESS_CONFIG.chequeTemplateExamples.map(function(row){ return Array.isArray(row)?row.slice():[]; }).filter(function(row){return row.length;})
-      : [];
+    const primeiroBanco=_cfgChequeBanks().map(function(x){return x.name;})[0]||'';
+    const hoje=new Date().toLocaleDateString('pt-BR');
+    const exemplos=primeiroBanco?[[1,primeiroBanco,hoje,'Cliente / Destino',0,'','PENDENTE']]:[];
     const ws=XLSX.utils.aoa_to_sheet([titulo,headers,...exemplos]);
     
     ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:6}}];
@@ -10417,7 +10659,7 @@ function calcCheqTotal(){
     bar.style.display=totalRows>0?'flex':'none';
     bar.style.gap='12px';
     bar.style.flexWrap='wrap';
-    const fmt=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:2});
+    const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
     document.getElementById('cheq-total-val').textContent='R$ '+fmt(total);
     document.getElementById('cheq-qtde').textContent=totalRows+' cheque(s)';
   }
@@ -10508,7 +10750,7 @@ function calcCheqCliTotal(){
   const totalRows=document.querySelectorAll('#cheqcli-rows tr').length;
   if(bar){
     bar.style.display=totalRows>0?'flex':'none'; bar.style.gap='12px'; bar.style.flexWrap='wrap';
-    const fmt=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:2});
+    const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
     const tv=document.getElementById('cheqcli-total-val'); if(tv) tv.textContent='R$ '+fmt(total);
     const tq=document.getElementById('cheqcli-qtde'); if(tq) tq.textContent=totalRows+' cheque(s)';
   }
@@ -10590,10 +10832,9 @@ function downloadTemplateChequesCli(){
   _loadSheetJS(()=>{
     const titulo=['Cheques de Clientes','','','','','',''];
     const headers=['N do Cheque','Banco','Data','Cliente','Valor','Bom Para','Situacao'];
-    const exemplos=[
-      [1,'Sicredi 0101','01/07/2026','Tambore',5000.00,'01/08/2026','PENDENTE'],
-      [2,'Itau 1234','01/07/2026','Tambore',5000.00,'01/09/2026','PENDENTE'],
-    ];
+    const primeiroBanco=(Array.isArray(BANCOS_DB)&&BANCOS_DB[0])?String(BANCOS_DB[0].banco||''):'';
+    const hoje=new Date().toLocaleDateString('pt-BR');
+    const exemplos=primeiroBanco?[[1,primeiroBanco,hoje,'Cliente',0,'','PENDENTE']]:[];
     const ws=XLSX.utils.aoa_to_sheet([titulo,headers,...exemplos]);
     ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:6}}];
     ws['!cols']=[{wch:14},{wch:18},{wch:14},{wch:20},{wch:14},{wch:14},{wch:20}];
@@ -11529,7 +11770,7 @@ function onFornChange(){
 
   if(!infoDiv||!cod){ return; }
 
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const adts=(ADT_POR_FORN[cod]||[]);
   const cheqs=(CHEQUES_POR_FORN[cod]||[]);
 
@@ -11588,7 +11829,7 @@ function onFornChange(){
   if(adtPend.length>0){
     html+='<div style="font-weight:700;color:#1a5276;margin-bottom:4px">💰 Adiantamentos Pendentes <span style="font-weight:400;color:#666;font-size:.72rem">(desmarque os que NÃO quer descontar nesta compra)</span></div>';
     html+='<table style="width:100%;border-collapse:collapse;font-size:.76rem;margin-bottom:8px"><thead><tr style="background:#d6eaf8"><th style="padding:4px 6px;text-align:center">Usar?</th><th style="padding:4px 6px;text-align:left">Cód.</th><th style="padding:4px 6px;text-align:left">Data</th><th style="padding:4px 6px;text-align:right">Valor</th><th style="padding:4px 6px;text-align:left">Forma</th></tr></thead><tbody>';
-    adtPend.forEach(a=>{ html+=`<tr><td style="padding:3px 6px;text-align:center"><input type="checkbox" class="c-adt-chk" data-cod="${a.cod}" data-valor="${Number(a.valor)}" checked onchange="recalcAdtSelecionado()"></td><td style="padding:3px 6px">${a.cod}</td><td style="padding:3px 6px">${a.data}</td><td style="padding:3px 6px;text-align:right;font-weight:700">R$ ${fmt(a.valor)}</td><td style="padding:3px 6px">${a.forma||'—'}</td></tr>`; });
+    adtPend.forEach(a=>{ html+=`<tr><td style="padding:3px 6px;text-align:center"><input type="checkbox" class="c-adt-chk" data-cod="${a.cod}" data-valor="${Number(a.valor)}" checked onchange="recalcAdtSelecionado()"></td><td style="padding:3px 6px">${a.cod}</td><td style="padding:3px 6px">${fmtDate(a.data)||'—'}</td><td style="padding:3px 6px;text-align:right;font-weight:700">R$ ${fmt(a.valor)}</td><td style="padding:3px 6px">${a.forma||'—'}</td></tr>`; });
     html+='</tbody></table>';
   }
 
@@ -11596,7 +11837,7 @@ function onFornChange(){
   if(cheqPend.length>0){
     html+='<div style="font-weight:700;color:#1a5276;margin-bottom:4px">📋 Cheques Pendentes</div>';
     html+='<table style="width:100%;border-collapse:collapse;font-size:.76rem;margin-bottom:8px"><thead><tr style="background:#d6eaf8"><th style="padding:4px 6px;text-align:left">Nº</th><th style="padding:4px 6px;text-align:right">Valor</th><th style="padding:4px 6px;text-align:left">Bom Para</th></tr></thead><tbody>';
-    cheqPend.forEach(c=>{ html+=`<tr><td style="padding:3px 6px">${c.num||'—'}</td><td style="padding:3px 6px;text-align:right;font-weight:700">R$ ${fmt(c.valor)}</td><td style="padding:3px 6px">${c.bomPara||'—'}</td></tr>`; });
+    cheqPend.forEach(c=>{ html+=`<tr><td style="padding:3px 6px">${c.num||'—'}</td><td style="padding:3px 6px;text-align:right;font-weight:700">R$ ${fmt(c.valor)}</td><td style="padding:3px 6px">${fmtDate(c.bomPara)||'—'}</td></tr>`; });
     html+='</tbody></table>';
   }
 
@@ -11606,7 +11847,7 @@ function onFornChange(){
   if(ticksAberto.length>0){
     html+='<div style="font-weight:700;color:#1a5276;margin-bottom:4px">🛒 Compras em aberto</div>';
     html+='<table style="width:100%;border-collapse:collapse;font-size:.76rem"><thead><tr style="background:#d6eaf8"><th style="padding:4px 6px;text-align:left">Ticket</th><th style="padding:4px 6px;text-align:left">Data</th><th style="padding:4px 6px;text-align:right">Total</th><th style="padding:4px 6px;text-align:left">Status</th></tr></thead><tbody>';
-    ticksAberto.forEach(t=>{ const cor=t.status==='Pago'?'#27ae60':'#e74c3c'; html+=`<tr><td style="padding:3px 6px;font-weight:700">${t.ticket}</td><td style="padding:3px 6px">${t.data}</td><td style="padding:3px 6px;text-align:right">R$ ${fmt(t.totalGeral||0)}</td><td style="padding:3px 6px;color:${cor};font-weight:700">${t.status}</td></tr>`; });
+    ticksAberto.forEach(t=>{ const cor=t.status==='Pago'?'#27ae60':'#e74c3c'; html+=`<tr><td style="padding:3px 6px;font-weight:700">${t.ticket}</td><td style="padding:3px 6px">${fmtDate(t.data)||'—'}</td><td style="padding:3px 6px;text-align:right">R$ ${fmt(t.totalGeral||0)}</td><td style="padding:3px 6px;color:${cor};font-weight:700">${t.status}</td></tr>`; });
     html+='</tbody></table>';
   }
 
@@ -11910,7 +12151,7 @@ function populatePrecosCliSel(){
 function renderPrecosCliTab(){
   const div=document.getElementById('precos-cli-container');
   if(!div) return;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const cliNome=document.getElementById('pc-cli-sel')?.value;
   const shareBar=document.getElementById('pc-share-btns');
   if(!cliNome){
@@ -12009,7 +12250,7 @@ function salvarPrecosCli(cliNome,mat,val){
 function salvarPrecosCliInline(cliNome,mat,el){
   if(!PRECOS_CLI_DATA[cliNome]) PRECOS_CLI_DATA[cliNome]={};
   const n=parseFloat(el.value)||0;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   if(n>0) PRECOS_CLI_DATA[cliNome][mat]=n;
   else delete PRECOS_CLI_DATA[cliNome][mat];
   saveDB();
@@ -12022,10 +12263,10 @@ function getPrecosCliMsg(cliNome){
   const precos=PRECOS_CLI_DATA[cliNome]||{};
   const itens=Object.entries(precos).filter(([,v])=>v>0);
   if(itens.length===0){alert('Nenhum preço definido para este cliente.');return null;}
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
   const div='━━━━━━━━━━━━━━━━━━━━━━━━━';
-  let msg=`🏭 *MANUELA METAIS LTDA*
+  let msg=`🏭 *${_empresaPrincipalRazao()}*
 `;
   msg+=`CNPJ: ${_empresaPrincipalInfo().cnpj||''}
 `;
@@ -12077,7 +12318,7 @@ function imprimirPrecosCli(){
   const precos=PRECOS_CLI_DATA[cliNome]||{};
   const itens=Object.entries(precos).filter(([,v])=>v>0);
   if(itens.length===0){alert('Nenhum preço definido.');return;}
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
   const linhas=itens.map(([mat,val],i)=>`
     <tr style="${i%2===0?'background:#f9f9f9':''}">
@@ -12094,7 +12335,7 @@ function imprimirPrecosCli(){
     .footer{margin-top:20px;font-size:11px;color:#666;text-align:center;border-top:1px solid #ccc;padding-top:10px}
     @media print{button{display:none}}</style></head><body>
     <div class="hdr">
-      <div class="empresa">🏭 MANUELA METAIS LTDA</div>
+      <div class="empresa">🏭 ${esc(_empresaPrincipalRazao())}</div>
       <div style="font-size:12px;color:#555;margin-top:4px">CNPJ: ${_empresaPrincipalInfo().cnpj||''} · ${_empresaPrincipalEnderecoCurto()}</div>
     </div>
     <div style="margin-bottom:14px">
@@ -12119,13 +12360,13 @@ async function compartilharImagemPrecosCli(){
   const precos=PRECOS_CLI_DATA[cliNome]||{};
   const itens=Object.entries(precos).filter(([,v])=>v>0);
   if(itens.length===0){alert('Nenhum preço definido para este cliente.');return;}
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
   const box=document.getElementById('pc-img-box');
   box.style.display='block';
   box.innerHTML=`
     <div style="text-align:center;border-bottom:3px solid #1a3a2a;padding-bottom:14px;margin-bottom:16px">
-      <div style="font-size:20px;font-weight:900;color:#1a3a2a">🏭 MANUELA METAIS LTDA</div>
+      <div style="font-size:20px;font-weight:900;color:#1a3a2a">🏭 ${esc(_empresaPrincipalRazao())}</div>
       <div style="font-size:11px;color:#555;margin-top:4px">CNPJ: ${_empresaPrincipalInfo().cnpj||''} · ${_empresaPrincipalEnderecoCurto()}</div>
     </div>
     <div style="margin-bottom:14px">
@@ -12427,7 +12668,7 @@ function editFornecedor(cod){
     '<p style="margin:10px 0 4px;font-weight:700;color:#1565c0">🏦 Dados Bancários / PIX</p>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
       '<div class="fg" style="grid-column:1/-1"><label>Chave PIX</label><input id="ef-pix" value="'+v(f.pix)+'" placeholder="CPF, CNPJ, telefone, e-mail..."></div>'+
-      '<div class="fg" style="grid-column:1/-1"><label>Banco</label><input id="ef-banco" value="'+v(f.banco)+'" placeholder="Ex: Sicredi, Santander..."></div>'+
+      '<div class="fg" style="grid-column:1/-1"><label>Banco</label><input id="ef-banco" value="'+v(f.banco)+'" placeholder="Nome do banco"></div>'+
       '<div class="fg"><label>Agência</label><input id="ef-agencia" value="'+v(f.agencia)+'"></div>'+
       '<div class="fg"><label>Conta</label><input id="ef-conta" value="'+v(f.conta)+'"></div>'+
     '</div>'+
@@ -12598,7 +12839,7 @@ function importarFornecedores(input){
 
 
 function atualizarKpisFuncionarios(){
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const ativos=FUNCIONARIOS.filter(f=>f.status!=='Inativo');
   const inativos=FUNCIONARIOS.filter(f=>f.status==='Inativo');
   const gerentes=ativos.filter(f=>(f.cargo||'').toLowerCase().includes('gerente'));
@@ -12740,14 +12981,15 @@ function excluirFuncionario(mat){
 function salvarNovoFuncionario(){
   const nome=(document.getElementById('nfu-nome')?.value||'').trim().toUpperCase();
   if(!nome){ showToast('Digite o nome do funcionário','error'); return; }
-  
+  const empresa=(document.getElementById('nfu-emp')?.value||'').trim();
+  if(!empresa){ showToast('Selecione a empresa do funcionário','error'); return; }
   let maxN=0;
   FUNCIONARIOS.forEach(f=>{ const m=String(f.mat||'').match(/(\d+)/); if(m){ const n=parseInt(m[1]); if(n>maxN) maxN=n; } });
   const mat='F'+String(maxN+1).padStart(3,'0');
   const novo={
     mat, nome,
     cpf:(document.getElementById('nfu-cpf')?.value||'').trim(),
-    empresa:document.getElementById('nfu-emp')?.value||_empresaPrincipalChave(),
+    empresa,
     cargo:(document.getElementById('nfu-cargo')?.value||'').trim(),
     sal:_parseMoney(document.getElementById('nfu-sal')?.value||''),
     valeTransporte:parseFloat(document.getElementById('nfu-vt')?.value)||0,
@@ -13203,9 +13445,11 @@ function salvarEditFuncionario(){
   const idx=parseInt(document.getElementById('efn-idx').value);
   const f=FUNCIONARIOS[idx];
   if(!f) return;
+  const empresa=(document.getElementById('efn-emp')?.value||'').trim();
+  if(!empresa){ showToast('Selecione a empresa do funcionário','error'); return; }
   f.nome   = document.getElementById('efn-nome').value.trim().toUpperCase();
   f.cpf    = document.getElementById('efn-cpf').value.trim();
-  f.empresa= document.getElementById('efn-emp').value;
+  f.empresa=empresa;
   f.cargo  = document.getElementById('efn-cargo').value.trim();
   f.sal      = _parseMoney(document.getElementById('efn-sal').value);
   f.adicional= parseFloat(document.getElementById('efn-adicional').value)||0;
@@ -13412,6 +13656,7 @@ function _fdAbrirDataUrl(d, dataUrl){
   if(!dataUrl){ showToast('Não consegui carregar o documento.','error'); return; }
   const win=window.open('','_blank');
   if(!win){showToast('Permita popups no navegador para visualizar.','error',5000);return;}
+  if(/^https?:\/\//i.test(String(dataUrl))){ win.location.href=String(dataUrl); return; }
   if(d.mimeType&&d.mimeType.startsWith('image/')){
     win.document.write('<!DOCTYPE html><html><head><title>'+esc(d.nomeArq)+'</title><style>body{margin:0;background:#111;display:flex;justify-content:center}img{max-width:100%;height:auto}</style></head><body><img src="'+dataUrl+'" alt="'+esc(d.nomeArq)+'"></body></html>');
   } else {
@@ -13962,7 +14207,7 @@ function renderEstoque(){
   const tbE=document.getElementById('tb-estoque');
   if(!tbE) return;
   try{ _recuperarMateriaisComMovimento(); }catch(e){}
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const _isEl=_usuarioAtualEhAdmin();
   
   const grupos={};
@@ -14324,7 +14569,7 @@ function renderChequesCompensar(){
   if(!_chqSec && cardBancos.length){
     h+='<div style="display:flex;flex-wrap:wrap;gap:10px;margin:4px 0 16px">';
     cardBancos.forEach(function(b){
-      var cor=_CHQ_BANCO_COR[b]||'#888';
+      var cor=_cfgChequeBankColor(b);
       h+='<div onclick="chqVerBanco(\''+esc(b)+'\')" title="Ver todos os cheques deste banco em ordem" style="background:#fff;border:1px solid #eee;border-top:4px solid '+cor+';border-radius:10px;padding:9px 14px;min-width:180px;cursor:pointer">'+
          '<div style="font-size:.74rem;font-weight:800;color:'+cor+';text-transform:uppercase;margin-bottom:5px">'+esc(b)+'</div>'+
          '<div style="display:flex;justify-content:space-between;gap:12px;font-size:.79rem"><span style="color:#e67e22;font-weight:700">🟠 A descontar</span><b>'+_chqFmt(abBanco[b].av)+'</b></div>'+
@@ -14363,9 +14608,13 @@ function renderChequesCompensar(){
     
     var _rpComp=_legacyRepairConfig('gratusSicrediComplete');
     var _rpAcredi=_legacyRepairConfig('gratusAcredi');
-    h+='<button class="btn-edit" onclick="chqCompletarGratusSicredi()" title="'+esc(_rpComp.buttonTitle||'Completar cheques pendentes sem sobrescrever registros existentes.')+'" style="margin-left:auto;background:#2980b9;color:#fff">'+esc(_rpComp.buttonLabel||'➕ Completar cheques')+'</button>';
+    if(_rpComp&&_rpComp.bank&&Array.isArray(_rpComp.records)&&_rpComp.records.length){
+      h+='<button class="btn-edit" onclick="chqCompletarGratusSicredi()" title="'+esc(_rpComp.buttonTitle||'Completar cheques configurados sem sobrescrever registros existentes.')+'" style="margin-left:auto;background:#2980b9;color:#fff">'+esc(_rpComp.buttonLabel||'➕ Aplicar complementação')+'</button>';
+    }
     h+='<button class="btn-edit" onclick="chqSincronizarAbaAntiga()" title="Traz os cheques reais da aba antiga (fornecedor, valor, bom para) e marca os de adiantamento" style="margin-left:auto;background:#8e44ad;color:#fff">🔄 Sincronizar aba antiga</button>';
-    h+='<button class="btn-edit" onclick="chqCorrigirAcredi()" title="'+esc(_rpAcredi.buttonTitle||'Aplicar correção de cheques configurada no Firebase.')+'" style="background:#1565c0;color:#fff">'+esc(_rpAcredi.buttonLabel||'🔧 Corrigir cheques')+'</button>';
+    if(_rpAcredi&&_rpAcredi.bank&&Array.isArray(_rpAcredi.records)&&_rpAcredi.records.length){
+      h+='<button class="btn-edit" onclick="chqCorrigirAcredi()" title="'+esc(_rpAcredi.buttonTitle||'Aplicar correção de cheques configurada no Firebase.')+'" style="background:#1565c0;color:#fff">'+esc(_rpAcredi.buttonLabel||'🔧 Aplicar correção')+'</button>';
+    }
   }
   h+='<button class="btn-add"'+(_chqSec?' style="margin-left:auto"':'')+' onclick="chqNovo()">+ Novo Cheque</button>';
   h+='<button class="btn-add" onclick="chqRemessa()" title="Lançar vários cheques de uma vez (uma remessa: números em sequência)" style="background:#1a4a7c">📦 Remessa (vários)</button>';
@@ -14481,7 +14730,7 @@ function chqMarcarComp(id){
   }
   
   var movId='';
-  if(descontarBanco && !c.movBancoId){ movId=_chqMovBancoCriar(_CHQ_BANCO_COD[c.b], (d||'').trim(), 'Cheque nº '+c.n+' compensado (controle)', +c.v||0); }
+  if(descontarBanco && !c.movBancoId){ movId=_chqMovBancoCriar(_cfgChequeBankCode(c.b), (d||'').trim(), 'Cheque nº '+c.n+' compensado (controle)', +c.v||0); }
   
   c.s='C'; c.cd=(d||'').trim(); if(movId) c.movBancoId=movId; try{ renderChequesCompensar(); }catch(e){}
   var upd={s:'C', cd:(d||'').trim()}; if(movId) upd.movBancoId=movId;
@@ -14555,7 +14804,7 @@ function chqRemessaDepConfirmar(){
     var id=chk.dataset.id; var c=CHQ_CTRL[id]; if(!c||(c.s||'A')!=='A') return;
     var descontarBanco=!c.dc; 
     var movId='';
-    if(descontarBanco && !c.movBancoId){ movId=_chqMovBancoCriar(_CHQ_BANCO_COD[c.b], dBR, 'Cheque nº '+c.n+' compensado (remessa '+dBR+')', +c.v||0); }
+    if(descontarBanco && !c.movBancoId){ movId=_chqMovBancoCriar(_cfgChequeBankCode(c.b), dBR, 'Cheque nº '+c.n+' compensado (remessa '+dBR+')', +c.v||0); }
     c.s='C'; c.cd=dBR; if(movId) c.movBancoId=movId;
     var upd={s:'C', cd:dBR}; if(movId) upd.movBancoId=movId;
     if(r){ try{ r.child(id).update(upd); }catch(e){} }
@@ -14855,7 +15104,7 @@ function chqSincronizarAbaAntiga(){
     if(!reais[c.b+'|'+String(c.n)]){ fantasmasIds.push(id); fantasmasLbl.push(String(c.n)+' ('+c.b+')'); }
   });
   var msg='Trazer os dados reais da aba antiga:\n\n• '+nov+' cheque(s) novo(s)\n• '+atu+' corrigido(s) (fornecedor / valor / bom para)\n\nTodos marcados como "desconta da compra 🛒". Cheque compensado continua compensado.';
-  if(fantasmasIds.length) msg+='\n\n⛔ E vou marcar '+fantasmasIds.length+' cheque(s) como "NÃO EXISTE" (números que não estão na sua lista real): '+fantasmasLbl.slice(0,14).join(', ')+(fantasmasLbl.length>14?'...':'')+'.\nEles continuam aparecendo na lista, cinza, só pra você ver a sequência. Não somam no total. (A Mabor não é tocada.)';
+  if(fantasmasIds.length) msg+='\n\n⛔ E vou marcar '+fantasmasIds.length+' cheque(s) como "NÃO EXISTE" (números que não estão na sua lista real): '+fantasmasLbl.slice(0,14).join(', ')+(fantasmasLbl.length>14?'...':'')+'.\nEles continuam aparecendo na lista, cinza, só pra você ver a sequência. Não somam no total.';
   msg+='\n\nConfirmar?';
   if(!confirm(msg)) return;
   var r=_chqRef(); if(!r){ showToast('Firebase não conectado','error'); return; }
@@ -14885,7 +15134,7 @@ function cheqExportarJSON(){
     var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
     a.download='cheques_aba_antiga.json';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    showToast('Exportado '+out.length+' cheques! Mande o arquivo pro Claude.','success',6000);
+    showToast('Exportado '+out.length+' cheques.','success',6000);
   }catch(e){ showToast('Erro ao exportar: '+e.message,'error'); }
 }
 function chqExportCSV(){
@@ -15262,10 +15511,58 @@ function _frotaRenderAlertas(){
     }).join('')+
   '</div>';
 }
+function _frotaResumoIds(lista){
+  const ids=(lista||[]).map(function(v){return String(v&&v.id||'').trim();}).filter(Boolean);
+  if(!ids.length) return '—';
+  if(ids.length<=3) return ids.join(' · ');
+  return ids[0]+' a '+ids[ids.length-1];
+}
+function _popularBalancasFrota(){
+  const balancas=FROTA_DB.filter(function(v){ return v&&String(v.tipo||'')==='Balança'&&String(v.status||'')!=='Inativo'; });
+  ['bal-balanca-sel','mb-balanca-sel'].forEach(function(id){
+    const sel=document.getElementById(id); if(!sel) return;
+    const atual=sel.value;
+    if(!balancas.length){ sel.innerHTML='<option value="">— Nenhuma balança cadastrada —</option>'; return; }
+    sel.innerHTML=balancas.map(function(v){
+      const label='⚖️ '+[v.id,v.desc].filter(Boolean).join(' — ');
+      return '<option value="'+esc(String(v.id||''))+'"'+(String(v.id||'')===atual?' selected':'')+'>'+esc(label)+'</option>';
+    }).join('');
+    if(atual&&balancas.some(function(v){return String(v.id||'')===atual;})) sel.value=atual;
+  });
+}
+function _frotaAtualizarKpis(){
+  const grupos=[
+    ['Caminhão','frota-kpi-caminhoes','frota-sub-caminhoes'],
+    ['Empilhadeira','frota-kpi-empilhadeiras','frota-sub-empilhadeiras'],
+    ['Balança','frota-kpi-balancas','frota-sub-balancas'],
+    ['Prensa Hidráulica','frota-kpi-prensas','frota-sub-prensas'],
+    ['Moedor de Alumínio','frota-kpi-moedor','frota-sub-moedor']
+  ];
+  grupos.forEach(function(g){
+    const itens=FROTA_DB.filter(function(v){return v&&String(v.tipo||'')===g[0];});
+    const val=document.getElementById(g[1]);
+    const sub=document.getElementById(g[2]);
+    if(val) val.textContent=String(itens.length);
+    if(sub) sub.textContent=_frotaResumoIds(itens);
+  });
+  const manut=FROTA_DB.filter(function(v){return v&&/manuten/i.test(String(v.status||''));});
+  const manutVal=document.getElementById('frota-kpi-manutencao');
+  const manutSub=document.getElementById('frota-sub-manutencao');
+  const titulo=document.getElementById('frota-total-titulo');
+  if(manutVal) manutVal.textContent=String(manut.length);
+  if(manutSub) manutSub.textContent=_frotaResumoIds(manut);
+  if(titulo) titulo.textContent='Frota e Equipamentos ('+FROTA_DB.length+')';
+}
 function renderFrota(){
   const tbC=document.getElementById('tb-caminhoes');
   if(!tbC) return;
+  _frotaAtualizarKpis();
+  _popularBalancasFrota();
   try{ _frotaRenderAlertas(); }catch(e){}
+  if(!FROTA_DB.length){
+    tbC.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--gray);padding:24px">Nenhum veículo ou equipamento cadastrado</td></tr>';
+    return;
+  }
   tbC.innerHTML=FROTA_DB.map((v,i)=>{
     const stCls=v.status==='Ativo'?'b-ativo':v.status==='Manutenção'?'b-pend':'b-zerado';
     return '<tr>'+
@@ -15553,7 +15850,7 @@ window['frotaAbrirManutencoes']=frotaAbrirManutencoes;
 function renderManutencoes(filtroVei){
   const tbody=document.getElementById('tb-manutencoes');
   if(!tbody) return;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   let lista = filtroVei
     ? MANUTENCAO_DB.filter(m=>m.veiId===filtroVei)
     : MANUTENCAO_DB;
@@ -16216,7 +16513,7 @@ function cpSetTipo(t){
 let _cpMesFiltro = (function(){ try{ return new Date().toISOString().slice(0,7); }catch(e){ return ''; } })(); 
 let _cpFiltroEmpresa = ''; 
 function cpMesNav(delta){
-  if(!_cpMesFiltro){ try{ _cpMesFiltro=new Date().toISOString().slice(0,7); }catch(e){ _cpMesFiltro='2026-01'; } }
+  if(!_cpMesFiltro){ try{ _cpMesFiltro=new Date().toISOString().slice(0,7); }catch(e){ const d=new Date(); _cpMesFiltro=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); } }
   let p=_cpMesFiltro.split('-'), a=parseInt(p[0],10), m=parseInt(p[1],10)+delta;
   while(m<1){ m+=12; a--; } while(m>12){ m-=12; a++; }
   _cpMesFiltro=a+'-'+String(m).padStart(2,'0');
@@ -16224,15 +16521,19 @@ function cpMesNav(delta){
   renderContasPagar();
 }
 function cpMesTodos(){ _cpMesFiltro=''; _cpFiltroDia=''; renderContasPagar(); }
-function cpSetEmpresa(e){
-  _cpFiltroEmpresa=e;
+function _cpRenderEmpresaBotoes(){
+  const host=document.getElementById('cp-emp-buttons'); if(!host) return;
   const empresas=_cfgFinanceCompanies();
-  const pares=[['','cp-emp-todas']];
-  ['cp-emp-manuela','cp-emp-gratus','cp-emp-mabor'].forEach(function(id,i){ pares.push([empresas[i]||'',id]); });
-  pares.forEach(function(par){
-    const b=document.getElementById(par[1]); if(!b) return;
-    const ativo=par[0]===e; b.style.background=ativo?'#1a3a2a':'#fff'; b.style.color=ativo?'#fff':'#1a3a2a';
-  });
+  const lista=[''].concat(empresas);
+  host.innerHTML=lista.map(function(e){
+    const ativo=e===_cpFiltroEmpresa;
+    const label=e||'Todas';
+    return '<button type="button" data-cp-empresa="'+esc(e)+'" onclick="cpSetEmpresa(this.dataset.cpEmpresa||\'\')" style="border:1.5px solid #1a3a2a;background:'+(ativo?'#1a3a2a':'#fff')+';color:'+(ativo?'#fff':'#1a3a2a')+';border-radius:20px;padding:4px 12px;font-weight:700;font-size:.78rem;cursor:pointer">'+esc(label)+'</button>';
+  }).join('');
+}
+function cpSetEmpresa(e){
+  _cpFiltroEmpresa=e||'';
+  _cpRenderEmpresaBotoes();
   renderContasPagar();
 }
 
@@ -16513,6 +16814,7 @@ function cpRenderHoje(){
 
 
 function renderContasPagar(){
+  try{ _cpRenderEmpresaBotoes(); }catch(e){}
   
   
   
@@ -16525,7 +16827,7 @@ function renderContasPagar(){
   try{ cpPopularFiltrosDropdowns(); }catch(e){}
   const tbody=document.getElementById('tb-contas-pagar');
   if(!tbody) return;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const fmt2=v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toISOString().slice(0,10);
   
@@ -16599,7 +16901,7 @@ function renderContasPagar(){
         +'<td>'+esc(c.cred||'—')+'</td>'
         +'<td><b>'+esc(c.desc)+'</b></td>'
         +'<td style="font-size:.78rem">'+esc(c.bancoNome||'—')+(function(){var _e=_cpEmpresa(c);return _e?'<br><span style="font-size:.68rem;font-weight:700;color:'+_cfgFinanceCompanyColor(_e)+'">'+esc(_e)+'</span>':'';})()+'</td>'
-        +'<td>'+c.venc+'</td>'
+        +'<td>'+fmtDate(c.venc)+'</td>'
         +'<td style="font-weight:800;text-align:right">R$ '+fmt(c.valor)+'</td>'
         +'<td><span class="b '+stCls+'"'+stStyle+'>'+stTxt+'</span>'
         +(temHistPgto?' <button onclick="verHistoricoPagamentosCP(\''+esc(idAttr)+'\')" title="Ver histórico de pagamentos desta conta" style="border:none;background:transparent;cursor:pointer;font-size:.85rem;vertical-align:middle">🕒</button>':'')
@@ -16796,7 +17098,7 @@ function salvarContrato(){
       if(!venc){alert('Informe a data de vencimento!');return;}
       const cat=(document.getElementById('ct-av-cat')?.value||'Outros').trim();
       const bancoCod=contrato.banco;
-      const bancoNome=bancoCod?(BANCOS.find(b=>b.cod===bancoCod)?.banco||''):(BANCOS_DB&&BANCOS_DB.find(b=>b.cod===bancoCod)?.banco||'');
+      const bancoNome=bancoCod?((BANCOS_DB&&BANCOS_DB.find(b=>b.cod===bancoCod)?.banco)||''):'';
       const hojeFmt=hoje.split('-').reverse().join('/');
       CONTAS_PAGAR.push({ id:_novoIdCP(),
         lancto:hojeFmt, desc:desc, cred:contrato.forn, cat, bancoCod, bancoNome,
@@ -16812,7 +17114,7 @@ function salvarContrato(){
       if(!mesVal||nparc<1){alert('Preencha o mês da 1ª parcela e número de parcelas!');return;}
       const cat=(document.getElementById('ct-parc-cat')?.value||'Outros').trim();
       const bancoCod=contrato.banco;
-      const bancoNome=bancoCod?(BANCOS.find(b=>b.cod===bancoCod)?.banco||''):(BANCOS_DB&&BANCOS_DB.find(b=>b.cod===bancoCod)?.banco||'');
+      const bancoNome=bancoCod?((BANCOS_DB&&BANCOS_DB.find(b=>b.cod===bancoCod)?.banco)||''):'';
       const hojeFmt=hoje.split('-').reverse().join('/');
       const [anoI,mesI]=mesVal.split('-').map(Number);
       for(let i=0;i<nparc;i++){
@@ -16855,7 +17157,7 @@ function salvarContrato(){
 function renderContratos(){
   const tb=document.getElementById('tb-contratos');
   if(!tb) return;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const fmtDate=s=>s?s.split('-').reverse().join('/'):'—';
   const hoje=new Date().toISOString().slice(0,10);
   if(!CONTRATOS_DB.length){
@@ -17079,7 +17381,7 @@ function deExcluir(id){
 
 function _bancoNomePorCod(cod){
   if(!cod) return '';
-  const src=(typeof BANCOS_DB!=='undefined'&&BANCOS_DB.length)?BANCOS_DB:(typeof BANCOS!=='undefined'?BANCOS:[]);
+  const src=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB))?BANCOS_DB:[];
   const b=src.find(x=>x.cod===cod||x.banco===cod);
   if(!b) return (typeof cod==='string'?cod:'');
   return b.banco+(b.tipo==='Conta Terceiro'&&b.titular?' ('+b.titular+')':'');
@@ -17105,6 +17407,7 @@ function salvarContaPagar(){
     else tipoForn='despesa';
   }
   const empresa=document.getElementById('cp-empresa')?.value||'';
+  if(!empresa){alert('Selecione a empresa responsável por esta conta.');return;}
 
   if(parcelado){
     
@@ -17159,7 +17462,7 @@ function editContaPagar(idx, id){
   if(!c) return;
   const vencISO=c.venc.split('/').reverse().join('-');
   const catOpts=c.cat||'';
-  const _bcSrc=(typeof BANCOS_DB!=='undefined'&&BANCOS_DB.length)?BANCOS_DB:BANCOS;
+  const _bcSrc=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB))?BANCOS_DB:[];
   const bancoOpts='<option value="">— Selecione —</option>'+_bcSrc.map(b=>{
     const nomeComp=b.banco+(b.tipo==='Conta Terceiro'&&b.titular?' ('+b.titular+')':'');
     const sel=(b.cod===c.bancoCod)||(c.bancoNome&&(c.bancoNome===b.banco||c.bancoNome===nomeComp));
@@ -17187,8 +17490,8 @@ function editContaPagar(idx, id){
     '<option>Limpeza</option><option>Alimentação</option><option>Transporte</option>'+
     '<option>Equipamentos</option><option>Peças e Insumos</option><option>Outros</option>'+
     '</datalist></div>'+
-    '<div class="fg"><label>Empresa</label><select id="ecp-empresa"><option value="">— (opcional)</option>'+_empresasOptions(c.empresa||'')+'</select></div>'+
-    '<div class="fg"><label>Banco de Pagamento</label><select id="ecp-banco">'+bancoOpts+'</select></div>'+
+    '<div class="fg"><label>Empresa</label><select id="ecp-empresa"><option value="">— Selecione a empresa —</option>'+_empresasOptions(c.empresa||'',true)+'</select></div>'+
+    '<div class="fg"><label>Banco de Pagamento</label><select id="ecp-banco" onchange="_sincronizarEmpresaPorBanco(&#39;ecp-banco&#39;,&#39;ecp-empresa&#39;)">'+bancoOpts+'</select></div>'+
     '<div class="fg"><label>Vencimento</label><input id="ecp-venc" type="date" value="'+vencISO+'"></div>'+
     '<div class="fg"><label>Valor R$</label><input id="ecp-valor" type="number" min="0" step="0.01" value="'+c.valor+'"></div>'+
     '<div class="fg"><label>Status</label><select id="ecp-status">'+stOpts+'</select></div>'+
@@ -17214,7 +17517,9 @@ function salvarEditContaPagar(){
   c.cat=document.getElementById('ecp-cat').value.trim()||'Outros';
   c.bancoCod=bancoCod;
   c.bancoNome=_bancoNomePorCod(bancoCod);
-  c.empresa=document.getElementById('ecp-empresa')?.value||'';
+  const empresaEdit=document.getElementById('ecp-empresa')?.value||'';
+  if(!empresaEdit){alert('Selecione a empresa responsável por esta conta.');return;}
+  c.empresa=empresaEdit;
   c.venc=document.getElementById('ecp-venc').value.split('-').reverse().join('/');
   c.valor=parseFloat(document.getElementById('ecp-valor').value)||0;
   c.status=document.getElementById('ecp-status').value;
@@ -17275,7 +17580,7 @@ function pagarContaRapido(idx, id){
   
   if(id){ const fresh=_cpIdxPorId(id); if(fresh>=0) idx=fresh; }
   const c=CONTAS_PAGAR[idx]; if(!c) return;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const body=document.getElementById('modal-body');
   body.className='modal';
   const hoje=new Date().toISOString().slice(0,10);
@@ -17344,7 +17649,7 @@ function pagarContaRapido(idx, id){
 }
 
 function atualizarLiquidoCP(valorCP){
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const adt=parseFloat(document.getElementById('pcp-adt')?.value)||0;
   const liq=Math.max(0,valorCP-adt);
   const el=document.getElementById('pcp-liquido-label');
@@ -17368,7 +17673,7 @@ function confirmarPagarCP(modo){
   const obs=document.getElementById('pcp-obs').value.trim();
   if(!dataISO){alert('Informe a data!');return;}
   const dataFmt=dataISO.split('-').reverse().join('/');
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
 
   const fornCod=document.getElementById('pcp-forn-cod')?.value||c.fornCod||null;
   const adtInput=document.getElementById('pcp-adt');
@@ -17715,7 +18020,7 @@ function renderContasReceber(){
   
   
   try{ if(_syncContasReceber.limparDuplicatasExatas()){ try{ saveContasReceber(); }catch(e){} } }catch(e){}
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toISOString().slice(0,10);
   
   const _toISOcr=d=>{if(!d)return'';const ds=String(d).trim();if(ds.indexOf('/')>=0){const p=ds.split('/');return(p[2]||'0000')+'-'+(p[1]||'01')+'-'+(p[0]||'01');}return ds.slice(0,10);};
@@ -17739,12 +18044,12 @@ function renderContasReceber(){
     const atrasado=c.status==='Pendente'&&c.venc<hoje;
     const stCls=c.status==='Recebido'?'b-pago':atrasado?'b-pend':'b-zerado';
     return '<tr style="'+(atrasado?'background:#fff5f5':'')+'">'
-      +'<td>'+c.data+'</td><td>'+esc(c.nf||'—')+'</td>'
+      +'<td>'+fmtDate(c.data)+'</td><td>'+esc(c.nf||'—')+'</td>'
       +'<td><b>'+esc(c.cli)+'</b></td>'
       +'<td style="font-weight:800;text-align:right">R$ '+fmt(c.valor)+'</td>'
       +'<td style="font-size:.78rem">'+esc(c.forma||'—')+'</td>'
       +'<td style="font-size:.78rem">'+esc(c.banco||'—')+'</td>'
-      +'<td>'+c.venc+'</td>'
+      +'<td>'+fmtDate(c.venc)+'</td>'
       +'<td><span class="b '+stCls+'">'+(atrasado?'Atrasado':c.status)+'</span></td>'
       +'<td>'+esc(c.dataReceb||'—')+'</td>'
       +'<td>'+esc(c.obs||'—')+'</td>'
@@ -17819,7 +18124,7 @@ function salvarEditContaReceber(){
 
 function receberContaRapido(idx){
   const c=CONTAS_RECEBER[idx]; if(!c) return;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const body=document.getElementById('modal-body');
   body.className='modal';
   const hoje=new Date().toISOString().slice(0,10);
@@ -17924,7 +18229,9 @@ function confirmarReceberCR(){
   
   
   
-  const _antigo = data < '2026-08-10';
+  const _cfgMov=_legacyRepairConfig('bankMovement');
+  const _corteMov=String((_cfgMov&&_cfgMov.cutoffDate)||'').trim();
+  const _antigo = Boolean(_corteMov&&data<_corteMov);
   if(banco) c.banco=banco;
   saveContasReceber();
   renderContasReceber();
@@ -17935,7 +18242,7 @@ function confirmarReceberCR(){
   renderDashboard();
   cm();
   showToast(_antigo
-    ? 'Recebimento baixado (data antes de 10/08 — não mexe no saldo do banco). R$ '+Number(c.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})
+    ? 'Recebimento baixado (data anterior ao início configurado da movimentação bancária — não altera o saldo). R$ '+Number(c.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})
     : 'Recebimento baixado! R$ '+Number(c.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})+(banco?' | '+banco:''),'success');
 }
 
@@ -18412,7 +18719,7 @@ function zerarSaldosBancos(){
 
 function verExtratoBanco(cod){
   const b=BANCOS_DB.find(x=>x.cod===cod); if(!b) return;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const lancs=LANC_BANCO_DB.filter(l=>l.bancoCod===cod).sort((a,z)=>a.data.localeCompare(z.data));
   let saldo=Number(b.saldo||0);
   const rows=lancs.map((l,i)=>{
@@ -18477,16 +18784,15 @@ function toggleCpfCnpj(fgId, tipo){
 }
 
 function rebuildBancosDropdowns(){
-  
   ['cr-banco','ecr-banco','cp-banco','ecp-banco'].forEach(id=>{
     const sel=document.getElementById(id);
     if(!sel) return;
     const cur=sel.value;
-    sel.innerHTML='<option value="">— Selecione —</option>'+
-      BANCOS_DB.map(b=>{
-        const label=b.banco+(b.tipo==='Conta Terceiro'?' 👤 '+b.titular:'');
-        return '<option value="'+esc(label)+'"'+(label===cur?' selected':'')+'>'+esc(label)+'</option>';
-      }).join('');
+    sel.innerHTML='<option value="">— Selecione —</option>'+BANCOS_DB.map(b=>{
+      const value=String(b.cod||b.id||b.banco||'');
+      const label=String(b.banco||'')+(b.empresa?' — '+b.empresa:'')+(b.tipo==='Conta Terceiro'&&b.titular?' 👤 '+b.titular:'');
+      return '<option value="'+esc(value)+'"'+(value===cur?' selected':'')+'>'+esc(label)+'</option>';
+    }).join('');
   });
 }
 let VENDAS_DB = [];
@@ -18495,11 +18801,13 @@ const _syncVendas = _criarSincroniaPorChave('vendas', VENDAS_DB, 'VD');
 function populateBancoSelect(selId, selectedVal){
   const sel=document.getElementById(selId);
   if(!sel) return;
-  const list = BANCOS_DB.length>0
-    ? BANCOS_DB.map(b=>({nome: b.banco+(b.tipo==='Conta Terceiro'?' 👤 '+b.titular:''), cod: b.cod}))
-    : BANCOS_LIST;
-  sel.innerHTML='<option value="">— Selecione —</option>'+
-    list.map(b=>'<option value="'+esc(b.nome)+'"'+(b.nome===selectedVal?' selected':'')+'>'+esc(b.nome)+'</option>').join('');
+  const list=BANCOS_DB.map(function(b){
+    return {nome:String(b.banco||'')+(b.empresa?' — '+b.empresa:'')+(b.tipo==='Conta Terceiro'&&b.titular?' 👤 '+b.titular:''),cod:String(b.cod||b.id||b.banco||'')};
+  });
+  sel.innerHTML='<option value="">— Selecione —</option>'+list.map(function(b){
+    const selected=b.cod===selectedVal||b.nome===selectedVal;
+    return '<option value="'+esc(b.cod)+'"'+(selected?' selected':'')+'>'+esc(b.nome)+'</option>';
+  }).join('');
 }
 
 function saveVendas(){
@@ -18537,13 +18845,13 @@ function verCRdaVenda(vendaId){
   const crList=CONTAS_RECEBER.filter(c=>c.vendaId===vendaId);
   if(crList.length===0){alert('Nenhum lançamento em Contas a Receber vinculado a esta venda.');return;}
   
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const linhas=crList.map((c,i)=>`
     <tr style="border-bottom:1px solid #eee">
       <td style="padding:6px 8px">${c.forma||'—'}</td>
       <td style="padding:6px 8px">${c.banco||'—'}</td>
       <td style="padding:6px 8px;font-weight:700;text-align:right">R$ ${fmt(c.valor)}</td>
-      <td style="padding:6px 8px">${c.venc}</td>
+      <td style="padding:6px 8px">${fmtDate(c.venc)||'—'}</td>
       <td style="padding:6px 8px"><span class="b ${c.status==='Recebido'?'b-pago':'b-pend'}">${c.status}</span></td>
     </tr>`).join('');
   const totalCR=crList.reduce((s,c)=>s+Number(c.valor),0);
@@ -18572,7 +18880,7 @@ function verCRdaVenda(vendaId){
 function renderVendas(){
   const tbody=document.getElementById('tb-vendas-list');
   if(!tbody) return;
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   
   const _toISO_v=d=>{if(!d)return'';const ds=String(d).trim();if(ds.indexOf('/')>=0){const p=ds.split('/');return(p[2]||'0000')+'-'+(p[1]||'01')+'-'+(p[0]||'01');}return ds.slice(0,10);};
   const _hj=new Date().toISOString().slice(0,10);
@@ -18622,16 +18930,17 @@ function renderVendas(){
       ? '<button class="btn-edit" style="padding:3px 8px;font-size:.72rem;margin-right:4px;background:#e8f5e9;color:#1a5e2a;border:1px solid #a5d6a7" onclick="reabrirVenda('+idx+')" title="Reabrir (marcar como pendente)">↩ Reabrir</button>'
       : '<button style="padding:3px 10px;font-size:.72rem;margin-right:4px;background:#27ae60;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700" onclick="marcarVendaPaga('+idx+')" title="Marcar como paga">✔ Pago</button>';
     return '<tr'+rowStyle+'>'
-      +'<td>'+v.data+'</td>'
+      +'<td>'+fmtDate(v.data)+'</td>'
       +'<td>'+esc(v.nf||'—')+'</td>'
       +'<td><b>'+esc(v.cliente)+'</b></td>'
       +'<td style="font-size:.78rem">'+(v.itens||[]).map(i=>i.mat).join(', ')+'</td>'
       +'<td style="text-align:right">'+(v.itens||[]).reduce((s,i)=>s+Number(i.qt||0),0).toFixed(1)+' kg</td>'
       +'<td style="font-weight:800;text-align:right">R$ '+fmt(v.total)+'</td>'
-      +'<td>'+esc(v.venc||'—')+(_atrasada?' <span style="color:#c0392b;font-weight:700;font-size:.7rem">⏰ atrasado</span>':'')+'</td>'
+      +'<td>'+esc(fmtDate(v.venc)||'—')+(_atrasada?' <span style="color:#c0392b;font-weight:700;font-size:.7rem">⏰ atrasado</span>':'')+'</td>'
       +'<td><span class="b '+stCls+'">'+v.status+'</span></td>'
       +'<td style="white-space:nowrap">'
         +btnPago
+        +'<button class="btn-add" style="padding:3px 8px;font-size:.72rem;margin-right:4px;background:#8e44ad" onclick="abrirFichaCli(this.dataset.cli)" data-cli="'+esc(v.cliente||'')+'" title="Abrir ficha financeira do cliente">📋 Ficha</button>'
         +'<button class="btn-add" style="padding:3px 8px;font-size:.72rem;margin-right:4px" onclick="verCRdaVenda(this.dataset.id)" data-id="'+esc(v.id||'')+'" title="Ver Contas a Receber">📥 CR</button>'
         +'<button class="btn-edit" onclick="editVenda('+idx+')">✏️</button>'
         +'<button class="btn-edit-danger" onclick="excluirVenda(this)" data-idx="'+idx+'" data-id="'+esc(v.id||'')+'" title="Excluir venda">🗑️</button>'
@@ -18748,8 +19057,8 @@ function _vhToISO(d){
 }
 
 function renderHistoricoVendas(){
-  var fmt=function(v){return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});};
-  var fmtKg=function(v){return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1});};
+  var fmt=function(v){return _numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});};
+  var fmtKg=function(v){return _numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1});};
   var de=document.getElementById('vh-de')?.value||'';
   var ate=document.getElementById('vh-ate')?.value||'';
   var cli=(document.getElementById('vh-cli')?.value||'').toLowerCase().trim();
@@ -18804,7 +19113,7 @@ function renderHistoricoVendas(){
     var mats=v.itens.map(function(i){return i.mat;}).join(', ');
     var kg=v.itens.reduce(function(s,i){return s+Number(i.qt||0);},0);
     return '<tr style="'+(atras?'background:#fff5f5':'')+'">'
-      +'<td>'+v.data+'</td>'
+      +'<td>'+fmtDate(v.data)+'</td>'
       +'<td>'+(v.nf||'—')+'</td>'
       +'<td><b>'+esc(v.cliente)+'</b></td>'
       +'<td style="font-size:.76rem">'+esc(mats)+'</td>'
@@ -18834,8 +19143,8 @@ function vhLimpar(){
 window['vhLimpar']=vhLimpar;
 
 function vhImprimir(){
-  var fmt=function(v){return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});};
-  var fmtKg=function(v){return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1});};
+  var fmt=function(v){return _numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});};
+  var fmtKg=function(v){return _numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1});};
   var de=document.getElementById('vh-de')?.value||'';
   var ate=document.getElementById('vh-ate')?.value||'';
   var cli=(document.getElementById('vh-cli')?.value||'').toLowerCase().trim();
@@ -18909,7 +19218,7 @@ function addVPgtoRow(){
 }
 
 function calcVPgto(){
-  const fmt=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const totalVenda=parseFloat((document.getElementById('v-total')?.textContent||'0').replace(/[^0-9,]/g,'').replace(',','.'))||0;
   const inputs=document.querySelectorAll('#v-pgto-rows .vpgto-val');
   let alocado=0;
@@ -19026,7 +19335,7 @@ function salvarVenda(){
   renderEstoque();
 
   
-  const fmt=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   if(pagamentos.length>0){
     pagamentos.forEach(p=>{
       const stP=(p.forma==='Adiantamento'||p.forma==='Cheque')?'Recebido':(p.forma==='A prazo'?'Pendente':((status==='Pago'||status==='Permuta')?'Recebido':'Pendente'));
@@ -19080,6 +19389,7 @@ function salvarVenda(){
     try{ renderChequesCli(); }catch(e){}
   }
   try{ renderContasReceber(); }catch(e){ console.warn('renderCR',e); }
+  try{ renderFichaCliente(); if(typeof fcSelecionarCliente==='function') fcSelecionarCliente(cliente); }catch(e){ console.warn('renderFichaCliente',e); }
 
   
   if(pagamentos.length>0 && status==='Pago'){
@@ -19102,7 +19412,7 @@ function salvarVenda(){
 
 function editVenda(idx){
   const v=VENDAS_DB[idx]; if(!v) return;
-  const fmt=n=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const fmt=n=>_numFinito(n,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const stOpts=['Pendente','Pago','A prazo','Permuta'].map(s=>'<option'+(s===v.status?' selected':'')+'>'+s+'</option>').join('');
   try{ if(typeof refreshMetaisGlobals==='function') refreshMetaisGlobals(); }catch(e){}
   const body=document.getElementById('modal-body');
@@ -19390,7 +19700,7 @@ function om(k){
       body.innerHTML='<div style="padding:40px;text-align:center;color:#777">⏳ Buscando snapshots...</div>';
     } else if(k==='conta_pagar'){
       body.innerHTML=FORMS['conta_pagar']||'';
-      setTimeout(()=>{ try{atualizarSelectFornDespesa();}catch(e){} try{_populateBancosSelects();}catch(e){} },30);
+      setTimeout(()=>{ try{_erpRefreshCompanySources();}catch(e){} try{atualizarSelectFornDespesa();}catch(e){} try{_populateBancosSelects();}catch(e){} },30);
     } else if(k==='venda'){
       let html; try{ html=buildVendaForm(); }catch(e){ showFormError('buildVendaForm: '+e.message); return; }
       body.innerHTML=html;
@@ -19423,7 +19733,7 @@ function om(k){
       
       
       setTimeout(()=>{ try{
-        if(k==='novo_funcionario'){
+        if(k==='funcionario'){
           const sel=document.getElementById('nfu-emp'); if(sel) sel.innerHTML=_cfgEmployeeCompanyOptionsHtml(sel.value||'');
         }
         if(k==='cheque'){
@@ -19435,7 +19745,16 @@ function om(k){
           }
         }
         if(k==='banco'){
+          _erpRefreshCompanySources();
+          const sel=document.getElementById('bc-empresa');
+          const principal=_empresaPrincipalChave()||((_cfgRegisteredCompanies()[0])||'');
+          if(sel&&!sel.value&&principal&&[...sel.options].some(function(o){return o.value===principal;})) sel.value=principal;
           const tit=document.getElementById('bc-titular'); if(tit && _empresaPrincipalRazao()) tit.placeholder=_empresaPrincipalRazao()+' ou nome do terceiro';
+        }
+        if(k==='adiantamento'){
+          _erpRefreshCompanySources();
+          const sb=document.getElementById('adt-seq-banco');
+          if(sb) sb.innerHTML=_cfgChequeBankOptionsHtml('');
         }
       }catch(e){} },20);
       
@@ -19493,7 +19812,21 @@ function getMes(){
   }
   return el.value;
 }
-function getEmp(){ return document.getElementById('fil-emp').value; }
+function getEmp(){ return document.getElementById('fil-emp')?.value||''; }
+function _popularEmpresasDespesa(){
+  const filtro=document.getElementById('fil-emp');
+  const lancamento=document.getElementById('f-emp');
+  if(filtro){
+    const atual=filtro.value||'';
+    filtro.innerHTML='<option value="">Todas as empresas</option>'+EMPRESAS.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
+    if(atual && EMPRESAS.indexOf(atual)>=0) filtro.value=atual;
+  }
+  if(lancamento){
+    const atual=lancamento.value||'';
+    lancamento.innerHTML='<option value="">— Selecione —</option>'+EMPRESAS.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
+    if(atual && EMPRESAS.indexOf(atual)>=0) lancamento.value=atual;
+  }
+}
 
 
 
@@ -19557,7 +19890,20 @@ function switchDespTab(id){
   else despAtualizar();
 }
 
+function _despPopularBancos(){
+  const sel=document.getElementById('f-banco');
+  if(!sel) return;
+  const atual=sel.value;
+  const bancos=Array.isArray(BANCOS_DB)?BANCOS_DB.filter(function(b){return b&&String(b.banco||'').trim();}):[];
+  sel.innerHTML='<option value="">— Selecione uma conta cadastrada —</option>'+bancos.map(function(b){
+    const nome=String(b.banco||'').trim();
+    const detalhe=[b.empresa,b.conta].filter(Boolean).join(' · ');
+    return '<option value="'+esc(nome)+'"'+(nome===atual?' selected':'')+'>'+esc(nome)+(detalhe?' — '+esc(detalhe):'')+'</option>';
+  }).join('');
+}
 function despAtualizar(){
+  _popularEmpresasDespesa();
+  _despPopularBancos();
   renderKpis();
   renderExtrato();
   renderResumo();
@@ -19807,7 +20153,7 @@ function exportarPDF(){
   const total=filtrados.reduce((s,d)=>s+Number(d.valor),0);
   const rows=filtrados.map(d=>`
     <tr>
-      <td>${d.data?d.data.split('-').reverse().join('/'):'—'}</td>
+      <td>${fmtDate(d.data)||'—'}</td>
       <td><b>${d.empresa}</b></td>
       <td>${d.categoria}</td>
       <td><b>${d.fornecedor}</b></td>
@@ -20282,19 +20628,33 @@ function initDespesas(){
       var _ffCodAtual = null;
 
       function abrirFichaForn(cod){
+        cod=String(cod==null?'':cod).trim();
+        var ativos=getFornAtivos()||[];
         var dl=document.getElementById('ff-forn-list');
-        if(dl) dl.innerHTML=(getFornAtivos()||[]).map(function(f){ return '<option value="'+f.nome+'">'; }).join('');
+        if(dl) dl.innerHTML=ativos.map(function(f){ return '<option value="'+esc(f.nome||'')+'">'; }).join('');
+        var forn=ativos.find(function(f){ return String(f&&f.cod!=null?f.cod:'').trim()===cod; })
+          ||(FORNECEDORES||[]).find(function(f){ return String(f&&f.cod!=null?f.cod:'').trim()===cod; });
         var modal=document.getElementById('modal-ficha-forn');
         if(modal) modal.style.display='flex';
-        var forn=FORNECEDORES.find(function(f){ return f.cod===cod; });
         if(!forn){
           var tb=document.getElementById('ff-tbody');
           if(tb) tb.innerHTML='<tr><td colspan="5" style="padding:16px;color:#c0392b;text-align:center">Fornecedor nao encontrado.</td></tr>';
-          return;
+          return false;
         }
-        var busca=document.getElementById('ff-busca'); if(busca) busca.value=forn.nome;
-        _ffCodAtual=cod;
-        ffRenderFicha(cod,'','');
+        var codReal=String(forn.cod==null?cod:forn.cod).trim();
+        var busca=document.getElementById('ff-busca'); if(busca) busca.value=forn.nome||'';
+        _ffCodAtual=codReal;
+        ffRenderFicha(codReal,'','');
+        return false;
+      }
+
+      function __abrirFichaFornAcao(btn,ev){
+        if(ev){
+          if(typeof ev.preventDefault==='function') ev.preventDefault();
+          if(typeof ev.stopPropagation==='function') ev.stopPropagation();
+        }
+        var cod=btn&&btn.getAttribute?btn.getAttribute('data-ficha-cod'):'';
+        return abrirFichaForn(cod);
       }
 
 
@@ -20843,25 +21203,6 @@ function initDespesas(){
         try{ fcReRender(); }catch(e){}
         showToast('Pronto! "'+origem+'" foi juntado em "'+destino+'". ('+movV+' vendas + '+movCR+' recebimentos movidos)','success');
       }
-      
-      
-      
-      function fcConsertarImportTambore(){
-        if(!_fcCliAtual){ showToast('Abra a ficha do Tamboré primeiro.','info'); return; }
-        if(!confirm('Consertar o Tamboré (desfazer o import que deu errado)?\n\nVou:\n• Apagar as 3 cargas DUPLICADAS de 24/08 (lotes 10088, 10089, 10090)\n• Apagar a linha amarela de R$ 19.008,06\n• Voltar o Saldo Anterior pra R$ 514.441,92 (você deve)\n\nO saldo volta pra R$ 435.655,96. Nada mais é tocado. Confirmar?')) return;
-        var ids={fcl_imp_tmb_1:1, fcl_imp_tmb_2:1, fcl_imp_tmb_3:1, fcl_imp_tmb_pend:1};
-        var removidos=0;
-        if(FC_LANC[_fcCliAtual]){
-          var antes=FC_LANC[_fcCliAtual].length;
-          FC_LANC[_fcCliAtual]=FC_LANC[_fcCliAtual].filter(function(l){ return !ids[l.id]; });
-          removidos=antes-FC_LANC[_fcCliAtual].length;
-        }
-        
-        FC_SALDO_INI[_fcCliAtual]={valor:514441.92, data:'2026-05-01'};
-        saveFcLanc();
-        try{ fcReRender(); }catch(e){}
-        showToast('Pronto! Import desfeito ('+removidos+' linhas apagadas) e saldo anterior corrigido. O saldo deve estar em R$ 435.655,96. ✅','success');
-      }
       function fcSaldoAnteriorModal(){
         if(!_fcCliAtual){ showToast('Selecione um cliente primeiro.','info'); return; }
         var si=FC_SALDO_INI[_fcCliAtual]||{};
@@ -20971,8 +21312,8 @@ function initDespesas(){
       }
 
       function ffRenderFicha(cod, filtDe, filtAte){
-        var fmt=function(v){ return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2}); };
-        var fmtD=function(d){ if(!d) return '-'; return d.indexOf('-')>=0?d.split('-').reverse().join('/'):d; };
+        var fmt=function(v){ return _numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2}); };
+        var fmtD=function(d){ return _fmtDataBR(d)||'-'; };
         var toIso=function(d){
           if(!d) return '';
           d=String(d).trim();
@@ -21531,6 +21872,7 @@ function initDespesas(){
       window['ffImprimir']=ffImprimir;
       window['ffWhatsApp']=ffWhatsApp;
       window['abrirFichaForn']=abrirFichaForn;
+      window['__abrirFichaFornAcao']=__abrirFichaFornAcao;
       window['filtrarTabelaForn']=filtrarTabelaForn;
 
       
@@ -21538,7 +21880,7 @@ function initDespesas(){
         if(!_ffCodAtual){ alert('Abra a ficha de um fornecedor primeiro.'); return; }
         var box=document.getElementById('ff-lanc-adt'); if(!box) return;
         var hoje=new Date().toISOString().slice(0,10);
-        var bancos=(typeof BANCOS_DB!=='undefined'&&BANCOS_DB&&BANCOS_DB.length)?BANCOS_DB:BANCOS;
+        var bancos=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB))?BANCOS_DB:[];
         var bancoOpts='<option value="">— Não sai do banco —</option>'+bancos.map(function(b){return '<option value="'+esc(b.banco)+'">'+esc(b.banco)+'</option>';}).join('');
         box.innerHTML='<div style="margin:6px 20px 10px;padding:12px 14px;background:#eafaf0;border:1px solid #a5d6a7;border-radius:10px">'
           +'<div style="font-weight:800;color:#1a5e2a;margin-bottom:8px">➕ Lançar adiantamento / pagamento</div>'
@@ -21667,37 +22009,49 @@ function initDespesas(){
       }
 
       
+      function _ensureEditViagemModal(){
+        let m=document.getElementById('modal-edit-viagem');
+        if(m) return m;
+        m=document.createElement('div');
+        m.id='modal-edit-viagem';
+        m.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center';
+        m.innerHTML=`<div style="background:#fff;border-radius:14px;padding:24px 28px;width:min(700px,96vw);max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25)"><div style="font-size:1.1rem;font-weight:800;color:var(--primary);margin-bottom:16px">✏️ Editar Viagem</div><input type="hidden" id="vg-edit-id"><div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:10px"><div><label style="font-size:.8rem;font-weight:600">Motorista</label><select id="vg-edit-motorista" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:7px;font-size:.9rem"></select></div><div><label style="font-size:.8rem;font-weight:600">Data Saída</label><input type="date" id="vg-edit-data" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:7px;box-sizing:border-box" onchange="evCalcTotais()"></div><div><label style="font-size:.8rem;font-weight:600">Data Volta</label><input type="date" id="vg-edit-volta" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:7px;box-sizing:border-box" onchange="evCalcTotais()"></div><div><label style="font-size:.8rem;font-weight:600">Destino</label><input id="vg-edit-destino" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:7px;box-sizing:border-box"></div></div><div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:12px"><div><label style="font-size:.8rem;font-weight:600">🛏️ Diária R$/dia</label><input type="number" min="0" step="0.01" id="vg-edit-diaria" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:7px;box-sizing:border-box" oninput="evCalcTotais()"></div><div><label style="font-size:.8rem;font-weight:600">🌙 Pernoite R$/dia</label><input type="number" min="0" step="0.01" id="vg-edit-pernoite" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:7px;box-sizing:border-box" oninput="evCalcTotais()"></div><div><label style="font-size:.8rem;font-weight:600">⛽ Combustível R$</label><input type="number" min="0" step="0.01" id="vg-edit-comb" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:7px;box-sizing:border-box"></div><div><label style="font-size:.8rem;font-weight:600">Obs.</label><input id="vg-edit-obs" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:7px;box-sizing:border-box"></div><div><label style="font-size:.8rem;font-weight:600;color:#1a5e2a">💵 Dinheiro p/ Alim. R$</label><input type="number" min="0" step="0.01" id="vg-edit-dinheiro-alim" style="width:100%;padding:7px;border:1px solid #27ae60;border-radius:7px;font-size:.9rem" placeholder="0,00"></div></div><div style="font-size:.82rem;font-weight:700;color:#888;margin-bottom:6px;text-transform:uppercase">☕ Refeições por dia</div><div id="vg-edit-dias-wrap" style="display:flex;flex-direction:column;gap:5px;margin-bottom:12px"></div><div id="vg-edit-resumo" style="background:#e8f5e9;border-radius:8px;padding:8px 12px;font-size:.88rem;margin-bottom:14px"></div><div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn-add" style="background:#888;padding:8px 20px" onclick="document.getElementById('modal-edit-viagem').style.display='none'">Cancelar</button><button class="btn-save" onclick="salvarEditViagem()" style="padding:8px 24px">💾 Salvar</button></div></div>`;
+        document.body.appendChild(m);
+        return m;
+      }
+
       function editViagem(id){
         const v=VIAGEM_DB.find(x=>x.id===id);
         if(!v) return;
-        document.getElementById('ev-id').value=id;
+        const modal=_ensureEditViagemModal();
+        if(!modal) return;
+        document.getElementById('vg-edit-id').value=id;
         
-        const sel=document.getElementById('ev-motorista');
+        const sel=document.getElementById('vg-edit-motorista');
         sel.innerHTML='';
         const funs=(FUNCIONARIOS||[]).filter(f=>f.status!=='Inativo');
         funs.forEach(f=>{ const o=document.createElement('option'); o.value=f.nome; o.textContent=f.nome+' ('+f.cargo+')'; sel.appendChild(o); });
         const names=[...new Set(VIAGEM_DB.map(x=>x.motorista).filter(Boolean))];
         names.forEach(n=>{ if(!funs.find(f=>f.nome===n)){ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); } });
         sel.value=v.motorista||'';
-        document.getElementById('ev-data').value=v.data||'';
-        document.getElementById('ev-volta').value=v.volta||'';
-        document.getElementById('ev-destino').value=v.destino||'';
-        document.getElementById('ev-diaria').value=v.diaria||0;
-        document.getElementById('ev-pernoite').value=v.pernoite||0;
-        document.getElementById('ev-comb').value=v.combustivel||0;
-        document.getElementById('ev-dinheiro-alim').value=v.dinheiroAlim||'';
-        document.getElementById('ev-obs').value=v.obs||'';
+        document.getElementById('vg-edit-data').value=v.data||'';
+        document.getElementById('vg-edit-volta').value=v.volta||'';
+        document.getElementById('vg-edit-destino').value=v.destino||'';
+        document.getElementById('vg-edit-diaria').value=v.diaria||0;
+        document.getElementById('vg-edit-pernoite').value=v.pernoite||0;
+        document.getElementById('vg-edit-comb').value=v.combustivel||0;
+        document.getElementById('vg-edit-dinheiro-alim').value=v.dinheiroAlim||'';
+        document.getElementById('vg-edit-obs').value=v.obs||'';
         evRenderDias(v);
         evCalcTotais();
-        const m=document.getElementById('modal-edit-viagem');
-        m.style.display='flex';
+        modal.style.display='flex';
       }
 
       function evRenderDias(v){
-        const wrap=document.getElementById('ev-dias-wrap');
+        const wrap=document.getElementById('vg-edit-dias-wrap');
         if(!wrap) return;
-        const saida=document.getElementById('ev-data').value;
-        const volta=document.getElementById('ev-volta').value;
+        const saida=document.getElementById('vg-edit-data').value;
+        const volta=document.getElementById('vg-edit-volta').value;
         if(!saida||!volta){ wrap.innerHTML=''; return; }
         const ds=new Date(saida+'T00:00:00');
         const dv=new Date(volta+'T00:00:00');
@@ -21723,12 +22077,12 @@ function initDespesas(){
 
       function evCalcTotais(){
         
-        const id=document.getElementById('ev-id').value;
+        const id=document.getElementById('vg-edit-id').value;
         const v=VIAGEM_DB.find(x=>x.id===id)||{};
-        const saida=document.getElementById('ev-data').value;
-        const volta=document.getElementById('ev-volta').value;
+        const saida=document.getElementById('vg-edit-data').value;
+        const volta=document.getElementById('vg-edit-volta').value;
         
-        const wrap=document.getElementById('ev-dias-wrap');
+        const wrap=document.getElementById('vg-edit-dias-wrap');
         if(wrap){
           const currentDays=wrap.querySelectorAll('[data-day]').length;
           let nd=0;
@@ -21736,8 +22090,8 @@ function initDespesas(){
           if(nd!==currentDays) evRenderDias(v);
         }
         
-        const di=parseFloat(document.getElementById('ev-diaria').value)||0;
-        const pn=parseFloat(document.getElementById('ev-pernoite').value)||0;
+        const di=parseFloat(document.getElementById('vg-edit-diaria').value)||0;
+        const pn=parseFloat(document.getElementById('vg-edit-pernoite').value)||0;
         const vlrDia=di+pn;
         let nd2=0;
         if(saida&&volta&&volta>=saida){ const ds=new Date(saida+'T00:00:00'),dv=new Date(volta+'T00:00:00'); nd2=Math.round((dv-ds)/(1000*60*60*24))+1; }
@@ -21751,25 +22105,25 @@ function initDespesas(){
           const dt=cm+al+ct+ja; totalAlim+=dt;
           const te=row.querySelector('.ev-dia-tot'); if(te) te.textContent='R$ '+fmt(dt);
         });}
-        const res=document.getElementById('ev-resumo');
+        const res=document.getElementById('vg-edit-resumo');
         if(res) res.innerHTML='<b>'+nd2+'</b> dia(s) × R$ '+fmt(vlrDia)+'/dia = <b style="color:var(--primary)">R$ '+fmt(totalDiar)+'</b> &nbsp;|&nbsp; ☕ Refeições: <b style="color:#e67e22">R$ '+fmt(totalAlim)+'</b>';
       }
 
       function salvarEditViagem(){
-        const id=document.getElementById('ev-id').value;
+        const id=document.getElementById('vg-edit-id').value;
         const idx=VIAGEM_DB.findIndex(x=>x.id===id);
         if(idx===-1) return;
-        const saida=document.getElementById('ev-data').value;
-        const volta=document.getElementById('ev-volta').value;
+        const saida=document.getElementById('vg-edit-data').value;
+        const volta=document.getElementById('vg-edit-volta').value;
         let nd=0;
         if(saida&&volta&&volta>=saida){ const ds=new Date(saida+'T00:00:00'),dv=new Date(volta+'T00:00:00'); nd=Math.round((dv-ds)/(1000*60*60*24))+1; }
-        const di=parseFloat(document.getElementById('ev-diaria').value)||0;
-        const pn=parseFloat(document.getElementById('ev-pernoite').value)||0;
+        const di=parseFloat(document.getElementById('vg-edit-diaria').value)||0;
+        const pn=parseFloat(document.getElementById('vg-edit-pernoite').value)||0;
         const vlrDia=di+pn;
         const totalDiarias=vlrDia*nd;
         const refeicoesPorDia=[];
         let totCm=0,totAl=0,totCt=0,totJa=0;
-        const wrap=document.getElementById('ev-dias-wrap');
+        const wrap=document.getElementById('vg-edit-dias-wrap');
         if(wrap){ wrap.querySelectorAll('[data-day]').forEach(row=>{
           const cm=parseFloat(row.querySelector('[data-field=cm]').value)||0;
           const al=parseFloat(row.querySelector('[data-field=al]').value)||0;
@@ -21781,15 +22135,15 @@ function initDespesas(){
         const totalRefeicoes=totCm+totAl+totCt+totJa;
         VIAGEM_DB[idx]={
           ...VIAGEM_DB[idx],
-          motorista:document.getElementById('ev-motorista').value,
+          motorista:document.getElementById('vg-edit-motorista').value,
           data:saida, volta,
-          destino:document.getElementById('ev-destino').value,
+          destino:document.getElementById('vg-edit-destino').value,
           numDiarias:nd, diaria:di, pernoite:pn, vlrDia, totalDiarias,
           refeicoesPorDia, cafeManha:totCm, almoco:totAl, cafeTarde:totCt, janta:totJa, totalRefeicoes,
-          combustivel:parseFloat(document.getElementById('ev-comb').value)||0,
-          dinheiroAlim:parseFloat((document.getElementById('ev-dinheiro-alim')||{}).value)||0,
-          trocoAlim:(()=>{ const d=parseFloat((document.getElementById('ev-dinheiro-alim')||{}).value)||0; return d>0?d-totalRefeicoes:null; })(),
-          obs:document.getElementById('ev-obs').value,
+          combustivel:parseFloat(document.getElementById('vg-edit-comb').value)||0,
+          dinheiroAlim:parseFloat((document.getElementById('vg-edit-dinheiro-alim')||{}).value)||0,
+          trocoAlim:(()=>{ const d=parseFloat((document.getElementById('vg-edit-dinheiro-alim')||{}).value)||0; return d>0?d-totalRefeicoes:null; })(),
+          obs:document.getElementById('vg-edit-obs').value,
           total:totalDiarias
         };
         saveDB();
@@ -22053,7 +22407,7 @@ function initDespesas(){
         saveDB();
         ['tk-data','tk-litros','tk-preco','tk-forn','tk-obs'].forEach(i=>{ const el=document.getElementById(i); if(el) el.value=''; });
         const ts=document.getElementById('tk-total-show'); if(ts) ts.textContent='R$ 0,00';
-        renderTanque();
+        renderTanque(); try{renderSaidasTanque();}catch(e){} try{renderHistoricoEntradasTanque();}catch(e){}
         showToast(tipo==='entrada'?'Reabastecimento registrado! Conta a Pagar criada.':'Saldo inicial registrado!','success');
       }
 
@@ -22066,7 +22420,7 @@ function initDespesas(){
             const cp=CONTAS_PAGAR.findIndex(c=>c.id===reg.contaPagarId);
             if(cp!==-1){ _removerCPporIndice(cp); saveContasPagar(); }
           }
-          TANQUE_DB.splice(idx,1); saveDB(); renderTanque();
+          TANQUE_DB.splice(idx,1); saveDB(); renderTanque(); try{renderSaidasTanque();}catch(e){} try{renderHistoricoEntradasTanque();}catch(e){}
           showToast('Registro excluído.','success');
         }
       }
@@ -22123,6 +22477,26 @@ function initDespesas(){
 
       
       let _cruSubTabAtiva='registro';
+      function renderHistoricoEntradasTanque(){
+        const panel=document.getElementById('cru-panel-historico');
+        if(!panel) return;
+        let card=document.getElementById('hist-entradas-tanque-card');
+        if(!card){
+          card=document.createElement('div');
+          card.id='hist-entradas-tanque-card';
+          card.className='cbx-card';
+          card.innerHTML='<h3 style="margin:0 0 10px">Entradas do tanque <span id="hist-entradas-tanque-count" style="font-size:.75rem;font-weight:400;color:#888"></span></h3><div class="cbx-tblwrap" style="max-height:320px"><table><thead><tr><th>Data</th><th>Fornecedor</th><th>Tipo</th><th>Litros</th><th>Preço/L</th><th>Total R$</th><th>Obs.</th></tr></thead><tbody id="tb-hist-entradas-tanque"></tbody></table></div>';
+          panel.appendChild(card);
+        }
+        const tb=document.getElementById('tb-hist-entradas-tanque');
+        const cnt=document.getElementById('hist-entradas-tanque-count');
+        const lista=(Array.isArray(TANQUE_DB)?TANQUE_DB:Object.values(TANQUE_DB||{})).filter(Boolean).slice().sort(function(a,b){return String(b.data||'').localeCompare(String(a.data||''));});
+        if(cnt) cnt.textContent='('+lista.length+' registro'+(lista.length===1?'':'s')+')';
+        if(!tb) return;
+        if(!lista.length){ tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:#aaa;padding:16px">Nenhuma entrada registrada.</td></tr>'; return; }
+        tb.innerHTML=lista.map(function(t){ return '<tr><td>'+(_fmtDataBR(t.data)||'—')+'</td><td>'+(esc(t.fornecedor||'—'))+'</td><td>'+(t.tipo==='saldo_inicial'?'Saldo inicial':'Reabastecimento')+'</td><td style="text-align:right;font-weight:700">'+fmt(t.litros||0)+' L</td><td style="text-align:right">R$ '+fmt(t.preco||0)+'</td><td style="text-align:right;font-weight:700">R$ '+fmt(t.total||0)+'</td><td>'+esc(t.obs||'—')+'</td></tr>'; }).join('');
+      }
+
       function cruSwitchTab(tab){
         if(tab==='registro') tab='abastecer'; 
         _cruSubTabAtiva=tab;
@@ -22134,7 +22508,7 @@ function initDespesas(){
           if(btn) btn.classList.toggle('on', p===tab);
         });
         if(tab==='tanque'){ try{renderTanque();}catch(e){} try{renderSaidasTanque();}catch(e){} }
-        if(tab==='historico'){ try{renderCombustivel();}catch(e){} try{renderPostoExterno();}catch(e){} }
+        if(tab==='historico'){ try{renderCombustivel();}catch(e){} try{renderPostoExterno();}catch(e){} try{renderHistoricoEntradasTanque();}catch(e){} }
       }
 
             function renderPostoExterno(){
@@ -22586,7 +22960,7 @@ function imprimirTicketBag(bagNum, mat, pesoB, pesoL){
   const data    = new Date().toLocaleString('pt-BR');
 
   const html = `<div class="ticket-card">
-    <div class="tk-logo">MANUELA METAIS LTDA</div>
+    <div class="tk-logo">${esc(_empresaPrincipalRazao())}</div>
     <div class="tk-row"><span>Ticket Rodoviária:</span><b>#${ticket}</b></div>
     <div class="tk-row"><span>BAG Nº:</span><b style="font-size:1.1rem">#${bagNum}</b></div>
     <div class="tk-row"><span>Fornecedor:</span><b>${fornNome.substring(0,22)}</b></div>
@@ -23191,7 +23565,7 @@ function balImprimirTicket(idx){
 
   const _mkCard = (via, viaLabel, viaColor) => `
     <div class="ticket-card" style="flex:1;min-width:220px;max-width:280px">
-      <div class="tk-logo">MANUELA METAIS LTDA</div>
+      <div class="tk-logo">${esc(_empresaPrincipalRazao())}</div>
       <div style="background:${viaColor};color:#fff;text-align:center;font-weight:900;font-size:.78rem;border-radius:4px;padding:2px 0;margin-bottom:8px;letter-spacing:.5px">${viaLabel}</div>
       <div class="tk-row"><span>Ticket:</span><b>#${_balTicketAtivo}</b></div>
       <div class="tk-row"><span>BAG Nº:</span><b style="font-size:1.15rem;color:#1a3a2a">#${bag.bagNum}</b></div>
@@ -24561,7 +24935,7 @@ function balRenderHistorico(){
   }
   const fmt=v=>Number(v||0).toFixed(1);
   tbody.innerHTML=rows.map(r=>`<tr>
-    <td>${r.data?r.data.split('-').reverse().join('/'):'—'}</td>
+    <td>${fmtDate(r.data)||'—'}</td>
     <td><b>${r.ticket}</b></td>
     <td>${r.forn}</td>
     <td>${r.mat}</td>
@@ -24624,7 +24998,7 @@ function balImprimirHistorico(){
     <th>Bruto kg</th><th>Tara kg</th><th>Líquido kg</th><th>Balança</th><th>Status</th><th></th>
   </tr></thead><tbody>
   ${rows.map(r=>`<tr>
-    <td>${r.data?r.data.split('-').reverse().join('/'):'—'}</td>
+    <td>${fmtDate(r.data)||'—'}</td>
     <td><b>${r.ticket}</b></td><td>${r.forn}</td><td>${r.mat}</td>
     <td style="text-align:center">${r.bagNum}</td>
     <td style="text-align:right">${fmt(r.br)}</td>
@@ -24718,7 +25092,7 @@ function rodRenderHistorico(){
       :'<span style="background:#1565c0;color:#fff;padding:2px 7px;border-radius:6px;font-size:.7rem;font-weight:700">🏭 Compra</span>';
     const nomePessoa=t.tipo==='venda'?(t.cliente||t.fornecedor||'—'):(t.fornecedor||t.fornecedorNome||'—');
     return `<tr>
-      <td>${t.data?t.data.split('-').reverse().join('/'):'—'}</td>
+      <td>${fmtDate(t.data)||'—'}</td>
       <td><b>${t.ticket||k}</b></td>
       <td>${tipoBadge}</td>
       <td>${nomePessoa}</td>
@@ -25747,7 +26121,7 @@ function alxRenderPorFunc(){
         <tbody>
           ${func.itens.map((m,i)=>`
             <tr style="${i%2?'background:#fff':'background:#f9faf9'}">
-              <td style="padding:7px 10px;font-size:.82rem">${(m.data||'—').split('-').reverse().join('/')}</td>
+              <td style="padding:7px 10px;font-size:.82rem">${fmtDate(m.data)||'—'}</td>
               <td style="padding:7px 10px;font-weight:600;font-size:.82rem">${esc(m.item||'—')}</td>
               <td style="padding:7px 10px;text-align:center;font-size:.82rem">${parseFloat(m.qtd||0).toLocaleString('pt-BR',{maximumFractionDigits:2})}</td>
               <td style="padding:7px 10px;color:#777;font-size:.82rem">${esc(m.obs||'')}</td>
@@ -25825,7 +26199,7 @@ ${Object.values(byFunc).map(func=>`
       <tbody>
         ${func.itens.map(m=>`
           <tr>
-            <td>${(m.data||'—').split('-').reverse().join('/')}</td>
+            <td>${fmtDate(m.data)||'—'}</td>
             <td><b>${m.item||'—'}</b></td>
             <td style="text-align:center">${parseFloat(m.qtd||0).toLocaleString('pt-BR',{maximumFractionDigits:2})}</td>
             <td style="color:#555">${m.obs||''}</td>
@@ -25966,7 +26340,7 @@ function coordImprimirTudo(){
         <tbody>
         ${lista.map(a=>`<tr>
           <td><b>${esc2(a.nome)}</b></td>
-          <td>${(a.data||'').split('-').reverse().join('/')}</td>
+          <td>${fmtDate(a.data)||''}</td>
           <td>${tipoLabel[a.tipo]||a.tipo}${a.tipo==='suspensao'&&a.dias?' ('+a.dias+'d)':''}</td>
           <td>${esc2(a.motivo)}</td>
           <td>${esc2(a.descricao||'—')}</td>
@@ -25990,7 +26364,7 @@ function coordImprimirTudo(){
         <thead><tr><th>Data</th><th>Tipo</th><th>Qtd</th><th>Obs</th><th>Por</th></tr></thead>
         <tbody>
         ${movs.map(m=>`<tr>
-          <td>${esc2(m.data||'—')}</td>
+          <td>${esc2(fmtDate(m.data)||'—')}</td>
           <td>${esc2(m.tipo||'—')}</td>
           <td>${m.qtd||0}</td>
           <td>${esc2(m.obs||'—')}</td>
@@ -26225,7 +26599,7 @@ function advRender(){
           <span style="background:${tipoCor[a.tipo]||'#c62828'};color:#fff;border-radius:12px;padding:2px 9px;font-size:.72rem;font-weight:700;margin-right:6px">${tipoLabel[a.tipo]||a.tipo}${a.tipo==='suspensao'&&a.dias?' ('+a.dias+'d)':''}</span>
           <b style="font-size:.88rem">${esc(a.nome)}</b>
         </div>
-        <span style="font-size:.78rem;color:#888;white-space:nowrap">${(a.data||'').split('-').reverse().join('/')}</span>
+        <span style="font-size:.78rem;color:#888;white-space:nowrap">${fmtDate(a.data)||''}</span>
       </div>
       <div style="font-size:.82rem;color:#c62828;font-weight:700;margin-top:5px">⚠️ ${esc(a.motivo)}</div>
       ${a.descricao?`<div style="font-size:.78rem;color:#555;margin-top:3px">${esc(a.descricao)}</div>`:''}
@@ -26280,10 +26654,10 @@ function advImprimir(id){
     .sig-box{border-bottom:1px solid #333;height:70px;margin:14px 0;text-align:center;display:flex;align-items:center;justify-content:center}
     @media print{body{padding:15px}}
   </style></head><body>
-  <h2>MANUELA METAIS LTDA</h2>
+  <h2>${esc(_empresaPrincipalRazao())}</h2>
   <div class="sub">Advertência Disciplinar</div>
   <div class="titulo">ADVERTÊNCIA ${(tipoLabel[a.tipo]||a.tipo).toUpperCase()}</div>
-  <div class="campo"><div class="label">Data</div><div class="valor">${(a.data||'').split('-').reverse().join('/')}</div></div>
+  <div class="campo"><div class="label">Data</div><div class="valor">${fmtDate(a.data)||''}</div></div>
   <div class="campo"><div class="label">Funcionário</div><div class="valor">${a.nome} — Matrícula: ${a.mat}</div></div>
   <div class="campo"><div class="label">Tipo</div><div class="valor">${tipoLabel[a.tipo]||a.tipo}${a.tipo==='suspensao'&&a.dias?' — '+a.dias+' dia(s)':''}</div></div>
   <div class="campo"><div class="label">Motivo</div><div class="valor">${a.motivo}</div></div>
@@ -26338,7 +26712,7 @@ function reuImprimir(id){
     .sig-cell{text-align:center;min-width:140px}
     @media print{body{padding:12px}}
   </style></head><body>
-  <h2>MANUELA METAIS LTDA</h2>
+  <h2>${esc(_empresaPrincipalRazao())}</h2>
   <div class="sub">Lista de Presença e Registro</div>
   <div class="titulo">${tipoLabel[r.tipo]||'REUNIÃO'}: ${r.titulo}</div>
   <div class="campo"><div class="label">Data</div><div class="valor">${(r.data||'').split('-').reverse().join('/')}</div></div>
@@ -26528,7 +26902,7 @@ function bagsRender(){
     '</tr></thead><tbody>'+
     mov.slice(0,100).map((m,i)=>`
       <tr style="${i%2?'background:#fff':'background:#f9f9f9'}">
-        <td style="padding:6px 10px">${(m.data||'—').split('-').reverse().join('/')}</td>
+        <td style="padding:6px 10px">${fmtDate(m.data)||'—'}</td>
         <td style="padding:6px 10px;color:${tipoCor[m.tipo]||'#333'};font-weight:700">${tipoLabel[m.tipo]||m.tipo}</td>
         <td style="padding:6px 10px;text-align:center;font-weight:700">${m.qtd}</td>
         <td style="padding:6px 10px;color:#777">${esc(m.obs||'')}</td>
@@ -26556,7 +26930,7 @@ function bagsImprimirRelatorio(){
     td{padding:5px 8px;border:1px solid #ddd}
     tr:nth-child(even) td{background:#f9f9f9}
   </style></head><body>
-  <h2>MANUELA METAIS LTDA</h2>
+  <h2>${esc(_empresaPrincipalRazao())}</h2>
   <div class="sub">Relatório de Controle de Bags</div>
   <div class="totais">
     <div class="tot-box"><div class="tot-num" style="color:#2e7d32">${BAGS_DB.novos||0}</div><div>Bags Novos/Limpos</div></div>
@@ -26566,7 +26940,7 @@ function bagsImprimirRelatorio(){
     <thead><tr><th>Data</th><th>Tipo</th><th style="text-align:center">Qtd</th><th>Observação</th></tr></thead>
     <tbody>
       ${mov.map(m=>`<tr>
-        <td>${(m.data||'').split('-').reverse().join('/')}</td>
+        <td>${fmtDate(m.data)||''}</td>
         <td>${tipoLabel[m.tipo]||m.tipo}</td>
         <td style="text-align:center">${m.qtd}</td>
         <td>${m.obs||''}</td>
@@ -26848,7 +27222,7 @@ function coordExecutarImpressao(){
       secoes+=`<table>
         <thead><tr><th>Data</th><th>Tipo</th><th>Motivo</th><th>Descrição</th><th>Assinado</th></tr></thead>
         <tbody>${advsFilt.map(a=>`<tr>
-          <td>${(a.data||'').split('-').reverse().join('/')}</td>
+          <td>${fmtDate(a.data)||''}</td>
           <td>${tipoLabel[a.tipo]||a.tipo}${a.tipo==='suspensao'&&a.dias?' ('+a.dias+'d)':''}</td>
           <td>${esc2(a.motivo)}</td>
           <td>${esc2(a.descricao||'—')}</td>
@@ -26865,7 +27239,7 @@ function coordExecutarImpressao(){
       secoes+=`<table>
         <thead><tr><th>Data</th><th>Item / EPI</th><th>Tipo</th><th>Qtd</th><th>Obs</th></tr></thead>
         <tbody>${alxFilt.map(m=>`<tr>
-          <td>${esc2(m.data||'—')}</td>
+          <td>${esc2(fmtDate(m.data)||'—')}</td>
           <td>${esc2(m.item||'—')}</td>
           <td>${m.tipo==='saida'?'Retirada':'Devolução'}</td>
           <td style="text-align:center">${m.qtd||0}</td>
@@ -27612,11 +27986,24 @@ function rodAbrirCadastroRapido(){
 
 
 const _MESES_NOME=['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+function _anoAtual(){ return String(new Date().getFullYear()); }
+function _popularAnosFiscais(){
+  const atual=new Date().getFullYear();
+  const anos=new Set();
+  for(let a=atual-4;a<=atual+2;a++) anos.add(a);
+  Object.keys(FISCAL_DB||{}).forEach(function(k){ const m=String(k).match(/(\d{4})-\d{2}$/); if(m) anos.add(Number(m[1])); });
+  Object.keys(FISCAL_APUR||{}).forEach(function(k){ const m=String(k).match(/(\d{4})$/); if(m) anos.add(Number(m[1])); });
+  const html=[...anos].sort(function(a,b){return a-b;}).map(function(a){return '<option value="'+a+'">'+a+'</option>';}).join('');
+  ['fiscal-sel-ano','fiscal-sel-ano-anual','fiscal-imp-ano','apur-ano'].forEach(function(id){
+    const el=document.getElementById(id); if(!el) return;
+    const anterior=el.value; el.innerHTML=html; el.value=anterior&&anos.has(Number(anterior))?anterior:String(atual);
+  });
+}
 function fmtR(v){ return 'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2}); }
 
 function fiscalChave(){
   const m=document.getElementById('fiscal-sel-mes')?.value||'01';
-  const a=document.getElementById('fiscal-sel-ano')?.value||'2026';
+  const a=document.getElementById('fiscal-sel-ano')?.value||_anoAtual();
   return _fPfx()+a+'-'+m;
 }
 
@@ -27628,7 +28015,7 @@ function fiscalChave(){
 
 function _fiscalPeriodoInfo(){
   const mes=document.getElementById('fiscal-sel-mes')?.value||'01';
-  const ano=document.getElementById('fiscal-sel-ano')?.value||'2026';
+  const ano=document.getElementById('fiscal-sel-ano')?.value||_anoAtual();
   const _fc=_cfgFiscalCompany(_fiscalEmpresa); const empNome=_fc.label||_empresaPrincipalLabel();
   return {mes,ano,empNome,label:(_MESES_NOME[parseInt(mes)]||mes)+'/'+ano};
 }
@@ -27703,13 +28090,13 @@ function fiscalSubTab(tab){
 
 
 var _APUR_MESES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-function _apurAno(){ return (document.getElementById('apur-ano')||{}).value||'2026'; }
+function _apurAno(){ return (document.getElementById('apur-ano')||{}).value||_anoAtual(); }
 
 function _apurKey(ano){ return _fPfx()+ano; }
 function _apurGetMes(ano,mm){
   const k=_apurKey(ano);
   if(!FISCAL_APUR[k]) FISCAL_APUR[k]={estIni0:0,m:{}};
-  if(!FISCAL_APUR[k].m[mm]) FISCAL_APUR[k].m[mm]={fat:0,devol:0,imp:0,compras:0,estFin:0,outros:0,desp:0,deprec:36749.75};
+  if(!FISCAL_APUR[k].m[mm]){ const fd=(ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.fiscalDefaults)||{}; FISCAL_APUR[k].m[mm]={fat:0,devol:0,imp:0,compras:0,estFin:0,outros:0,desp:0,deprec:Number(fd.monthlyDepreciation)||0}; }
   return FISCAL_APUR[k].m[mm];
 }
 function apurEdit(mm,campo,el){
@@ -27835,13 +28222,10 @@ function fiscalMenSubTab(tab){
   if(tab==='estoque') fiscalRenderEstoque();
 }
 function fiscalSetEmpresa(emp){
+  const keys=_fiscalCompanyKeys();
+  if(keys.indexOf(emp)<0) emp=keys[0]||'';
   _fiscalEmpresa=emp;
-  ['manuela','gratus'].forEach(e=>{
-    const btn=document.getElementById('fiscal-emp-'+e);
-    if(!btn)return;
-    if(e===emp){btn.style.background='#1565c0';btn.style.color='#fff';btn.style.border='none';}
-    else{btn.style.background='#f5f5f5';btn.style.color='#555';btn.style.border='1.5px solid #ccc';}
-  });
+  _fiscalRenderEmpresaBotoes();
   const badge=document.getElementById('fiscal-emp-badge');
   const estLabel=document.getElementById('est-emp-label');
   const _fc=_cfgFiscalCompany(emp); const _icon=_fc.icon||''; const _lbl=_fc.label||_empresaPrincipalLabel(); const _short=_fc.shortLabel||_lbl;
@@ -27990,7 +28374,7 @@ function fiscalRenderEstoque(){
   const estoque={};
   const pfx=_fPfx();
   
-  if(_fiscalEmpresa!=='gratus'){
+  if(_fPfx()===''){
     FISCAL_SALDO_INICIAL_2026.forEach(si=>{
       if(!estoque[si.produto]) estoque[si.produto]={ent:0,sai:0};
       estoque[si.produto].ent+=si.kg;
@@ -28003,9 +28387,7 @@ function fiscalRenderEstoque(){
   }
   Object.keys(FISCAL_DB).forEach(k=>{
     
-    const isGratus=k.startsWith('g-');
-    if(_fiscalEmpresa==='gratus' && !isGratus) return;
-    if(_fiscalEmpresa==='manuela' && (isGratus||k.startsWith('_'))) return;
+    if(!_fiscalKeyMatchesCompany(k,_fiscalEmpresa)) return;
     const db=FISCAL_DB[k];
     if(!db||typeof db!=='object') return;
     
@@ -28068,7 +28450,7 @@ function fiscalRenderEstoqueFaixa(){
   const porProduto={};
   
   
-  if(_fiscalEmpresa!=='gratus'){
+  if(_fPfx()===''){
     FISCAL_SALDO_INICIAL_2026.forEach(si=>{
       if(!porProduto[si.produto]) porProduto[si.produto]={entradas:[],saida:0};
       porProduto[si.produto].entradas.push({data:FISCAL_SALDO_INICIAL_DATA, kg:si.kg, preco:si.preco, saldoInicial:true});
@@ -28086,9 +28468,7 @@ function fiscalRenderEstoqueFaixa(){
     });
   }
   Object.keys(FISCAL_DB).forEach(k=>{
-    const isGratus=k.startsWith('g-');
-    if(_fiscalEmpresa==='gratus' && !isGratus) return;
-    if(_fiscalEmpresa==='manuela' && (isGratus||k.startsWith('_'))) return;
+    if(!_fiscalKeyMatchesCompany(k,_fiscalEmpresa)) return;
     const db=FISCAL_DB[k]; if(!db||typeof db!=='object') return;
     (db.entradas||[]).forEach(e=>{
       const itens=Array.isArray(e.itens)?e.itens:[{produto:e.produto||'Sem produto',kg:Number(e.kg)||0,valor:Number(e.valor)||0}];
@@ -28250,7 +28630,7 @@ function _dateISOtoBr(iso){ if(!iso)return''; const p=iso.split('-'); return p.l
 function fiscalCarregarMes(){
   const chave=fiscalChave();
   const mes=parseInt(document.getElementById('fiscal-sel-mes')?.value||'1');
-  const ano=document.getElementById('fiscal-sel-ano')?.value||'2026';
+  const ano=document.getElementById('fiscal-sel-ano')?.value||_anoAtual();
   document.getElementById('fiscal-mes-label').textContent=_MESES_NOME[mes]+' / '+ano;
   const d=FISCAL_DB[chave]||{};
   const r=d.resumo||{};
@@ -28460,7 +28840,7 @@ function _fiscalRenderTabela(lista, tbId, totalElId, tipoDefault, corValor, fnEx
     const obsLine=norm.obs&&norm.obs!==pessoa
       ?`<div style="font-size:.71rem;color:#aaa;font-style:italic;max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(norm.obs)}">📋 ${esc(norm.obs)}</div>`:'';
     rows+=`<tr style="background:${corBg};border-top:2px solid ${corBorda}">
-      <td style="white-space:nowrap;font-weight:700;font-size:.84rem;color:#333">${norm.data||'—'}</td>
+      <td style="white-space:nowrap;font-weight:700;font-size:.84rem;color:#333">${fmtDate(norm.data)||'—'}</td>
       <td style="font-size:.82rem">
         <div style="color:#888;font-size:.75rem;font-weight:600">NF ${_fiscalNumExibir(norm.num)||'—'}</div>
         <b style="font-size:.9rem;color:#1a3a2a">${esc(pessoa)}</b>${cpfLine}
@@ -28563,7 +28943,7 @@ function _fiscalRenderTabela(lista, tbId, totalElId, tipoDefault, corValor, fnEx
 
         pgts.forEach((p,pi)=>{
           rows+=`<tr style="background:#f5fff8;border-bottom:1px solid #d4edda">
-            <td style="padding-left:42px;font-size:.72rem;color:#27ae60;white-space:nowrap">💵 ${esc(p.data||'—')}</td>
+            <td style="padding-left:42px;font-size:.72rem;color:#27ae60;white-space:nowrap">💵 ${esc(fmtDate(p.data)||'—')}</td>
             <td style="font-size:.72rem;color:#555;padding-left:8px" colspan="2">${esc(p.obs||'—')}</td>
             <td></td>
             <td style="text-align:right;font-weight:700;color:#27ae60;font-size:.79rem">${fmtR(p.valor)}</td>
@@ -29698,8 +30078,8 @@ function fiscalAdicionarLinha(isEntrada, obj){
 }
 
 function fiscalRenderAnual(){
-  const ano=document.getElementById('fiscal-sel-ano-anual')?.value||'2026';
-  const fmt=v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const ano=document.getElementById('fiscal-sel-ano-anual')?.value||_anoAtual();
+  const fmt=v=>'R$ '+_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const trimestres=[
     {label:'1º Tri (jan-mar)', meses:['01','02','03']},
     {label:'2º Tri (abr-jun)', meses:['04','05','06']},
@@ -29754,7 +30134,7 @@ function _fiscalRegimeAtual(){
   if(typeof FISCAL_DB!=='undefined' && FISCAL_DB[rk]) return FISCAL_DB[rk];
   const ls=localStorage.getItem('mm_fiscal_regime_'+_fiscalEmpresa);
   if(ls) return ls;
-  if(_fiscalEmpresa==='manuela'){ const old=localStorage.getItem('mm_fiscal_regime'); if(old) return old; }
+  if(_fPfx()===''){ const old=localStorage.getItem('mm_fiscal_regime'); if(old) return old; }
   return 'presumido';
 }
 function fiscalSetRegime(regime){
@@ -29789,7 +30169,7 @@ function fiscalCarregarRegime(){
 
 function fiscalRenderImpostos(){
   const m=document.getElementById('fiscal-imp-mes')?.value||'01';
-  const a=document.getElementById('fiscal-imp-ano')?.value||'2026';
+  const a=document.getElementById('fiscal-imp-ano')?.value||_anoAtual();
   const chave=_fPfx()+a+'-'+m;
   const imp=(FISCAL_DB[chave]?.impostos)||{};
   const fmtV=v=>v?Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2}):'';
@@ -29835,7 +30215,7 @@ function fiscalCalcImpostos(){
 
 function fiscalSalvarImpostos(){
   const m=document.getElementById('fiscal-imp-mes')?.value||'01';
-  const a=document.getElementById('fiscal-imp-ano')?.value||'2026';
+  const a=document.getElementById('fiscal-imp-ano')?.value||_anoAtual();
   const chave=_fPfx()+a+'-'+m;
   if(!FISCAL_DB[chave]) FISCAL_DB[chave]={entradas:[],saidas:[],resumo:{}};
   const regime=_fiscalRegimeAtual();
@@ -29869,7 +30249,7 @@ function fiscalAutoPisCofins(){
   }
   const rt=_REGIME_RATES[regime]||_REGIME_RATES.presumido;
   const m=document.getElementById('fiscal-imp-mes')?.value||'01';
-  const a=document.getElementById('fiscal-imp-ano')?.value||'2026';
+  const a=document.getElementById('fiscal-imp-ano')?.value||_anoAtual();
   const chave=_fPfx()+a+'-'+m;
   const fat=Number((FISCAL_DB[chave]&&FISCAL_DB[chave].resumo&&FISCAL_DB[chave].resumo.faturamento)||0);
   if(!fat){
@@ -29885,14 +30265,9 @@ function fiscalAutoPisCofins(){
 }
 
 function renderFiscal(){
-  try{ fiscalLancamentosSeed(); }catch(_){}
-  try{ fiscalKgEnrich2026(); }catch(_){}
-  try{ fiscalKgEnrichV6_2026(); }catch(_){}
-  try{ fiscalEntradaPatchNF4954(); }catch(_){}
-  try{ fiscalDevolucaoPatches2026(); }catch(_){}
-  try{ fiscalDocsJul2026Patches(); }catch(_){}
-  try{ fiscalCorrigeDatasReais2026(); }catch(_){}
-  try{ fiscalMarcarPagas2026(); }catch(_){}
+  _fiscalEnsureEmpresa();
+  _fiscalRenderEmpresaBotoes();
+  _popularAnosFiscais();
 
   const hoje=new Date();
   const m=String(hoje.getMonth()+1).padStart(2,'0');

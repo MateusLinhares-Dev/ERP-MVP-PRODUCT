@@ -47,7 +47,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
        window._fbDB = window.__legacyDbAdapter ? window.__legacyDbAdapter(window._fbRawDB) : window._fbRawDB;
       try{ if(typeof _fbSetStatus==='function') _fbSetStatus('ok'); }catch(e){}
       var banner=document.getElementById('fb-offline-banner'); if(banner) banner.remove();
-      try{ _iniciarChecagemVersao(); }catch(e){}
+      try{ if(firebase.auth && firebase.auth().currentUser) _iniciarChecagemVersao(); }catch(e){}
 
       try{ if(typeof cu!=='undefined' && cu && typeof fbCarregar==='function'){ var _goFb=function(){ fbCarregar(function(){ try{ if(typeof fbIniciarListener==='function') fbIniciarListener(); }catch(e){} }); }; var _unFb=''; try{ _unFb=sessionStorage.getItem('mm_sessao')||''; }catch(e){} if(_unFb && firebase.auth && !firebase.auth().currentUser){ _fbAuthLogin(_unFb, _goFb, _goFb); } else { _goFb(); } } }catch(e){}
       return true;
@@ -115,6 +115,21 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     try{ firebase.auth().signOut(); }catch(e){}
   }
 
+  function _fbTemUsuarioAuth(){
+    try{ return !!(typeof firebase!=='undefined' && firebase.auth && firebase.auth().currentUser); }catch(e){ return false; }
+  }
+
+  function _fbRestaurarAuthEExecutar(fn, atrasoErro){
+    if(_fbTemUsuarioAuth()){ fn&&fn(); return true; }
+    if(window.__ERP_LOGOUT_IN_PROGRESS__) return false;
+    let un=''; try{ un=sessionStorage.getItem('mm_sessao')||''; }catch(e){}
+    if(!un) return false;
+    _fbAuthLogin(un, function(){ setTimeout(function(){ try{ fn&&fn(); }catch(e){} },50); }, function(){
+      if(atrasoErro) setTimeout(function(){ try{ fn&&fn(); }catch(e){} }, atrasoErro);
+    });
+    return false;
+  }
+
   
   function _estoqueAplicarDaNuvem(remoto, confiavel, shallowKeys){
     try{
@@ -135,6 +150,20 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       try{ if(typeof refreshMetaisGlobals==='function') refreshMetaisGlobals(); }catch(e){}
       return true;
     }catch(e){ console.warn('_estoqueAplicarDaNuvem:',e); return false; }
+  }
+
+  function _tanqueAplicarNuvem(remoto,confiavel){
+    try{
+      if(typeof TANQUE_DB==='undefined') return false;
+      if(remoto==null){ if(confiavel&&Array.isArray(TANQUE_DB)) TANQUE_DB.length=0; return false; }
+      const lista=Array.isArray(remoto)?remoto.filter(Boolean):(remoto&&typeof remoto==='object'?Object.values(remoto).filter(Boolean):[]);
+      if(!Array.isArray(TANQUE_DB)) return false;
+      TANQUE_DB.length=0;
+      lista.forEach(function(x){ TANQUE_DB.push(x); });
+      try{ localStorage.setItem('mm_tanque',JSON.stringify(TANQUE_DB)); }catch(e){}
+      try{ const aba=document.getElementById('tab-combustivel_rudnick'); if(aba&&aba.classList.contains('active')){ if(typeof renderTanque==='function') renderTanque(); if(typeof renderSaidasTanque==='function') renderSaidasTanque(); if(typeof renderHistoricoEntradasTanque==='function') renderHistoricoEntradasTanque(); } }catch(e){}
+      return true;
+    }catch(e){ console.warn('tanque sync:',e); return false; }
   }
 
   function _fcAplicarNuvem(d){
@@ -192,19 +221,24 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         Object.keys(EMP_COLORS).forEach(function(k){ delete EMP_COLORS[k]; });
         Object.assign(EMP_COLORS, cfg.expenseGroupColors);
       }
-      
-      
+      try{ if(typeof _popularEmpresasDespesa==='function') _popularEmpresasDespesa(); }catch(_e){}
+      try{ if(typeof window.__erpRefreshCompanySources==='function') window.__erpRefreshCompanySources(); }catch(_e){}
+      try{ if(Array.isArray(cfg.financeCompanies) && typeof _cpRenderEmpresaBotoes==='function') _cpRenderEmpresaBotoes(); }catch(_e){}
+      try{
+        var nf=document.getElementById('nfu-emp');
+        if(nf && typeof _cfgEmployeeCompanyOptionsHtml==='function') nf.innerHTML=_cfgEmployeeCompanyOptionsHtml(nf.value||'');
+        var ef=document.getElementById('efn-emp');
+        if(ef && typeof _cfgEmployeeCompanyOptionsHtml==='function') ef.innerHTML=_cfgEmployeeCompanyOptionsHtml(ef.value||'');
+      }catch(_e){}
       try{
         var dlEmp=document.getElementById('dlist-empresas');
         if(dlEmp && Array.isArray(cfg.transferCompanies)){
           dlEmp.innerHTML=cfg.transferCompanies.map(function(v){return '<option value="'+String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">';}).join('');
         }
-        var ids=['cp-emp-manuela','cp-emp-gratus','cp-emp-mabor'];
-        var fins=Array.isArray(cfg.financeCompanies)?cfg.financeCompanies:[];
-        ids.forEach(function(id,i){ var b=document.getElementById(id); if(b){ var v=String(fins[i]||''); b.dataset.empresa=v; b.textContent=v; b.style.display=v?'':'none'; } });
+        try{ if(typeof _cpRenderEmpresaBotoes==='function') _cpRenderEmpresaBotoes(); }catch(_e2){}
         var fcfg=cfg.fiscalCompanies&&typeof cfg.fiscalCompanies==='object'?cfg.fiscalCompanies:{};
-        ['manuela','gratus'].forEach(function(key){ var b=document.querySelector('[data-fiscal-company="'+key+'"]'); var v=fcfg[key]||{}; if(b){ var lbl=String(v.shortLabel||v.label||''); b.textContent=(v.icon?String(v.icon)+' ':'')+lbl; b.style.display=lbl?'':'none'; } });
-        var fkey=(typeof _fiscalEmpresa!=='undefined'?_fiscalEmpresa:'manuela'); var fv=fcfg[fkey]||{};
+        try{ if(typeof _fiscalEnsureEmpresa==='function') _fiscalEnsureEmpresa(); if(typeof _fiscalRenderEmpresaBotoes==='function') _fiscalRenderEmpresaBotoes(); }catch(_e3){}
+        var fkey=(typeof _fiscalEmpresa!=='undefined'?_fiscalEmpresa:''); var fv=fcfg[fkey]||{};
         var fbadge=document.getElementById('fiscal-emp-badge'); if(fbadge){ var fl=String(fv.label||''); fbadge.textContent=(fv.icon?String(fv.icon)+' ':'')+fl+(fl?' selecionada':''); }
         var fest=document.getElementById('est-emp-label'); if(fest) fest.textContent=String(fv.shortLabel||fv.label||'');
         var mods=cfg.dashboardModules&&typeof cfg.dashboardModules==='object'?cfg.dashboardModules:{};
@@ -589,6 +623,11 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(!temDados){ console.warn('fbSalvar bloqueado: Firebase não carregou dados e local está vazio.'); return; }
     }
     if(!window._fbDB){ _fbSetStatus('offline'); return; }
+    if(!_fbTemUsuarioAuth()){
+      _fbSetStatus('saving','Restaurando sessão...');
+      _fbRestaurarAuthEExecutar(_fbSalvarAgora,1500);
+      return;
+    }
     
     
     
@@ -1266,7 +1305,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _syncViagem.aplicarTombstonesRemotos(d.viagemDeleted);
           _syncCombustivel.carregarDeRemoto(d.combustivel, _fbConfiavel);
           _syncCombustivel.aplicarTombstonesRemotos(d.combustivelDeleted);
-          if(d.tanque) Object.assign(TANQUE_DB, d.tanque);
+          _tanqueAplicarNuvem(d.tanque, _fbConfiavel);
           if(d.precosForn) Object.assign(PRECOS_FORN_DATA, d.precosForn);
           if(d.precosCli) Object.assign(PRECOS_CLI_DATA, d.precosCli);
           _syncClientes.carregarDeRemoto(d.clientes, _fbConfiavel);
@@ -1449,6 +1488,10 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   function fbIniciarListener() {
     if(_fbListenerAtivo) return;
     if(!window._fbDB) return;
+    if(!_fbTemUsuarioAuth()){
+      _fbRestaurarAuthEExecutar(fbIniciarListener,1500);
+      return;
+    }
     _fbListenerAtivo = true;
 
     
@@ -1621,6 +1664,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _syncViagem.aplicarTombstonesRemotos(d.viagemDeleted);
           _syncCombustivel.carregarDeRemoto(d.combustivel, !!d._ts);
           _syncCombustivel.aplicarTombstonesRemotos(d.combustivelDeleted);
+          _tanqueAplicarNuvem(d.tanque, !!d._ts);
           
           
           
@@ -1736,12 +1780,11 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       
       
       
-      console.warn('Listener erp/_ts cancelado:', errCancel && errCancel.code);
       _fbListenerAtivo = false;
+      if(window.__ERP_LOGOUT_IN_PROGRESS__) return;
+      console.warn('Listener erp/_ts cancelado:', errCancel && errCancel.code);
       _fbSetStatus('error');
-      let _un=''; try{ _un=sessionStorage.getItem('mm_sessao')||''; }catch(e){}
-      if(_un){ _fbAuthLogin(_un, function(){ setTimeout(fbIniciarListener, 1000); }, function(){ setTimeout(fbIniciarListener, 10000); }); }
-      else { setTimeout(fbIniciarListener, 10000); }
+      _fbRestaurarAuthEExecutar(fbIniciarListener,3000);
     });
 
     

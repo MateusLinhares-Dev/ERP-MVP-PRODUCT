@@ -4,6 +4,10 @@ function text(value) {
   return value == null ? '' : String(value);
 }
 
+function stringList(value) {
+  return Array.isArray(value) ? value.map(text).map((item) => item.trim()).filter(Boolean) : [];
+}
+
 export async function getPublicBranding(repository = new FirebaseBusinessConfigRepository()) {
   const cfg = await repository.getConfig();
   const companies = cfg.companies && typeof cfg.companies === 'object' ? cfg.companies : {};
@@ -34,5 +38,9 @@ export async function getPublicBranding(repository = new FirebaseBusinessConfigR
       email: text(rawCompany.email),
       responsavel: text(rawCompany.responsavel),
     },
+    companyKeys: Object.keys(companies),
+    financeCompanies: stringList(cfg.financeCompanies),
+    employeeCompanies: stringList(cfg.employeeCompanies),
+    transferCompanies: stringList(cfg.transferCompanies),
   };
 }
