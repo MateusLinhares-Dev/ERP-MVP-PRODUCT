@@ -67,12 +67,14 @@ export const DEFAULT_BUSINESS_CONFIG = {
     "manuela": {
       "label": "Manuela Metais",
       "shortLabel": "Manuela Metais",
-      "icon": "🏭"
+      "icon": "🏭",
+      "dataPrefix": ""
     },
     "gratus": {
       "label": "Gratus Metais",
       "shortLabel": "Gratus",
-      "icon": "🏪"
+      "icon": "🏪",
+      "dataPrefix": "g-"
     }
   },
   "bankDisplayTokens": {
@@ -118,7 +120,7 @@ export const DEFAULT_BUSINESS_CONFIG = {
       "responsible": "Elaine"
     },
     "contas_banco": {
-      "description": "Santander, Sicredi, Itaú e outros (14 contas)",
+      "description": "Contas bancárias e movimentações financeiras",
       "responsible": "Elaine"
     },
     "precos_fornecedores": {
@@ -130,7 +132,7 @@ export const DEFAULT_BUSINESS_CONFIG = {
       "responsible": "Rafael"
     },
     "caminhoes": {
-      "description": "Frota: 10 caminhões + 4 empilhadeiras",
+      "description": "Cadastro e manutenção da frota e equipamentos",
       "responsible": "Derick"
     },
     "adiantamentos": {
@@ -166,7 +168,7 @@ export const DEFAULT_BUSINESS_CONFIG = {
       "responsible": "Elaine"
     },
     "despesas_grupo": {
-      "description": "Despesas das empresas do grupo (Mabor, Gratus, Manuela)",
+      "description": "Controle de despesas por empresa e centro responsável",
       "responsible": "Elaine"
     },
     "contratos": {
@@ -212,108 +214,29 @@ export const DEFAULT_BUSINESS_CONFIG = {
     "ELAINE": "#6c3483",
     "RAFAEL": "#0e6655"
   },
-  "chequeBanks": [
-    {
-      "name": "Mabor Sicredi",
-      "code": "BAN005",
-      "slug": "MS",
-      "color": "#c0392b",
-      "order": 1,
-      "aliases": [
-        "mabor"
-      ]
-    },
-    {
-      "name": "Gratus Acredi",
-      "code": "BAN008",
-      "slug": "GA",
-      "color": "#1565c0",
-      "order": 2,
-      "aliases": [
-        "acred"
-      ]
-    },
-    {
-      "name": "Gratus Sicredi",
-      "code": "BAN007",
-      "slug": "GS",
-      "color": "#2e7d32",
-      "order": 3,
-      "aliases": [
-        "sicredi"
-      ]
-    },
-    {
-      "name": "Gratus Itaú",
-      "code": "BAN006",
-      "slug": "GI",
-      "color": "#e67e22",
-      "order": 4,
-      "aliases": [
-        "itau",
-        "itaú"
-      ]
-    },
-    {
-      "name": "Manuela Santander",
-      "code": "BAN001",
-      "slug": "MSA",
-      "color": "#8e44ad",
-      "order": 5,
-      "aliases": [
-        "santander",
-        "manuela"
-      ]
-    },
-    {
-      "name": "Cheque de Terceiro",
-      "code": "",
-      "slug": "CT",
-      "color": "#00838f",
-      "order": 6,
-      "aliases": [
-        "terceiro"
-      ]
-    }
-  ],
-  "defaultChequeBank": "Mabor Sicredi",
+  "chequeBanks": [],
+  "defaultChequeBank": "",
   "thirdPartyChequeBank": "Cheque de Terceiro",
-  "chequeTemplateExamples": [
-    [
-      1,
-      "Mabor Sicredi",
-      "01/06/2026",
-      "Ademir",
-      11267.96,
-      "11/06/2026",
-      "COMPENSADO"
-    ],
-    [
-      2,
-      "Mabor Sicredi",
-      "01/07/2026",
-      "Ademir",
-      11267.96,
-      "",
-      "PENDENTE"
-    ],
-    [
-      3,
-      "Gratus Sicredi",
-      "01/08/2026",
-      "Carlos",
-      5000.0,
-      "",
-      "PENDENTE"
-    ],
-    [
-      4,
-      "Mabor Sicredi",
-      "01/09/2026",
-      "Jose",
-      8000.0,
-      "",
-      "PENDENTE"
-    ]
-  ]
+  "chequeTemplateExamples": [],
+  "fiscalDefaults": {
+    "monthlyDepreciation": 0
+  },
+  "legacyRepairs": {
+    "bankMovement": {
+      "cutoffDate": ""
+    }
+  },
+  "employeeBenefits": {
+    "voucherPaymentDay": 20
+  },
+  "homeCostAreas": [
+    { "name": "Casa", "icon": "🏠" },
+    { "name": "Sítio", "icon": "🌳" },
+    { "name": "Casa Glória", "icon": "🏡" },
+    { "name": "Veículos Pessoais", "icon": "🚗", "vehicleExpenses": true }
+  ],
+  "homeCostDefaultArea": "Casa",
+  "payrollDefaults": {
+    "employerCostRate": 0.28
+  }
 };

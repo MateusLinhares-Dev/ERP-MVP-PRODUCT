@@ -209,6 +209,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       }
       try{ if(typeof _popularEmpresasDespesa==='function') _popularEmpresasDespesa(); }catch(_e){}
       try{ if(typeof window.__erpRefreshCompanySources==='function') window.__erpRefreshCompanySources(); }catch(_e){}
+      try{ if(Array.isArray(cfg.financeCompanies) && typeof _cpRenderEmpresaBotoes==='function') _cpRenderEmpresaBotoes(); }catch(_e){}
       try{
         var nf=document.getElementById('nfu-emp');
         if(nf && typeof _cfgEmployeeCompanyOptionsHtml==='function') nf.innerHTML=_cfgEmployeeCompanyOptionsHtml(nf.value||'');
@@ -220,12 +221,10 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         if(dlEmp && Array.isArray(cfg.transferCompanies)){
           dlEmp.innerHTML=cfg.transferCompanies.map(function(v){return '<option value="'+String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">';}).join('');
         }
-        var ids=['cp-emp-manuela','cp-emp-gratus','cp-emp-mabor'];
-        var fins=Array.isArray(cfg.financeCompanies)?cfg.financeCompanies:[];
-        ids.forEach(function(id,i){ var b=document.getElementById(id); if(b){ var v=String(fins[i]||''); b.dataset.empresa=v; b.textContent=v; b.style.display=v?'':'none'; } });
+        try{ if(typeof _cpRenderEmpresaBotoes==='function') _cpRenderEmpresaBotoes(); }catch(_e2){}
         var fcfg=cfg.fiscalCompanies&&typeof cfg.fiscalCompanies==='object'?cfg.fiscalCompanies:{};
-        ['manuela','gratus'].forEach(function(key){ var b=document.querySelector('[data-fiscal-company="'+key+'"]'); var v=fcfg[key]||{}; if(b){ var lbl=String(v.shortLabel||v.label||''); b.textContent=(v.icon?String(v.icon)+' ':'')+lbl; b.style.display=lbl?'':'none'; } });
-        var fkey=(typeof _fiscalEmpresa!=='undefined'?_fiscalEmpresa:'manuela'); var fv=fcfg[fkey]||{};
+        try{ if(typeof _fiscalEnsureEmpresa==='function') _fiscalEnsureEmpresa(); if(typeof _fiscalRenderEmpresaBotoes==='function') _fiscalRenderEmpresaBotoes(); }catch(_e3){}
+        var fkey=(typeof _fiscalEmpresa!=='undefined'?_fiscalEmpresa:''); var fv=fcfg[fkey]||{};
         var fbadge=document.getElementById('fiscal-emp-badge'); if(fbadge){ var fl=String(fv.label||''); fbadge.textContent=(fv.icon?String(fv.icon)+' ':'')+fl+(fl?' selecionada':''); }
         var fest=document.getElementById('est-emp-label'); if(fest) fest.textContent=String(fv.shortLabel||fv.label||'');
         var mods=cfg.dashboardModules&&typeof cfg.dashboardModules==='object'?cfg.dashboardModules:{};
