@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import {
+  ensureOpenTelemetry,
+} from './otel.js';
 
 const SERVICE = 'manuela-metais-erp';
 
@@ -63,6 +66,7 @@ function levelFromStatus(status) {
 }
 
 export function startRequestLog(req, res) {
+  ensureOpenTelemetry();
   if (req.__requestLog) {
     return req.__requestLog;
   }

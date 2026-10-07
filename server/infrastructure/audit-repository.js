@@ -1,5 +1,8 @@
 import { createHmac } from 'node:crypto';
 import { getFirebaseAdmin } from './firebase-admin.js';
+import {
+  withSpan,
+} from '../observability/tracing.js';
 
 function clean(value, max = 160) {
   return String(value == null ? '' : value).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max);
@@ -28,7 +31,25 @@ export class AuditRepository {
       ts: Date.now(),
     };
     if (event.ip) payload.ipHash = pseudonymizeIp(event.ip);
-    await this.db.ref('erpAudit').push(payload);
+    await withSpan(
+      'firebase.rtdb.audit.write',
+      {
+        'db.system':
+          'firebase-rtdb',
+        'db.operation':
+          'push',
+        'db.path':
+          'erpAudit',
+        'audit.action':
+          payload.action,
+        'audit.module':
+          payload.module,
+      },
+      async () =>
+        this.db
+          .ref('erpAudit')
+          .push(payload),
+    );
     return true;
   }
 }

@@ -1,5 +1,8 @@
 import { createHmac } from 'node:crypto';
 import { getFirebaseAdmin } from './firebase-admin.js';
+import {
+  withSpan,
+} from '../observability/tracing.js';
 
 const MAX_ATTEMPTS = 5;
 const BLOCK_MS = 30 * 60 * 1000;
@@ -16,13 +19,49 @@ export class LoginRateLimitRepository {
   ref(ip) { return this.db.ref(`security/loginAttempts/${keyForIp(ip)}`); }
 
   async assertAllowed(ip) {
-    const value = (await this.ref(ip).get()).val() || {};
-    const now = Date.now();
-    if (value.blockedUntil && value.blockedUntil > now) {
-      const error = new Error('Acesso temporariamente bloqueado por excesso de tentativas.');
-      error.status = 429; error.code = 'RATE_LIMITED'; error.retryAfterSeconds = Math.ceil((value.blockedUntil - now) / 1000);
-      throw error;
-    }
+    return withSpan(
+      'security.login_rate_limit.check',
+      {
+        'security.operation':
+          'login-rate-limit',
+      },
+      async () => {
+        const value =
+          (
+            await this
+              .ref(ip)
+              .get()
+          ).val() || {};
+
+        const now =
+          Date.now();
+
+        if (
+          value.blockedUntil &&
+          value.blockedUntil > now
+        ) {
+          const error =
+            new Error(
+              'Acesso temporariamente bloqueado por excesso de tentativas.',
+            );
+
+          error.status = 429;
+          error.code =
+            'RATE_LIMITED';
+
+          error.retryAfterSeconds =
+            Math.ceil(
+              (
+                value.blockedUntil -
+                now
+              ) /
+                1000,
+            );
+
+          throw error;
+        }
+      },
+    );
   }
 
   async registerFailure(ip) {
