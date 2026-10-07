@@ -21,5 +21,18 @@ service firebase.storage {
       allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canChat == true && request.resource.size <= 5 * 1024 * 1024 && request.resource.contentType.matches('image/.*');
       allow delete: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canChat == true;
     }
+    match /erp-files/profilePhotos/{uid}/{fileName} {
+      allow read: if request.auth != null && request.auth.token.erpAccess == true;
+      allow create, update: if request.auth != null
+        && request.auth.token.erpAccess == true
+        && request.auth.uid == uid
+        && fileName == 'avatar.webp'
+        && request.resource.size <= 2 * 1024 * 1024
+        && request.resource.contentType == 'image/webp';
+      allow delete: if request.auth != null
+        && request.auth.token.erpAccess == true
+        && request.auth.uid == uid
+        && fileName == 'avatar.webp';
+    }
   }
 }

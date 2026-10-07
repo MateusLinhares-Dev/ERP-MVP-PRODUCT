@@ -2,6 +2,7 @@ import { loadFirebaseCompat } from './firebase-loader.js';
 import { createSecureAuthClient } from './secure-auth-client.js';
 import { createLegacyDatabaseAdapter } from './legacy-db-adapter.js';
 import { createRealtimeBusinessRepository } from './realtime-business-repository.js';
+import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 
 function loadClassic(src) {
   return new Promise((resolve, reject) => {
@@ -45,13 +46,11 @@ function installRestUrl(runtimeConfig) {
   };
 }
 
-
 function setText(selector, value) {
   document.querySelectorAll(selector).forEach((el) => { el.textContent = value || ''; });
 }
 
 function applyPublicBranding(publicConfig) {
-
   const branding = publicConfig?.branding || {};
   const company = publicConfig?.company || {};
   document.querySelectorAll('[data-brand-logo]').forEach((el) => {
@@ -127,6 +126,8 @@ async function main() {
   await loadClassic('/legacy/alert-state-sync.js');
   await loadClassic('/legacy/chat-read-sync.js');
   await loadClassic('/legacy/access-dependencies.js');
+
+  initProfilePhoto({ auth, db, storage });
 
   document.dispatchEvent(new CustomEvent('erp:ready'));
 }

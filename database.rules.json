@@ -33,7 +33,11 @@
           ".write": "auth != null && auth.token.erpAccess == true && auth.token.canChat == true && !data.exists() && newData.child('autorLogin').val() == auth.token.erpUser",
           ".validate": "newData.hasChildren(['autor','autorLogin','ts','conv']) && newData.child('autor').isString() && newData.child('autorLogin').isString() && newData.child('autorLogin').val() == auth.token.erpUser && newData.child('ts').isString() && newData.child('conv').isString() && (!newData.child('texto').exists() || (newData.child('texto').isString() && newData.child('texto').val().length <= 12000)) && (!newData.child('img').exists() || newData.child('img').isString()) && (!newData.child('imgPath').exists() || (newData.child('imgPath').isString() && newData.child('imgPath').val().length <= 500))"
         },
-        ".indexOn": ["conv", "ts", "autorLogin"]
+        ".indexOn": [
+          "conv",
+          "ts",
+          "autorLogin"
+        ]
       },
       "chatRead": {
         "$uid": {
@@ -78,6 +82,21 @@
       "_reset": {
         ".read": "auth != null && auth.token.erpAccess == true",
         ".write": false
+      }
+    },
+    "erpUserProfiles": {
+      "$uid": {
+        ".read": "auth != null && auth.token.erpAccess == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.uid == $uid",
+        "photoPath": {
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 500)"
+        },
+        "updatedAt": {
+          ".validate": "!newData.exists() || newData.isNumber()"
+        },
+        "$other": {
+          ".validate": false
+        }
       }
     },
     "erpAudit": {
