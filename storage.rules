@@ -11,6 +11,11 @@ service firebase.storage {
       allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canBusinessDocs == true && request.resource.size <= 5 * 1024 * 1024;
       allow delete: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canBusinessDocs == true;
     }
+    match /erp-files/chat/{conversation}/{fileName} {
+      allow read: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canChat == true;
+      allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canChat == true && request.resource.size <= 5 * 1024 * 1024 && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canChat == true;
+    }
     match /erp-files/frotaDocs/{vehicle}/{fileName} {
       allow read: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canFleetDocs == true;
       allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canFleetDocs == true && request.resource.size <= 5 * 1024 * 1024;
