@@ -25,7 +25,7 @@ function companyKey(company){
 }
 
 export default async function handler(req,res){
-  applyApiSecurityHeaders(res);
+  applyApiSecurityHeaders(res,req)
   try{
     assertMethod(req,'POST');
     assertSameOrigin(req,{required:true});

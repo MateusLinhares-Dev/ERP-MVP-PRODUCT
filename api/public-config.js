@@ -4,7 +4,7 @@ import { applyApiSecurityHeaders, assertMethod, sendError } from '../server/http
 
 export default async function handler(req, res) {
   try {
-    applyApiSecurityHeaders(res);
+    applyApiSecurityHeaders(res,req)
     assertMethod(req, 'GET');
     const result = await getPublicBranding();
     return res.status(200).json(result);

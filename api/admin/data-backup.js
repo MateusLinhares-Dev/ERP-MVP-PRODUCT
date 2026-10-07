@@ -4,7 +4,7 @@ import {requireIdentity} from '../../server/http/auth.js';
 import {applyApiSecurityHeaders,assertJsonBody,assertMethod,assertSameOrigin,sendError} from '../../server/http/http.js';
 
 export default async function handler(req,res){
-  applyApiSecurityHeaders(res);
+  applyApiSecurityHeaders(res,req)
   try{
     assertMethod(req,'POST');assertSameOrigin(req,{required:true});assertJsonBody(req,{maxBytes:2500000});
     const identity=await requireIdentity(req,{admin:true});

@@ -5,7 +5,8 @@ import { applyApiSecurityHeaders, assertJsonBody, assertMethod, assertSameOrigin
 import { AuditRepository } from '../../server/infrastructure/audit-repository.js';
 export default async function handler(req,res){
   try{
-    applyApiSecurityHeaders(res); assertMethod(req,'POST'); assertSameOrigin(req,{required:true}); assertJsonBody(req,{maxBytes:32768});
+    applyApiSecurityHeaders(res,req);
+    assertMethod(req,'POST'); assertSameOrigin(req,{required:true}); assertJsonBody(req,{maxBytes:32768});
     const identity=await requireIdentity(req,{admin:true});
     const input=req.body||{};
     const result=await manageUser(input);
