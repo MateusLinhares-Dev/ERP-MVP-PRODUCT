@@ -1125,7 +1125,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         var claims=(tokenResult&&tokenResult.claims)||{};
         if(claims.erpAccess!==true) throw new Error('Sessão sem acesso ao ERP.');
         var keys=_ERP_NOS_SINCRONIZADOS.slice();
-        if(claims.canChat===true) keys.push('chat');
         var partes=await Promise.all(keys.map(async function(k){
           try{
             var snap=await window._fbDB.ref('erp/'+k).once('value');
@@ -1347,7 +1346,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
             }
           }
           if(d.fornVeiculos) localStorage.setItem('mm_forn_veiculos', JSON.stringify(d.fornVeiculos));
-          if(d.chat && typeof CHAT_MSGS!=='undefined'){ const _msgsChat=_chatMsgsFromRemote(d.chat); CHAT_MSGS.length=0; _msgsChat.forEach(m=>CHAT_MSGS.push(m)); localStorage.setItem('mm_chat',JSON.stringify(_msgsChat)); }
           _fornDeletedCarregarDeRemoto(d.fornDeleted);
           _syncFornDespesa.carregarDeRemoto(d.fornDespesa, _fbConfiavel);
           _syncFornDespesa.aplicarTombstonesRemotos(d.fornDespesaDeleted);
@@ -1852,27 +1850,44 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     
     
     
-    let _chatListenerAtivo = false;
     let _chatPermitido = false;
     try{
       _chatPermitido = typeof window.erpCanAccessTab==='function' ? !!window.erpCanAccessTab('chat') : !!(typeof cu!=='undefined' && cu && Array.isArray(cu.tabs) && cu.tabs.includes('chat'));
     }catch(e){ _chatPermitido=false; }
-    if(!_chatListenerAtivo && _chatPermitido){
-      _chatListenerAtivo = true;
-      window._fbDB.ref('erp/chat').on('value', snap => {
-        const d = snap.val();
+    if(!window.__CHAT_REALTIME_LISTENER_STARTED__ && _chatPermitido){
+      window.__CHAT_REALTIME_LISTENER_STARTED__=true;
+      const _chatRef=window._fbDB.ref('erp/chat').limitToLast(120);
+      let _chatUiTimer=null;
+      function _chatAgendarUi(){
+        clearTimeout(_chatUiTimer);
+        _chatUiTimer=setTimeout(function(){
+          try{ if(typeof window.__chatReadOnMessagesChanged==='function') window.__chatReadOnMessagesChanged(); else hdrAtualizarBadge(); }catch(e){}
+          try{
+            const chatPainel=document.getElementById('tab-chat');
+            if(chatPainel&&chatPainel.classList.contains('active')) chatRenderMsgs();
+          }catch(e){}
+        },50);
+      }
+      function _chatAplicarSnap(snap){
         if(typeof CHAT_MSGS==='undefined') return;
-        const msgs = _chatMsgsFromRemote(d);
-        
-        if(JSON.stringify(CHAT_MSGS)===JSON.stringify(msgs)) return;
-        CHAT_MSGS.length=0;
-        msgs.forEach(m=>CHAT_MSGS.push(m));
-        try{ localStorage.setItem('mm_chat', JSON.stringify(CHAT_MSGS)); }catch(e){}
-        try{ if(typeof window.__chatReadOnMessagesChanged==='function') window.__chatReadOnMessagesChanged(); else hdrAtualizarBadge(); }catch(e){}
-        try{
-          const chatPainel=document.getElementById('tab-chat');
-          if(chatPainel && chatPainel.classList.contains('active')) chatRenderMsgs();
-        }catch(e){}
+        const raw=snap&&snap.val?snap.val():null;
+        if(!raw||typeof raw!=='object') return;
+        const msg=Object.assign({_chatKey:String(snap.key||'')},raw);
+        if(typeof window.__chatUpsertMensagem==='function') window.__chatUpsertMensagem(msg);
+        else{
+          const idx=CHAT_MSGS.findIndex(function(x){ return x&&String(x._chatKey||'')===String(msg._chatKey||''); });
+          if(idx>=0) CHAT_MSGS[idx]=msg; else CHAT_MSGS.push(msg);
+        }
+        _chatAgendarUi();
+      }
+      _chatRef.on('child_added',_chatAplicarSnap);
+      _chatRef.on('child_changed',_chatAplicarSnap);
+      _chatRef.on('child_removed',function(snap){
+        if(typeof CHAT_MSGS==='undefined') return;
+        const key=String(snap&&snap.key||'');
+        const idx=CHAT_MSGS.findIndex(function(x){ return x&&String(x._chatKey||'')===key; });
+        if(idx>=0) CHAT_MSGS.splice(idx,1);
+        _chatAgendarUi();
       });
     }
   }
