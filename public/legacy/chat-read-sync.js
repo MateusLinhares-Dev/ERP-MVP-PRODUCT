@@ -39,6 +39,13 @@
     }catch(e){}
     return out;
   }
+  function messageSource(){
+    try{
+      if(Array.isArray(window.__CHAT_RECENT_MESSAGES__) && window.__CHAT_RECENT_MESSAGES__.length) return window.__CHAT_RECENT_MESSAGES__;
+    }catch(e){}
+    try{ return CHAT_MSGS||[]; }catch(e){ return []; }
+  }
+
   function readTs(conv){
     var v=readState[convKey(conv)];
     var ts=v && typeof v==='object' ? v.ts : v;
@@ -47,7 +54,7 @@
   function unreadCount(conv){
     var last=readTs(conv), me=currentName();
     try{
-      return (CHAT_MSGS||[]).filter(function(m){
+      return messageSource().filter(function(m){
         if(!m || normConv(m)!==conv || !m.ts) return false;
         if(me && String(m.autor||'')===me) return false;
         return (Date.parse(m.ts)||0)>last;
@@ -61,7 +68,7 @@
   }
   function latestConversationTs(conv){
     var max=0;
-    try{ (CHAT_MSGS||[]).forEach(function(m){ if(m&&normConv(m)===conv&&m.ts) max=Math.max(max,Date.parse(m.ts)||0); }); }catch(e){}
+    try{ messageSource().forEach(function(m){ if(m&&normConv(m)===conv&&m.ts) max=Math.max(max,Date.parse(m.ts)||0); }); }catch(e){}
     return max;
   }
 
@@ -164,10 +171,15 @@
     ensureListener();
     try{ _chatAjustarAltura(); }catch(e){}
     try{ renderConversations(); }catch(e){}
-    try{ chatRenderMsgs(); }catch(e){}
+    try{
+      if(_chatConvAtiva && typeof window.__chatOpenConversationRealtime==='function') window.__chatOpenConversationRealtime(_chatConvAtiva,60);
+      else chatRenderMsgs();
+    }catch(e){}
     try{ if(_chatConvAtiva) markRead(_chatConvAtiva); }catch(e){}
   };
-  window.chatDestroy=function(){};
+  window.chatDestroy=function(){
+    try{ if(typeof window.__chatCloseConversationRealtime==='function') window.__chatCloseConversationRealtime(); }catch(e){}
+  };
 
   window.__chatReadOnMessagesChanged=function(){
     try{

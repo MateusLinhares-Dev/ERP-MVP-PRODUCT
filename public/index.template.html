@@ -689,7 +689,9 @@
       <div class="sec-title" style="margin-bottom:14px">⚖️ Balanceiro – Pesagem de Bags</div>
       <div class="bal-connect" id="bal-connect-bar">
         <select id="bal-balanca-sel" style="background:#283593;color:#fff;border:2px solid #90caf9;border-radius:8px;padding:7px 10px;font-size:.82rem;font-weight:700;cursor:pointer">
-          <option value="">— Nenhuma balança cadastrada —</option>
+          <option value="3t_1">⚖️ Balança 3T — Nº 1</option>
+          <option value="3t_2">⚖️ Balança 3T — Nº 2</option>
+          <option value="1000">⚖️ Balança 1000 kg</option>
         </select>
         <button class="mb-btn-connect ip" id="bal-btn-ip" onclick="balToggleIPConfig()">🌐 Via IP</button>
         <button class="mb-btn-connect serial" id="bal-btn-serial" onclick="balConectarSerial()">🔌 USB/Serial</button>
@@ -970,16 +972,16 @@
     <div class="tab-panel" id="tab-caminhoes">
       <div class="sec-title">🚛 Frota e Equipamentos</div>
       <div class="kpi-grid">
-        <div class="kpi g"><div class="kpi-lbl">Caminhões</div><div class="kpi-val" id="frota-kpi-caminhoes">0</div><div class="kpi-sub" id="frota-sub-caminhoes">—</div></div>
-        <div class="kpi"><div class="kpi-lbl">Empilhadeiras</div><div class="kpi-val" id="frota-kpi-empilhadeiras">0</div><div class="kpi-sub" id="frota-sub-empilhadeiras">—</div></div>
-        <div class="kpi g"><div class="kpi-lbl">Balanças</div><div class="kpi-val" id="frota-kpi-balancas">0</div><div class="kpi-sub" id="frota-sub-balancas">—</div></div>
-        <div class="kpi"><div class="kpi-lbl">Prensas Hidráulicas</div><div class="kpi-val" id="frota-kpi-prensas">0</div><div class="kpi-sub" id="frota-sub-prensas">—</div></div>
-        <div class="kpi y"><div class="kpi-lbl">Moedor Alumínio</div><div class="kpi-val" id="frota-kpi-moedor">0</div><div class="kpi-sub" id="frota-sub-moedor">—</div></div>
-        <div class="kpi o"><div class="kpi-lbl">Em Manutenção</div><div class="kpi-val" id="frota-kpi-manutencao">0</div><div class="kpi-sub" id="frota-sub-manutencao">—</div></div>
+        <div class="kpi g"><div class="kpi-lbl">Caminhões</div><div class="kpi-val">10</div><div class="kpi-sub">CAM-001 a CAM-010</div></div>
+        <div class="kpi"><div class="kpi-lbl">Empilhadeiras</div><div class="kpi-val">4</div><div class="kpi-sub">EMP-001 a EMP-004</div></div>
+        <div class="kpi g"><div class="kpi-lbl">Balanças</div><div class="kpi-val">4</div><div class="kpi-sub">BAL-001 a BAL-004</div></div>
+        <div class="kpi"><div class="kpi-lbl">Prensas Hidráulicas</div><div class="kpi-val">3</div><div class="kpi-sub">PRE-001 a PRE-003</div></div>
+        <div class="kpi y"><div class="kpi-lbl">Moedor Alumínio</div><div class="kpi-val">1</div><div class="kpi-sub">MOE-001</div></div>
+        <div class="kpi o"><div class="kpi-lbl">Em Manutenção</div><div class="kpi-val">0</div><div class="kpi-sub">—</div></div>
       </div>
       <div class="tcard">
         <div class="tcard-hdr">
-          <div class="tcard-title" id="frota-total-titulo">Frota e Equipamentos (0)</div>
+          <div class="tcard-title">Frota e Equipamentos (22)</div>
           <button class="btn-add" onclick="om('veiculo')">+ Novo Veículo</button>
         </div>
         <table>
@@ -1176,10 +1178,10 @@
     <div class="tab-panel" id="tab-ponto">
       <div class="sec-title">🕐 Controle de Ponto</div>
       <div class="kpi-grid">
-        <div class="kpi"><div class="kpi-lbl">Dias Úteis</div><div class="kpi-val" id="kpi-ponto-dias-uteis">0</div><div class="kpi-sub">Seg–Sex do mês atual</div></div>
-        <div class="kpi g"><div class="kpi-lbl">Funcionários</div><div class="kpi-val" id="kpi-ponto-funcionarios">0</div><div class="kpi-sub">No controle</div></div>
-        <div class="kpi r"><div class="kpi-lbl">Faltas</div><div class="kpi-val" id="kpi-ponto-faltas">0</div><div class="kpi-sub">Mês atual</div></div>
-        <div class="kpi o"><div class="kpi-lbl">Horas Extras</div><div class="kpi-val" id="kpi-ponto-he">0h</div><div class="kpi-sub">Mês atual</div></div>
+        <div class="kpi"><div class="kpi-lbl">Dias Úteis</div><div class="kpi-val">22</div><div class="kpi-sub">Mês atual</div></div>
+        <div class="kpi g"><div class="kpi-lbl">Funcionários</div><div class="kpi-val">28</div><div class="kpi-sub">No controle</div></div>
+        <div class="kpi r"><div class="kpi-lbl">Faltas</div><div class="kpi-val">0</div><div class="kpi-sub">Mês atual</div></div>
+        <div class="kpi o"><div class="kpi-lbl">Horas Extras</div><div class="kpi-val">0h</div><div class="kpi-sub">Mês atual</div></div>
       </div>
       <div class="tcard">
         <div class="tcard-hdr"><div class="tcard-title">Ponto Mensal (lançamento manual)</div><button class="btn-add" onclick="om('ponto_lancamento')">+ Lançar Falta/HE</button></div>
@@ -1350,7 +1352,7 @@
       </div>
 
       <div id="extrato-box" style="display:none;border:2px solid var(--border);border-radius:10px;padding:24px;background:#fafafa;font-size:.85rem;margin-bottom:16px">
-        <div style="text-align:center;font-size:1.3rem;font-weight:900;color:var(--primary);margin-bottom:3px"><span data-brand-name></span></div>
+        <div style="text-align:center;font-size:1.3rem;font-weight:900;color:var(--primary);margin-bottom:3px">MANUELA METAIS</div>
         <div style="text-align:center;font-size:.78rem;color:var(--gray)"><span data-brand-legal-name></span> · CNPJ: <span data-brand-cnpj></span></div>
         <div style="text-align:center;font-size:.72rem;color:var(--gray);margin-bottom:16px"><span data-brand-address-contacts></span></div>
         <div style="text-align:center;font-size:1rem;font-weight:800;border:1px solid #aaa;padding:6px;border-radius:6px;margin-bottom:14px">EXTRATO FINANCEIRO DO FORNECEDOR</div>
@@ -1372,7 +1374,7 @@
       </div>
 
       <div id="adt-ficha-box" style="display:none;border:2px solid var(--border);border-radius:10px;padding:24px;background:#fafafa;font-size:.85rem;margin-bottom:16px">
-        <div style="text-align:center;font-size:1.3rem;font-weight:900;color:var(--primary);margin-bottom:3px"><span data-brand-name></span></div>
+        <div style="text-align:center;font-size:1.3rem;font-weight:900;color:var(--primary);margin-bottom:3px">MANUELA METAIS</div>
         <div style="text-align:center;font-size:.78rem;color:var(--gray)"><span data-brand-legal-name></span> · CNPJ: <span data-brand-cnpj></span></div>
         <div style="text-align:center;font-size:.72rem;color:var(--gray);margin-bottom:16px"><span data-brand-address-contacts></span></div>
         <div style="text-align:center;font-size:1rem;font-weight:800;border:1px solid #aaa;padding:6px;border-radius:6px;margin-bottom:14px">FICHA DE ADIANTAMENTOS</div>
@@ -1399,7 +1401,7 @@
 
       <!-- Canhoto do ticket selecionado -->
       <div id="canhoto-box" style="display:none;border:2px solid var(--border);border-radius:10px;padding:24px;background:#fafafa;font-size:.85rem">
-        <div style="text-align:center;font-size:1.3rem;font-weight:900;color:var(--primary);margin-bottom:3px"><span data-brand-name></span></div>
+        <div style="text-align:center;font-size:1.3rem;font-weight:900;color:var(--primary);margin-bottom:3px">MANUELA METAIS</div>
         <div style="text-align:center;font-size:.78rem;color:var(--gray)"><span data-brand-legal-name></span> · CNPJ: <span data-brand-cnpj></span></div>
         <div style="text-align:center;font-size:.72rem;color:var(--gray);margin-bottom:16px"><span data-brand-address-contacts></span></div>
         <div style="text-align:center;font-size:1rem;font-weight:800;border:1px solid #aaa;padding:6px;border-radius:6px;margin-bottom:14px">RECIBO DE COMPRA DE SUCATA</div>
@@ -1509,7 +1511,10 @@
             <!-- Filtro por EMPRESA -->
             <div style="display:flex;align-items:center;gap:6px;padding:4px 14px 2px;flex-wrap:wrap">
               <span style="font-size:.74rem;font-weight:700;color:#888;margin-right:2px">Empresa:</span>
-              <div id="cp-emp-buttons" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+              <button id="cp-emp-todas" onclick="cpSetEmpresa('')" style="border:1.5px solid #1a3a2a;background:#1a3a2a;color:#fff;border-radius:20px;padding:4px 12px;font-weight:700;font-size:.78rem;cursor:pointer">Todas</button>
+              <button id="cp-emp-manuela" data-company-slot="0" onclick="cpSetEmpresa(this.dataset.empresa||'')" style="border:1.5px solid #1a3a2a;background:#fff;color:#1a3a2a;border-radius:20px;padding:4px 12px;font-weight:700;font-size:.78rem;cursor:pointer"></button>
+              <button id="cp-emp-gratus" data-company-slot="1" onclick="cpSetEmpresa(this.dataset.empresa||'')" style="border:1.5px solid #1a3a2a;background:#fff;color:#1a3a2a;border-radius:20px;padding:4px 12px;font-weight:700;font-size:.78rem;cursor:pointer"></button>
+              <button id="cp-emp-mabor" data-company-slot="2" onclick="cpSetEmpresa(this.dataset.empresa||'')" style="border:1.5px solid #1a3a2a;background:#fff;color:#1a3a2a;border-radius:20px;padding:4px 12px;font-weight:700;font-size:.78rem;cursor:pointer"></button>
             </div>
             <div id="cp-filtro-resumo" style="padding:8px 14px 0;font-size:.78rem;color:#888"></div>
             <div id="cp-dias-row" style="display:flex;gap:4px;flex-wrap:wrap;padding:8px 14px 4px;border-bottom:1px solid #eee;margin-bottom:6px"></div>
@@ -1742,7 +1747,7 @@
       <div class="sec-title">📈 Fluxo de Caixa</div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
         <label style="font-weight:600;color:var(--primary)">Ano:</label>
-        <input type="number" id="fluxo-ano" value="" min="2020" max="2099" style="width:90px;padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:.95rem" onchange="renderFluxo()">
+        <input type="number" id="fluxo-ano" value="2026" min="2020" max="2099" style="width:90px;padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:.95rem" onchange="renderFluxo()">
         <button class="btn-add" style="background:#1a5e2a;padding:7px 16px" onclick="renderFluxo()">🔄 Atualizar</button>
       </div>
       <div class="kpi-grid" id="fluxo-kpis"></div>
@@ -1869,25 +1874,16 @@
 
     <!-- VALES -->
     <div class="tab-panel" id="tab-vales">
-      <div class="sec-title" id="vales-titulo">💳 Controle de Vales</div>
+      <div class="sec-title">💳 Controle de Vales – Pagamento Dia 20</div>
       <div class="kpi-grid">
-        <div class="kpi o"><div class="kpi-lbl">Vales do Mês</div><div class="kpi-val" id="kpi-vales-mes">R$ 0</div><div class="kpi-sub" id="kpi-vales-mes-sub">Pagamento mensal</div></div>
-        <div class="kpi r"><div class="kpi-lbl">Em Aberto</div><div class="kpi-val" id="kpi-vales-aberto">0</div><div class="kpi-sub">A pagar</div></div>
-        <div class="kpi g"><div class="kpi-lbl">Total Geral</div><div class="kpi-val" id="kpi-vales-total">R$ 0</div><div class="kpi-sub">Todos os períodos</div></div>
+        <div class="kpi o"><div class="kpi-lbl">Vales do Mês</div><div class="kpi-val">R$ 0</div><div class="kpi-sub">Dia 20 de junho</div></div>
+        <div class="kpi r"><div class="kpi-lbl">Em Aberto</div><div class="kpi-val">0</div><div class="kpi-sub">A pagar</div></div>
+        <div class="kpi g"><div class="kpi-lbl">Total Geral</div><div class="kpi-val">R$ 0</div><div class="kpi-sub">—</div></div>
       </div>
       <div class="tcard">
         <div class="tcard-hdr">
           <div class="tcard-title">Vales Lançados</div>
           <button class="btn-add" onclick="om('vale')">+ Novo Vale</button>
-        </div>
-        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:10px 4px 12px">
-          <div>
-            <label style="font-size:.78rem;font-weight:700;color:var(--gray);display:block;margin-bottom:4px">FILTRAR POR MÊS</label>
-            <input type="month" id="vales-filtro-mes" onchange="renderVales()" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:.88rem">
-          </div>
-          <button class="btn-edit" onclick="valeVerTodos()" style="padding:8px 14px">Ver todos</button>
-          <button class="btn-add" onclick="valeGerarTodosRecibosMes()" style="background:#2e7d32;padding:8px 16px">🖨️ Gerar todos os recibos</button>
-          <span id="vales-filtro-count" style="font-size:.82rem;color:var(--gray);padding-bottom:8px"></span>
         </div>
         <table>
           <thead><tr><th>Matr.</th><th>Data</th><th>Mês Ref.</th><th>Nome</th><th>Valor R$</th><th>Forma</th><th>Obs.</th><th>Recibo</th><th>Ações</th></tr></thead>
@@ -1937,7 +1933,6 @@
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
         <label style="font-weight:600;color:var(--primary)">Mês de referência:</label>
         <input type="month" id="folha-mes" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:.95rem" onchange="renderFolha()">
-        <input type="search" id="folha-pesquisa" placeholder="🔎 Pesquisar nome, matrícula, cargo ou empresa..." oninput="renderFolha()" style="min-width:320px;flex:1;max-width:520px;padding:7px 12px;border:1px solid #ddd;border-radius:8px;font-size:.9rem">
         <button class="btn-add" style="background:#8e44ad;padding:7px 16px" onclick="verCustoAnual()">📅 Custo Anual por Funcionário</button>
         <button class="btn-add" style="background:#27ae60;padding:7px 16px" onclick="fecharFolha()">📋 Fechar Folha / Lançar C.Pagar</button>
       </div>
@@ -2131,7 +2126,13 @@
     <div class="tab-panel" id="tab-custo_casa">
       <div class="sec-title">🏠 Custos Pessoais</div>
       <!-- Sub-abas: cada área tem sua própria lista, mês e totais -->
-      <div id="cc-area-tabs" style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;border-bottom:2px solid #e0e0e0;padding-bottom:2px"></div>
+      <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;border-bottom:2px solid #e0e0e0;padding-bottom:2px">
+        <button id="cc-aba-Casa" onclick="ccSetArea('Casa')" style="padding:8px 18px;border:none;border-bottom:3px solid #1a5e2a;background:transparent;font-weight:700;font-size:.88rem;color:#1a5e2a;cursor:pointer">🏠 Casa</button>
+        <button id="cc-aba-Sítio" onclick="ccSetArea('Sítio')" style="padding:8px 18px;border:none;border-bottom:3px solid transparent;background:transparent;font-weight:700;font-size:.88rem;color:#999;cursor:pointer">🌳 Sítio</button>
+        <button id="cc-aba-Casa Glória" onclick="ccSetArea('Casa Glória')" style="padding:8px 18px;border:none;border-bottom:3px solid transparent;background:transparent;font-weight:700;font-size:.88rem;color:#999;cursor:pointer">🏡 Casa Glória</button>
+        <button id="cc-aba-Veículos Pessoais" onclick="ccSetArea('Veículos Pessoais')" style="padding:8px 18px;border:none;border-bottom:3px solid transparent;background:transparent;font-weight:700;font-size:.88rem;color:#999;cursor:pointer">🚗 Veículos Pessoais</button>
+        <button id="cc-aba-__resumo__" onclick="ccSetArea('__resumo__')" style="padding:8px 18px;border:none;border-bottom:3px solid transparent;background:transparent;font-weight:800;font-size:.88rem;color:#8e44ad;cursor:pointer;margin-left:auto">📊 Resumo (Tudo)</button>
+      </div>
       <div class="kpi-grid">
         <div class="kpi"><div class="kpi-lbl">Mês de Referência</div><div class="kpi-val">—</div><div class="kpi-sub">—</div></div>
         <div class="kpi r"><div class="kpi-lbl">Total Previsto</div><div class="kpi-val">R$ 0</div><div class="kpi-sub">—</div></div>
@@ -2521,6 +2522,11 @@
         <input type="month" id="fil-mes" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:.88rem" onchange="despAtualizar()">
         <select id="fil-emp" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:.88rem" onchange="despAtualizar()">
           <option value="">Todas as empresas</option>
+          <option>MABOR</option>
+          <option>GRATUS</option>
+          <option>MANUELA</option>
+          <option>ELAINE</option>
+          <option>RAFAEL</option>
         </select>
       </div>
       <!-- TABS -->
@@ -2547,6 +2553,11 @@
           <label>Empresa</label>
           <select id="f-emp">
             <option value="">— Selecione —</option>
+            <option>MABOR</option>
+            <option>GRATUS</option>
+            <option>MANUELA</option>
+            <option>ELAINE</option>
+            <option>RAFAEL</option>
           </select>
         </div>
         <div class="fg">
@@ -2598,9 +2609,19 @@
         </div>
         <div class="fg wide">
           <label>Banco / Conta</label>
-          <select id="f-banco">
-            <option value="">— Selecione uma conta cadastrada —</option>
-          </select>
+          <input type="text" id="f-banco" placeholder="Ex: Sicredi, Santander, Itaú..." list="banco-list">
+          <datalist id="banco-list">
+            <option value="Sicredi">
+            <option value="Santander">
+            <option value="Itaú">
+            <option value="Bradesco">
+            <option value="Banco do Brasil">
+            <option value="Caixa">
+            <option value="Nubank">
+            <option value="Inter">
+            <option value="C6 Bank">
+            <option value="Dinheiro">
+          </datalist>
         </div>
       </div>
       <div class="form-footer">
@@ -2995,7 +3016,8 @@
       <!-- Seletor de Empresa -->
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;padding:10px 16px;background:#f0f4ff;border-radius:10px;border:1.5px solid #c5d3f0;flex-wrap:wrap">
         <span style="font-size:.78rem;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px">Empresa:</span>
-        <div id="fiscal-company-buttons" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>
+        <button id="fiscal-emp-manuela" data-fiscal-company="manuela" onclick="fiscalSetEmpresa('manuela')" style="background:#1565c0;color:#fff;border:none;border-radius:7px;padding:6px 18px;cursor:pointer;font-weight:700;font-size:.85rem"></button>
+        <button id="fiscal-emp-gratus" data-fiscal-company="gratus" onclick="fiscalSetEmpresa('gratus')" style="background:#f5f5f5;color:#555;border:1.5px solid #ccc;border-radius:7px;padding:6px 18px;cursor:pointer;font-weight:700;font-size:.85rem"></button>
         <span id="fiscal-emp-badge" style="margin-left:auto;font-size:.8rem;font-weight:700;color:#1565c0"></span>
       </div>
 
@@ -3018,6 +3040,7 @@
             <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
           </select>
           <select id="fiscal-sel-ano" onchange="fiscalCarregarMes()" style="padding:7px 12px;border-radius:7px;border:1.5px solid #ccc;font-size:.9rem">
+            <option value="2024">2024</option><option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
           </select>
           <span id="fiscal-mes-label" style="font-weight:700;font-size:1rem;color:var(--primary)"></span>
           <span id="fiscal-lock-badge" style="display:none;background:#e74c3c;color:#fff;border-radius:20px;padding:3px 12px;font-size:.78rem;font-weight:700">🔒 MÊS FECHADO</span>
@@ -3265,7 +3288,7 @@
               </div>
             </div>
             <p style="font-size:.82rem;color:#888;margin-bottom:4px">Separa cada material pelo <b>preço que você pagou na compra</b> (valor da NF ÷ kg). O disponível é calculado no método <b>FIFO</b> (o que entrou primeiro sai primeiro). Assim você sabe quanto kg tem em cada custo e vende com a margem certa — sem lucro/imposto inflado.</p>
-            <p style="font-size:.78rem;color:#1a7a43;margin-bottom:12px">✅ Estoque acumulado conforme os saldos iniciais e ajustes fiscais configurados no sistema. Cada compra ou venda nova lançada no Fiscal movimenta o saldo a partir desses dados.</p>
+            <p style="font-size:.78rem;color:#1a7a43;margin-bottom:12px">✅ Estoque acumulado desde o <b>saldo inicial de 31/12/2025</b>, já com o <b>ajuste conferido na Conta Azul em 24/07/2026</b> aplicado — o Disponível daqui bate com o saldo real da Conta Azul nessa data. Dali em diante, cada compra/venda nova lançada no Fiscal (com nota) move esse saldo pra frente.</p>
             <div style="overflow-x:auto">
               <table class="tbl" style="font-size:.83rem">
                 <thead><tr>
@@ -3289,6 +3312,7 @@
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px">
           <label style="font-weight:700">Ano:</label>
           <select id="fiscal-sel-ano-anual" onchange="fiscalRenderAnual()" style="padding:7px 12px;border-radius:7px;border:1.5px solid #ccc">
+            <option value="2024">2024</option><option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
           </select>
         </div>
 
@@ -3318,6 +3342,7 @@
             <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
           </select>
           <select id="fiscal-imp-ano" onchange="fiscalRenderImpostos()" style="padding:7px 12px;border-radius:7px;border:1.5px solid #ccc;font-size:.9rem">
+            <option value="2024">2024</option><option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
           </select>
         </div>
 
@@ -3378,6 +3403,7 @@
         <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
           <div style="font-weight:800;font-size:1rem;color:#1565c0">📈 Apuração de Lucro e Imposto <span style="font-weight:600;color:#888;font-size:.82rem">(formato do contador)</span></div>
           <select id="apur-ano" onchange="fiscalRenderApuracao()" style="padding:6px 12px;border-radius:7px;border:1.5px solid #ccc;font-size:.88rem">
+            <option value="2026" selected>2026</option><option value="2027">2027</option><option value="2028">2028</option>
           </select>
           <button class="btn-save" style="font-size:.82rem;padding:6px 14px" onclick="fiscalApurPuxarTodos()">↻ Puxar Faturamento/Compras dos lançamentos</button>
           <span style="margin-left:auto;font-size:.78rem;color:#888"><span style="color:#1565c0;font-weight:700">Azul</span> = você digita · <span style="color:#333;font-weight:700">Preto</span> = calcula sozinho</span>
@@ -3386,7 +3412,7 @@
           <table id="apur-tabela" class="tbl" style="font-size:.8rem;min-width:1150px;border-collapse:collapse"></table>
         </div>
         <div id="apur-tri" style="margin-top:16px"></div>
-        <p style="font-size:.78rem;color:#999;margin-top:10px">💡 Jan a Jul já vêm com os números que você conferiu com o contador. De agosto em diante, clique em "Puxar Faturamento/Compras dos lançamentos" pra preencher automático do que você lançar no Fiscal, e digite as células azuis (devoluções, impostos da venda, estoque final, despesas). O lucro e o imposto calculam sozinhos. Nos meses que ainda não têm imposto lançado, o "Puxar" já soma o PIS+COFINS automático conforme o regime tributário marcado na aba Impostos (dá pra ajustar a mão depois se precisar). Cada empresa fiscal configurada tem sua própria apuração — troque no seletor de empresa no topo do Fiscal.</p>
+        <p style="font-size:.78rem;color:#999;margin-top:10px">💡 Jan a Jul já vêm com os números que você conferiu com o contador. De agosto em diante, clique em "Puxar Faturamento/Compras dos lançamentos" pra preencher automático do que você lançar no Fiscal, e digite as células azuis (devoluções, impostos da venda, estoque final, despesas). O lucro e o imposto calculam sozinhos. Nos meses que ainda não têm imposto lançado, o "Puxar" já soma o PIS+COFINS automático conforme o regime tributário marcado na aba Impostos (dá pra ajustar a mão depois se precisar). Cada empresa (Manuela Metais / Gratus) tem sua própria apuração — troque no botão lá em cima do Fiscal.</p>
       </div>
     </div>
 
@@ -3630,9 +3656,9 @@
             <button type="button" onclick="chatToggleEmojis()" title="Emojis" style="background:#fff;border:2px solid #1a3a2a;border-radius:10px;height:40px;width:46px;font-size:1.2rem;cursor:pointer;flex-shrink:0">😊</button>
             <input type="file" id="chat-img-input" accept="image/*" style="display:none" onchange="chatCarregarFoto(this)">
             <button type="button" onclick="chatEscolherFoto()" title="Enviar foto" style="background:#fff;border:2px solid #1a3a2a;border-radius:10px;height:40px;width:46px;font-size:1.2rem;cursor:pointer;flex-shrink:0">📷</button>
-            <textarea id="chat-input" placeholder="Mensagem... (Enter envia, Shift+Enter = nova linha)"
+            <textarea id="chat-input" maxlength="12000" placeholder="Mensagem... (Enter envia, Shift+Enter = nova linha)"
               onkeydown="chatKeyDown(event)"
-              style="flex:1;border:2px solid #1a3a2a;border-radius:10px;padding:9px 12px;font-size:.87rem;font-family:inherit;resize:none;min-height:40px;max-height:100px;box-sizing:border-box;outline:none"
+              style="flex:1;border:2px solid #1a3a2a;border-radius:10px;padding:9px 12px;font-size:.87rem;font-family:inherit;resize:none;min-height:40px;max-height:100px;box-sizing:border-box;outline:none;contain:layout paint style"
               rows="1"></textarea>
             <button onclick="chatEnviar()" class="btn-save" style="padding:9px 16px;white-space:nowrap;height:40px;flex-shrink:0">
               ✉️ Enviar
@@ -4077,7 +4103,9 @@
   </div>
   <div class="mb-connect-bar">
     <select id="mb-balanca-sel" style="background:#1a237e;color:#fff;border:2px solid #90caf9;border-radius:8px;padding:7px 10px;font-size:.82rem;font-weight:700;cursor:pointer">
-      <option value="">— Nenhuma balança cadastrada —</option>
+      <option value="3t_1">⚖️ Balança 3T — Nº 1</option>
+      <option value="3t_2">⚖️ Balança 3T — Nº 2</option>
+      <option value="1000_1">⚖️ Balança 1000 kg</option>
     </select>
     <button class="mb-btn-connect ip" id="mb-btn-ip" onclick="mbToggleIPConfig()">🌐 Via IP</button>
     <button class="mb-btn-connect serial" id="mb-btn-serial" onclick="conectarSerial()">🔌 USB/Serial</button>

@@ -31,8 +31,13 @@
         ".read": "auth != null && auth.token.erpAccess == true && auth.token.canChat == true",
         "$messageId": {
           ".write": "auth != null && auth.token.erpAccess == true && auth.token.canChat == true && !data.exists() && newData.child('autorLogin').val() == auth.token.erpUser",
-          ".validate": "newData.hasChildren(['autor','autorLogin','ts','conv']) && newData.child('autor').isString() && newData.child('autorLogin').isString() && newData.child('autorLogin').val() == auth.token.erpUser && newData.child('ts').isString() && newData.child('conv').isString() && (!newData.child('texto').exists() || newData.child('texto').isString()) && (!newData.child('img').exists() || newData.child('img').isString())"
-        }
+          ".validate": "newData.hasChildren(['autor','autorLogin','ts','conv']) && newData.child('autor').isString() && newData.child('autorLogin').isString() && newData.child('autorLogin').val() == auth.token.erpUser && newData.child('ts').isString() && newData.child('conv').isString() && (!newData.child('texto').exists() || (newData.child('texto').isString() && newData.child('texto').val().length <= 12000)) && (!newData.child('img').exists() || newData.child('img').isString()) && (!newData.child('imgPath').exists() || (newData.child('imgPath').isString() && newData.child('imgPath').val().length <= 500))"
+        },
+        ".indexOn": [
+          "conv",
+          "ts",
+          "autorLogin"
+        ]
       },
       "chatRead": {
         "$uid": {
@@ -77,6 +82,115 @@
       "_reset": {
         ".read": "auth != null && auth.token.erpAccess == true",
         ".write": false
+      },
+      "tickets": {
+        ".indexOn": [
+          "data",
+          "fornecedorCod",
+          "fornecedor",
+          "status",
+          "ticket"
+        ]
+      },
+      "vendas": {
+        ".indexOn": [
+          "data",
+          "clienteCod",
+          "clienteNome",
+          "status"
+        ]
+      },
+      "contasPagar": {
+        ".indexOn": [
+          "data",
+          "vencimento",
+          "status",
+          "fornecedorCod"
+        ]
+      },
+      "contasReceber": {
+        ".indexOn": [
+          "data",
+          "vencimento",
+          "status",
+          "clienteCod"
+        ]
+      },
+      "vales": {
+        ".indexOn": [
+          "data",
+          "mesRef",
+          "mat",
+          "empresa"
+        ]
+      },
+      "viagem": {
+        ".indexOn": [
+          "data",
+          "motorista",
+          "status"
+        ]
+      },
+      "combustivel": {
+        ".indexOn": [
+          "data",
+          "veiculo",
+          "motorista"
+        ]
+      },
+      "historico": {
+        ".indexOn": [
+          "ts",
+          "data",
+          "tipo"
+        ]
+      },
+      "ponto": {
+        ".indexOn": [
+          "data",
+          "mat"
+        ]
+      },
+      "pontoBatidas": {
+        ".indexOn": [
+          "data",
+          "mat",
+          "cpf"
+        ]
+      },
+      "docsEmpresas": {
+        ".indexOn": [
+          "data",
+          "empresa",
+          "categoria"
+        ]
+      },
+      "agendaEntregas": {
+        ".indexOn": [
+          "data",
+          "status"
+        ]
+      },
+      "frota": {
+        ".indexOn": [
+          "tipo",
+          "status",
+          "id"
+        ]
+      },
+      "clientes": {
+        ".indexOn": [
+          "nome",
+          "cpfCnpj",
+          "status"
+        ]
+      },
+      "fornecedores": {
+        ".indexOn": [
+          "nome",
+          "cpfCnpj",
+          "status"
+        ]
       }
     },
     "erpAudit": {
