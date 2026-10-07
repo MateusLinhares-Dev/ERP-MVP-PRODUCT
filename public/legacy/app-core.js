@@ -15460,8 +15460,7 @@ async function supImportarBackup(event){
 
 
 
-const FROTA_BASE = [];
-let FROTA_DB = FROTA_BASE.map(v=>({...v}));
+let FROTA_DB = [];
 const _syncFrota = _criarSincroniaPorChave('frota', FROTA_DB, 'VE');
 function saveFrota(){ localStorage.setItem('mm_frota', JSON.stringify(FROTA_DB)); try{fbSalvar();}catch(e){} }
 function loadFrota(){

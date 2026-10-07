@@ -1,3 +1,8 @@
+import {
+  logResponseError,
+  startRequestLog,
+} from '../observability/logger.js';
+
 export function clientIp(req) {
   const forwarded = req.headers['x-forwarded-for'];
   if (Array.isArray(forwarded)) return forwarded[0] || 'unknown';
@@ -5,13 +10,17 @@ export function clientIp(req) {
   return String(req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown');
 }
 
-export function applyApiSecurityHeaders(res) {
+export function applyApiSecurityHeaders(res, req) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+
+  if (req) {
+    startRequestLog(req, res);
+  }
 }
 
 export function assertMethod(req, method) {
@@ -32,14 +41,47 @@ export function assertJsonBody(req, { maxBytes = 32 * 1024 } = {}) {
   }
 }
 
-export function sendError(res, error) {
+export function sendError(
+  res,
+  error,
+) {
   applyApiSecurityHeaders(res);
-  const status = Number(error?.status || 500);
-  if (status >= 500) console.error(error);
+
+  const status =
+    Number(
+      error?.status || 500,
+    );
+
+  logResponseError(
+    res,
+    error,
+  );
+
   res.status(status).json({
-    code: error?.code || (status >= 500 ? 'INTERNAL_ERROR' : 'REQUEST_ERROR'),
-    message: status >= 500 ? 'Erro interno do servidor.' : (error?.message || 'Erro na requisição.'),
-    ...(error?.retryAfterSeconds ? { retryAfterSeconds: error.retryAfterSeconds } : {}),
+    code:
+      error?.code ||
+      (
+        status >= 500
+          ? 'INTERNAL_ERROR'
+          : 'REQUEST_ERROR'
+      ),
+
+    message:
+      status >= 500
+        ? 'Erro interno do servidor.'
+        : (
+            error?.message ||
+            'Erro na requisição.'
+          ),
+
+    ...(
+      error?.retryAfterSeconds
+        ? {
+            retryAfterSeconds:
+              error.retryAfterSeconds,
+          }
+        : {}
+    ),
   });
 }
 

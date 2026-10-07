@@ -4,7 +4,7 @@ import {requireIdentity} from '../../server/http/auth.js';
 import {applyApiSecurityHeaders,assertMethod,sendError} from '../../server/http/http.js';
 
 export default async function handler(req,res){
-  applyApiSecurityHeaders(res);
+  applyApiSecurityHeaders(res,req)
   try{
     assertMethod(req,'GET');
     const user=await requireIdentity(req,{admin:true});

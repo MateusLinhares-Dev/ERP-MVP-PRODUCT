@@ -2,7 +2,7 @@ import { applyApiSecurityHeaders } from '../server/http/http.js';
 import { assertRuntimeSecurity } from '../server/config/runtime-security.js';
 import '../server/config/load-local-env.js';
 export default function handler(req, res) {
-  applyApiSecurityHeaders(res);
+  applyApiSecurityHeaders(res,req)
   try { assertRuntimeSecurity({ requireServerSecrets: false }); } catch (error) { return res.status(500).json({ message: 'Ambiente Firebase inválido.' }); }
   const emulators = String(process.env.USE_FIREBASE_EMULATORS || '').toLowerCase() === 'true';
   const firebase = {
