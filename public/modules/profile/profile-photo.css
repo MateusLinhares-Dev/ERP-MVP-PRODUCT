@@ -39,6 +39,14 @@
   outline-offset: 2px;
 }
 
+.erp-profile-public-avatar {
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-size: cover !important;
+  overflow: hidden !important;
+  color: transparent !important;
+}
+
 .profile-photo-overlay {
   position: fixed;
   inset: 0;
