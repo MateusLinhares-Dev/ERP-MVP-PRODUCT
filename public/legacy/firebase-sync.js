@@ -1317,8 +1317,18 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
             try{ localStorage.setItem('mm_users_del', JSON.stringify(_USERS_DEL)); }catch(e){}
           }
           if(d.users){
-            
-            const _uu=d.users||{};
+            const _rawUsers=d.users||{};
+            const _uu={};
+            Object.entries(_rawUsers).forEach(function(entry){
+              const storageKey=entry[0];
+              const profile=entry[1];
+              if(!profile||typeof profile!=='object') return;
+              const logicalLogin=String(profile.login||storageKey||'');
+              if(!logicalLogin) return;
+              const clean=Object.assign({},profile);
+              delete clean.login;
+              _uu[logicalLogin]=clean;
+            });
             _USERS_DEL.forEach(function(k){ if(_uu[k]) delete _uu[k]; });
             localStorage.setItem('mm_users', JSON.stringify(_uu));
           }
@@ -1503,6 +1513,34 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       }
     });
 
+    let _fbDeferredSyncTimer=null;
+    function _fbAgendarSyncCompletoDeferido(){
+      window.__ERP_DEFERRED_FULL_SYNC__=true;
+      clearTimeout(_fbDeferredSyncTimer);
+      _fbDeferredSyncTimer=setTimeout(function tentar(){
+        try{
+          const painel=document.querySelector('.tab-panel.active');
+          const tab=painel&&painel.id?painel.id.replace('tab-',''):'';
+          const campo=document.activeElement;
+          const digitando=campo&&['INPUT','TEXTAREA','SELECT'].includes(campo.tagName)&&campo.offsetParent!==null;
+          const modal=document.querySelector('.modal-ov.open');
+          if(tab==='chat'||digitando||modal){
+            _fbDeferredSyncTimer=setTimeout(tentar,1200);
+            return;
+          }
+          window.__ERP_DEFERRED_FULL_SYNC__=false;
+          if(typeof fbCarregar==='function'){
+            fbCarregar(function(){
+              try{
+                const atual=document.querySelector('.tab-panel.active');
+                if(atual&&typeof switchTab==='function') switchTab(atual.id.replace('tab-',''));
+              }catch(e){}
+            });
+          }
+        }catch(e){}
+      },1200);
+    }
+
     window._fbDB.ref('erp/_ts').on('value', snap => {
       if(_fbAtualizando) return;
       const ts = snap.val();
@@ -1530,6 +1568,18 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(!window._fbUltimoTs) { window._fbUltimoTs = ts; return; }
       if(ts === window._fbUltimoTs) return;
       window._fbUltimoTs = ts;
+
+      try{
+        const painelAtual=document.querySelector('.tab-panel.active');
+        const tabAtual=painelAtual&&painelAtual.id?painelAtual.id.replace('tab-',''):'';
+        const campoAtual=document.activeElement;
+        const digitandoAtual=campoAtual&&['INPUT','TEXTAREA','SELECT'].includes(campoAtual.tagName)&&campoAtual.offsetParent!==null;
+        const modalAtual=document.querySelector('.modal-ov.open');
+        if(tabAtual==='chat'||digitandoAtual||modalAtual){
+          _fbAgendarSyncCompletoDeferido();
+          return;
+        }
+      }catch(e){}
       
       
       
@@ -1790,85 +1840,153 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     let _ticketsListenerAtivo = false;
     if(!_ticketsListenerAtivo){
       _ticketsListenerAtivo = true;
-      window._fbDB.ref('erp/tickets').on('value', snap => {
-        const td=snap.val()||{};
+      const ticketsRef=window._fbDB.ref('erp/tickets');
+      let ticketsUiTimer=null;
+      function ticketsUi(){
+        clearTimeout(ticketsUiTimer);
+        ticketsUiTimer=setTimeout(function(){
+          try{
+            const painel=document.getElementById('tab-balanceiro');
+            const ativo=painel&&painel.classList.contains('active');
+            const campo=document.activeElement;
+            const digitando=campo&&['INPUT','SELECT','TEXTAREA'].includes(campo.tagName)&&campo.offsetParent!==null;
+            if(ativo&&!digitando){ renderBalanceiro(); try{balRenderHistorico();}catch(e){} }
+          }catch(e){}
+          try{
+            const rod=document.getElementById('tab-rod_balanca');
+            const ativo=rod&&rod.classList.contains('active');
+            const campo=document.activeElement;
+            const digitando=campo&&['INPUT','SELECT','TEXTAREA'].includes(campo.tagName)&&campo.offsetParent!==null;
+            if(ativo&&!digitando) renderRodBalanca();
+          }catch(e){}
+        },40);
+      }
+      function aplicarTicket(snap){
         if(typeof TICKETS_DB==='undefined') return;
-        let mudou=false;
-        Object.keys(td).forEach(function(tid){
-          if(typeof TICKETS_DELETED!=='undefined' && TICKETS_DELETED.has && TICKETS_DELETED.has(tid)) return;
-          const antes=JSON.stringify(TICKETS_DB[tid]||null);
-          const depois=JSON.stringify(td[tid]||null);
-          if(antes!==depois){ TICKETS_DB[tid]=Object.assign({},TICKETS_DB[tid]||{},td[tid]||{}); mudou=true; }
-        });
-        if(!mudou) return;
-            try{
-          const painel=document.getElementById('tab-balanceiro');
-          const ativo=painel&&painel.classList.contains('active');
-          const campo=document.activeElement;
-          const digitando=campo&&['INPUT','SELECT','TEXTAREA'].includes(campo.tagName)&&campo.offsetParent!==null;
-          if(ativo&&!digitando){ renderBalanceiro(); try{balRenderHistorico();}catch(e){} }
-        }catch(e){}
-        try{
-          const rod=document.getElementById('tab-rod_balanca');
-          const ativo=rod&&rod.classList.contains('active');
-          const campo=document.activeElement;
-          const digitando=campo&&['INPUT','SELECT','TEXTAREA'].includes(campo.tagName)&&campo.offsetParent!==null;
-          if(ativo&&!digitando) renderRodBalanca();
-        }catch(e){}
+        const tid=String(snap&&snap.key||'');
+        if(!tid) return;
+        if(typeof TICKETS_DELETED!=='undefined'&&TICKETS_DELETED.has&&TICKETS_DELETED.has(tid)) return;
+        const val=snap&&snap.val?snap.val():null;
+        if(!val||typeof val!=='object') return;
+        TICKETS_DB[tid]=Object.assign({},TICKETS_DB[tid]||{},val);
+        try{ if(typeof _normalizarTicketFinanceiro==='function') _normalizarTicketFinanceiro(TICKETS_DB[tid]); }catch(e){}
+        try{ _ticketsAtualizarSnapshot(); }catch(e){}
+        ticketsUi();
+      }
+      ticketsRef.on('child_added',aplicarTicket);
+      ticketsRef.on('child_changed',aplicarTicket);
+      ticketsRef.on('child_removed',function(snap){
+        if(typeof TICKETS_DB==='undefined') return;
+        const tid=String(snap&&snap.key||'');
+        if(tid&&TICKETS_DB[tid]!==undefined) delete TICKETS_DB[tid];
+        ticketsUi();
       });
     }
 
-    
-    
     let _fiscalListenerAtivo = false;
     if(!_fiscalListenerAtivo){
       _fiscalListenerAtivo = true;
-      window._fbDB.ref('erp/fiscal').on('value', snap => {
-        if(_fbAtualizando) return;
-        const fd = snap.val();
-        if(!fd || typeof fd!=='object') return;
+      const fiscalRef=window._fbDB.ref('erp/fiscal');
+      let fiscalUiTimer=null;
+      function fiscalUi(){
+        clearTimeout(fiscalUiTimer);
+        fiscalUiTimer=setTimeout(function(){
+          try{
+            const fiscalPainel=document.getElementById('tab-fiscal');
+            if(fiscalPainel&&fiscalPainel.classList.contains('active')&&typeof fiscalCarregarMes==='function') fiscalCarregarMes();
+          }catch(_){}
+        },50);
+      }
+      function aplicarFiscal(snap){
         if(typeof FISCAL_DB==='undefined') return;
-        
-        const localStr=JSON.stringify(FISCAL_DB);
-        const remoteStr=JSON.stringify(fd);
-        if(localStr===remoteStr) return;
-        Object.keys(FISCAL_DB).forEach(k=>delete FISCAL_DB[k]);
-        Object.assign(FISCAL_DB, fd);
-        try{ localStorage.setItem('mm_fiscal',JSON.stringify(FISCAL_DB)); }catch(_){}
-        
-        try{
-          const fiscalPainel=document.getElementById('tab-fiscal');
-          if(fiscalPainel&&fiscalPainel.classList.contains('active')){ fiscalCarregarMes(); }
-        }catch(_){}
+        const key=String(snap&&snap.key||'');
+        if(!key) return;
+        const val=snap&&snap.val?snap.val():null;
+        if(val==null) delete FISCAL_DB[key];
+        else FISCAL_DB[key]=val;
+        fiscalUi();
+      }
+      fiscalRef.on('child_added',aplicarFiscal);
+      fiscalRef.on('child_changed',aplicarFiscal);
+      fiscalRef.on('child_removed',function(snap){
+        if(typeof FISCAL_DB==='undefined') return;
+        const key=String(snap&&snap.key||'');
+        if(key) delete FISCAL_DB[key];
+        fiscalUi();
       });
     }
 
-    
-    
-    
-    
-    
-    
-    
     let _chatPermitido = false;
     try{
       _chatPermitido = typeof window.erpCanAccessTab==='function' ? !!window.erpCanAccessTab('chat') : !!(typeof cu!=='undefined' && cu && Array.isArray(cu.tabs) && cu.tabs.includes('chat'));
     }catch(e){ _chatPermitido=false; }
-    if(!window.__CHAT_REALTIME_LISTENER_STARTED__ && _chatPermitido){
-      window.__CHAT_REALTIME_LISTENER_STARTED__=true;
-      const _chatRef=window._fbDB.ref('erp/chat').limitToLast(120);
-      let _chatUiTimer=null;
-      function _chatAgendarUi(){
-        clearTimeout(_chatUiTimer);
-        _chatUiTimer=setTimeout(function(){
-          try{ if(typeof window.__chatReadOnMessagesChanged==='function') window.__chatReadOnMessagesChanged(); else hdrAtualizarBadge(); }catch(e){}
-          try{
-            const chatPainel=document.getElementById('tab-chat');
-            if(chatPainel&&chatPainel.classList.contains('active')) chatRenderMsgs();
-          }catch(e){}
-        },50);
+
+    if(!window.__CHAT_RECENT_MESSAGES__) window.__CHAT_RECENT_MESSAGES__=[];
+    if(!window.__CHAT_RECENT_LISTENER_STARTED__ && _chatPermitido){
+      window.__CHAT_RECENT_LISTENER_STARTED__=true;
+      const recent=window.__CHAT_RECENT_MESSAGES__;
+      const recentRef=window._fbDB.ref('erp/chat').limitToLast(120);
+      let badgeTimer=null;
+      function scheduleBadge(){
+        clearTimeout(badgeTimer);
+        badgeTimer=setTimeout(function(){
+          try{ if(typeof window.__chatReadOnMessagesChanged==='function') window.__chatReadOnMessagesChanged(); else if(typeof hdrAtualizarBadge==='function') hdrAtualizarBadge(); }catch(e){}
+        },80);
       }
-      function _chatAplicarSnap(snap){
+      function upsertRecent(snap){
+        const raw=snap&&snap.val?snap.val():null;
+        if(!raw||typeof raw!=='object') return;
+        const key=String(snap.key||'');
+        const msg=Object.assign({_chatKey:key},raw);
+        const idx=recent.findIndex(function(x){ return x&&String(x._chatKey||'')===key; });
+        if(idx>=0) recent[idx]=msg; else recent.push(msg);
+        recent.sort(function(a,b){
+          const ka=String(a&&a._chatKey||''), kb=String(b&&b._chatKey||'');
+          return ka<kb?-1:ka>kb?1:0;
+        });
+        if(recent.length>120) recent.splice(0,recent.length-120);
+        scheduleBadge();
+      }
+      recentRef.on('child_added',upsertRecent);
+      recentRef.on('child_changed',upsertRecent);
+      recentRef.on('child_removed',function(snap){
+        const key=String(snap&&snap.key||'');
+        const idx=recent.findIndex(function(x){ return x&&String(x._chatKey||'')===key; });
+        if(idx>=0) recent.splice(idx,1);
+        scheduleBadge();
+      });
+    }
+
+    if(_chatPermitido && !window.__CHAT_CONVERSATION_API_READY__){
+      window.__CHAT_CONVERSATION_API_READY__=true;
+      let activeRef=null;
+      let activeHandlers=null;
+      let activeConv='';
+      let openToken=0;
+      let uiTimer=null;
+
+      function detachActive(){
+        if(activeRef&&activeHandlers){
+          try{ activeRef.off('child_added',activeHandlers.add); }catch(e){}
+          try{ activeRef.off('child_changed',activeHandlers.change); }catch(e){}
+          try{ activeRef.off('child_removed',activeHandlers.remove); }catch(e){}
+        }
+        activeRef=null;
+        activeHandlers=null;
+        activeConv='';
+      }
+
+      function scheduleUi(){
+        clearTimeout(uiTimer);
+        uiTimer=setTimeout(function(){
+          try{
+            const painel=document.getElementById('tab-chat');
+            if(painel&&painel.classList.contains('active')&&typeof chatRenderMsgs==='function') chatRenderMsgs();
+          }catch(e){}
+        },32);
+      }
+
+      function upsertActive(snap){
         if(typeof CHAT_MSGS==='undefined') return;
         const raw=snap&&snap.val?snap.val():null;
         if(!raw||typeof raw!=='object') return;
@@ -1878,17 +1996,77 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           const idx=CHAT_MSGS.findIndex(function(x){ return x&&String(x._chatKey||'')===String(msg._chatKey||''); });
           if(idx>=0) CHAT_MSGS[idx]=msg; else CHAT_MSGS.push(msg);
         }
-        _chatAgendarUi();
+        scheduleUi();
       }
-      _chatRef.on('child_added',_chatAplicarSnap);
-      _chatRef.on('child_changed',_chatAplicarSnap);
-      _chatRef.on('child_removed',function(snap){
-        if(typeof CHAT_MSGS==='undefined') return;
-        const key=String(snap&&snap.key||'');
-        const idx=CHAT_MSGS.findIndex(function(x){ return x&&String(x._chatKey||'')===key; });
-        if(idx>=0) CHAT_MSGS.splice(idx,1);
-        _chatAgendarUi();
-      });
+
+      window.__chatOpenConversationRealtime=async function(conv,limit){
+        conv=String(conv||'geral');
+        limit=Math.max(20,Math.min(Number(limit)||60,240));
+        const token=++openToken;
+        detachActive();
+        if(typeof CHAT_MSGS!=='undefined') CHAT_MSGS.length=0;
+        activeConv=conv;
+
+        const base=window._fbDB.ref('erp/chat').orderByChild('conv').equalTo(conv).limitToLast(limit);
+        try{
+          const snap=await base.once('value');
+          if(token!==openToken) return;
+          const raw=snap&&snap.val?snap.val():null;
+          if(typeof _chatMsgsFromRemote==='function'){
+            const arr=_chatMsgsFromRemote(raw);
+            arr.forEach(function(m){
+              if(typeof window.__chatUpsertMensagem==='function') window.__chatUpsertMensagem(m);
+            });
+          }else if(raw&&typeof raw==='object'){
+            Object.entries(raw).forEach(function(entry){
+              const m=entry[1]&&typeof entry[1]==='object'?Object.assign({_chatKey:entry[0]},entry[1]):null;
+              if(m) upsertActive({key:entry[0],val:function(){return entry[1];}});
+            });
+          }
+          try{ if(typeof chatRenderMsgs==='function') chatRenderMsgs(); }catch(e){}
+        }catch(e){
+          console.warn('chat query conversa:',e);
+        }
+
+        if(token!==openToken) return;
+        activeRef=window._fbDB.ref('erp/chat').orderByChild('conv').equalTo(conv).limitToLast(limit);
+        activeHandlers={
+          add:upsertActive,
+          change:upsertActive,
+          remove:function(snap){
+            if(typeof CHAT_MSGS==='undefined') return;
+            const key=String(snap&&snap.key||'');
+            const idx=CHAT_MSGS.findIndex(function(x){ return x&&String(x._chatKey||'')===key; });
+            if(idx>=0) CHAT_MSGS.splice(idx,1);
+            scheduleUi();
+          }
+        };
+        activeRef.on('child_added',activeHandlers.add);
+        activeRef.on('child_changed',activeHandlers.change);
+        activeRef.on('child_removed',activeHandlers.remove);
+      };
+
+      window.__chatLoadConversationHistory=async function(conv,limit){
+        conv=String(conv||activeConv||'geral');
+        limit=Math.max(60,Math.min(Number(limit)||180,2000));
+        const snap=await window._fbDB.ref('erp/chat').orderByChild('conv').equalTo(conv).limitToLast(limit).once('value');
+        const raw=snap&&snap.val?snap.val():null;
+        let arr=[];
+        if(typeof _chatMsgsFromRemote==='function') arr=_chatMsgsFromRemote(raw);
+        else if(raw&&typeof raw==='object'){
+          arr=Object.entries(raw).map(function(entry){ return entry[1]&&typeof entry[1]==='object'?Object.assign({_chatKey:entry[0]},entry[1]):null; }).filter(Boolean);
+        }
+        let novos=0;
+        arr.forEach(function(m){
+          if(typeof window.__chatUpsertMensagem==='function'&&window.__chatUpsertMensagem(m)) novos++;
+        });
+        return {count:arr.length,added:novos,hasMore:arr.length>=limit};
+      };
+
+      window.__chatCloseConversationRealtime=function(){
+        ++openToken;
+        detachActive();
+      };
     }
   }
 
