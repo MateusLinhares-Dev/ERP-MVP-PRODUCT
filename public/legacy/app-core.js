@@ -95,7 +95,7 @@ function _mesclarFuncEdit(remoto, remotoDel){
 const _CHAVES_DELETED_ARRAYS = ['ticketsDeleted','adtPorFornDeleted','chequesPorFornDeleted',
   'saldoDevedorDeleted','estoqueDeleted','fcSaldoIniDeleted','adtItensDeleted','chequeItensDeleted',
   'contasReceberDeleted','vendasDeleted','valesDeleted','lancBancoDeleted','viagemDeleted',
-  'combustivelDeleted','frotaDeleted','manutencaoDeleted','almoxaDeleted','almoxaMovDeleted',
+  'combustivelDeleted','tanqueDeleted','frotaDeleted','manutencaoDeleted','almoxaDeleted','almoxaMovDeleted',
   'clientesDeleted','fornecedoresDeleted','bancosDeleted','despGrupoDeleted','coordNotasDeleted',
   'contratosDeleted','docsEmpresasDeleted','epiDeleted','reunioesDeleted','advertenciasDeleted',
   'bagsMovDeleted','historicoDeleted','pontoDeleted','pontoBatidasDeleted','fornDespesaDeleted','afazeresDeleted'];
@@ -551,6 +551,7 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
       vals.forEach(function(item){
         if(!item) return;
         if(!item.id) item.id=_idDeterministico(item);
+        if(deletedSet.has(item.id)) return;
         lista.push(item);
       });
       if(remotoEhArray && vals.length) migrar();
@@ -4449,6 +4450,7 @@ let VIAGEM_DB = [];
 
 const _syncViagem = _criarSincroniaPorChave('viagem', VIAGEM_DB, 'VG');
 const _syncCombustivel = _criarSincroniaPorChave('combustivel', COMBUSTIVEL_DB, 'CB');
+const _syncTanque = _criarSincroniaPorChave('tanque', TANQUE_DB, 'TK');
 
 
 
@@ -5256,7 +5258,14 @@ function loadDB(){
     }
     const vg=localStorage.getItem('mm_viagem');   if(vg){ VIAGEM_DB.length=0; JSON.parse(vg).forEach(x=>VIAGEM_DB.push(x)); }
     const cr=localStorage.getItem('mm_comb_ru'); if(cr){ COMBUSTIVEL_DB.length=0; JSON.parse(cr).forEach(x=>COMBUSTIVEL_DB.push(x)); }
-    const tk2=localStorage.getItem('mm_tanque');    if(tk2) TANQUE_DB=JSON.parse(tk2);
+    const tk2=localStorage.getItem('mm_tanque');
+    if(tk2){
+      const arr=JSON.parse(tk2);
+      TANQUE_DB.length=0;
+      (Array.isArray(arr)?arr:Object.values(arr||{})).filter(Boolean).forEach(function(x){
+        if(!x.id || !_syncTanque.deletedSet.has(x.id)) TANQUE_DB.push(x);
+      });
+    }
     const p=localStorage.getItem('mm_precos_forn');if(p) Object.assign(PRECOS_FORN_DATA, JSON.parse(p));
     const pc=localStorage.getItem('mm_precos_cli');if(pc) Object.assign(PRECOS_CLI_DATA, JSON.parse(pc));
     const sdv=localStorage.getItem('mm_saldo_devedor');if(sdv) Object.assign(SALDO_DEVEDOR_FORN, JSON.parse(sdv));
@@ -22323,6 +22332,16 @@ function initDespesas(){
         return entradas-saidas;
       }
 
+      function _tanqueUsuarioAtual(){
+        try{ return (typeof cu!=='undefined'&&cu&&cu.name)?String(cu.name):''; }catch(e){ return ''; }
+      }
+
+      function saveTanque(){
+        try{ localStorage.setItem('mm_tanque_pendente','1'); }catch(e){}
+        try{ localStorage.setItem('mm_tanque',JSON.stringify(TANQUE_DB)); }catch(e){}
+        try{ fbSalvar(); }catch(e){}
+      }
+
       function salvarTanque(){
         const data=document.getElementById('tk-data').value;
         const tipo=document.getElementById('tk-tipo').value;
@@ -22332,12 +22351,11 @@ function initDespesas(){
         const obs=(document.getElementById('tk-obs').value||'').trim();
         if(!data||!litros){ showToast('Preencha data e litros.','error'); return; }
         const total=litros*preco;
-        const id='TK'+Date.now();
+        const agora=Date.now();
+        const id='TK'+agora;
         let contaPagarId='';
-        
         if(tipo==='entrada' && total>0){
           const hoje=new Date().toLocaleDateString('pt-BR');
-          const dataFmt=data.split('-').reverse().join('/');
           CONTAS_PAGAR.push({
             id:'CP_TK_'+id,
             lancto:hoje,
@@ -22353,8 +22371,8 @@ function initDespesas(){
           saveContasPagar();
           contaPagarId='CP_TK_'+id;
         }
-        TANQUE_DB.push({id,tipo,data,litros,preco,total,fornecedor:forn,obs,contaPagarId});
-        saveDB();
+        TANQUE_DB.push({id,tipo,data,litros,preco,total,fornecedor:forn,obs,contaPagarId,createdAt:agora,createdBy:_tanqueUsuarioAtual(),updatedAt:agora,updatedBy:_tanqueUsuarioAtual()});
+        saveTanque();
         ['tk-data','tk-litros','tk-preco','tk-forn','tk-obs'].forEach(i=>{ const el=document.getElementById(i); if(el) el.value=''; });
         const ts=document.getElementById('tk-total-show'); if(ts) ts.textContent='R$ 0,00';
         renderTanque(); try{renderSaidasTanque();}catch(e){} try{renderHistoricoEntradasTanque();}catch(e){}
@@ -22370,7 +22388,9 @@ function initDespesas(){
             const cp=CONTAS_PAGAR.findIndex(c=>c.id===reg.contaPagarId);
             if(cp!==-1){ _removerCPporIndice(cp); saveContasPagar(); }
           }
-          TANQUE_DB.splice(idx,1); saveDB(); renderTanque(); try{renderSaidasTanque();}catch(e){} try{renderHistoricoEntradasTanque();}catch(e){}
+          _syncTanque.remover(idx);
+          saveTanque();
+          renderTanque(); try{renderSaidasTanque();}catch(e){} try{renderHistoricoEntradasTanque();}catch(e){}
           showToast('Registro excluído.','success');
         }
       }

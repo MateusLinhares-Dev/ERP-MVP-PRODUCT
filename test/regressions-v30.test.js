@@ -99,3 +99,48 @@ test('v30 contains reproducible Docker local environment without changing cloud 
   assert.match(emulatorLauncherV30,/DOCKER_DEV/);
   assert.match(vercelLauncherV30,/0\.0\.0\.0:3000/);
 });
+
+const firebaseSyncV30 = fs.readFileSync('public/legacy/firebase-sync.js','utf8');
+
+test('v30 tank sync is keyed, tombstoned and keeps the shared array reference',()=>{
+  assert.match(appCoreV30,/const _syncTanque = _criarSincroniaPorChave\('tanque', TANQUE_DB, 'TK'\)/);
+  assert.match(appCoreV30,/_syncTanque\.remover\(idx\)/);
+  assert.match(appCoreV30,/mm_tanque_pendente/);
+  assert.match(appCoreV30,/TANQUE_DB\.length=0/);
+  assert.doesNotMatch(appCoreV30,/TANQUE_DB=JSON\.parse\(tk2\)/);
+  assert.match(firebaseSyncV30,/_patchIncremental\(dados, 'tanque', _syncTanque\.paraObjeto\(\), _syncTanque\.deletedSet\)/);
+  assert.match(firebaseSyncV30,/tanqueDeleted: \[\.\.\._syncTanque\.deletedSet\]/);
+  assert.match(firebaseSyncV30,/'tanqueDeletedV2'/);
+});
+
+test('v30 tank cloud state wins unless that module has an actual local pending change',()=>{
+  assert.match(firebaseSyncV30,/function _tanqueTemPendenteLocal\(\)/);
+  assert.match(firebaseSyncV30,/_syncTanque\.carregarDeRemoto\(remoto,!!confiavel&&!preservarLocal\)/);
+  assert.match(firebaseSyncV30,/__ERP_TANK_LISTENER_STARTED__/);
+  assert.match(firebaseSyncV30,/window\._fbDB\.ref\('erp\/tanque'\)/);
+  assert.match(firebaseSyncV30,/window\._fbDB\.ref\('erp\/tanqueDeletedV2'\)/);
+});
+
+test('v30 never pushes a stale pending snapshot before reading the cloud',()=>{
+  assert.match(firebaseSyncV30,/alterações locais pendentes — mesclando a nuvem antes de salvar/);
+  assert.match(firebaseSyncV30,/_fbCarregarDaNuvem\(callback,true\)/);
+  assert.doesNotMatch(firebaseSyncV30,/push em segundo plano, pull quando confirmar/);
+  assert.doesNotMatch(firebaseSyncV30,/const _flushAntes = _fbTimer/);
+  assert.match(firebaseSyncV30,/const _fbConf2 = !!d\._ts && !_temPendenteLocal/);
+});
+
+test('v30 reconnect does not blindly overwrite cloud and deletions are never skipped by write cache',()=>{
+  const connectedStart=firebaseSyncV30.indexOf("window._fbDB.ref('.info/connected')");
+  const connectedEnd=firebaseSyncV30.indexOf("window._fbDB.ref('erp/_ts')",connectedStart);
+  const connectedBlock=firebaseSyncV30.slice(connectedStart,connectedEnd);
+  assert.match(connectedBlock,/fbCarregar\(function\(\)\{\}\)/);
+  assert.doesNotMatch(connectedBlock,/setTimeout\(_fbSalvarAgora/);
+  assert.match(firebaseSyncV30,/if\(dados\[k\]===null\)\{ filtrado\[k\]=null; return; \}/);
+});
+
+test('v30 successful save only clears pending state when no newer change arrived',()=>{
+  assert.match(firebaseSyncV30,/let _fbChangeVersion = 0/);
+  assert.match(firebaseSyncV30,/_fbChangeVersion\+\+/);
+  assert.match(firebaseSyncV30,/const _versaoSalvar=_fbChangeVersion/);
+  assert.match(firebaseSyncV30,/const _semMudancaNova=_fbChangeVersion===_versaoSalvar/);
+});
