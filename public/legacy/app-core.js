@@ -4135,7 +4135,7 @@ const FORMS={
       <div class="fg"><label>Débito Automático?</label><select id="ct-debito"><option value="Não">Não</option><option value="Sim">Sim</option></select></div>
       <div class="fg" style="grid-column:1/-1"><label>Banco (se débito auto)</label><select id="ct-banco"><option value="">— Selecione —</option></select></div>
       <div class="fg" style="grid-column:1/-1"><label>Obs.</label><input id="ct-obs" placeholder="Observações adicionais"></div>
-      <div class="fg" style="grid-column:1/-1"><label>📎 Anexar Contrato (PDF ou imagem, máx. 5 MB)</label>
+      <div class="fg" style="grid-column:1/-1"><label>📎 Anexar Contrato (PDF ou imagem, máx. 20 MB)</label>
         <input type="file" id="ct-arquivo" accept=".pdf,image/*"
           style="padding:6px;border:1.5px dashed #ccc;border-radius:8px;width:100%;box-sizing:border-box;cursor:pointer">
         ${_btnFoto('ct-arquivo')}
@@ -13594,7 +13594,7 @@ async function fdAdicionarDoc(mat){
   function _comprimir(dataUrl){ return new Promise(function(res){ try{ const img=new Image(); img.onload=function(){ let w=img.width,h=img.height; const M=1600; if(w>M||h>M){ const r=Math.min(M/w,M/h); w=Math.round(w*r); h=Math.round(h*r);} const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h); let out=cv.toDataURL('image/jpeg',0.82); if(out.length>4*1024*1024) out=cv.toDataURL('image/jpeg',0.6); res(out); }; img.onerror=function(){res(dataUrl);}; img.src=dataUrl; }catch(e){res(dataUrl);} }); }
   function _carregarJsPDF(){ return new Promise(function(res,rej){ if(window.jspdf&&window.jspdf.jsPDF) return res(); const sc=document.createElement('script'); sc.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'; sc.onload=function(){res();}; sc.onerror=function(){rej(new Error('Não consegui carregar o gerador de PDF (verifique a internet).'));}; document.head.appendChild(sc); }); }
   function _enviar(dataUrl, nomeArq, mime){
-    if(dataUrl.length>21*1024*1024){ if(statusEl) statusEl.textContent=''; alert('Ficou grande demais mesmo depois de preparar. Tente com menos fotos ou fotos menores.'); return; }
+    if(dataUrl.length>28*1024*1024){ if(statusEl) statusEl.textContent=''; alert('Ficou grande demais mesmo depois de preparar. Tente com menos fotos ou fotos menores.'); return; }
     if(statusEl) statusEl.textContent='Enviando para a nuvem...';
     const docId='fd_'+Date.now()+'_'+Math.floor(Math.random()*100000);
     let _payload=dataUrl;
@@ -13641,7 +13641,7 @@ async function fdAdicionarDoc(mat){
     
     const file=files[0];
     const ehImagem=(file.type||'').indexOf('image/')===0;
-    if(!ehImagem && file.size>15*1024*1024){ alert('PDF muito grande (máximo 15 MB).\n\nDica: tire FOTOS do documento — o sistema junta e encolhe sozinho.'); return; }
+    if(!ehImagem && file.size>20*1024*1024){ alert('PDF muito grande (máximo 20 MB).\n\nDica: tire FOTOS do documento — o sistema junta e encolhe sozinho.'); return; }
     if(statusEl) statusEl.textContent=(ehImagem&&file.size>1500000)?'Encolhendo a foto...':'Enviando para a nuvem...';
     let dataUrl=await _ler(file);
     if(ehImagem && (file.size>1500000 || dataUrl.length>2000000)){ dataUrl=await _comprimir(dataUrl); }
@@ -13833,7 +13833,7 @@ function _entidadeDocsModal(entidade, nomeLabel, salvarFn){
       <div class="fg"><label>Nome do documento <small style="color:#888">(opcional — se deixar em branco, usa o nome do arquivo)</small></label>
         <input type="text" id="ed-nome" placeholder="Ex: Alvará 2026, Contrato aluguel...">
       </div>
-      <div class="fg"><label>Arquivo (PDF ou imagem, máx. 5 MB)</label>
+      <div class="fg"><label>Arquivo (PDF ou imagem, máx. 20 MB)</label>
         <input type="file" id="ed-file" accept=".pdf,image/*"
           style="padding:6px;border:1.5px dashed #ccc;border-radius:8px;width:100%;box-sizing:border-box;cursor:pointer">
         ${_btnFoto('ed-file')}
@@ -13855,7 +13855,7 @@ function _entidadeDocsModal(entidade, nomeLabel, salvarFn){
     if(!fileEl||!fileEl.files||!fileEl.files[0]){alert('Selecione um arquivo.');return;}
     if(!window._fbDB){ alert('Sem conexão com a nuvem agora. Aguarde alguns segundos e tente novamente.'); return; }
     const file=fileEl.files[0];
-    if(file.size>5*1024*1024){alert('Arquivo muito grande. Máximo: 5 MB.');return;}
+    if(file.size>20*1024*1024){alert('Arquivo muito grande. Máximo: 20 MB.');return;}
     if(statusEl) statusEl.textContent='Enviando para a nuvem...';
     const reader=new FileReader();
     reader.onload=function(e){
@@ -15629,7 +15629,7 @@ function frotaDocsModal(idx){
         '</select></div>'+
       '<div class="fg"><label>Data</label><input type="date" id="fr-doc-data" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
       '<div class="fg"><label>⏰ Vencimento (opcional — gera alerta na Frota)</label><input type="date" id="fr-doc-venc"></div>'+
-      '<div class="fg"><label>Arquivo (PDF ou foto, máx. 5 MB)</label>'+
+      '<div class="fg"><label>Arquivo (PDF ou foto, máx. 20 MB)</label>'+
         '<input type="file" id="fr-doc-file" accept=".pdf,image/*" style="padding:6px;border:1.5px dashed #ccc;border-radius:8px;width:100%;box-sizing:border-box;cursor:pointer">'+_btnFoto('fr-doc-file')+'</div>'+
       '<div id="fr-doc-status" style="font-size:.78rem;color:#888;margin-top:2px"></div>'+
     '</div>'+
@@ -15670,7 +15670,7 @@ function frDocAdd(idx){
   if(!fileEl||!fileEl.files||!fileEl.files[0]){ alert('Selecione um arquivo ou foto.'); return; }
   const file=fileEl.files[0];
   const ehImagem=(file.type||'').indexOf('image/')===0;
-  if(!ehImagem && file.size>15*1024*1024){ alert('PDF muito grande (máximo 15 MB).\n\nDica: tire uma FOTO do documento e anexe a foto — fotos o sistema encolhe sozinho.'); return; }
+  if(!ehImagem && file.size>20*1024*1024){ alert('PDF muito grande (máximo 20 MB).\n\nDica: tire uma FOTO do documento e anexe a foto — fotos o sistema encolhe sozinho.'); return; }
   if(!window._fbDB){ alert('Sem conexão com a nuvem agora. Aguarde alguns segundos e tente de novo.'); return; }
   if(statusEl) statusEl.textContent=ehImagem&&file.size>1500000?'Encolhendo a foto...':'Enviando para a nuvem...';
   const key=_frSafeKey(v.id);
@@ -15703,7 +15703,7 @@ function frDocAdd(idx){
     function _nada(){}
   };
   function _frEnviarDoc(dataUrl){
-    if(dataUrl.length>21*1024*1024){ if(statusEl) statusEl.textContent=''; alert('Arquivo grande demais mesmo depois de preparar. Tente uma versão menor.'); return; }
+    if(dataUrl.length>28*1024*1024){ if(statusEl) statusEl.textContent=''; alert('Arquivo grande demais mesmo depois de preparar. Tente uma versão menor.'); return; }
     if(statusEl) statusEl.textContent='Enviando para a nuvem...';
     const docId='fr_'+Date.now()+'_'+Math.floor(Math.random()*100000);
     
@@ -17072,7 +17072,7 @@ function salvarContrato(){
   const lancOpt=document.querySelector('input[name="ct-lanc"]:checked')?.value||'nao';
   const fileEl=document.getElementById('ct-arquivo');
   const file=fileEl&&fileEl.files&&fileEl.files[0]?fileEl.files[0]:null;
-  if(file&&file.size>5*1024*1024){alert('Arquivo muito grande. Máximo: 5 MB.');return;}
+  if(file&&file.size>20*1024*1024){alert('Arquivo muito grande. Máximo: 20 MB.');return;}
 
   const _finalizarSalvar=(arquivoBase64,arquivoNome,arquivoMime)=>{
     const contrato={
@@ -17303,7 +17303,7 @@ function deNovoDoc(){
       <div class="fg" style="margin:6px 0 0"><label>Avisar quantos dias antes</label>
         <input type="number" min="0" step="1" id="de-avisardias" value="30" style="width:130px"></div>
     </div>
-    <div class="fg"><label>Arquivo (PDF ou imagem, máx. 5 MB)</label>
+    <div class="fg"><label>Arquivo (PDF ou imagem, máx. 20 MB)</label>
       <input type="file" id="de-file-input" accept=".pdf,image/*"
         style="padding:6px;border:1.5px dashed #ccc;border-radius:8px;width:100%;box-sizing:border-box;cursor:pointer">
       ${_btnFoto('de-file-input')}
@@ -17325,7 +17325,7 @@ function deSalvarDoc(){
   if(!empSel){alert('Selecione uma empresa.');return;}
   if(!fileEl||!fileEl.files||!fileEl.files[0]){alert('Selecione um arquivo.');return;}
   const file=fileEl.files[0];
-  if(file.size>5*1024*1024){alert('Arquivo muito grande. Máximo permitido: 5 MB.');return;}
+  if(file.size>20*1024*1024){alert('Arquivo muito grande. Máximo permitido: 20 MB.');return;}
   if(!window._fbDB){ alert('Sem conexão com a nuvem agora. Aguarde alguns segundos e tente de novo — os documentos são guardados na nuvem.'); return; }
   if(statusEl) statusEl.textContent='Enviando para a nuvem...';
   const [empTipo,empNome]=empSel.split('|');

@@ -85,8 +85,8 @@
       }
     },
     "erpUserProfiles": {
+      ".read": "auth != null && auth.token.erpAccess == true",
       "$uid": {
-        ".read": "auth != null && auth.token.erpAccess == true",
         ".write": "auth != null && auth.token.erpAccess == true && auth.uid == $uid",
         "photoPath": {
           ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 500)"

@@ -3,17 +3,17 @@ service firebase.storage {
   match /b/{bucket}/o {
     match /erp-files/funcDocs/{employee}/{fileName} {
       allow read: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canEmployeeDocs == true;
-      allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canEmployeeDocs == true && request.resource.size <= 5 * 1024 * 1024;
+      allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canEmployeeDocs == true && request.resource.size <= 20 * 1024 * 1024;
       allow delete: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canEmployeeDocs == true;
     }
     match /erp-files/empresaDocs/{fileName} {
       allow read: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canBusinessDocs == true;
-      allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canBusinessDocs == true && request.resource.size <= 5 * 1024 * 1024;
+      allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canBusinessDocs == true && request.resource.size <= 20 * 1024 * 1024;
       allow delete: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canBusinessDocs == true;
     }
     match /erp-files/frotaDocs/{vehicle}/{fileName} {
       allow read: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canFleetDocs == true;
-      allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canFleetDocs == true && request.resource.size <= 5 * 1024 * 1024;
+      allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canFleetDocs == true && request.resource.size <= 20 * 1024 * 1024;
       allow delete: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canFleetDocs == true;
     }
     match /erp-files/chat/{conversation}/{fileName} {
