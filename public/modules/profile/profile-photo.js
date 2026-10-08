@@ -37,6 +37,14 @@ function addVersion(url, version) {
   return `${url}${separator}v=${encodeURIComponent(String(version || Date.now()))}`;
 }
 
+function normalizeLogin(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizeName(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 export function initProfilePhoto({
   auth,
   db,
@@ -58,6 +66,17 @@ export function initProfilePhoto({
   let pendingPreviewUrl = '';
   let unsubscribeProfile = null;
   let nameObserver = null;
+
+  let publicProfiles = {};
+  let publicUsers = {};
+  let publicProfilesHandler = null;
+  let publicUsersHandler = null;
+  let publicProfilesErrorHandler = null;
+  let publicUsersErrorHandler = null;
+  let publicAvatarObserver = null;
+  let publicDecorateScheduled = false;
+
+  const publicUrlCache = new Map();
 
   function avatarElements() {
     return AVATAR_SELECTORS
@@ -96,6 +115,269 @@ export function initProfilePhoto({
       initial,
     });
     view.setName(currentDisplayName(currentUser));
+  }
+
+  function profileForLogin(login) {
+    const normalized = normalizeLogin(login);
+    if (!normalized) return null;
+
+    const preferredKeys = [
+      normalized,
+      `erp:${normalized}`,
+    ];
+
+    for (const key of preferredKeys) {
+      if (publicProfiles[key]) {
+        return {
+          uid: key,
+          profile: publicProfiles[key],
+        };
+      }
+    }
+
+    const found = Object.entries(publicProfiles).find(([uid]) => {
+      const normalizedUid = normalizeLogin(uid);
+      if (normalizedUid === normalized) return true;
+      if (normalizedUid === `erp:${normalized}`) return true;
+      return normalizedUid.split(':').pop() === normalized;
+    });
+
+    if (!found) return null;
+
+    return {
+      uid: found[0],
+      profile: found[1],
+    };
+  }
+
+  function loginForName(name) {
+    const normalized = normalizeName(name);
+    if (!normalized) return '';
+
+    const found = Object.entries(publicUsers).find(([, user]) => {
+      return normalizeName(user?.name) === normalized;
+    });
+
+    return found ? found[0] : '';
+  }
+
+  async function publicPhotoUrlForLogin(login) {
+    const entry = profileForLogin(login);
+    if (!entry?.profile?.photoPath) return '';
+
+    const version = Number(entry.profile.updatedAt || 0);
+    const cacheKey = `${entry.profile.photoPath}|${version}`;
+
+    if (publicUrlCache.has(cacheKey)) {
+      return publicUrlCache.get(cacheKey);
+    }
+
+    const rawUrl = await photoStorage.getDownloadUrl(entry.profile.photoPath);
+    const versionedUrl = addVersion(rawUrl, version);
+
+    publicUrlCache.set(cacheKey, versionedUrl);
+    return versionedUrl;
+  }
+
+  async function applyPublicAvatar(element, login) {
+    if (!element) return;
+
+    const normalized = normalizeLogin(login);
+    if (!normalized) {
+      element.classList.remove('erp-profile-public-avatar');
+      element.style.backgroundImage = '';
+      element.style.color = '';
+      delete element.dataset.profilePublicLogin;
+      return;
+    }
+
+    element.dataset.profilePublicLogin = normalized;
+
+    try {
+      const url = await publicPhotoUrlForLogin(normalized);
+
+      if (element.dataset.profilePublicLogin !== normalized) return;
+
+      if (!url) {
+        element.classList.remove('erp-profile-public-avatar');
+        element.style.backgroundImage = '';
+        element.style.color = '';
+        return;
+      }
+
+      element.classList.add('erp-profile-public-avatar');
+      element.style.backgroundImage = `url("${url}")`;
+      element.style.color = 'transparent';
+    } catch (error) {
+      if (element.dataset.profilePublicLogin !== normalized) return;
+
+      element.classList.remove('erp-profile-public-avatar');
+      element.style.backgroundImage = '';
+      element.style.color = '';
+
+      console.warn(
+        `[profile-photo] Foto pública de ${normalized} não pôde ser carregada:`,
+        error,
+      );
+    }
+  }
+
+  function decorateUserCards() {
+    document.querySelectorAll('#users-grid .ucard').forEach((card) => {
+      const login = card.querySelector('.ucard-role code')?.textContent?.trim() || '';
+      const avatar = card.querySelector('.ucard-av');
+
+      if (!login || !avatar) return;
+
+      void applyPublicAvatar(avatar, login);
+    });
+  }
+
+  function decorateChatUsers() {
+    const list = document.getElementById('chat-conv-list');
+    if (!list) return;
+
+    Array.from(list.children).forEach((row) => {
+      if (!(row instanceof HTMLElement)) return;
+
+      const children = Array.from(row.children);
+      if (children.length < 2) return;
+
+      const avatar = children[0];
+      const info = children[1];
+
+      if (!(avatar instanceof HTMLElement)) return;
+      if (!(info instanceof HTMLElement)) return;
+      if (avatar.tagName !== 'DIV') return;
+
+      const name =
+        info.firstElementChild?.textContent?.trim() ||
+        '';
+
+      const login = loginForName(name);
+      if (!login) return;
+
+      void applyPublicAvatar(avatar, login);
+    });
+  }
+
+  function decoratePublicAvatars() {
+    decorateUserCards();
+    decorateChatUsers();
+  }
+
+  function scheduleDecoratePublicAvatars() {
+    if (publicDecorateScheduled) return;
+
+    publicDecorateScheduled = true;
+
+    requestAnimationFrame(() => {
+      publicDecorateScheduled = false;
+      decoratePublicAvatars();
+    });
+  }
+
+  function clearPublicAvatarStyles() {
+    document
+      .querySelectorAll('.erp-profile-public-avatar')
+      .forEach((element) => {
+        element.classList.remove('erp-profile-public-avatar');
+        element.style.backgroundImage = '';
+        element.style.color = '';
+        delete element.dataset.profilePublicLogin;
+      });
+  }
+
+  function stopPublicAvatarSync() {
+    if (publicProfilesHandler) {
+      db.ref('erpUserProfiles').off('value', publicProfilesHandler);
+    }
+
+    if (publicUsersHandler) {
+      db.ref('erp/users').off('value', publicUsersHandler);
+    }
+
+    publicProfilesHandler = null;
+    publicUsersHandler = null;
+    publicProfilesErrorHandler = null;
+    publicUsersErrorHandler = null;
+
+    publicAvatarObserver?.disconnect();
+    publicAvatarObserver = null;
+
+    publicProfiles = {};
+    publicUsers = {};
+    publicUrlCache.clear();
+    clearPublicAvatarStyles();
+  }
+
+  function startPublicAvatarSync() {
+    stopPublicAvatarSync();
+
+    publicProfilesHandler = (snapshot) => {
+      publicProfiles = snapshot.val() || {};
+      publicUrlCache.clear();
+      scheduleDecoratePublicAvatars();
+    };
+
+    publicUsersHandler = (snapshot) => {
+      publicUsers = snapshot.val() || {};
+      scheduleDecoratePublicAvatars();
+    };
+
+    publicProfilesErrorHandler = (error) => {
+      console.warn('[profile-photo] Não foi possível carregar os perfis:', error);
+    };
+
+    publicUsersErrorHandler = (error) => {
+      console.warn('[profile-photo] Não foi possível carregar os usuários:', error);
+    };
+
+    db.ref('erpUserProfiles').on(
+      'value',
+      publicProfilesHandler,
+      publicProfilesErrorHandler,
+    );
+
+    db.ref('erp/users').on(
+      'value',
+      publicUsersHandler,
+      publicUsersErrorHandler,
+    );
+
+    publicAvatarObserver = new MutationObserver((mutations) => {
+      const relevant = mutations.some((mutation) => {
+        if (mutation.type !== 'childList') return false;
+
+        const target = mutation.target;
+        if (!(target instanceof Node)) return false;
+
+        const element =
+          target instanceof Element
+            ? target
+            : target.parentElement;
+
+        if (!element) return false;
+
+        return Boolean(
+          element.closest('#users-grid') ||
+          element.closest('#chat-conv-list') ||
+          element.id === 'users-grid' ||
+          element.id === 'chat-conv-list',
+        );
+      });
+
+      if (relevant) {
+        scheduleDecoratePublicAvatars();
+      }
+    });
+
+    publicAvatarObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    scheduleDecoratePublicAvatars();
   }
 
   function clearPendingPreview() {
@@ -281,11 +563,13 @@ export function initProfilePhoto({
       currentProfile = null;
       currentUrl = '';
       applyAvatar('');
+      stopPublicAvatarSync();
       return;
     }
 
     bindAvatarEvents();
     applyAvatar(currentUrl);
+    startPublicAvatarSync();
 
     unsubscribeProfile = repository.subscribe(
       currentUser.uid,
@@ -327,12 +611,19 @@ export function initProfilePhoto({
       const url = await photoStorage.getDownloadUrl(profile.photoPath);
       return addVersion(url, profile.updatedAt);
     },
+    async getPhotoUrlForLogin(login) {
+      return publicPhotoUrlForLogin(login);
+    },
+    refreshVisibleAvatars() {
+      scheduleDecoratePublicAvatars();
+    },
   };
 
   return () => {
     authUnsubscribe?.();
     unsubscribeProfile?.();
     nameObserver?.disconnect();
+    stopPublicAvatarSync();
     clearPendingPreview();
     delete window.erpProfilePhoto;
   };
