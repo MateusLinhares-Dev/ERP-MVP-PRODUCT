@@ -209,7 +209,17 @@ function _mergeArrayPorId(localArr, remoteArr, idField){
   return [...porId.values()];
 }
 
-function _mergeObjDeArraysPorId(local, remote, target, idField){
+function _mergeObjDeArraysPorId(local, remote, target, idField, confiavel){
+  if(confiavel){
+    Object.keys(target||{}).forEach(function(k){ delete target[k]; });
+    Object.keys(remote||{}).forEach(function(k){
+      const arr=(remote||{})[k];
+      target[k]=Array.isArray(arr)
+        ? arr.filter(Boolean).slice()
+        : (arr && typeof arr==='object' ? Object.values(arr).filter(Boolean) : []);
+    });
+    return;
+  }
   const chaves = new Set(Object.keys(local||{}).concat(Object.keys(remote||{})));
   chaves.forEach(function(k){
     target[k] = _mergeArrayPorId((local||{})[k], (remote||{})[k], idField);
@@ -261,20 +271,20 @@ function _adtSalvarNaNuvem(fornCod){
 }
 
 function _mergeAdtCloudManda(local, remote, target, fbConfiavel, cloudTinhaAdt){
-
   if(!fbConfiavel){ _mergeObjDeArraysPorId(local||{}, remote||{}, target, 'cod'); return; }
-  var temRemote = remote && typeof remote==='object' && Object.keys(remote).length>0;
-  if(cloudTinhaAdt && !temRemote){
 
+  var temRemote = remote && typeof remote==='object' && Object.keys(remote).length>0;
+  if(!temRemote){
+    Object.keys(target).forEach(function(k){ delete target[k]; });
     _adtReporPendentes(target, remote);
     return;
   }
 
   var novo={};
-  if(remote){ Object.keys(remote).forEach(function(k){
+  Object.keys(remote).forEach(function(k){
     var arr=remote[k];
-    novo[k] = Array.isArray(arr) ? arr.slice() : (arr && typeof arr==='object' ? Object.keys(arr).map(function(i){return arr[i];}) : []);
-  }); }
+    novo[k] = Array.isArray(arr) ? arr.slice() : (arr && typeof arr==='object' ? Object.values(arr).filter(Boolean) : []);
+  });
   Object.keys(target).forEach(function(k){ delete target[k]; });
   Object.keys(novo).forEach(function(k){ target[k]=novo[k]; });
   _adtReporPendentes(target, remote);
@@ -348,65 +358,34 @@ function _cpMigrarParaFormatoPorChave(){
 
 
 function _cpCarregarDeRemoto(remotoContasPagar, confiavel){
-  if(Array.isArray(remotoContasPagar)){
-    if(!confiavel && !remotoContasPagar.length) return;
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    const porIdLocal={};
-    CONTAS_PAGAR.forEach(function(c){ if(c&&c.id) porIdLocal[c.id]=c; });
-    remotoContasPagar.forEach(function(rc){
+  const remotoEhArray=Array.isArray(remotoContasPagar);
+  const vals=remotoEhArray
+    ? remotoContasPagar.filter(Boolean)
+    : (remotoContasPagar && typeof remotoContasPagar==='object' ? Object.values(remotoContasPagar).filter(Boolean) : []);
+
+  if(confiavel){
+    CONTAS_PAGAR.length=0;
+    vals.forEach(function(rc){
       if(!rc) return;
       if(!rc.id) rc.id=_cpIdDeterministico(rc);
-      if(CONTAS_PAGAR_DELETED.has(rc.id)) return; 
-      const loc=porIdLocal[rc.id];
-      if(!loc){ CONTAS_PAGAR.push(rc); porIdLocal[rc.id]=rc; return; }
-      if(Number(rc._upd||0) > Number(loc._upd||0)) Object.assign(loc, rc);
+      CONTAS_PAGAR.push(rc);
     });
-    _cpMigrarParaFormatoPorChave();
+    if(remotoEhArray && vals.length) _cpMigrarParaFormatoPorChave();
     return;
   }
-  if(remotoContasPagar && typeof remotoContasPagar==='object'){
-    const vals=Object.values(remotoContasPagar).filter(Boolean);
-    if(!confiavel && !vals.length) return;
-    
-    const locais=CONTAS_PAGAR.slice();
-    CONTAS_PAGAR.length=0;
-    const idsRemotos={};
-    vals.forEach(function(c){ CONTAS_PAGAR.push(c); if(c&&c.id) idsRemotos[c.id]=1; });
-    let mantidos=0;
-    locais.forEach(function(c){
-      if(c && c.id && !idsRemotos[c.id] && !CONTAS_PAGAR_DELETED.has(c.id)){ CONTAS_PAGAR.push(c); mantidos++; }
-    });
-    if(mantidos>0){
-      console.info('contasPagar: '+mantidos+' lançamentos só-locais preservados — reenvio agendado.');
-      try{ localStorage.setItem('mm_fb_pendente','1'); }catch(e){}
-      setTimeout(function(){ try{ fbSalvar(); }catch(e){} }, 2500);
-    }
-  }
+
+  if(!vals.length) return;
+  const porIdLocal={};
+  CONTAS_PAGAR.forEach(function(c){ if(c&&c.id) porIdLocal[c.id]=c; });
+  vals.forEach(function(rc){
+    if(!rc) return;
+    if(!rc.id) rc.id=_cpIdDeterministico(rc);
+    if(CONTAS_PAGAR_DELETED.has(rc.id)) return;
+    const loc=porIdLocal[rc.id];
+    if(!loc){ CONTAS_PAGAR.push(rc); porIdLocal[rc.id]=rc; return; }
+    if(Number(rc._upd||0) > Number(loc._upd||0)) Object.assign(loc,rc);
+  });
+  if(remotoEhArray) _cpMigrarParaFormatoPorChave();
 }
 let CONTAS_PAGAR_DELETED = new Set();
 function _novoIdCP(){ return 'CP'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -562,66 +541,34 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
     }catch(e){ migracaoEmAndamento=false; }
   }
   function carregarDeRemoto(remotoBruto, confiavel){
-    if(Array.isArray(remotoBruto)){
-      if(!confiavel && !remotoBruto.length) return;
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      const porIdLocal={};
-      lista.forEach(function(it){ if(it&&it.id) porIdLocal[it.id]=it; });
-      remotoBruto.forEach(function(item){
+    const remotoEhArray=Array.isArray(remotoBruto);
+    const vals=remotoEhArray
+      ? remotoBruto.filter(Boolean)
+      : (remotoBruto && typeof remotoBruto==='object' ? Object.values(remotoBruto).filter(Boolean) : []);
+
+    if(confiavel){
+      lista.length=0;
+      vals.forEach(function(item){
         if(!item) return;
         if(!item.id) item.id=_idDeterministico(item);
-        if(deletedSet.has(item.id)) return;
-        if(!porIdLocal[item.id]){ lista.push(item); porIdLocal[item.id]=item; }
+        lista.push(item);
       });
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      migrar();
+      if(remotoEhArray && vals.length) migrar();
       return;
     }
-    if(remotoBruto && typeof remotoBruto==='object'){
-      const vals=Object.values(remotoBruto).filter(Boolean);
-      if(!confiavel && !vals.length) return;
-      
-      
-      
-      
-      
-      
-      const locais=lista.slice();
-      lista.length=0;
-      const idsRemotos={};
-      vals.forEach(function(item){ lista.push(item); if(item&&item.id) idsRemotos[item.id]=1; });
-      let mantidos=0;
-      locais.forEach(function(item){
-        if(item && item.id && !idsRemotos[item.id] && !deletedSet.has(item.id)){ lista.push(item); mantidos++; }
-      });
-      if(mantidos>0){
-        console.info('carregarDeRemoto('+nome+'): '+mantidos+' itens só-locais preservados — reenvio agendado.');
-        try{ localStorage.setItem('mm_fb_pendente','1'); }catch(e){}
-        setTimeout(function(){ try{ fbSalvar(); }catch(e){} }, 2500);
-      }
-    }
+
+    if(!vals.length) return;
+    const porIdLocal={};
+    lista.forEach(function(it){ if(it&&it.id) porIdLocal[it.id]=it; });
+    vals.forEach(function(item){
+      if(!item) return;
+      if(!item.id) item.id=_idDeterministico(item);
+      if(deletedSet.has(item.id)) return;
+      const atual=porIdLocal[item.id];
+      if(!atual){ lista.push(item); porIdLocal[item.id]=item; }
+      else Object.assign(atual,item);
+    });
+    if(remotoEhArray) migrar();
   }
   
   
@@ -5282,6 +5229,10 @@ function saveDB(){
   localStorage.setItem('mm_historico',    JSON.stringify(HISTORICO_DB));
 }
 function loadDB(){
+  if((typeof _fbDadosCarregados!=='undefined' && _fbDadosCarregados===true) || window.__FB_DATA_READY__===true){
+    try{ if(typeof refreshMetaisGlobals==='function') refreshMetaisGlobals(); }catch(e){}
+    return;
+  }
   try{
     const cc2=localStorage.getItem('mm_custo_casa'); if(cc2) CUSTO_CASA=JSON.parse(cc2);
     try{ const vp=localStorage.getItem('mm_veicpess');  if(vp) VEICPESS_DB=JSON.parse(vp)||[]; }catch(_){}
@@ -16455,7 +16406,7 @@ let ALX_NOTAS      = [];
 const _syncAlxNotas = _criarSincroniaPorChave('alxNotas', ALX_NOTAS, 'AN');
 let CHAT_MSGS      = [];
 function saveAlmoxa(){ fbSalvar(); localStorage.setItem('mm_almoxa',JSON.stringify(ALX_ITENS)); localStorage.setItem('mm_almoxaMov',JSON.stringify(ALX_MOV)); localStorage.setItem('mm_alxNotas',JSON.stringify(ALX_NOTAS)); }
-function loadAlmoxaLocal(){ try{ const a=localStorage.getItem('mm_almoxa');if(a){ ALX_ITENS.length=0; JSON.parse(a).forEach(x=>ALX_ITENS.push(x)); } const m=localStorage.getItem('mm_almoxaMov');if(m){ ALX_MOV.length=0; JSON.parse(m).forEach(x=>ALX_MOV.push(x)); } const n=localStorage.getItem('mm_alxNotas');if(n){ ALX_NOTAS.length=0; JSON.parse(n).forEach(x=>ALX_NOTAS.push(x)); } }catch(e){} }
+function loadAlmoxaLocal(){ if(window.__FB_DATA_READY__===true) return; try{ const a=localStorage.getItem('mm_almoxa');if(a){ ALX_ITENS.length=0; JSON.parse(a).forEach(x=>ALX_ITENS.push(x)); } const m=localStorage.getItem('mm_almoxaMov');if(m){ ALX_MOV.length=0; JSON.parse(m).forEach(x=>ALX_MOV.push(x)); } const n=localStorage.getItem('mm_alxNotas');if(n){ ALX_NOTAS.length=0; JSON.parse(n).forEach(x=>ALX_NOTAS.push(x)); } }catch(e){} }
 function saveContasPagar(){   fbSalvar(); localStorage.setItem('mm_cp', JSON.stringify(CONTAS_PAGAR)); }
 function saveContasReceber(){ localStorage.setItem('mm_cr', JSON.stringify(CONTAS_RECEBER)); try{fbSalvar();}catch(e){} }
 function saveContratos(){     fbSalvar(); localStorage.setItem('mm_contratos', JSON.stringify(CONTRATOS_DB)); }
@@ -19796,7 +19747,7 @@ const EMPRESAS = [];
 const EMP_COLORS = {};
 
 function saveDespDB(){ localStorage.setItem('mm_desp_grupo', JSON.stringify(DESP_DB)); try{fbSalvar();}catch(e){} }
-function loadDespDB(){ try{ const v=localStorage.getItem('mm_desp_grupo'); if(v){ DESP_DB.length=0; JSON.parse(v).forEach(x=>DESP_DB.push(x)); } }catch(e){} }
+function loadDespDB(){ if(window.__FB_DATA_READY__===true) return; try{ const v=localStorage.getItem('mm_desp_grupo'); if(v){ DESP_DB.length=0; JSON.parse(v).forEach(x=>DESP_DB.push(x)); } }catch(e){} }
 
 function despFmt(v){ return Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2}); }
 
