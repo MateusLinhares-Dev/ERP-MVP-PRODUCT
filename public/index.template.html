@@ -972,16 +972,16 @@
     <div class="tab-panel" id="tab-caminhoes">
       <div class="sec-title">🚛 Frota e Equipamentos</div>
       <div class="kpi-grid">
-        <div class="kpi g"><div class="kpi-lbl">Caminhões</div><div class="kpi-val">10</div><div class="kpi-sub">CAM-001 a CAM-010</div></div>
-        <div class="kpi"><div class="kpi-lbl">Empilhadeiras</div><div class="kpi-val">4</div><div class="kpi-sub">EMP-001 a EMP-004</div></div>
-        <div class="kpi g"><div class="kpi-lbl">Balanças</div><div class="kpi-val">4</div><div class="kpi-sub">BAL-001 a BAL-004</div></div>
-        <div class="kpi"><div class="kpi-lbl">Prensas Hidráulicas</div><div class="kpi-val">3</div><div class="kpi-sub">PRE-001 a PRE-003</div></div>
-        <div class="kpi y"><div class="kpi-lbl">Moedor Alumínio</div><div class="kpi-val">1</div><div class="kpi-sub">MOE-001</div></div>
-        <div class="kpi o"><div class="kpi-lbl">Em Manutenção</div><div class="kpi-val">0</div><div class="kpi-sub">—</div></div>
+        <div class="kpi g"><div class="kpi-lbl">Caminhões</div><div class="kpi-val" id="frota-kpi-caminhoes">0</div><div class="kpi-sub" id="frota-sub-caminhoes">—</div></div>
+        <div class="kpi"><div class="kpi-lbl">Empilhadeiras</div><div class="kpi-val" id="frota-kpi-empilhadeiras">0</div><div class="kpi-sub" id="frota-sub-empilhadeiras">—</div></div>
+        <div class="kpi g"><div class="kpi-lbl">Balanças</div><div class="kpi-val" id="frota-kpi-balancas">0</div><div class="kpi-sub" id="frota-sub-balancas">—</div></div>
+        <div class="kpi"><div class="kpi-lbl">Prensas Hidráulicas</div><div class="kpi-val" id="frota-kpi-prensas">0</div><div class="kpi-sub" id="frota-sub-prensas">—</div></div>
+        <div class="kpi y"><div class="kpi-lbl">Moedor Alumínio</div><div class="kpi-val" id="frota-kpi-moedor">0</div><div class="kpi-sub" id="frota-sub-moedor">—</div></div>
+        <div class="kpi o"><div class="kpi-lbl">Em Manutenção</div><div class="kpi-val" id="frota-kpi-manutencao">0</div><div class="kpi-sub" id="frota-sub-manutencao">—</div></div>
       </div>
       <div class="tcard">
         <div class="tcard-hdr">
-          <div class="tcard-title">Frota e Equipamentos (22)</div>
+          <div class="tcard-title" id="frota-total-titulo">Frota e Equipamentos (0)</div>
           <button class="btn-add" onclick="om('veiculo')">+ Novo Veículo</button>
         </div>
         <table>
@@ -1178,10 +1178,10 @@
     <div class="tab-panel" id="tab-ponto">
       <div class="sec-title">🕐 Controle de Ponto</div>
       <div class="kpi-grid">
-        <div class="kpi"><div class="kpi-lbl">Dias Úteis</div><div class="kpi-val">22</div><div class="kpi-sub">Mês atual</div></div>
-        <div class="kpi g"><div class="kpi-lbl">Funcionários</div><div class="kpi-val">28</div><div class="kpi-sub">No controle</div></div>
-        <div class="kpi r"><div class="kpi-lbl">Faltas</div><div class="kpi-val">0</div><div class="kpi-sub">Mês atual</div></div>
-        <div class="kpi o"><div class="kpi-lbl">Horas Extras</div><div class="kpi-val">0h</div><div class="kpi-sub">Mês atual</div></div>
+        <div class="kpi"><div class="kpi-lbl">Dias Úteis</div><div class="kpi-val" id="kpi-ponto-dias-uteis">0</div><div class="kpi-sub">Mês atual</div></div>
+        <div class="kpi g"><div class="kpi-lbl">Funcionários</div><div class="kpi-val" id="kpi-ponto-funcionarios">0</div><div class="kpi-sub">No controle</div></div>
+        <div class="kpi r"><div class="kpi-lbl">Faltas</div><div class="kpi-val" id="kpi-ponto-faltas">0</div><div class="kpi-sub">Mês atual</div></div>
+        <div class="kpi o"><div class="kpi-lbl">Horas Extras</div><div class="kpi-val" id="kpi-ponto-he">0h</div><div class="kpi-sub">Mês atual</div></div>
       </div>
       <div class="tcard">
         <div class="tcard-hdr"><div class="tcard-title">Ponto Mensal (lançamento manual)</div><button class="btn-add" onclick="om('ponto_lancamento')">+ Lançar Falta/HE</button></div>
@@ -1874,11 +1874,11 @@
 
     <!-- VALES -->
     <div class="tab-panel" id="tab-vales">
-      <div class="sec-title">💳 Controle de Vales – Pagamento Dia 20</div>
+      <div class="sec-title" id="vales-titulo">💳 Controle de Vales – Pagamento Dia 20</div>
       <div class="kpi-grid">
-        <div class="kpi o"><div class="kpi-lbl">Vales do Mês</div><div class="kpi-val">R$ 0</div><div class="kpi-sub">Dia 20 de junho</div></div>
-        <div class="kpi r"><div class="kpi-lbl">Em Aberto</div><div class="kpi-val">0</div><div class="kpi-sub">A pagar</div></div>
-        <div class="kpi g"><div class="kpi-lbl">Total Geral</div><div class="kpi-val">R$ 0</div><div class="kpi-sub">—</div></div>
+        <div class="kpi o"><div class="kpi-lbl">Vales do Mês</div><div class="kpi-val" id="kpi-vales-mes">R$ 0</div><div class="kpi-sub" id="kpi-vales-mes-sub">Mês atual</div></div>
+        <div class="kpi r"><div class="kpi-lbl">Em Aberto</div><div class="kpi-val" id="kpi-vales-aberto">0</div><div class="kpi-sub">A pagar</div></div>
+        <div class="kpi g"><div class="kpi-lbl">Total Geral</div><div class="kpi-val" id="kpi-vales-total">R$ 0</div><div class="kpi-sub">—</div></div>
       </div>
       <div class="tcard">
         <div class="tcard-hdr">
