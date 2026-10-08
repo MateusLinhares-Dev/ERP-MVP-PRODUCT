@@ -155,13 +155,37 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   function _tanqueAplicarNuvem(remoto,confiavel){
     try{
       if(typeof TANQUE_DB==='undefined') return false;
-      if(remoto==null){ if(confiavel&&Array.isArray(TANQUE_DB)) TANQUE_DB.length=0; return false; }
-      const lista=Array.isArray(remoto)?remoto.filter(Boolean):(remoto&&typeof remoto==='object'?Object.values(remoto).filter(Boolean):[]);
+      if(remoto==null){
+        if(confiavel && Array.isArray(TANQUE_DB)){
+          TANQUE_DB.length=0;
+          try{ localStorage.setItem('mm_tanque','[]'); }catch(e){}
+          try{
+            const aba=document.getElementById('tab-combustivel_rudnick');
+            if(aba&&aba.classList.contains('active')){
+              if(typeof renderTanque==='function') renderTanque();
+              if(typeof renderSaidasTanque==='function') renderSaidasTanque();
+              if(typeof renderHistoricoEntradasTanque==='function') renderHistoricoEntradasTanque();
+            }
+          }catch(e){}
+          return true;
+        }
+        return false;
+      }
+      const lista=Array.isArray(remoto)
+        ? remoto.filter(Boolean)
+        : (remoto&&typeof remoto==='object'?Object.values(remoto).filter(Boolean):[]);
       if(!Array.isArray(TANQUE_DB)) return false;
       TANQUE_DB.length=0;
       lista.forEach(function(x){ TANQUE_DB.push(x); });
       try{ localStorage.setItem('mm_tanque',JSON.stringify(TANQUE_DB)); }catch(e){}
-      try{ const aba=document.getElementById('tab-combustivel_rudnick'); if(aba&&aba.classList.contains('active')){ if(typeof renderTanque==='function') renderTanque(); if(typeof renderSaidasTanque==='function') renderSaidasTanque(); if(typeof renderHistoricoEntradasTanque==='function') renderHistoricoEntradasTanque(); } }catch(e){}
+      try{
+        const aba=document.getElementById('tab-combustivel_rudnick');
+        if(aba&&aba.classList.contains('active')){
+          if(typeof renderTanque==='function') renderTanque();
+          if(typeof renderSaidasTanque==='function') renderSaidasTanque();
+          if(typeof renderHistoricoEntradasTanque==='function') renderHistoricoEntradasTanque();
+        }
+      }catch(e){}
       return true;
     }catch(e){ console.warn('tanque sync:',e); return false; }
   }
@@ -1190,11 +1214,11 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           
           function _safeMerge(local, remote, target){
             if(_fbConfiavel){
-              
               Object.keys(target).forEach(k=>delete target[k]);
               if(remote) Object.assign(target, remote);
-              Object.entries(local).forEach(([k,v])=>{ if(!(remote&&remote[k]) && v&&(Array.isArray(v)?v.length:true)) target[k]=v; });
-            } else if(remote && Object.keys(remote).length>0){
+              return;
+            }
+            if(remote && Object.keys(remote).length>0){
               Object.assign(target, remote);
               Object.entries(local).forEach(([k,v])=>{ if(!remote[k] && v&&(Array.isArray(v)?v.length:true)) target[k]=v; });
             }
@@ -1238,7 +1262,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           
           
           _mergeAdtCloudManda(_adtLocal, d.adiantamentos, ADT_POR_FORN, _fbConfiavel, (d._shallowKeys && d._shallowKeys.indexOf('adiantamentos')>=0));
-          _mergeObjDeArraysPorId(_cheqLocal, d.cheques||{},       CHEQUES_POR_FORN, 'id');
+          _mergeObjDeArraysPorId(_cheqLocal, d.cheques||{},       CHEQUES_POR_FORN, 'id', _fbConfiavel);
           _safeMerge(_saldLocal, d.saldos||{},        SALDO_DEVEDOR_FORN);
           
           
@@ -1608,7 +1632,9 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           const _mergeObj=(local,remote,target)=>{
             Object.keys(target).forEach(k=>delete target[k]);
             if(remote) Object.assign(target,remote);
-            Object.entries(local).forEach(([k,v])=>{if(!(remote&&remote[k])&&v&&(Array.isArray(v)?v.length:true))target[k]=v;});
+            if(!_fbConf2){
+              Object.entries(local).forEach(([k,v])=>{if(!(remote&&remote[k])&&v&&(Array.isArray(v)?v.length:true))target[k]=v;});
+            }
           };
           
           
@@ -1653,7 +1679,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           
           
           { const loc=JSON.parse(JSON.stringify(ADT_POR_FORN)); _mergeAdtCloudManda(loc, d.adiantamentos, ADT_POR_FORN, _fbConf2, (d._shallowKeys && d._shallowKeys.indexOf('adiantamentos')>=0)); }
-          { const loc=JSON.parse(JSON.stringify(CHEQUES_POR_FORN)); _mergeObjDeArraysPorId(loc, d.cheques||{}, CHEQUES_POR_FORN, 'id'); }
+          { const loc=JSON.parse(JSON.stringify(CHEQUES_POR_FORN)); _mergeObjDeArraysPorId(loc, d.cheques||{}, CHEQUES_POR_FORN, 'id', _fbConf2); }
           { const loc=JSON.parse(JSON.stringify(SALDO_DEVEDOR_FORN)); _mergeObj(loc, d.saldos||{}, SALDO_DEVEDOR_FORN); }
           _fcAplicarNuvem(d);
           _cpCarregarDeRemoto(d.contasPagar, !!d._ts);
