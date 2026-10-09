@@ -10890,18 +10890,29 @@ const IDENT_OPTS = IDENT.map(i=>`<option>${i}</option>`).join('');
 
 
 
-const IDENT_SEPARA_ESTOQUE = new Set(['304','316','410','430','201','310']);
+const IDENT_SEPARA_ESTOQUE = new Set(IDENT);
 
 
 
 
 function _matEfetivoEstoque(mat, ident){
   const id=(ident||'').trim().toUpperCase();
-  const m=(mat||'').trim();
+  const m=(mat||'').trim().replace(/\s+/g,' ');
   if(!m||!id||!IDENT_SEPARA_ESTOQUE.has(id)) return m;
-  
   if(m.toUpperCase().endsWith(' '+id)) return m;
   return m+' '+id;
+}
+
+function _normalizarChaveMaterialEstoque(nome){
+  return String(nome||'').trim().replace(/\s+/g,' ').toUpperCase();
+}
+
+function _materialEfetivoDoItem(item){
+  const it=item||{};
+  const original=String(it.mat||'').trim();
+  const base=String(it.matBase||original).trim();
+  const efetivo=_matEfetivoEstoque(base,it.ident||'');
+  return efetivo||original;
 }
 
 
@@ -14048,21 +14059,22 @@ function loadEstoque(){
 }
 
 function getEntradasMaterial(mat){
-  
+  const alvo=_normalizarChaveMaterialEstoque(mat);
+  if(!alvo) return 0;
   return Object.values(TICKETS_DB).reduce((s,tk)=>{
-    return s + (tk.itens||[]).filter(it=>it.mat===mat).reduce((ss,it)=>ss+Number(it.pesoLiq||0),0);
+    return s + (tk.itens||[]).filter(it=>_normalizarChaveMaterialEstoque(_materialEfetivoDoItem(it))===alvo).reduce((ss,it)=>ss+Number(it.pesoLiq||0),0);
   },0);
 }
 
 function getSaidasMaterial(mat){
-  
+  const alvo=_normalizarChaveMaterialEstoque(mat);
+  if(!alvo) return 0;
   let s = VENDAS_DB.reduce((acc,vd)=>{
-    return acc + (vd.itens||[]).filter(it=>it.mat===mat).reduce((ss,it)=>ss+Number(it.qt||0),0);
+    return acc + (vd.itens||[]).filter(it=>_normalizarChaveMaterialEstoque(_materialEfetivoDoItem(it))===alvo).reduce((ss,it)=>ss+Number(it.qt||0),0);
   },0);
   
   
   try{
-    const alvo=String(mat||'').trim().toUpperCase();
     if(typeof FC_LANC==='object' && FC_LANC){
       Object.keys(FC_LANC).forEach(function(cli){
         (FC_LANC[cli]||[]).forEach(function(l){
@@ -14129,8 +14141,18 @@ function refreshMetaisGlobals(){
 function _recuperarMateriaisComMovimento(silent){
   try{
     const nomes=new Set();
-    Object.values(TICKETS_DB||{}).forEach(function(tk){ (tk&&tk.itens||[]).forEach(function(it){ if(it&&it.mat) nomes.add(it.mat); if(it&&it.matBase) nomes.add(it.matBase); }); });
-    (typeof VENDAS_DB!=='undefined'?VENDAS_DB:[]).forEach(function(vd){ (vd&&vd.itens||[]).forEach(function(it){ if(it&&it.mat) nomes.add(it.mat); }); });
+    Object.values(TICKETS_DB||{}).forEach(function(tk){
+      (tk&&tk.itens||[]).forEach(function(it){
+        const nome=_materialEfetivoDoItem(it);
+        if(nome) nomes.add(nome);
+      });
+    });
+    (typeof VENDAS_DB!=='undefined'?VENDAS_DB:[]).forEach(function(vd){
+      (vd&&vd.itens||[]).forEach(function(it){
+        const nome=_materialEfetivoDoItem(it);
+        if(nome) nomes.add(nome);
+      });
+    });
     
     try{ Object.keys(ESTOQUE_DB||{}).forEach(function(k){ if(k) nomes.add(k); }); }catch(e){}
     let mudou=false;
@@ -14151,60 +14173,36 @@ function _recuperarMateriaisComMovimento(silent){
 
 
 
-const _COND_SUFIXOS=['COM FERRO','100%','DL','DM','DF','LIMPO','SUJO','MISTO','PRENSADO','SOLTO','FERRO'];
-function _baseMaterial(nome){
-  let n=String(nome||'').trim().toUpperCase().replace(/\s+/g,' ');
-  let mudou=true;
-  while(mudou){ mudou=false;
-    for(let i=0;i<_COND_SUFIXOS.length;i++){
-      const suf=_COND_SUFIXOS[i];
-      if(n.length>suf.length+1 && n.endsWith(' '+suf)){ n=n.slice(0, n.length-suf.length-1).trim(); mudou=true; }
-    }
-  }
-  return n;
-}
 function renderEstoque(){
   const tbE=document.getElementById('tb-estoque');
   if(!tbE) return;
   try{ _recuperarMateriaisComMovimento(); }catch(e){}
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const _isEl=_usuarioAtualEhAdmin();
-  
-  const grupos={};
-  METAIS.forEach(m=>{
-    const base=_baseMaterial(m);
-    const e=ESTOQUE_DB[m]||{inicial:0,saidas:0,precoVenda:0};
-    if(!grupos[base]) grupos[base]={inicial:0,entradas:0,saidas:0,preco:0,membros:[]};
-    const g=grupos[base];
-    g.inicial+=Number(e.inicial||0);
-    g.entradas+=getEntradasMaterial(m);
-    g.saidas+=getSaidasMaterial(m)+Number(e.saidas||0);
-    if(g.preco===0 && Number(e.precoVenda||0)>0) g.preco=Number(e.precoVenda);
-    g.membros.push(m);
-  });
-  const bases=Object.keys(grupos).sort((a,b)=>a.localeCompare(b,'pt-BR'));
-  const rows=bases.map(base=>{
-    const g=grupos[base];
-    
-    const precoBase=Number((ESTOQUE_DB[base]||{}).precoVenda||0)||g.preco;
-    const saldo=g.inicial+g.entradas-g.saidas;
-    const valor=saldo*precoBase;
+  const materiais=(METAIS||[]).filter(Boolean).slice().sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{sensitivity:'base'}));
+  const rows=materiais.map(mat=>{
+    const e=ESTOQUE_DB[mat]||{inicial:0,saidas:0,precoVenda:0};
+    const inicial=Number(e.inicial||0);
+    const entradas=getEntradasMaterial(mat);
+    const saidas=getSaidasMaterial(mat)+Number(e.saidas||0);
+    const preco=Number(e.precoVenda||0);
+    const saldo=inicial+entradas-saidas;
+    const valor=saldo*preco;
     const st=saldo>0?'b-ativo':saldo<0?'b-pend':'b-zerado';
     const stTxt=saldo>0?'OK':saldo<0?'NEGATIVO':'ZERADO';
-    const nMembros=g.membros.length;
-    return {saldo, entradasAuto:g.entradas, valor, html:
-      '<tr>'+
-      '<td><b>'+esc(base)+'</b>'+(nMembros>1?' <small style="color:#888;font-weight:400" title="'+esc(g.membros.join(', '))+'">('+nMembros+' formas)</small>':'')+'</td>'+
-      '<td style="text-align:right">'+g.inicial.toFixed(1)+'</td>'+
-      '<td style="text-align:right;color:var(--success)">'+g.entradas.toFixed(1)+'</td>'+
-      '<td style="text-align:right;color:var(--danger)">'+g.saidas.toFixed(1)+'</td>'+
-      '<td style="text-align:right;font-weight:800">'+saldo.toFixed(1)+' kg</td>'+
-      '<td style="text-align:right">R$ '+fmt(precoBase)+'</td>'+
-      '<td style="text-align:right">R$ '+fmt(valor)+'</td>'+
-      '<td><span class="b '+st+'">'+stTxt+'</span></td>'+
-      '<td style="white-space:nowrap"><button class="btn-edit" onclick="editEstoque(&#39;'+esc(base).replace(/'/g,"\\'")+'&#39;)">✏️ Editar</button>'+
-      (_isEl?' <button class="btn-edit-danger" title="Excluir material do cadastro" onclick="excluirMaterial(&#39;'+esc(base).replace(/'/g,"\\'")+'&#39;)">🗑️</button>':'')+
-      '</td>'+
+    return {saldo, entradasAuto:entradas, valor, html:
+      '<tr>'+ 
+      '<td><b>'+esc(mat)+'</b></td>'+ 
+      '<td style="text-align:right">'+inicial.toFixed(1)+'</td>'+ 
+      '<td style="text-align:right;color:var(--success)">'+entradas.toFixed(1)+'</td>'+ 
+      '<td style="text-align:right;color:var(--danger)">'+saidas.toFixed(1)+'</td>'+ 
+      '<td style="text-align:right;font-weight:800">'+saldo.toFixed(1)+' kg</td>'+ 
+      '<td style="text-align:right">R$ '+fmt(preco)+'</td>'+ 
+      '<td style="text-align:right">R$ '+fmt(valor)+'</td>'+ 
+      '<td><span class="b '+st+'">'+stTxt+'</span></td>'+ 
+      '<td style="white-space:nowrap"><button class="btn-edit" onclick="editEstoque(&#39;'+esc(mat).replace(/'/g,"\\'")+'&#39;)">✏️ Editar</button>'+ 
+      (_isEl?' <button class="btn-edit-danger" title="Excluir material do cadastro" onclick="excluirMaterial(&#39;'+esc(mat).replace(/'/g,"\\'")+'&#39;)">🗑️</button>':'')+
+      '</td>'+ 
     '</tr>'};
   });
   tbE.innerHTML=rows.map(r=>r.html).join('');
@@ -14213,7 +14211,7 @@ function renderEstoque(){
   const totalEnt=rows.reduce((s,r)=>s+r.entradasAuto,0);
   const totalValor=rows.reduce((s,r)=>s+r.valor,0);
   const el=id=>document.getElementById(id);
-  if(el('kpi-est-total-mat')) el('kpi-est-total-mat').textContent=bases.length;
+  if(el('kpi-est-total-mat')) el('kpi-est-total-mat').textContent=materiais.length;
   if(el('kpi-est-saldo')) el('kpi-est-saldo').textContent=totalSaldo.toFixed(1)+' kg';
   if(el('kpi-est-entradas')) el('kpi-est-entradas').textContent=totalEnt.toFixed(1)+' kg';
   if(el('kpi-est-valor')) el('kpi-est-valor').textContent='R$ '+fmt(totalValor);
@@ -19208,11 +19206,15 @@ function salvarVenda(){
     const row=document.getElementById('vrow-'+i);
     if(!row) continue;
     const sels=row.querySelectorAll('select');
-    const mat=sels[0]?.value||'';
+    const matBase=sels[0]?.value||'';
     const ident=sels[1]?.value||'';
+    const mat=_matEfetivoEstoque(matBase,ident);
     const qt=parseFloat(document.getElementById('vqt-'+i)?.value)||0;
     const pr=parseFloat(document.getElementById('vpr-'+i)?.value)||0;
-    if(qt>0) itens.push({mat,ident,qt,pr,total:qt*pr});
+    if(qt>0){
+      if(mat && !METAIS.includes(mat)) _garantirMetalCadastrado(mat);
+      itens.push({mat,matBase,ident,qt,pr,total:qt*pr});
+    }
   }
   if(itens.length===0){showToast('⚠️ Adicione pelo menos um item!','error');return;}
 
