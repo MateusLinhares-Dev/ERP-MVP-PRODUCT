@@ -144,3 +144,37 @@ test('v30 successful save only clears pending state when no newer change arrived
   assert.match(firebaseSyncV30,/const _versaoSalvar=_fbChangeVersion/);
   assert.match(firebaseSyncV30,/const _semMudancaNova=_fbChangeVersion===_versaoSalvar/);
 });
+
+
+test('v30 inventory keeps every material condition as its own stock key',()=>{
+  assert.match(appCoreV30,/const IDENT_SEPARA_ESTOQUE = new Set\(IDENT\)/);
+  assert.match(appCoreV30,/function _materialEfetivoDoItem\(item\)/);
+  assert.match(appCoreV30,/const matEstoque=_matEfetivoEstoque\(mat,id\)/);
+  assert.match(appCoreV30,/const mat=_matEfetivoEstoque\(matBase,ident\)/);
+  assert.match(appCoreV30,/itens\.push\(\{mat,matBase,ident,qt,pr,total:qt\*pr\}\)/);
+});
+
+test('v30 inventory resolves legacy purchase and sale items by material plus identifier',()=>{
+  const entradasStart=appCoreV30.indexOf('function getEntradasMaterial(mat)');
+  const entradasEnd=appCoreV30.indexOf('function _dedupeMetais()',entradasStart);
+  const entradasBlock=appCoreV30.slice(entradasStart,entradasEnd);
+  assert.match(entradasBlock,/_materialEfetivoDoItem\(it\)/);
+  assert.match(entradasBlock,/_normalizarChaveMaterialEstoque/);
+  const recuperarStart=appCoreV30.indexOf('function _recuperarMateriaisComMovimento');
+  const recuperarEnd=appCoreV30.indexOf('function renderEstoque()',recuperarStart);
+  const recuperarBlock=appCoreV30.slice(recuperarStart,recuperarEnd);
+  assert.match(recuperarBlock,/_materialEfetivoDoItem\(it\)/);
+  assert.doesNotMatch(recuperarBlock,/nomes\.add\(it\.matBase\)/);
+});
+
+test('v30 stock screen never consolidates LIMPO MISTO 100 percent or other forms',()=>{
+  const renderStart=appCoreV30.indexOf('function renderEstoque()');
+  const renderEnd=appCoreV30.indexOf('function excluirMaterial',renderStart);
+  const renderBlock=appCoreV30.slice(renderStart,renderEnd);
+  assert.doesNotMatch(renderBlock,/grupos/);
+  assert.doesNotMatch(renderBlock,/formas/);
+  assert.doesNotMatch(renderBlock,/_baseMaterial/);
+  assert.match(renderBlock,/const materiais=\(METAIS\|\|\[\]\)/);
+  assert.match(renderBlock,/getEntradasMaterial\(mat\)/);
+  assert.match(renderBlock,/getSaidasMaterial\(mat\)/);
+});
