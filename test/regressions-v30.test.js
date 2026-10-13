@@ -58,6 +58,7 @@ test('v30 deployment guide documents local HML prod and Vercel Functions split',
 });
 
 const appCoreV30 = fs.readFileSync('public/legacy/app-core.js','utf8');
+const legacyStylesV30 = fs.readFileSync('public/legacy/styles.css','utf8');
 const emulatorLauncherV30 = fs.readFileSync('scripts/emulators.mjs','utf8');
 const vercelLauncherV30 = fs.readFileSync('scripts/vercel-dev.mjs','utf8');
 
@@ -178,3 +179,25 @@ test('v30 stock screen never consolidates LIMPO MISTO 100 percent or other forms
   assert.match(renderBlock,/getEntradasMaterial\(mat\)/);
   assert.match(renderBlock,/getSaidasMaterial\(mat\)/);
 });
+
+test('v30 supplier price editor clearly marks the row being edited by keyboard or mouse',()=>{
+  const renderStart=appCoreV30.indexOf('function renderPrecosFornTab()');
+  const renderEnd=appCoreV30.indexOf('function _hojeFormatado()',renderStart);
+  const renderBlock=appCoreV30.slice(renderStart,renderEnd);
+  assert.match(renderBlock,/id="pf-edit-context"/);
+  assert.match(renderBlock,/class="price-edit-row"/);
+  assert.match(renderBlock,/class="price-edit-input"/);
+  assert.match(renderBlock,/class="price-edit-badge">EDITANDO/);
+  assert.match(renderBlock,/onfocus="precoAtivarLinha\(this,'pf'\)"/);
+  assert.match(renderBlock,/oninput="precoAtualizarContexto\(this,'pf'\)"/);
+  assert.match(renderBlock,/onblur="precoDesativarLinha\(this,'pf'\)"/);
+  assert.match(appCoreV30,/function precoAtivarLinha\(el,prefix\)/);
+  assert.match(appCoreV30,/function precoAtualizarContexto\(el,prefix\)/);
+  assert.match(appCoreV30,/function precoDesativarLinha\(el,prefix\)/);
+  assert.match(appCoreV30,/linha '\+String\(idx\+1\)\+' de '/);
+  assert.match(legacyStylesV30,/\.price-edit-row\.is-editing td/);
+  assert.match(legacyStylesV30,/\.price-edit-row:focus-within td/);
+  assert.match(legacyStylesV30,/\.price-edit-input:focus/);
+  assert.match(legacyStylesV30,/box-shadow:inset 5px 0 0 var\(--accent\)/);
+});
+

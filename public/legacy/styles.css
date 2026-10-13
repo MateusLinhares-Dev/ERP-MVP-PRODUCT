@@ -177,6 +177,53 @@ tbody td{padding:10px 16px;font-size:.82rem;border-bottom:1px solid var(--gray-l
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover td{background:#f5f8f6}
 
+.price-edit-context{
+  margin:0 0 10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;
+  background:var(--gray-lightest);color:var(--gray);font-size:.78rem;font-weight:700;
+  line-height:1.35;transition:background var(--transition),border-color var(--transition),color var(--transition),box-shadow var(--transition)
+}
+.price-edit-context.is-active{
+  background:var(--warn-light);border-color:#e0b43f;color:#6f5200;
+  box-shadow:0 0 0 3px rgba(200,164,0,.12)
+}
+.price-edit-context.has-last{
+  background:#eef7f1;border-color:#b9d8c4;color:#245c38
+}
+.price-edit-table .price-edit-row td{
+  transition:background var(--transition),box-shadow var(--transition),color var(--transition)
+}
+.price-edit-table .price-edit-row.is-editing td,
+.price-edit-table .price-edit-row:focus-within td{
+  background:#fff8dc!important
+}
+.price-edit-table .price-edit-row.is-editing td:first-child,
+.price-edit-table .price-edit-row:focus-within td:first-child{
+  box-shadow:inset 5px 0 0 var(--accent)
+}
+.price-edit-material-name{font-weight:600}
+.price-edit-row.is-editing .price-edit-material-name,
+.price-edit-row:focus-within .price-edit-material-name{
+  color:var(--primary-dark);font-weight:900
+}
+.price-edit-badge{
+  display:none;margin-left:9px;padding:2px 7px;border-radius:999px;
+  background:var(--accent);color:var(--primary-dark);font-size:.62rem;font-weight:900;
+  letter-spacing:.4px;vertical-align:middle
+}
+.price-edit-row.is-editing .price-edit-badge,
+.price-edit-row:focus-within .price-edit-badge{
+  display:inline-flex
+}
+.price-edit-input{
+  width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 8px;
+  text-align:right;font-size:.85rem;background:#fff;outline:none;
+  transition:border-color var(--transition),box-shadow var(--transition),background var(--transition)
+}
+.price-edit-input:focus{
+  border:2px solid var(--accent);padding:4px 7px;
+  box-shadow:0 0 0 3px rgba(200,164,0,.18);background:#fffef8
+}
+
 /* ═══ Badges ═══ */
 .b{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:.68rem;font-weight:700;letter-spacing:.2px;white-space:nowrap}
 .b-ativo,.b-pago,.b-normal,.b-compensado{background:var(--success-light);color:#0d5c2e}
