@@ -201,3 +201,33 @@ test('v30 supplier price editor clearly marks the row being edited by keyboard o
   assert.match(legacyStylesV30,/box-shadow:inset 5px 0 0 var\(--accent\)/);
 });
 
+
+test('v30 purchase receipt snapshots and renders every advance and cheque that composes the deduction',()=>{
+  const saveStart=appCoreV30.indexOf('function salvarCompra(');
+  const saveEnd=appCoreV30.indexOf('function limparCompra',saveStart);
+  const saveBlock=appCoreV30.slice(saveStart,saveEnd>saveStart?saveEnd:saveStart+30000);
+  assert.match(saveBlock,/const _reciboAdiantamentos=pendentesAdt\.map/);
+  assert.match(saveBlock,/const _reciboCheques=pendentesCheq\.map/);
+  assert.match(saveBlock,/valorAplicado:_r2\(usado\)/);
+  assert.match(saveBlock,/_detAdt\.valorPendente=_r2\(Math\.max\(0,vAdt-usado\)\)/);
+  assert.match(saveBlock,/reciboFinanceiro:\{versao:1,total:_r2\(adtEfetivo\),adiantamentos:_reciboAdiantamentos,cheques:_reciboCheques\}/);
+
+  assert.match(appCoreV30,/function _reciboFinanceiroDoTicket\(tk\)/);
+  assert.match(appCoreV30,/function _abatimentosReciboRowsHtml\(tk,fmt,pad\)/);
+  assert.match(appCoreV30,/Adiantamento não quitado/);
+  assert.match(appCoreV30,/Cheque\$\{rotulo\} pendente/);
+  assert.match(appCoreV30,/Adiantamento \/ saldo financeiro registrado no ticket/);
+  assert.match(appCoreV30,/function _abatimentosReciboTexto\(tk,fmt\)/);
+
+  const printStart=appCoreV30.indexOf('function imprimirCanhoto()');
+  const printEnd=appCoreV30.indexOf('async function compartilharImagem()',printStart);
+  const printBlock=appCoreV30.slice(printStart,printEnd);
+  assert.match(printBlock,/_adtDescontadosRowsHtml\(tk,fmt\)/);
+  assert.doesNotMatch(printBlock,/const adtsNaoQuit=/);
+
+  const imageStart=appCoreV30.indexOf('async function compartilharImagem()');
+  const imageEnd=appCoreV30.indexOf('function ',imageStart+20);
+  const imageBlock=appCoreV30.slice(imageStart,imageEnd>imageStart?imageEnd:imageStart+16000);
+  assert.match(imageBlock,/_adtDescontadosRowsHtml\(tk,fmt,7\)/);
+  assert.doesNotMatch(imageBlock,/const adtsNaoQuit=/);
+});
