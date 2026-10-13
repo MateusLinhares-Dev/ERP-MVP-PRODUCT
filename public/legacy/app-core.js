@@ -10754,26 +10754,19 @@ function importarPlanilhaCheques(input){
   });
 }
 
+function _baixarTemplateEstatico(caminho,nome){
+  const a=document.createElement('a');
+  a.href=caminho;
+  a.download=nome;
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  try{showToast('Template baixado: '+nome,'success');}catch(e){}
+}
+
 function downloadTemplateCheques(){
-  _loadSheetJS(()=>{
-    
-    const titulo=['Controle de Cheques','','','','','',''];
-    
-    const headers=['N do Cheque','Banco (SELECIONAR)','Data de saida','Cliente Destino','Valor','Compensado Dia:','Situacao (SELECIONAR)'];
-    
-    const primeiroBanco=_cfgChequeBanks().map(function(x){return x.name;})[0]||'';
-    const hoje=new Date().toLocaleDateString('pt-BR');
-    const exemplos=primeiroBanco?[[1,primeiroBanco,hoje,'Cliente / Destino',0,'','PENDENTE']]:[];
-    const ws=XLSX.utils.aoa_to_sheet([titulo,headers,...exemplos]);
-    
-    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:6}}];
-    
-    ws['!cols']=[{wch:14},{wch:20},{wch:14},{wch:22},{wch:14},{wch:16},{wch:24}];
-    const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,'Controle de Cheques',ws);
-    XLSX.writeFile(wb,'controle_cheques.xlsx');
-    showToast('Template baixado: controle_cheques.xlsx','success');
-  });
+  _baixarTemplateEstatico('/templates/controle_cheques.xlsx','controle_cheques.xlsx');
 }
 
 
@@ -10977,20 +10970,7 @@ function importarPlanilhaChequesCli(input){
 }
 
 function downloadTemplateChequesCli(){
-  _loadSheetJS(()=>{
-    const titulo=['Cheques de Clientes','','','','','',''];
-    const headers=['N do Cheque','Banco','Data','Cliente','Valor','Bom Para','Situacao'];
-    const primeiroBanco=(Array.isArray(BANCOS_DB)&&BANCOS_DB[0])?String(BANCOS_DB[0].banco||''):'';
-    const hoje=new Date().toLocaleDateString('pt-BR');
-    const exemplos=primeiroBanco?[[1,primeiroBanco,hoje,'Cliente',0,'','PENDENTE']]:[];
-    const ws=XLSX.utils.aoa_to_sheet([titulo,headers,...exemplos]);
-    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:6}}];
-    ws['!cols']=[{wch:14},{wch:18},{wch:14},{wch:20},{wch:14},{wch:14},{wch:20}];
-    const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,'Cheques Clientes',ws);
-    XLSX.writeFile(wb,'cheques_clientes.xlsx');
-    try{showToast('Template baixado: cheques_clientes.xlsx','success');}catch(e){}
-  });
+  _baixarTemplateEstatico('/templates/cheques_clientes.xlsx','cheques_clientes.xlsx');
 }
 
 function salvarChequesCli(){
