@@ -9911,6 +9911,76 @@ function precoNavKey(e, el, prefix){
   }
 }
 
+function _precoEntidadeEmEdicao(prefix){
+  const selId=prefix==='pf'?'pf-forn-sel':prefix==='pc'?'pc-cli-sel':'';
+  const sel=selId?document.getElementById(selId):null;
+  if(!sel) return '';
+  const opt=sel.options&&sel.selectedIndex>=0?sel.options[sel.selectedIndex]:null;
+  return String((opt&&opt.textContent)||sel.value||'').trim();
+}
+
+function _precoValorEmEdicao(el){
+  const raw=String(el&&el.value!=null?el.value:'').trim();
+  if(!raw) return 'valor ainda não informado';
+  const n=Number(raw.replace(',','.'));
+  if(!Number.isFinite(n)) return raw;
+  return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'/kg';
+}
+
+function _precoContextoTexto(el,prefix,estado){
+  const row=el&&el.closest?el.closest('.price-edit-row'):null;
+  const material=String((row&&row.dataset.material)||el?.dataset?.material||'').trim();
+  const idx=parseInt(el?.dataset?.idx||'0',10);
+  const total=document.querySelectorAll('[data-precoprefix="'+prefix+'"]').length;
+  const entidade=_precoEntidadeEmEdicao(prefix);
+  const posicao='linha '+String(idx+1)+' de '+String(total||1);
+  const valor=_precoValorEmEdicao(el);
+  const acao=estado==='last'?'Última edição':'EDITANDO';
+  return acao+' • '+posicao+' • '+material+(entidade?' • '+entidade:'')+' • '+valor;
+}
+
+function precoAtivarLinha(el,prefix){
+  if(!el) return;
+  document.querySelectorAll('.price-edit-row.is-editing').forEach(function(row){ row.classList.remove('is-editing'); });
+  const row=el.closest('.price-edit-row');
+  if(row) row.classList.add('is-editing');
+  const box=document.getElementById(prefix+'-edit-context');
+  if(box){
+    box.classList.add('is-active');
+    box.classList.remove('has-last');
+    box.textContent='✏️ '+_precoContextoTexto(el,prefix,'active');
+  }
+  try{ el.scrollIntoView({block:'nearest',inline:'nearest'}); }catch(e){}
+}
+
+function precoAtualizarContexto(el,prefix){
+  if(!el) return;
+  const row=el.closest('.price-edit-row');
+  if(row&&!row.classList.contains('is-editing')) precoAtivarLinha(el,prefix);
+  const box=document.getElementById(prefix+'-edit-context');
+  if(box){
+    box.classList.add('is-active');
+    box.classList.remove('has-last');
+    box.textContent='✏️ '+_precoContextoTexto(el,prefix,'active');
+  }
+}
+
+function precoDesativarLinha(el,prefix){
+  if(!el) return;
+  const row=el.closest('.price-edit-row');
+  setTimeout(function(){
+    const ativo=document.activeElement;
+    if(ativo&&ativo.matches&&ativo.matches('[data-precoprefix="'+prefix+'"]')) return;
+    if(row) row.classList.remove('is-editing');
+    const box=document.getElementById(prefix+'-edit-context');
+    if(box){
+      box.classList.remove('is-active');
+      box.classList.add('has-last');
+      box.textContent='✓ '+_precoContextoTexto(el,prefix,'last');
+    }
+  },0);
+}
+
 function renderPrecosFornTab(){
   const div=document.getElementById('precos-forn-container');
   if(!div)return;
@@ -9929,26 +9999,36 @@ function renderPrecosFornTab(){
   if(shareBar && comPreco>0) shareBar.style.display='flex';
   else if(shareBar) shareBar.style.display='none';
   div.innerHTML=`
-    <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+    <div id="pf-edit-context" class="price-edit-context" role="status" aria-live="polite">
+      Clique em um preço ou use Tab, Enter, ↑ e ↓. A linha em edição ficará destacada.
+    </div>
+    <table class="price-edit-table" style="width:100%;border-collapse:collapse;font-size:.85rem">
       <thead><tr style="background:var(--primary);color:#fff">
         <th style="padding:8px 12px;text-align:left">Material</th>
         <th style="padding:8px 12px;text-align:center;width:160px">Preço R$/kg</th>
         <th style="padding:8px 12px;text-align:center;width:130px">Última Atualização</th>
       </tr></thead>
       <tbody>
-        ${METAIS.map(m=>{
+        ${METAIS.map((m,idx)=>{
           const val=precos[m]||'';
           const dataAt=datas[m]||'';
           const idKey=m.replace(/[^a-zA-Z0-9]/g,'_');
-          return `<tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:6px 12px">${m}</td>
+          return `<tr class="price-edit-row" data-material="${esc(m)}" data-row-index="${idx}" style="border-bottom:1px solid var(--border)">
+            <td class="price-edit-material" style="padding:6px 12px">
+              <span class="price-edit-material-name">${esc(m)}</span>
+              <span class="price-edit-badge">EDITANDO</span>
+            </td>
             <td style="padding:4px 8px">
               <input type="number" min="0" step="0.01" value="${val}" placeholder="0,00"
                 id="pf_${cod}_${idKey}"
-                data-precoprefix="pf" data-idx="${METAIS.indexOf(m)}"
-                style="width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 8px;text-align:right;font-size:.85rem"
+                class="price-edit-input"
+                data-precoprefix="pf" data-idx="${idx}" data-cod="${esc(cod)}" data-material="${esc(m)}"
+                aria-label="Preço de compra de ${esc(m)}"
+                onfocus="precoAtivarLinha(this,'pf')"
+                oninput="precoAtualizarContexto(this,'pf')"
+                onblur="precoDesativarLinha(this,'pf')"
                 onkeydown="precoNavKey(event,this,'pf')"
-                onchange="salvarPrecoFornInline('${cod}','${m}',this)">
+                onchange="salvarPrecoFornInline(this.dataset.cod,this.dataset.material,this)">
             </td>
             <td style="padding:4px 8px;text-align:center" id="pf_data_${cod}_${idKey}">
               ${dataAt
@@ -9960,7 +10040,7 @@ function renderPrecosFornTab(){
       </tbody>
     </table>
     <div style="margin-top:12px;padding:10px 14px;background:#e8f5e9;border-radius:8px;font-size:.8rem;color:#2e7d32">
-      ✅ Preços salvos automaticamente ao digitar. ${comPreco} material(is) com preço definido para ${forn?forn.nome:cod}. Datas atualizam a cada edição ou compra.
+      ✅ Preços salvos automaticamente ao concluir a edição do campo. ${comPreco} material(is) com preço definido para ${forn?forn.nome:cod}. Datas atualizam a cada edição ou compra.
     </div>`;
 }
 
