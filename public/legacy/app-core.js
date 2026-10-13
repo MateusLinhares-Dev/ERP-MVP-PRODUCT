@@ -2231,26 +2231,129 @@ function _adtsDescontadosTicket(tk){
   const fornCod=tk.fornecedorCod||tk.fornCod||'';
   return (ADT_POR_FORN[fornCod]||[]).filter(a=>a.status==='Quitado'&&a.ticket===tk.ticket);
 }
-function _adtDescontadosRowsHtml(tk,fmt,pad){
-  pad=pad||8;
-  const lista=_adtsDescontadosTicket(tk);
-  if(!lista.length) return '';
-  return lista.map(a=>
-    `<tr style="color:#5a7a68">
-      <td colspan="5" style="padding:2px ${pad}px;text-align:right;font-size:10.5px">↳ Adiantamento ${fmtDate(a.data)||''}${a.forma?' ('+a.forma+')':''}${a.cod?' – '+a.cod:''}</td>
-      <td style="padding:2px ${pad}px;text-align:right;font-size:10.5px">R$ ${fmt(a.valor)}</td>
-    </tr>`
-  ).join('');
-}
-function _adtDescontadosTexto(tk,fmt){
-  const lista=_adtsDescontadosTicket(tk);
-  if(!lista.length) return '';
-  let t='';
-  lista.forEach(a=>{
-    t+=`   ↳ ${fmtDate(a.data)||''}${a.forma?' ('+a.forma+')':''} – R$ ${fmt(a.valor)}\n`;
+
+function _reciboFinanceiroDoTicket(tk){
+  const alvo=Math.max(0,_numFinito(tk&&tk.adiantamento,0));
+  const snap=tk&&tk.reciboFinanceiro;
+  if(snap&&typeof snap==='object'&&(Array.isArray(snap.adiantamentos)||Array.isArray(snap.cheques))){
+    return {
+      total:alvo,
+      adiantamentos:(snap.adiantamentos||[]).map(a=>({
+        cod:a&&a.cod||'', data:a&&a.data||'', forma:a&&a.forma||'', bancoNome:a&&a.bancoNome||'',
+        valorOriginal:Math.max(0,_numFinito(a&&a.valorOriginal,0)),
+        valorAplicado:Math.max(0,_numFinito(a&&a.valorAplicado,0)),
+        valorPendente:Math.max(0,_numFinito(a&&a.valorPendente,0))
+      })),
+      cheques:(snap.cheques||[]).map(c=>({
+        id:c&&c.id||'', num:c&&c.num||'', banco:c&&c.banco||'', bomPara:c&&c.bomPara||'',
+        valorOriginal:Math.max(0,_numFinito(c&&c.valorOriginal,0)),
+        valorAplicado:Math.max(0,_numFinito(c&&c.valorAplicado,0)),
+        valorPendente:Math.max(0,_numFinito(c&&c.valorPendente,0))
+      })),
+      legado:[]
+    };
+  }
+
+  const fornCod=tk&&(tk.fornecedorCod||tk.fornCod)||'';
+  const adts=(ADT_POR_FORN[fornCod]||[]);
+  const cheqs=(CHEQUES_POR_FORN[fornCod]||[]);
+  const adiantamentos=[];
+  const cheques=[];
+  const legado=[];
+  let restante=alvo;
+  const pegar=function(v){
+    const n=Math.max(0,_numFinito(v,0));
+    const usado=Math.min(n,Math.max(0,restante));
+    restante=Math.max(0,_r2(restante-usado));
+    return _r2(usado);
+  };
+
+  adts.filter(a=>a.status==='Quitado'&&a.ticket===tk.ticket).forEach(a=>{
+    if(restante<=0) return;
+    const v=pegar(a.valor);
+    if(v>0) adiantamentos.push({cod:a.cod||'',data:a.data||'',forma:a.forma||'',bancoNome:a.bancoNome||'',valorOriginal:v,valorAplicado:v,valorPendente:0});
   });
+  adts.filter(a=>a.status!=='Quitado'&&Number(a.valor||0)>0).forEach(a=>{
+    if(restante<=0) return;
+    const v=pegar(a.valor);
+    if(v>0) adiantamentos.push({cod:a.cod||'',data:a.data||'',forma:a.forma||'',bancoNome:a.bancoNome||'',valorOriginal:v,valorAplicado:0,valorPendente:v});
+  });
+  cheqs.filter(c=>c.status==='Quitado'&&(c.vinculo===tk.ticket||c.ticket===tk.ticket)).forEach(c=>{
+    if(restante<=0) return;
+    const v=pegar(c.valor);
+    if(v>0) cheques.push({id:c.id||'',num:c.num||c.numero||'',banco:c.banco||'',bomPara:c.bomPara||c.data||'',valorOriginal:v,valorAplicado:v,valorPendente:0});
+  });
+  cheqs.filter(c=>c.status==='Pendente'&&Number(c.valor||0)>0).forEach(c=>{
+    if(restante<=0) return;
+    const v=pegar(c.valor);
+    if(v>0) cheques.push({id:c.id||'',num:c.num||c.numero||'',banco:c.banco||'',bomPara:c.bomPara||c.data||'',valorOriginal:v,valorAplicado:0,valorPendente:v});
+  });
+  if(restante>0.005) legado.push({valor:_r2(restante)});
+  return {total:alvo,adiantamentos,cheques,legado};
+}
+
+function _abatimentosReciboRowsHtml(tk,fmt,pad){
+  pad=pad||8;
+  const det=_reciboFinanceiroDoTicket(tk);
+  let html='';
+  det.adiantamentos.forEach(a=>{
+    if(a.valorAplicado>0.005){
+      html+=`<tr style="color:#5a7a68">
+        <td colspan="5" style="padding:2px ${pad}px;text-align:right;font-size:10.5px">↳ Adiantamento ${fmtDate(a.data)||''}${a.forma?' ('+a.forma+')':''}${a.cod?' – '+a.cod:''}</td>
+        <td style="padding:2px ${pad}px;text-align:right;font-size:10.5px">R$ ${fmt(a.valorAplicado)}</td>
+      </tr>`;
+    }
+    if(a.valorPendente>0.005){
+      html+=`<tr style="color:#e67e22">
+        <td colspan="5" style="padding:3px ${pad}px;text-align:right;font-size:10.5px">💰 Adiantamento não quitado – ${fmtDate(a.data)||''}${a.forma?' ('+a.forma+')':''}${a.cod?' – '+a.cod:''}</td>
+        <td style="padding:3px ${pad}px;text-align:right;font-size:10.5px">R$ ${fmt(a.valorPendente)}</td>
+      </tr>`;
+    }
+  });
+  det.cheques.forEach(c=>{
+    const rotulo=c.num?' nº '+c.num:'';
+    const data=fmtDate(c.bomPara)||'';
+    if(c.valorAplicado>0.005){
+      html+=`<tr style="color:#5a7a68">
+        <td colspan="5" style="padding:2px ${pad}px;text-align:right;font-size:10.5px">↳ Cheque${rotulo} aplicado${data?' – '+data:''}</td>
+        <td style="padding:2px ${pad}px;text-align:right;font-size:10.5px">R$ ${fmt(c.valorAplicado)}</td>
+      </tr>`;
+    }
+    if(c.valorPendente>0.005){
+      html+=`<tr style="color:#b36b00">
+        <td colspan="5" style="padding:3px ${pad}px;text-align:right;font-size:10.5px">📋 Cheque${rotulo} pendente${data?' – '+data:''}</td>
+        <td style="padding:3px ${pad}px;text-align:right;font-size:10.5px">R$ ${fmt(c.valorPendente)}</td>
+      </tr>`;
+    }
+  });
+  det.legado.forEach(x=>{
+    html+=`<tr style="color:#7f8c8d">
+      <td colspan="5" style="padding:3px ${pad}px;text-align:right;font-size:10.5px">↳ Adiantamento / saldo financeiro registrado no ticket</td>
+      <td style="padding:3px ${pad}px;text-align:right;font-size:10.5px">R$ ${fmt(x.valor)}</td>
+    </tr>`;
+  });
+  return html;
+}
+
+function _abatimentosReciboTexto(tk,fmt){
+  const det=_reciboFinanceiroDoTicket(tk);
+  let t='';
+  det.adiantamentos.forEach(a=>{
+    if(a.valorAplicado>0.005) t+=`   ↳ Adiantamento ${fmtDate(a.data)||''}${a.forma?' ('+a.forma+')':''}${a.cod?' – '+a.cod:''}: R$ ${fmt(a.valorAplicado)}\n`;
+    if(a.valorPendente>0.005) t+=`   💰 Adiantamento não quitado – ${fmtDate(a.data)||''}${a.forma?' ('+a.forma+')':''}${a.cod?' – '+a.cod:''}: R$ ${fmt(a.valorPendente)}\n`;
+  });
+  det.cheques.forEach(c=>{
+    const rotulo=c.num?' nº '+c.num:'';
+    const data=fmtDate(c.bomPara)||'';
+    if(c.valorAplicado>0.005) t+=`   ↳ Cheque${rotulo} aplicado${data?' – '+data:''}: R$ ${fmt(c.valorAplicado)}\n`;
+    if(c.valorPendente>0.005) t+=`   📋 Cheque${rotulo} pendente${data?' – '+data:''}: R$ ${fmt(c.valorPendente)}\n`;
+  });
+  det.legado.forEach(x=>{ t+=`   ↳ Adiantamento / saldo financeiro registrado no ticket: R$ ${fmt(x.valor)}\n`; });
   return t;
 }
+
+function _adtDescontadosRowsHtml(tk,fmt,pad){ return _abatimentosReciboRowsHtml(tk,fmt,pad); }
+function _adtDescontadosTexto(tk,fmt){ return _abatimentosReciboTexto(tk,fmt); }
 
 function selecionarTicket(tNum){
   const tk=TICKETS_DB[tNum];
@@ -3181,9 +3284,6 @@ function imprimirCanhoto(){
   const fornCod=tk.fornecedorCod||tk.fornCod||'';
 
   
-  const adtsNaoQuit=(ADT_POR_FORN[fornCod]||[]).filter(a=>a.status!=='Quitado'&&Number(a.valor||0)>0);
-  const totalAdtNQ=adtsNaoQuit.reduce((s,a)=>s+Number(a.valor||0),0);
-
   
   const sdRaw=SALDO_DEVEDOR_FORN[fornCod];
   const sdValor=sdRaw?(typeof sdRaw==='object'?(sdRaw.valor||0):Number(sdRaw||0)):0;
@@ -3206,14 +3306,6 @@ function imprimirCanhoto(){
       <td colspan="5" style="padding:6px 8px;text-align:right">⚠️ Saldo Negativo Anterior${sdData?' ('+sdData+')':''}</td>
       <td style="padding:6px 8px;text-align:right">+R$ ${fmt(sdValor)}</td>
     </tr>`;
-  }
-  if(adtsNaoQuit.length>0){
-    adtsNaoQuit.forEach(a=>{
-      extrasHtml+=`<tr style="color:#e67e22">
-        <td colspan="5" style="padding:4px 8px;text-align:right;font-size:11px">💰 Adiantamento não quitado – ${fmtDate(a.data)||''}</td>
-        <td style="padding:4px 8px;text-align:right;font-size:11px">R$ ${fmt(a.valor)}</td>
-      </tr>`;
-    });
   }
 
   const win=window.open('','_blank','width=700,height=900');
@@ -3292,7 +3384,6 @@ async function compartilharImagem(){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const fornCod=tk.fornecedorCod||tk.fornCod||'';
 
-  const adtsNaoQuit=(ADT_POR_FORN[fornCod]||[]).filter(a=>a.status!=='Quitado'&&Number(a.valor||0)>0);
   const sdRaw=SALDO_DEVEDOR_FORN[fornCod];
   const sdValor=sdRaw?(typeof sdRaw==='object'?(sdRaw.valor||0):Number(sdRaw||0)):0;
   const sdData=sdRaw&&typeof sdRaw==='object'?sdRaw.data:'';
@@ -3313,11 +3404,6 @@ async function compartilharImagem(){
       <td colspan="5" style="padding:5px 7px;text-align:right">⚠️ Saldo Negativo Anterior${sdData?' ('+sdData+')':''}</td>
       <td style="padding:5px 7px;text-align:right">+R$ ${fmt(sdValor)}</td></tr>`;
   }
-  adtsNaoQuit.forEach(a=>{
-    extrasHtml+=`<tr style="color:#e67e22">
-      <td colspan="5" style="padding:3px 7px;text-align:right;font-size:11px">💰 Adiantamento não quitado – ${fmtDate(a.data)||''}</td>
-      <td style="padding:3px 7px;text-align:right;font-size:11px">R$ ${fmt(a.valor)}</td></tr>`;
-  });
 
   const wrapper=document.createElement('div');
   wrapper.style.cssText='position:fixed;left:-9999px;top:0;width:620px;background:#fff;padding:32px;font-family:Segoe UI,Arial,sans-serif;font-size:13px;color:#111;z-index:-1';
@@ -10198,6 +10284,16 @@ function salvarCompra(forcar, ignorarFaltantes){
   const _adtSelecionados=_adtChks.length ? new Set(_adtChks.filter(c=>c.checked).map(c=>c.dataset.cod)) : null;
   const pendentesAdt=ADT_POR_FORN[fornCod].filter(a=>a.status==='Pendente'&&(!_adtSelecionados||_adtSelecionados.has(a.cod)));
   const pendentesCheq=CHEQUES_POR_FORN[fornCod].filter(c=>c.status==='Pendente');
+  const _reciboAdiantamentos=pendentesAdt.map(a=>({
+    cod:a.cod||'', data:a.data||'', forma:a.forma||'', bancoNome:a.bancoNome||'',
+    valorOriginal:_r2(Math.max(0,Number(a.valor)||0)), valorAplicado:0,
+    valorPendente:_r2(Math.max(0,Number(a.valor)||0))
+  }));
+  const _reciboCheques=pendentesCheq.map(c=>({
+    id:c.id||'', num:c.num||c.numero||'', banco:c.banco||'', bomPara:c.bomPara||c.data||'',
+    valorOriginal:_r2(Math.max(0,Number(c.valor)||0)), valorAplicado:0,
+    valorPendente:_r2(Math.max(0,Number(c.valor)||0))
+  }));
   const totalAdtPendente=pendentesAdt.reduce((s,a)=>s+Number(a.valor),0);
   const totalCheqPendente=pendentesCheq.reduce((s,c)=>s+Number(c.valor),0);
   const totalPendenteGeral=totalAdtPendente+totalCheqPendente;
@@ -10211,20 +10307,19 @@ function salvarCompra(forcar, ignorarFaltantes){
   
   
   let aRestante=totalGeral;
-  for(const a of pendentesAdt){
+  for(let _ai=0;_ai<pendentesAdt.length;_ai++){
+    const a=pendentesAdt[_ai];
     if(aRestante<=0) break;
     const vAdt=Number(a.valor);
     const usado=Math.min(vAdt, aRestante);
+    const _detAdt=_reciboAdiantamentos[_ai];
+    if(_detAdt){
+      _detAdt.valorAplicado=_r2(usado);
+      _detAdt.valorPendente=_r2(Math.max(0,vAdt-usado));
+    }
     if(usado>=vAdt){
-      
       a.status='Quitado'; a.ticket=a.ticket||ticket;
     } else {
-      
-      
-      
-      
-      
-      
       const codParcial='ADT'+String(Date.now()).slice(-6);
       ADT_POR_FORN[fornCod].push({
         cod:codParcial, data:dataFmt, valor:usado,
@@ -10232,24 +10327,36 @@ function salvarCompra(forcar, ignorarFaltantes){
         bancoCod:a.bancoCod||'', bancoNome:a.bancoNome||'',
         obs:'Quitação parcial de '+a.cod+' — compra '+dataFmt
       });
-      a.valor=vAdt-usado; 
+      a.valor=vAdt-usado;
     }
     aRestante-=usado;
   }
   
   let cRestante=aRestante; 
-  for(const c of pendentesCheq){
+  for(let _ci=0;_ci<pendentesCheq.length;_ci++){
+    const c=pendentesCheq[_ci];
     if(cRestante<=0) break;
     const vCheq=Number(c.valor);
+    const usado=Math.min(vCheq,cRestante);
+    const _detCheq=_reciboCheques[_ci];
+    if(_detCheq){
+      _detCheq.valorAplicado=_r2(usado);
+      _detCheq.valorPendente=_r2(Math.max(0,vCheq-usado));
+    }
     if(vCheq<=cRestante){
       c.status='Quitado'; c.vinculo=c.vinculo||ticket;
     }
-    cRestante-=Math.min(vCheq,cRestante);
+    cRestante-=usado;
   }
   
   if(adtManual>0 && totalAdtPendente===0 && totalCheqPendente===0){
     const cod='ADT'+String(Date.now()).slice(-6);
-    ADT_POR_FORN[fornCod].push({cod,data:dataFmt,valor:Math.min(adtManual,totalGeral),status:'Quitado',ticket,forma:'Manual',origem:'compra_inline'});
+    const usado=Math.min(adtManual,totalGeral);
+    ADT_POR_FORN[fornCod].push({cod,data:dataFmt,valor:usado,status:'Quitado',ticket,forma:'Manual',origem:'compra_inline'});
+    _reciboAdiantamentos.push({
+      cod,data:dataFmt,forma:'Manual',bancoNome:'',valorOriginal:_r2(adtManual),
+      valorAplicado:_r2(usado),valorPendente:_r2(Math.max(0,adtManual-usado))
+    });
   }
   
   
@@ -10280,6 +10387,7 @@ function salvarCompra(forcar, ignorarFaltantes){
     fornecedorCod:fornCod, fornecedor:fornNome,
     fornecedorTel:forn?.tel||'',
     adiantamento:adtEfetivo, saldoAnterior:saldoAnterior||0, itens, totalGeral, saldoPagar,
+    reciboFinanceiro:{versao:1,total:_r2(adtEfetivo),adiantamentos:_reciboAdiantamentos,cheques:_reciboCheques},
     acrescimo: valorExtra||0,
     acrescimos: extrasCompra.map(function(e){ return {v:e.v, obs:e.obs, quando:_hojeISO()}; })
   };
