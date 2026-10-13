@@ -231,3 +231,23 @@ test('v30 purchase receipt snapshots and renders every advance and cheque that c
   assert.match(imageBlock,/_adtDescontadosRowsHtml\(tk,fmt,7\)/);
   assert.doesNotMatch(imageBlock,/const adtsNaoQuit=/);
 });
+
+test('v30 cheque templates are local static assets and do not depend on SheetJS to download',()=>{
+  assert.ok(fs.existsSync('public/templates/cheques_clientes.xlsx'));
+  assert.ok(fs.existsSync('public/templates/controle_cheques.xlsx'));
+  assert.match(appCoreV30,/function _baixarTemplateEstatico\(caminho,nome\)/);
+
+  const cliStart=appCoreV30.indexOf('function downloadTemplateChequesCli()');
+  const cliEnd=appCoreV30.indexOf('function salvarChequesCli()',cliStart);
+  const cliBlock=appCoreV30.slice(cliStart,cliEnd);
+  assert.match(cliBlock,/\/templates\/cheques_clientes\.xlsx/);
+  assert.doesNotMatch(cliBlock,/_loadSheetJS/);
+  assert.doesNotMatch(cliBlock,/XLSX\.writeFile/);
+
+  const ctrlStart=appCoreV30.indexOf('function downloadTemplateCheques()');
+  const ctrlEnd=appCoreV30.indexOf('function addCheqRow()',ctrlStart);
+  const ctrlBlock=appCoreV30.slice(ctrlStart,ctrlEnd);
+  assert.match(ctrlBlock,/\/templates\/controle_cheques\.xlsx/);
+  assert.doesNotMatch(ctrlBlock,/_loadSheetJS/);
+  assert.doesNotMatch(ctrlBlock,/XLSX\.writeFile/);
+});
