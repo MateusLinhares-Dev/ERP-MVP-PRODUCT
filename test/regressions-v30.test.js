@@ -251,3 +251,31 @@ test('v30 cheque templates are local static assets and do not depend on SheetJS 
   assert.doesNotMatch(ctrlBlock,/_loadSheetJS/);
   assert.doesNotMatch(ctrlBlock,/XLSX\.writeFile/);
 });
+
+test('v30 personal cost area tab highlight follows the selected area in legacy and dynamic markup',()=>{
+  const start=appCoreV30.indexOf('function _ccRenderAreaTabs()');
+  const end=appCoreV30.indexOf('function ccSetArea(',start);
+  const block=appCoreV30.slice(start,end);
+  assert.match(block,/document\.getElementById\('cc-area-tabs'\)/);
+  assert.match(block,/document\.getElementById\('cc-aba-'\+item\.name\)/);
+  assert.match(block,/btn\.style\.borderBottomColor=ativo\?'#1a5e2a':'transparent'/);
+  assert.match(block,/btn\.style\.color=ativo\?'#1a5e2a':'#999'/);
+  assert.match(block,/aria-selected/);
+});
+
+test('v30 supplier advance value accepts pasted Brazilian currency without losing thousands',()=>{
+  assert.match(appCoreV30,/id="adt-valor" type="text" inputmode="decimal"/);
+  assert.match(appCoreV30,/onblur="_adtFormatValorPrincipal\(\)"/);
+  const parserStart=appCoreV30.indexOf('function _adtParseVal(s)');
+  const parserEnd=appCoreV30.indexOf('function _populateBancosSelects()',parserStart);
+  const parserBlock=appCoreV30.slice(parserStart,parserEnd);
+  assert.match(parserBlock,/ultimaVirgula/);
+  assert.match(parserBlock,/ultimoPonto/);
+  assert.match(parserBlock,/s=s\.replace\(\/\\\.\/g,''\)\.replace\(',','\.'\)/);
+  assert.match(parserBlock,/function _adtFormatValorPrincipal\(\)/);
+  const saveStart=appCoreV30.indexOf('function salvarAdiantamento()');
+  const saveEnd=appCoreV30.indexOf('function ',saveStart+30);
+  const saveBlock=appCoreV30.slice(saveStart,saveEnd>saveStart?saveEnd:saveStart+12000);
+  assert.match(saveBlock,/_adtParseVal\(document\.getElementById\('adt-valor'\)/);
+  assert.doesNotMatch(saveBlock,/parseFloat\(document\.getElementById\('adt-valor'\)/);
+});
