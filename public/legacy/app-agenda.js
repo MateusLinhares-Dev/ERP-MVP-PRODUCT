@@ -1,17 +1,114 @@
 function _agdHoje(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function _agdBr(iso){ if(!iso) return '?'; const p=String(iso).split('-'); return p.length===3 ? (p[2]+'/'+p[1]+'/'+p[0]) : iso; }
 function agendaPersist(){ try{ localStorage.setItem('mm_agenda', JSON.stringify(AGENDA_DB)); }catch(e){} }
+function _agdPrepararUI(){
+  const legacyData=document.getElementById('agd-data');
+  const legacyCard=legacyData&&legacyData.closest?legacyData.closest('.card'):null;
+  if(legacyCard) legacyCard.remove();
+  const timeline=document.getElementById('agd-timeline');
+  const head=timeline&&timeline.previousElementSibling;
+  if(head&&!document.getElementById('agd-click-hint')){
+    const hint=document.createElement('span');
+    hint.id='agd-click-hint';
+    hint.textContent='Clique em um horário vazio para agendar';
+    hint.style.cssText='font-size:.74rem;color:#6f7f76;font-weight:600';
+    const titulo=head.querySelector('b');
+    if(titulo&&titulo.nextSibling) head.insertBefore(hint,titulo.nextSibling);
+    else head.appendChild(hint);
+  }
+}
+
+function _agdEscHtml(t){
+  return String(t==null?'':t).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function _agdListaNomes(tipo){
+  const nomes=new Set();
+  try{
+    if(tipo==='Cliente'){
+      (typeof CLIENTES!=='undefined'?CLIENTES:[]).forEach(function(c){
+        if(c&&c.nome) nomes.add(String(c.nome).trim());
+      });
+    }else{
+      (typeof FORNECEDORES!=='undefined'?FORNECEDORES:[]).forEach(function(f){
+        if(!f||!f.nome) return;
+        if(typeof FORN_DELETED!=='undefined'&&FORN_DELETED&&FORN_DELETED.has&&FORN_DELETED.has(f.cod)) return;
+        nomes.add(String(f.nome).trim());
+      });
+    }
+  }catch(e){}
+  return [...nomes].filter(Boolean).sort(function(a,b){return a.localeCompare(b,'pt-BR',{sensitivity:'base'});});
+}
+function _agdNovoAtualizaNomes(){
+  const tipo=(document.getElementById('agd-novo-tipo')||{}).value||'Fornecedor';
+  const sel=document.getElementById('agd-novo-nome');
+  if(!sel) return;
+  const anterior=sel.value;
+  const nomes=_agdListaNomes(tipo);
+  sel.innerHTML='<option value="">— Selecione '+(tipo==='Cliente'?'o cliente':'o fornecedor')+' —</option>'
+    +nomes.map(function(n){return '<option value="'+_agdEscHtml(n)+'">'+_agdEscHtml(n)+'</option>';}).join('');
+  if(anterior&&nomes.includes(anterior)) sel.value=anterior;
+}
+function agendaAbrirNovo(data,hora){
+  const old=document.getElementById('agd-novo-ov'); if(old) old.remove();
+  const selData=data||_agdDataFiltro()||_agdHoje();
+  const selHora=hora||'';
+  const ov=document.createElement('div');
+  ov.id='agd-novo-ov';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.onclick=function(ev){ if(ev.target===ov) ov.remove(); };
+  const card=document.createElement('div');
+  card.style.cssText='background:#fff;border-radius:16px;max-width:520px;width:100%;max-height:92vh;overflow-y:auto;padding:20px 22px;box-shadow:0 14px 46px rgba(0,0,0,.28)';
+  card.innerHTML=
+    '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid #e9ecea;padding-bottom:12px;margin-bottom:14px">'+
+      '<div><div style="font-size:1.05rem;font-weight:800;color:#163d2a">📅 Agendar entrega</div>'+
+      '<div style="font-size:.78rem;color:#7a8780;margin-top:3px">'+_agdBr(selData)+(selHora?' às '+_agdEscHtml(selHora):'')+'</div></div>'+
+      '<button type="button" onclick="document.getElementById(\'agd-novo-ov\').remove()" style="border:none;background:#f2f4f3;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:1rem">✕</button>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      '<div><label style="font-size:.75rem;font-weight:800;color:#68766f">DATA</label><input id="agd-novo-data" type="date" value="'+_agdEscHtml(selData)+'" style="width:100%;box-sizing:border-box;margin-top:4px;padding:9px 10px;border:1.5px solid #d5dbd7;border-radius:8px"></div>'+
+      '<div><label style="font-size:.75rem;font-weight:800;color:#68766f">HORA</label><input id="agd-novo-hora" type="time" value="'+_agdEscHtml(selHora)+'" style="width:100%;box-sizing:border-box;margin-top:4px;padding:9px 10px;border:1.5px solid #d5dbd7;border-radius:8px"></div>'+
+      '<div><label style="font-size:.75rem;font-weight:800;color:#68766f">TIPO</label><select id="agd-novo-tipo" onchange="_agdNovoAtualizaNomes()" style="width:100%;box-sizing:border-box;margin-top:4px;padding:9px 10px;border:1.5px solid #d5dbd7;border-radius:8px"><option>Fornecedor</option><option>Cliente</option></select></div>'+
+      '<div><label style="font-size:.75rem;font-weight:800;color:#68766f">QUEM VEM</label><select id="agd-novo-nome" style="width:100%;box-sizing:border-box;margin-top:4px;padding:9px 10px;border:1.5px solid #d5dbd7;border-radius:8px"><option value="">— Selecione —</option></select></div>'+
+    '</div>'+
+    '<div style="margin-top:12px"><label style="font-size:.75rem;font-weight:800;color:#68766f">MATERIAL</label><input id="agd-novo-material" placeholder="Ex: cobre misto, latinha..." style="width:100%;box-sizing:border-box;margin-top:4px;padding:9px 10px;border:1.5px solid #d5dbd7;border-radius:8px"></div>'+
+    '<div style="margin-top:12px"><label style="font-size:.75rem;font-weight:800;color:#68766f">OBSERVAÇÃO</label><input id="agd-novo-obs" placeholder="Placa, quantidade prevista..." style="width:100%;box-sizing:border-box;margin-top:4px;padding:9px 10px;border:1.5px solid #d5dbd7;border-radius:8px"></div>'+
+    '<details style="margin-top:14px;border:1px solid #e7ebe8;border-radius:9px;padding:9px 11px">'+
+      '<summary style="cursor:pointer;font-size:.8rem;font-weight:800;color:#4f6258">🔁 Repetir agendamento</summary>'+
+      '<div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;padding-top:10px">'+
+        '<div><label style="font-size:.72rem;font-weight:700;color:#68766f">Repetir a cada</label><br><input type="number" id="agd-novo-rep-dias" min="0" step="1" placeholder="0" style="width:80px;padding:8px;border:1.5px solid #d5dbd7;border-radius:7px"> <span style="font-size:.78rem">dias</span></div>'+
+        '<div><label style="font-size:.72rem;font-weight:700;color:#68766f">Durante</label><br><input type="number" id="agd-novo-rep-meses" min="1" step="1" value="3" style="width:80px;padding:8px;border:1.5px solid #d5dbd7;border-radius:7px"> <span style="font-size:.78rem">meses</span></div>'+
+      '</div>'+
+    '</details>'+
+    '<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;border-top:1px solid #eef0ef;padding-top:14px">'+
+      '<button type="button" onclick="document.getElementById(\'agd-novo-ov\').remove()" style="padding:9px 16px;border:1px solid #d4dad6;border-radius:8px;background:#fff;color:#5c6962;font-weight:700;cursor:pointer">Cancelar</button>'+
+      '<button type="button" class="btn-save" onclick="agendaNovo()" style="padding:10px 18px">➕ Agendar</button>'+
+    '</div>';
+  ov.appendChild(card);
+  document.body.appendChild(ov);
+  _agdNovoAtualizaNomes();
+  setTimeout(function(){ const n=document.getElementById('agd-novo-nome'); if(n) n.focus(); },20);
+}
 function agendaNovo(){
-  const data=document.getElementById('agd-data').value;
-  const hora=document.getElementById('agd-hora').value;
-  const tipo=document.getElementById('agd-tipo').value;
-  const nome=(document.getElementById('agd-nome').value||'').trim();
-  const material=(document.getElementById('agd-material').value||'').trim();
-  const obs=(document.getElementById('agd-obs').value||'').trim();
+  const modal=!!document.getElementById('agd-novo-ov');
+  const id=function(novo,antigo){ return document.getElementById(novo)||document.getElementById(antigo); };
+  const dataEl=id('agd-novo-data','agd-data');
+  const horaEl=id('agd-novo-hora','agd-hora');
+  const tipoEl=id('agd-novo-tipo','agd-tipo');
+  const nomeEl=id('agd-novo-nome','agd-nome');
+  const materialEl=id('agd-novo-material','agd-material');
+  const obsEl=id('agd-novo-obs','agd-obs');
+  const data=(dataEl&&dataEl.value)||'';
+  const hora=(horaEl&&horaEl.value)||'';
+  const tipo=(tipoEl&&tipoEl.value)||'Fornecedor';
+  const nome=((nomeEl&&nomeEl.value)||'').trim();
+  const material=((materialEl&&materialEl.value)||'').trim();
+  const obs=((obsEl&&obsEl.value)||'').trim();
   if(!data){ showToast('Escolha a data da entrega','error'); return; }
-  if(!nome){ showToast('Informe o nome do fornecedor/cliente','error'); return; }
-  const _rdEl=document.getElementById('agd-rep-dias');
-  const _rmEl=document.getElementById('agd-rep-meses');
+  if(!nome){ showToast('Selecione quem vem para a entrega','error'); if(nomeEl) nomeEl.focus(); return; }
+  const _rdEl=id('agd-novo-rep-dias','agd-rep-dias');
+  const _rmEl=id('agd-novo-rep-meses','agd-rep-meses');
   const repDias=_rdEl?(parseInt(_rdEl.value,10)||0):0;
   const repMeses=_rmEl?(parseInt(_rmEl.value,10)||3):3;
   const datas=[data];
@@ -28,9 +125,15 @@ function agendaNovo(){
     AGENDA_DB.push({ id:_syncAgenda.novoId(), data:dt, hora:hora||'', tipo:tipo, nome:nome, material:material, obs:obs, status:'Agendado', criadoPor:(typeof cu!=='undefined'&&cu)?cu.name:'', _upd:Date.now() });
   });
   agendaPersist(); try{ fbSalvar(); }catch(e){}
-  document.getElementById('agd-nome').value=''; document.getElementById('agd-material').value=''; document.getElementById('agd-obs').value='';
-  if(_rdEl) _rdEl.value='';
-  showToast(datas.length>1 ? ('✅ '+datas.length+' entregas agendadas pra '+nome+' (horário fixo '+(hora||'sem hora')+')') : ('✅ Entrega agendada: '+nome),'success');
+  const filtro=document.getElementById('agd-filtro-data'); if(filtro) filtro.value=data;
+  if(modal){ const ov=document.getElementById('agd-novo-ov'); if(ov) ov.remove(); }
+  if(!modal){
+    if(nomeEl) nomeEl.value='';
+    if(materialEl) materialEl.value='';
+    if(obsEl) obsEl.value='';
+    if(_rdEl) _rdEl.value='';
+  }
+  showToast(datas.length>1 ? ('✅ '+datas.length+' entregas agendadas para '+nome+' (horário fixo '+(hora||'sem hora')+')') : ('✅ Entrega agendada: '+nome),'success');
   agendaRender();
 }
 function agendaStatus(id, novo){
@@ -69,6 +172,7 @@ function agendaWhats(id){
   window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(msg),'_blank');
 }
 function agendaRender(){
+  try{ _agdPrepararUI(); }catch(e){}
   const tb=document.getElementById('agd-tbody'); if(!tb) return;
   try{ agdCalRender(); }catch(e){}
   try{ agdTimelineRender(); }catch(e){}
@@ -221,7 +325,7 @@ function agdTimelineRender(){
     const tx=a.status==='Cancelado'?'#888':'#0b3d1e';
     const ico=a.status==='Chegou'?'✅ ':(a.status==='Cancelado'?'✖ ':'');
     const ext=a.material?(' — '+a.material):'';
-    return '<div onclick="agdDetalhe(\''+a.id+'\')" title="Clique pra ver detalhes" style="cursor:pointer;background:'+cor+';color:'+tx+';border-radius:6px;padding:3px 8px;margin:2px 4px;font-size:.78rem;font-weight:700;'+(a.status==='Cancelado'?'text-decoration:line-through;':'')+'white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+ico+(a.hora?esc(a.hora)+' · ':'')+esc(a.nome)+esc(ext)+'</div>';
+    return '<div data-agd-item="1" onclick="event.stopPropagation();agdDetalhe(\''+a.id+'\')" title="Clique pra ver detalhes" style="cursor:pointer;background:'+cor+';color:'+tx+';border-radius:6px;padding:3px 8px;margin:2px 4px;font-size:.78rem;font-weight:700;'+(a.status==='Cancelado'?'text-decoration:line-through;':'')+'white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+ico+(a.hora?esc(a.hora)+' · ':'')+esc(a.nome)+esc(ext)+'</div>';
   }
   let html='';
   if(semHora.length){
@@ -233,9 +337,11 @@ function agdTimelineRender(){
     const rotulo=String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
     const tem=slots[i]&&slots[i].length;
     if(tem&&primeiro<0) primeiro=i;
-    html+='<div style="display:flex;border-bottom:1px solid #f0f0f0;min-height:26px;'+(mm===0?'background:#fafafa;':'')+'">'+
-      '<div style="width:58px;flex-shrink:0;font-size:.72rem;color:#999;padding:4px;text-align:right;border-right:1px solid #eee">'+rotulo+'</div>'+
-      '<div style="flex:1">'+(tem?slots[i].map(bloco).join(''):'')+'</div></div>';
+    html+='<div style="display:flex;border-bottom:1px solid #f0f0f0;min-height:30px;'+(mm===0?'background:#fafafa;':'')+'">'+
+      '<div style="width:58px;flex-shrink:0;font-size:.72rem;color:#999;padding:5px 4px;text-align:right;border-right:1px solid #eee">'+rotulo+'</div>'+
+      '<div onclick="agendaAbrirNovo(\''+sel+'\',\''+rotulo+'\')" title="Clique para agendar às '+rotulo+'" onmouseenter="this.style.background=\'#eaf8f0\'" onmouseleave="this.style.background=\'transparent\'" style="flex:1;cursor:pointer;min-height:30px;transition:background .12s ease;position:relative">'+
+        (tem?slots[i].map(bloco).join(''):'<span style="position:absolute;right:10px;top:6px;color:#9bb3a5;font-size:.7rem;font-weight:700">＋ agendar</span>')+
+      '</div></div>';
   }
   el.innerHTML=html;
   if(primeiro>=0){ try{ el.scrollTop=Math.max(0,primeiro*26-40); }catch(e){} }
@@ -273,3 +379,5 @@ function agdDetalhe(id){
   ov.appendChild(card);
   document.body.appendChild(ov);
 }
+
+try{ setTimeout(_agdPrepararUI,0); }catch(e){}

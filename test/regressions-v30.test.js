@@ -279,3 +279,28 @@ test('v30 supplier advance value accepts pasted Brazilian currency without losin
   assert.match(saveBlock,/_adtParseVal\(document\.getElementById\('adt-valor'\)/);
   assert.doesNotMatch(saveBlock,/parseFloat\(document\.getElementById\('adt-valor'\)/);
 });
+
+
+const agendaV30 = fs.readFileSync('public/legacy/app-agenda.js','utf8');
+
+test('v30 agenda removes the legacy top form at runtime and creates deliveries by clicking the timeline',()=>{
+  assert.match(agendaV30,/function _agdPrepararUI\(\)/);
+  assert.match(agendaV30,/legacyCard\.remove\(\)/);
+  assert.match(agendaV30,/Clique em um horário vazio para agendar/);
+  assert.match(agendaV30,/function agendaAbrirNovo\(data,hora\)/);
+  assert.match(agendaV30,/onclick="agendaAbrirNovo/);
+  assert.match(agendaV30,/＋ agendar/);
+  assert.match(agendaV30,/event\.stopPropagation\(\);agdDetalhe/);
+});
+
+test('v30 agenda quick modal selects registered supplier or client and preserves recurrence',()=>{
+  assert.match(agendaV30,/function _agdListaNomes\(tipo\)/);
+  assert.match(agendaV30,/typeof CLIENTES/);
+  assert.match(agendaV30,/typeof FORNECEDORES/);
+  assert.match(agendaV30,/id="agd-novo-tipo"/);
+  assert.match(agendaV30,/id="agd-novo-nome"/);
+  assert.match(agendaV30,/QUEM VEM/);
+  assert.match(agendaV30,/id="agd-novo-rep-dias"/);
+  assert.match(agendaV30,/id="agd-novo-rep-meses"/);
+  assert.match(agendaV30,/Selecione quem vem para a entrega/);
+});
