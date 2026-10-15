@@ -3909,7 +3909,7 @@ const FORMS={
       <input type="hidden" id="adt-forn">
     </div>
     <div class="fg"><label>Data</label><input id="adt-data" type="date" value="${_hojeISO()}"></div>
-    <div class="fg"><label>Valor R$</label><input id="adt-valor" type="number" min="0" step="0.01"></div>
+    <div class="fg"><label>Valor R$</label><input id="adt-valor" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00" onblur="_adtFormatValorPrincipal()"></div>
     <div class="fg"><label>Forma de Pagamento</label><select id="adt-forma" onchange="_adtFormaChange()"><option>PIX</option><option>TED</option><option>Dinheiro</option><option>Cheque</option><option>Cheque de Terceiro</option></select></div>
     <div id="adt-cheque-box" style="display:none;background:#eef7fb;border:1px solid #b6d3f2;border-radius:9px;padding:10px 12px;margin-bottom:10px">
       <div style="font-size:.78rem;font-weight:700;color:#1565c0;margin-bottom:2px">📋 Cheques deste adiantamento</div>
@@ -4654,14 +4654,31 @@ function _ccMatch(x){
   return (x&&String(x.area||fallback))===_ccArea;
 }
 function _ccRenderAreaTabs(){
-  const wrap=document.getElementById('cc-area-tabs');
-  if(!wrap) return;
   _ccEnsureArea();
   const areas=_ccConfigAreas();
+  const wrap=document.getElementById('cc-area-tabs');
+  if(!wrap){
+    areas.forEach(function(item){
+      const btn=document.getElementById('cc-aba-'+item.name);
+      if(!btn) return;
+      const ativo=item.name===_ccArea;
+      btn.style.borderBottomColor=ativo?'#1a5e2a':'transparent';
+      btn.style.color=ativo?'#1a5e2a':'#999';
+      btn.setAttribute('aria-selected',ativo?'true':'false');
+    });
+    const resumo=document.getElementById('cc-aba-__resumo__');
+    if(resumo){
+      const ativo=_ccArea==='__resumo__';
+      resumo.style.borderBottomColor=ativo?'#8e44ad':'transparent';
+      resumo.style.color='#8e44ad';
+      resumo.setAttribute('aria-selected',ativo?'true':'false');
+    }
+    return;
+  }
   wrap.innerHTML=areas.map(function(item){
     const ativo=item.name===_ccArea;
-    return '<button data-cc-area="'+esc(item.name)+'" style="padding:8px 18px;border:none;border-bottom:3px solid '+(ativo?'#1a5e2a':'transparent')+';background:transparent;font-weight:700;font-size:.88rem;color:'+(ativo?'#1a5e2a':'#999')+';cursor:pointer">'+esc(item.icon)+' '+esc(item.name)+'</button>';
-  }).join('')+'<button data-cc-area="__resumo__" style="padding:8px 18px;border:none;border-bottom:3px solid '+(_ccArea==='__resumo__'?'#8e44ad':'transparent')+';background:transparent;font-weight:800;font-size:.88rem;color:'+(_ccArea==='__resumo__'?'#8e44ad':'#8e44ad')+';cursor:pointer;margin-left:auto">📊 Resumo (Tudo)</button>';
+    return '<button data-cc-area="'+esc(item.name)+'" aria-selected="'+(ativo?'true':'false')+'" style="padding:8px 18px;border:none;border-bottom:3px solid '+(ativo?'#1a5e2a':'transparent')+';background:transparent;font-weight:700;font-size:.88rem;color:'+(ativo?'#1a5e2a':'#999')+';cursor:pointer">'+esc(item.icon)+' '+esc(item.name)+'</button>';
+  }).join('')+'<button data-cc-area="__resumo__" aria-selected="'+(_ccArea==='__resumo__'?'true':'false')+'" style="padding:8px 18px;border:none;border-bottom:3px solid '+(_ccArea==='__resumo__'?'#8e44ad':'transparent')+';background:transparent;font-weight:800;font-size:.88rem;color:#8e44ad;cursor:pointer;margin-left:auto">📊 Resumo (Tudo)</button>';
   wrap.querySelectorAll('[data-cc-area]').forEach(function(btn){ btn.onclick=function(){ccSetArea(btn.getAttribute('data-cc-area')||'');}; });
 }
 function ccSetArea(a){
@@ -8598,15 +8615,41 @@ function _adtChqLer(){
 function _adtChqCalc(){
   const lista=_adtChqLer();
   const total=lista.reduce(function(s,c){ return s+(c.v||0); },0);
-  const vEl=document.getElementById('adt-valor'); if(vEl && total>0) vEl.value=total.toFixed(2);
+  const vEl=document.getElementById('adt-valor'); if(vEl && total>0) vEl.value=total.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   const el=document.getElementById('adt-chq-prev'); if(!el) return;
   if(!lista.length){ el.textContent='Nenhum cheque na lista ainda.'; return; }
   el.textContent='📋 '+lista.length+' cheque(s) na lista · Total do adiantamento: R$ '+total.toLocaleString('pt-BR',{minimumFractionDigits:2});
 }
 function _adtParseVal(s){
-  s=String(s||'').trim().replace(/[^0-9.,]/g,'');
-  if(s.indexOf(',')>=0){ s=s.replace(/\./g,'').replace(',','.'); }
-  var n=parseFloat(s); return isFinite(n)?n:0;
+  s=String(s||'').trim().replace(/[^0-9.,-]/g,'');
+  if(!s) return 0;
+  const negativo=s.startsWith('-');
+  s=s.replace(/-/g,'');
+  const ultimaVirgula=s.lastIndexOf(',');
+  const ultimoPonto=s.lastIndexOf('.');
+  if(ultimaVirgula>=0&&ultimoPonto>=0){
+    if(ultimaVirgula>ultimoPonto) s=s.replace(/\./g,'').replace(',','.');
+    else s=s.replace(/,/g,'');
+  }else if(ultimaVirgula>=0){
+    const casas=s.length-ultimaVirgula-1;
+    if(casas<=2) s=s.replace(/\./g,'').replace(',','.');
+    else s=s.replace(/,/g,'');
+  }else if(ultimoPonto>=0){
+    const qtdPontos=(s.match(/\./g)||[]).length;
+    const casas=s.length-ultimoPonto-1;
+    if(qtdPontos>1||casas===3) s=s.replace(/\./g,'');
+  }
+  const n=Number(s);
+  if(!Number.isFinite(n)) return 0;
+  return negativo?-n:n;
+}
+function _adtFormatValorPrincipal(){
+  const el=document.getElementById('adt-valor');
+  if(!el) return;
+  const raw=String(el.value||'').trim();
+  if(!raw){ el.value=''; return; }
+  const n=_adtParseVal(raw);
+  el.value=n>0?n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'0,00';
 }
 function _populateBancosSelects(){
   const bancos=Array.isArray(BANCOS_DB)?BANCOS_DB.filter(function(b){return b&&String(b.banco||'').trim();}):[];
@@ -10458,7 +10501,7 @@ function salvarCompra(forcar, ignorarFaltantes){
 function salvarAdiantamento(){
   const fornBusca=document.getElementById('adt-forn-busca');
   const data=document.getElementById('adt-data')?.value;
-  let valor=_r2(parseFloat(document.getElementById('adt-valor')?.value)||0);
+  let valor=_r2(_adtParseVal(document.getElementById('adt-valor')?.value||''));
   const forma=document.getElementById('adt-forma')?.value||'PIX';
   const _ehCheque=(forma==='Cheque'||forma==='Cheque de Terceiro');
   const _chqSit=(document.getElementById('adt-chq-sit')?.value||'A').trim();
