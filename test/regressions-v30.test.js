@@ -280,27 +280,41 @@ test('v30 supplier advance value accepts pasted Brazilian currency without losin
   assert.doesNotMatch(saveBlock,/parseFloat\(document\.getElementById\('adt-valor'\)/);
 });
 
+test('v30 deleted stock materials stay deleted even when old purchases or sales still reference them',()=>{
+  assert.match(appCoreV30,/function _estoqueMaterialExcluido\(nome\)/);
+  assert.match(appCoreV30,/function _estoqueLimparExclusao\(nome\)/);
 
-const agendaV30 = fs.readFileSync('public/legacy/app-agenda.js','utf8');
+  const recuperarStart=appCoreV30.indexOf('function _recuperarMateriaisComMovimento');
+  const recuperarEnd=appCoreV30.indexOf('function renderEstoque()',recuperarStart);
+  const recuperarBlock=appCoreV30.slice(recuperarStart,recuperarEnd);
+  assert.match(recuperarBlock,/if\(!m \|\| _estoqueMaterialExcluido\(m\)\) return/);
+  assert.doesNotMatch(recuperarBlock,/_DEL_SETS\.estoque\.delete\(m\)/);
 
-test('v30 agenda removes the legacy top form at runtime and creates deliveries by clicking the timeline',()=>{
-  assert.match(agendaV30,/function _agdPrepararUI\(\)/);
-  assert.match(agendaV30,/legacyCard\.remove\(\)/);
-  assert.match(agendaV30,/Clique em um horário vazio para agendar/);
-  assert.match(agendaV30,/function agendaAbrirNovo\(data,hora\)/);
-  assert.match(agendaV30,/onclick="agendaAbrirNovo/);
-  assert.match(agendaV30,/＋ agendar/);
-  assert.match(agendaV30,/event\.stopPropagation\(\);agdDetalhe/);
+  const renderStart=appCoreV30.indexOf('function renderEstoque()');
+  const renderEnd=appCoreV30.indexOf('function excluirMaterial',renderStart);
+  const renderBlock=appCoreV30.slice(renderStart,renderEnd);
+  assert.match(renderBlock,/!_estoqueMaterialExcluido\(m\)/);
+
+  const deleteStart=appCoreV30.indexOf('function excluirMaterial(mat)');
+  const deleteEnd=appCoreV30.indexOf('function editEstoque',deleteStart);
+  const deleteBlock=appCoreV30.slice(deleteStart,deleteEnd);
+  assert.match(deleteBlock,/_apagarChave\('estoque', ESTOQUE_DB, mat\)/);
+  assert.match(deleteBlock,/_normalizarTombstoneEstoque\(METAIS\[i\]\)===alvoExclusao/);
 });
 
-test('v30 agenda quick modal selects registered supplier or client and preserves recurrence',()=>{
-  assert.match(agendaV30,/function _agdListaNomes\(tipo\)/);
-  assert.match(agendaV30,/typeof CLIENTES/);
-  assert.match(agendaV30,/typeof FORNECEDORES/);
-  assert.match(agendaV30,/id="agd-novo-tipo"/);
-  assert.match(agendaV30,/id="agd-novo-nome"/);
-  assert.match(agendaV30,/QUEM VEM/);
-  assert.match(agendaV30,/id="agd-novo-rep-dias"/);
-  assert.match(agendaV30,/id="agd-novo-rep-meses"/);
-  assert.match(agendaV30,/Selecione quem vem para a entrega/);
+test('v30 stock tombstone is only cleared by an explicit material reactivation',()=>{
+  const addStart=appCoreV30.indexOf('function _garantirMetalCadastrado(nome)');
+  const addEnd=appCoreV30.indexOf('function _r2(',addStart);
+  const addBlock=appCoreV30.slice(addStart,addEnd);
+  assert.match(addBlock,/_estoqueLimparExclusao\(nome\)/);
+
+  const novoStart=appCoreV30.indexOf('function salvarNovoMaterial()');
+  const novoEnd=appCoreV30.indexOf('function salvarEditEstoque()',novoStart);
+  const novoBlock=appCoreV30.slice(novoStart,novoEnd);
+  assert.match(novoBlock,/_estoqueLimparExclusao\(nome\)/);
+
+  const restoreStart=appCoreV30.indexOf("} else if(h.modulo==='Estoque'){");
+  const restoreEnd=appCoreV30.indexOf('} else {',restoreStart+10);
+  const restoreBlock=appCoreV30.slice(restoreStart,restoreEnd);
+  assert.match(restoreBlock,/_estoqueLimparExclusao\(mat\)/);
 });

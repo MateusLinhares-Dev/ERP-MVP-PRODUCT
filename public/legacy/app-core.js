@@ -5485,8 +5485,9 @@ function restaurarHistorico(histId){
   } else if(h.modulo==='Estoque'){
     const mat=h.registro.mat;
     if(!mat){ alert('Não foi possível identificar o material.'); return; }
-    if(METAIS.includes(mat)){ alert('Este material já está cadastrado — não precisa restaurar.'); return; }
-    METAIS.push(mat);
+    if(METAIS.includes(mat) && !_estoqueMaterialExcluido(mat)){ alert('Este material já está cadastrado — não precisa restaurar.'); return; }
+    _estoqueLimparExclusao(mat);
+    if(!METAIS.includes(mat)) METAIS.push(mat);
     METAIS.sort((a,b)=>a.localeCompare(b,'pt-BR'));
     ESTOQUE_DB[mat]=Object.assign({},h.registro);
     saveEstoque();
@@ -11129,6 +11130,38 @@ function _materialEfetivoDoItem(item){
 
 
 
+function _normalizarTombstoneEstoque(nome){
+  return String(nome||'').trim().toUpperCase();
+}
+function _estoqueMaterialExcluido(nome){
+  const alvo=_normalizarTombstoneEstoque(nome);
+  if(!alvo) return false;
+  try{
+    if(_DEL_SETS&&_DEL_SETS.estoque){
+      for(const item of _DEL_SETS.estoque){
+        if(_normalizarTombstoneEstoque(item)===alvo) return true;
+      }
+    }
+  }catch(e){}
+  return false;
+}
+function _estoqueLimparExclusao(nome){
+  const alvo=_normalizarTombstoneEstoque(nome);
+  if(!alvo) return false;
+  let mudou=false;
+  try{
+    if(_DEL_SETS&&_DEL_SETS.estoque){
+      Array.from(_DEL_SETS.estoque).forEach(function(item){
+        if(_normalizarTombstoneEstoque(item)===alvo){
+          _DEL_SETS.estoque.delete(item);
+          mudou=true;
+        }
+      });
+      if(mudou) localStorage.setItem(_DEL_LS_KEY.estoque, JSON.stringify([..._DEL_SETS.estoque]));
+    }
+  }catch(e){}
+  return mudou;
+}
 function _garantirMetalCadastrado(nome){
   if(!nome) return;
   
@@ -11138,6 +11171,7 @@ function _garantirMetalCadastrado(nome){
   
   if(/nf\s*:/i.test(nome) || /\d\s*,/.test(nome)) return;
   if(typeof METAIS==='undefined') return;
+  _estoqueLimparExclusao(nome);
   if(!METAIS.includes(nome)){
     METAIS.push(nome);
     METAIS.sort((a,b)=>a.localeCompare(b,'pt-BR'));
@@ -14368,11 +14402,9 @@ function _recuperarMateriaisComMovimento(silent){
     try{ Object.keys(ESTOQUE_DB||{}).forEach(function(k){ if(k) nomes.add(k); }); }catch(e){}
     let mudou=false;
     nomes.forEach(function(m){
-      if(!m) return;
+      if(!m || _estoqueMaterialExcluido(m)) return;
       if(METAIS.indexOf(m)<0){
         METAIS.push(m); mudou=true;
-        
-        try{ if(_DEL_SETS&&_DEL_SETS.estoque&&_DEL_SETS.estoque.has(m)){ _DEL_SETS.estoque.delete(m); localStorage.setItem(_DEL_LS_KEY.estoque, JSON.stringify([..._DEL_SETS.estoque])); } }catch(e){}
       }
       if(!ESTOQUE_DB[m]) ESTOQUE_DB[m]={mat:m,inicial:0,entradas:0,saidas:0,precoVenda:0,obs:''};
     });
@@ -14390,7 +14422,7 @@ function renderEstoque(){
   try{ _recuperarMateriaisComMovimento(); }catch(e){}
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const _isEl=_usuarioAtualEhAdmin();
-  const materiais=(METAIS||[]).filter(Boolean).slice().sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{sensitivity:'base'}));
+  const materiais=(METAIS||[]).filter(function(m){ return !!m && !_estoqueMaterialExcluido(m); }).slice().sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{sensitivity:'base'}));
   const rows=materiais.map(mat=>{
     const e=ESTOQUE_DB[mat]||{inicial:0,saidas:0,precoVenda:0};
     const inicial=Number(e.inicial||0);
@@ -14447,7 +14479,10 @@ function excluirMaterial(mat){
   }
   if(!confirm(msg)) return;
   const registro=Object.assign({},e,{mat});
-  METAIS.splice(METAIS.indexOf(mat),1);
+  const alvoExclusao=_normalizarTombstoneEstoque(mat);
+  for(let i=METAIS.length-1;i>=0;i--){
+    if(_normalizarTombstoneEstoque(METAIS[i])===alvoExclusao) METAIS.splice(i,1);
+  }
   _apagarChave('estoque', ESTOQUE_DB, mat);
   saveEstoque();
   registrarHistorico('Estoque','Excluído','Material removido do cadastro: '+mat+(saldo?' (saldo era '+saldo.toFixed(1)+' kg)':''), registro, null);
@@ -14506,8 +14541,9 @@ function novoMaterial(){
 function salvarNovoMaterial(){
   const nome=(document.getElementById('nm-nome')?.value||'').trim().toUpperCase();
   if(!nome){ showToast('Digite o nome do material','error'); return; }
-  if(typeof METAIS!=='undefined' && METAIS.includes(nome)){ showToast('Esse material já existe no cadastro','error'); return; }
-  if(typeof METAIS!=='undefined') METAIS.push(nome);
+  if(typeof METAIS!=='undefined' && METAIS.includes(nome) && !_estoqueMaterialExcluido(nome)){ showToast('Esse material já existe no cadastro','error'); return; }
+  _estoqueLimparExclusao(nome);
+  if(typeof METAIS!=='undefined' && !METAIS.includes(nome)) METAIS.push(nome);
   if(typeof METAIS!=='undefined') METAIS.sort((a,b)=>a.localeCompare(b,'pt-BR'));
   ESTOQUE_DB[nome]={
     mat:nome,
@@ -14528,6 +14564,7 @@ function salvarEditEstoque(){
   if(!matNew){showToast('Nome não pode ficar vazio','error');return;}
   
   if(matNew!==matOld){
+    _estoqueLimparExclusao(matNew);
     const idx=METAIS.indexOf(matOld);
     if(idx!==-1) METAIS[idx]=matNew;
     else METAIS.push(matNew);
