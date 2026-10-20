@@ -30,10 +30,10 @@ test('manifesto implementa requisitos fechados e mantém apenas definições abe
   vm.runInContext(read('public/modules/phase1/phase1-requirements.js'),context);
   const req=context.window.Phase1Requirements;
   for(const id of ['BAL-01','BAL-07','COM-01','COM-08','AGE-01','AGE-03','VEN-01','VEN-07','GER-01','GER-09','FIN-01','RN-02','RN-06','RH-01','RH-03','FRO-01','VIA-01','FIS-01','ADM-01','ADM-06'])assert.ok(req.implemented.includes(id),id);
-  assert.deepEqual(Array.from(req.openDefinitions,x=>x.id),['AD-01','AD-02','AD-03']);
-  assert.deepEqual(Array.from(req.blockedByOpenDefinitions,x=>x.id),['FIS-02','RN-07']);
+  assert.deepEqual(Array.from(req.openDefinitions,x=>x.id),['AD-01','AD-03']);
+  assert.deepEqual(Array.from(req.blockedByOpenDefinitions,x=>x.id),['RN-07']);
   assert.deepEqual(Array.from(req.outOfScope,x=>x.id),['FIS-03']);
-  assert.equal(req.implemented.includes('FIS-02'),false);
+  assert.equal(req.implemented.includes('FIS-02'),true);
   assert.equal(req.implemented.includes('RN-07'),false);
   assert.equal(req.implemented.includes('FIS-03'),false);
 });
@@ -82,7 +82,7 @@ test('RH/Frota/Viagem contém EPI x Almoxarifado, edição, competência e gasto
   for(const token of ['type=\'month\'','phase1EpiEdit','Baixa automática por entrega de EPI','phase1-maint-search','vg-gastos-extras','acertoDevolucao'])assert.match(s,new RegExp(token));
 });
 
-test('Fiscal/Admin cria cadastro fiscal independente sem inventar AD-02 e adiciona categorias/documentos e filtros administrativos',()=>{
+test('Fiscal/Admin mantém base independente e a Fase 2 fecha FIS-02 após autorização da contratante',()=>{
   const s=read('public/modules/phase1/phase1-fiscal-admin.js');
   assert.match(s,/fiscalParties/);
   assert.match(s,/campos fiscais adicionais não foram inferidos/i);

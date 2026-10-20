@@ -8,22 +8,20 @@ const IMPLEMENTED=[
   'GER-01','GER-02','GER-03','GER-04','GER-05','GER-06','GER-07','GER-08','GER-09',
   'FIN-01','RN-02','RN-03','FIN-02','RN-04','RN-05','RN-06',
   'RH-01','RH-02','RH-03','FRO-01','VIA-01',
-  'FIS-01','ADM-01','ADM-02','ADM-03','ADM-04','ADM-05','ADM-06'
+  'FIS-01','FIS-02','ADM-01','ADM-02','ADM-03','ADM-04','ADM-05','ADM-06'
 ];
 const OPEN_DEFINITIONS=[
   {id:'AD-01',reason:'Descontinuações financeiras adicionais além das remoções já aprovadas ainda dependem de definição da contratante.'},
-  {id:'AD-02',reason:'Campos finais dos cadastros fiscais ainda serão fornecidos pela contratante.'},
   {id:'AD-03',reason:'Estrutura final da reestruturação maior de RH/Ponto/Folha ainda será definida pela contratante.'}
 ];
 const BLOCKED_BY_OPEN_DEFINITIONS=[
-  {id:'FIS-02',dependsOn:'AD-02',reason:'Não inferir campos fiscais antes da definição da contratante.'},
   {id:'RN-07',dependsOn:'AD-03',reason:'A reestruturação maior de RH depende da estrutura final aprovada.'}
 ];
 const OUT_OF_SCOPE=[
   {id:'FIS-03',reason:'Certificado digital/acesso do contador exige aceite comercial/aditivo e não faz parte desta entrega funcional.'}
 ];
 global.Phase1Requirements=Object.freeze({
-  version:'1.1',
+  version:'2.0',
   implemented:Object.freeze(IMPLEMENTED),
   openDefinitions:Object.freeze(OPEN_DEFINITIONS),
   blockedByOpenDefinitions:Object.freeze(BLOCKED_BY_OPEN_DEFINITIONS),
