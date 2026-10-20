@@ -81,10 +81,7 @@ function renderRoadEnhancements(){
     activeCount:managed.length,
     currentWeight:currentRoadWeight()
   });
-  view.renderRoadQueue({
-    managed,
-    legacy:legacyAwaitingTickets()
-  });
+  view.renderRoadQueue({managed,legacy:legacyAwaitingTickets()});
 }
 
 function activeBalanceTicket(){
@@ -109,6 +106,24 @@ function confirmAction(message,onConfirm,confirmLabel){
   if(global.confirm(message))onConfirm();
 }
 
+function openTab(tabId){
+  try{if(typeof switchTab==='function')switchTab(tabId);}catch(error){console.warn('[road-weighing] abrir aba:',error);}
+}
+
+function openPurchase(ticketId){
+  const item=ticket(ticketId);
+  if(!item)return;
+  openTab('compra_sucata');
+  setTimeout(function(){
+    try{
+      if(typeof csTab==='function')csTab('pesagens');
+      if(typeof csRenderPesagens==='function')csRenderPesagens();
+      const supplier=domain.text(item.fornecedor||item.fornecedorNome||item.forn);
+      if(supplier&&typeof csAbrirLancamento==='function')csAbrirLancamento(supplier);
+    }catch(error){console.warn('[road-weighing] abrir Compra de Sucata:',error);}
+  },120);
+}
+
 function initializeTicketAfterFirstWeight(ticketId,item){
   if(!item)return;
   item._weighingFlowVersion=1;
@@ -117,6 +132,7 @@ function initializeTicketAfterFirstWeight(ticketId,item){
   item._rodSessao=true;
   item._balSessao=false;
   item._balBagsFinalizado=false;
+  item._balFinalizado=false;
   item.pesoRodoviaria=domain.number(item.pesoEntrada);
   item.status='Aguardando rota';
   item.criadoEm=item.criadoEm||domain.now();
@@ -126,9 +142,62 @@ function initializeTicketAfterFirstWeight(ticketId,item){
     placa:item.placa||'',
     motorista:item.motorista||''
   },`entrada:${domain.number(item.pesoEntrada)}`);
-  domain.registerFlow(item,'aguardando_rota','Primeira pesagem registrada; aguardando escolha da rota operacional');
+  domain.registerFlow(item,'aguardando_rota','Primeira pesagem registrada; aguardando escolha do fluxo operacional');
   persist(ticketId);
 }
+
+function repairCompletedManagedTickets(){
+  let changed=false;
+  Object.entries(tickets()).forEach(([ticketId,item])=>{
+    if(!domain.isManaged(item)||!domain.isPurchase(item))return;
+    const shouldBeReady=String(item.status||'')==='Aguard. Preço'&&(
+      item._balFinalizado||item._weighingStage==='aguardando_preco'||domain.number(item.pesoTara)>0
+    );
+    if(!shouldBeReady)return;
+    if(item._weighingRoute==='rodoviaria')domain.syncItemsFromRoad(item);
+    else if(item._weighingRoute==='balanceiro')domain.syncItemsFromBalance(item);
+    const before=domain.isReadyForPurchase(item);
+    domain.markReadyForPurchase(item,item._weighingRoute||'reparo');
+    if(!before){persist(ticketId);changed=true;}
+  });
+  if(changed){
+    try{if(typeof csRenderPesagens==='function')csRenderPesagens();}catch(error){}
+    try{if(typeof renderTickets==='function')renderTickets();}catch(error){}
+  }
+}
+
+global.roadWeighingFocusMaterials=function(ticketId){
+  const item=ticket(ticketId);
+  if(!item)return;
+  try{if(typeof rodEntrarModoMateriaisCompra==='function')rodEntrarModoMateriaisCompra(ticketId);}catch(error){}
+  try{renderRoadEnhancements();}catch(error){}
+  setTimeout(function(){
+    const input=document.getElementById('rod-matc-peso-input')||document.getElementById('rod-matc-nome');
+    if(input){input.focus();input.select?.();}
+  },50);
+};
+
+global.roadWeighingOpenBalance=function(ticketId){
+  openTab('balanceiro');
+  setTimeout(function(){
+    try{if(typeof balSelecionarTicket==='function')balSelecionarTicket(ticketId);}catch(error){}
+  },80);
+};
+
+global.roadWeighingCompleteFinalWeight=function(ticketId){
+  const input=document.getElementById(`road-weighing-final-weight-${ticketId}`);
+  const weight=domain.number(input?.value);
+  if(!(weight>0)){
+    showMessage('Informe o peso final do caminhão.','error');
+    input?.focus();
+    return;
+  }
+  try{if(typeof rodSelecionarParaSaida==='function')rodSelecionarParaSaida(ticketId);}catch(error){}
+  const legacyInput=document.getElementById('rod-saida-manual');
+  if(legacyInput)legacyInput.value=String(weight);
+  try{_rodPesoAtual=weight;}catch(error){}
+  global.rodFinalizarSaidaSelecionada();
+};
 
 global.roadWeighingContinueOnRoad=function(ticketId){
   const item=ticket(ticketId);
@@ -137,14 +206,18 @@ global.roadWeighingContinueOnRoad=function(ticketId){
   item._weighingRoute='rodoviaria';
   item._weighingStage='rodoviaria_materiais';
   item._rodSessao=true;
+  item._rodEntrada=true;
   item._balSessao=false;
   item._balBagsFinalizado=false;
+  item._balFinalizado=false;
   item.status='Pesagem na Rodoviária';
-  domain.registerFlow(item,'rodoviaria_materiais','Operador escolheu concluir o atendimento somente no Balanção');
+  domain.registerFlow(item,'rodoviaria_materiais','Operador escolheu concluir o atendimento somente na Balança Rodoviária');
   persist(ticketId);
   try{if(typeof rodEntrarModoMateriaisCompra==='function')rodEntrarModoMateriaisCompra(ticketId);}catch(error){}
   try{if(typeof renderBalanceiro==='function')renderBalanceiro();}catch(error){}
-  showMessage(`✅ ${ticketId} seguirá somente pela Balança Rodoviária. Registre os materiais/pesagens.`,'success',5500);
+  try{if(typeof renderRodBalanca==='function')renderRodBalanca();}catch(error){}
+  setTimeout(()=>global.roadWeighingFocusMaterials(ticketId),80);
+  showMessage('Agora registre um material por vez. O sistema calcula automaticamente o peso de cada material.','info',6500);
 };
 
 global.roadWeighingSendToBalance=function(ticketId){
@@ -153,10 +226,12 @@ global.roadWeighingSendToBalance=function(ticketId){
   item._weighingFlowVersion=1;
   item._weighingRoute='balanceiro';
   item._weighingStage='balanceiro';
-  item._rodSessao=true;
+  item.pesoRodoviaria=domain.number(item.pesoEntrada);
   item._balSessao=true;
   item._balBagsFinalizado=false;
-  item.pesoRodoviaria=domain.number(item.pesoEntrada);
+  item._balFinalizado=false;
+  item._rodSessao=true;
+  item._rodEntrada=true;
   item.status='No Balanceiro';
   domain.registerFlow(item,'balanceiro','Ticket encaminhado ao Balanceiro mantendo o mesmo atendimento');
   try{
@@ -167,7 +242,8 @@ global.roadWeighingSendToBalance=function(ticketId){
   persist(ticketId);
   try{if(typeof renderRodBalanca==='function')renderRodBalanca();}catch(error){}
   try{if(typeof renderBalanceiro==='function')renderBalanceiro();}catch(error){}
-  showMessage(`📦 ${ticketId} encaminhado ao Balanceiro. O mesmo ticket será preservado até o fechamento.`,'success',6000);
+  showMessage(`Ticket ${ticketId} enviado ao Balanceiro. Você será levado para a próxima etapa.`,'success',4500);
+  setTimeout(()=>global.roadWeighingOpenBalance(ticketId),350);
 };
 
 if(typeof original.registerEntry==='function'){
@@ -188,7 +264,7 @@ if(typeof original.registerEntry==='function'){
     }catch(error){}
     try{if(typeof renderRodBalanca==='function')renderRodBalanca();}catch(error){}
     try{if(typeof renderBalanceiro==='function')renderBalanceiro();}catch(error){}
-    showMessage(`🚛 ${created} aberto. Escolha: Somente Balanção ou Encaminhar ao Balanceiro.`,'info',7000);
+    showMessage('Entrada registrada. Agora escolha apenas uma opção: continuar na Rodoviária ou enviar ao Balanceiro.','info',7000);
     return result;
   };
 }
@@ -251,26 +327,34 @@ if(typeof original.finishBalance==='function'){
     let bags=[];
     try{bags=(_balBags[ticketId]||item.bags||[]).slice();}catch(error){bags=(item.bags||[]).slice();}
     if(!bags.length){
-      showMessage('Adicione pelo menos uma bag/item antes de finalizar!','error');
+      showMessage('Adicione pelo menos um bag/item antes de concluir o Balanceiro.','error');
       return;
     }
     const total=bags.reduce((sum,bag)=>sum+domain.number(bag.lq||bag.br),0);
     confirmAction(
-      `Concluir Balanceiro do ticket ${ticketId}?\n\n${bags.length} registro(s) · ${total.toFixed(1)} kg\n\nO caminhão voltará ao Balanção para o peso final.`,
+      `Concluir o Balanceiro do ticket ${ticketId}?\n\n${bags.length} item(ns) · ${total.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})} kg\n\nDepois você voltará para a Balança Rodoviária para informar o peso final do caminhão.`,
       function(){
         item.bags=bags.slice();
         item._balBagsFinalizado=true;
         item._balSessao=true;
         item._rodSessao=true;
+        item._rodEntrada=true;
         item._weighingStage='balanceiro_concluido';
         item.status='Balanceiro concluído';
         item.totalKg=total;
         domain.syncItemsFromBalance(item);
-        domain.registerFlow(item,'balanceiro_concluido','Balanceiro finalizado; caminhão liberado para retornar ao Balanção');
+        domain.registerFlow(item,'balanceiro_concluido','Balanceiro finalizado; caminhão liberado para retornar à Balança Rodoviária');
         persist(ticketId);
         try{renderBalanceiro();}catch(error){}
         try{renderRodBalanca();}catch(error){}
-        showMessage(`✅ Balanceiro concluído. O ticket ${ticketId} está liberado na Rodoviária para o peso final.`,'success',7500);
+        showMessage('Balanceiro concluído. Voltando para a Rodoviária para registrar o peso final.','success',5500);
+        setTimeout(function(){
+          openTab('rod_balanca');
+          setTimeout(function(){
+            try{if(typeof rodSelecionarParaSaida==='function')rodSelecionarParaSaida(ticketId);}catch(error){}
+            try{renderRoadEnhancements();}catch(error){}
+          },100);
+        },350);
       },
       'Concluir Balanceiro'
     );
@@ -302,6 +386,10 @@ if(typeof original.addRoadMaterial==='function'){
       domain.syncItemsFromRoad(item);
       persist(ticketId);
       try{renderRoadEnhancements();}catch(error){}
+      setTimeout(function(){
+        const weightInput=document.getElementById('rod-matc-peso-input');
+        if(weightInput){weightInput.focus();weightInput.select?.();}
+      },40);
     }
     return result;
   };
@@ -311,21 +399,48 @@ if(typeof original.finishRoadMaterials==='function'){
   global.rodFinalizarCompraMateriais=function(){
     let ticketId='';
     try{ticketId=_rodTicketCompraAtivo||'';}catch(error){}
-    const result=original.finishRoadMaterials.apply(this,arguments);
     const item=ticketId?ticket(ticketId):null;
-    if(item&&domain.isManaged(item)&&item._weighingRoute==='rodoviaria'&&String(item.status)==='Aguard. Preço'){
-      domain.syncItemsFromRoad(item);
-      item._weighingStage='aguardando_preco';
-      domain.registerWeight(item,'rodoviaria_saida',{
-        origem:'rodoviaria',
-        peso:domain.number(item.pesoTara),
-        pesoLiquido:domain.number(item.pesoLiquido)
-      },`saida:rod:${domain.number(item.pesoTara)}:${domain.number(item.pesoLiquido)}`);
-      domain.registerFlow(item,'aguardando_preco','Pesagem rodoviária concluída; ticket enviado para fechamento da Compra de Sucata');
-      persist(ticketId);
-      try{if(typeof renderTickets==='function')renderTickets();}catch(error){}
+    if(!item||!domain.isManaged(item)||item._weighingRoute!=='rodoviaria'){
+      return original.finishRoadMaterials.apply(this,arguments);
     }
-    return result;
+    const list=Array.isArray(item.pesagensCompra)?item.pesagensCompra:[];
+    if(!list.length){
+      showMessage('Registre pelo menos um material antes de concluir a pesagem.','error',5000);
+      return;
+    }
+    const totalNet=list.reduce((sum,row)=>sum+domain.number(row.pesoLiquido),0);
+    const finalTare=domain.number(list[list.length-1]?.pesoBrutoAcum);
+    if(!(finalTare>0)){
+      showMessage('O último peso da balança não é válido. Confira o último material.','error');
+      return;
+    }
+    confirmAction(
+      `Concluir a pesagem ${ticketId}?\n\n${list.length} material(is) · ${totalNet.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})} kg\n\nO ticket será aberto automaticamente em Compra de Sucata para informar os preços.`,
+      function(){
+        item.pesoEntrada=domain.number(item.pesoEntrada);
+        item.pesoTara=finalTare;
+        item.pesoLiquido=totalNet;
+        item.dataSaida=typeof _hojeISO==='function'?_hojeISO():new Date().toISOString().slice(0,10);
+        item.tsSaida=new Date().toLocaleString('pt-BR');
+        domain.syncItemsFromRoad(item);
+        domain.markReadyForPurchase(item,'rodoviaria');
+        domain.registerWeight(item,'rodoviaria_saida',{
+          origem:'rodoviaria',
+          peso:finalTare,
+          pesoLiquido:totalNet
+        },`saida:rod:${finalTare}:${totalNet}`);
+        domain.registerFlow(item,'aguardando_preco','Pesagem rodoviária concluída; ticket enviado para Compra de Sucata');
+        try{if(typeof rodCancelarModoMateriaisCompra==='function')rodCancelarModoMateriaisCompra();}catch(error){}
+        persist(ticketId);
+        try{if(typeof renderRodBalanca==='function')renderRodBalanca();}catch(error){}
+        try{if(typeof renderBalanceiro==='function')renderBalanceiro();}catch(error){}
+        try{if(typeof csRenderPesagens==='function')csRenderPesagens();}catch(error){}
+        try{if(typeof renderTickets==='function')renderTickets();}catch(error){}
+        showMessage('Pesagem concluída. Abrindo Compra de Sucata para você informar os preços.','success',6000);
+        setTimeout(()=>openPurchase(ticketId),450);
+      },
+      'Concluir e abrir Compra'
+    );
   };
 }
 
@@ -349,7 +464,7 @@ if(typeof original.finishRoadExit==='function'){
       return;
     }
     confirmAction(
-      `Concluir pesagem rodoviária do ticket ${ticketId}?\n\nEntrada: ${gross.toFixed(1)} kg\nPeso final: ${tare.toFixed(1)} kg\nLíquido rodoviário: ${net.toFixed(1)} kg\n\nO ticket seguirá para Compra de Sucata para fechamento do preço.`,
+      `Concluir o atendimento ${ticketId}?\n\nEntrada: ${gross.toLocaleString('pt-BR',{minimumFractionDigits:1})} kg\nPeso final: ${tare.toLocaleString('pt-BR',{minimumFractionDigits:1})} kg\nLíquido rodoviário: ${net.toLocaleString('pt-BR',{minimumFractionDigits:1})} kg\n\nDepois você será levado para Compra de Sucata.`,
       function(){
         item.pesoTara=tare;
         item.descontoBags=bagsDiscount;
@@ -357,12 +472,6 @@ if(typeof original.finishRoadExit==='function'){
         item.pesoLiquido=net;
         item.dataSaida=typeof _hojeISO==='function'?_hojeISO():new Date().toISOString().slice(0,10);
         item.tsSaida=new Date().toLocaleString('pt-BR');
-        item._rodSessao=false;
-        item._rodEntrada=false;
-        item._balSessao=false;
-        item._balFinalizado=true;
-        item._weighingStage='aguardando_preco';
-        item.status='Aguard. Preço';
         try{
           if(typeof rodCapturarAmbas==='function'){
             const photos=rodCapturarAmbas();
@@ -371,6 +480,7 @@ if(typeof original.finishRoadExit==='function'){
           }
         }catch(error){}
         domain.syncItemsFromBalance(item);
+        domain.markReadyForPurchase(item,'balanceiro');
         domain.registerWeight(item,'rodoviaria_saida',{
           origem:'rodoviaria',
           peso:tare,
@@ -379,7 +489,7 @@ if(typeof original.finishRoadExit==='function'){
           descontoPaletes:palletDiscount,
           pesoLiquido:net
         },`saida:bal:${tare}:${net}`);
-        domain.registerFlow(item,'aguardando_preco','Retorno ao Balanção concluído; ticket enviado para fechamento da Compra de Sucata');
+        domain.registerFlow(item,'aguardando_preco','Retorno à Rodoviária concluído; ticket enviado para Compra de Sucata');
         try{_rodTicketSaida=null;}catch(error){}
         try{_rodPesoAtual=0;}catch(error){}
         ['rod-saida-manual','rod-peso-manual'].forEach(id=>{
@@ -389,12 +499,14 @@ if(typeof original.finishRoadExit==='function'){
         const display=document.getElementById('rod-peso-big-saida');
         if(display)display.textContent='0.0 kg';
         persist(ticketId);
-        try{renderRodBalanca();}catch(error){}
-        try{renderBalanceiro();}catch(error){}
+        try{if(typeof renderRodBalanca==='function')renderRodBalanca();}catch(error){}
+        try{if(typeof renderBalanceiro==='function')renderBalanceiro();}catch(error){}
+        try{if(typeof csRenderPesagens==='function')csRenderPesagens();}catch(error){}
         try{if(typeof renderTickets==='function')renderTickets();}catch(error){}
-        showMessage(`✅ Ticket ${ticketId} concluído na Rodoviária e enviado para Compra de Sucata.`,'success',7000);
+        showMessage('Atendimento concluído. Abrindo Compra de Sucata para informar os preços.','success',6000);
+        setTimeout(()=>openPurchase(ticketId),450);
       },
-      'Concluir e enviar para Compra'
+      'Concluir e abrir Compra'
     );
   };
 }
@@ -411,11 +523,14 @@ global.RoadWeighingFlow=Object.freeze({
   renderRoad:renderRoadEnhancements,
   renderBalance:renderBalanceEnhancements,
   managedTickets,
-  legacyAwaitingTickets
+  legacyAwaitingTickets,
+  repairCompletedManagedTickets,
+  openPurchase
 });
 
 setTimeout(function(){
+  try{repairCompletedManagedTickets();}catch(error){console.warn('[road-weighing] reparo inicial:',error);}
   try{renderRoadEnhancements();}catch(error){}
   try{renderBalanceEnhancements();}catch(error){}
-},100);
+},150);
 })(window);

@@ -49,21 +49,49 @@ test('domínio preserva múltiplas pesagens e consolida materiais sem sobrescrev
   assert.equal(ticket.itens.find(item=>item.mat==='COBRE').pesoLiq,150);
   assert.equal(ticket.itens.find(item=>item.mat==='COBRE').preco,12);
   assert.equal(ticket.itens.find(item=>item.mat==='ALUMINIO').pesoLiq,40);
+  assert.equal(ticket.material,'COBRE, ALUMINIO');
+});
+
+test('domínio marca ticket como pronto para Compra de Sucata com flags compatíveis com o legado',()=>{
+  const domain=loadDomain();
+  const ticket={
+    _weighingFlowVersion:1,
+    _weighingStage:'rodoviaria_materiais',
+    _rodEntrada:true,
+    _rodSessao:true,
+    _balSessao:false,
+    _balFinalizado:false,
+    status:'Pesagem na Rodoviária',
+    pesagensCompra:[
+      {material:'COBRE MISTO',pesoLiquido:4000},
+      {material:'ALUMINIO MOLE',pesoLiquido:800}
+    ]
+  };
+  domain.syncItemsFromRoad(ticket);
+  domain.markReadyForPurchase(ticket,'rodoviaria');
+  assert.equal(ticket._rodEntrada,false);
+  assert.equal(ticket._rodSessao,false);
+  assert.equal(ticket._balSessao,false);
+  assert.equal(ticket._balFinalizado,true);
+  assert.equal(ticket.status,'Aguard. Preço');
+  assert.equal(ticket._weighingStage,'aguardando_preco');
+  assert.equal(domain.isReadyForPurchase(ticket),true);
+  assert.equal(ticket.material,'COBRE MISTO, ALUMINIO MOLE');
 });
 
 test('domínio modela os estados operacionais exigidos pela prioridade 1',()=>{
   const domain=loadDomain();
   const ticket={_weighingFlowVersion:1,_weighingStage:'aguardando_rota'};
-  assert.equal(domain.stageInfo(ticket).label,'Escolher rota');
+  assert.equal(domain.stageInfo(ticket).label,'Escolher fluxo');
   ticket._weighingStage='balanceiro';
   assert.equal(domain.stageInfo(ticket).label,'No Balanceiro');
   ticket._weighingStage='balanceiro_concluido';
-  assert.equal(domain.stageInfo(ticket).label,'Balanceiro concluído');
+  assert.equal(domain.stageInfo(ticket).label,'Retorno à Rodoviária');
   ticket._weighingStage='aguardando_preco';
-  assert.equal(domain.stageInfo(ticket).label,'Aguardando preço');
+  assert.equal(domain.stageInfo(ticket).label,'Pronto para Compra');
 });
 
-test('fluxo oferece as duas rotas explícitas, mantém o mesmo ticket e integra Compra de Sucata',()=>{
+test('fluxo oferece rotas explícitas e envia automaticamente ticket concluído para Compra de Sucata',()=>{
   const flow=fs.readFileSync(flowPath,'utf8');
   assert.match(flow,/roadWeighingContinueOnRoad/);
   assert.match(flow,/roadWeighingSendToBalance/);
@@ -71,21 +99,19 @@ test('fluxo oferece as duas rotas explícitas, mantém o mesmo ticket e integra 
   assert.match(flow,/_weighingRoute='balanceiro'/);
   assert.match(flow,/domain\.syncItemsFromBalance/);
   assert.match(flow,/domain\.syncItemsFromRoad/);
-  const domain=fs.readFileSync(domainPath,'utf8');
-  assert.match(domain,/pesagensOperacionais/);
-  assert.match(domain,/historicoFluxoPesagem/);
-  assert.match(flow,/renderTickets/);
+  assert.match(flow,/domain\.markReadyForPurchase/);
+  assert.match(flow,/openPurchase\(ticketId\)/);
+  assert.match(flow,/csAbrirLancamento/);
+  assert.match(flow,/repairCompletedManagedTickets/);
 });
 
-test('fila e balanceiro exibem estado e próxima ação sem remover compatibilidade legada',()=>{
-  const flow=fs.readFileSync(flowPath,'utf8');
+test('interface guiada reduz ambiguidade da operação',()=>{
   const view=fs.readFileSync(viewPath,'utf8');
-  assert.match(flow,/legacyAwaitingTickets/);
-  assert.match(view,/Próxima ação/);
-  assert.match(view,/BALANCEIRO CONCLUÍDO/);
-  assert.match(view,/Tickets encaminhados pela Rodoviária/);
-  assert.match(view,/Peso atual/);
-  assert.match(view,/Entrada/);
-  assert.match(view,/Saída/);
-  assert.match(view,/Líquido/);
+  assert.match(view,/Comece uma nova pesagem/);
+  assert.match(view,/Continuar aqui na Balança/);
+  assert.match(view,/Enviar para o Balanceiro/);
+  assert.match(view,/Como registrar cada material/);
+  assert.match(view,/Concluir pesagem e ir para Compra de Sucata/);
+  assert.match(view,/Último passo: peso final do caminhão/);
+  assert.match(view,/road-weighing-stepper/);
 });

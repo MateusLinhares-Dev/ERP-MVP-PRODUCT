@@ -3,11 +3,11 @@
 
 const FINAL_STATUSES=new Set(['Aguard. Preço','Pendente','Pago','Consolidado','Quitado']);
 const STAGES={
-  aguardando_rota:{label:'Escolher rota',color:'#ef6c00',background:'#fff3e0',next:'Escolha se a carga fica no Balanção ou segue para o Balanceiro.'},
-  rodoviaria_materiais:{label:'Somente Balanção',color:'#1565c0',background:'#e3f2fd',next:'Registre os materiais/pesagens na Rodoviária e finalize o ticket.'},
-  balanceiro:{label:'No Balanceiro',color:'#6a1b9a',background:'#f3e5f5',next:'Pese os bags/itens no Balanceiro e finalize a pesagem intermediária.'},
-  balanceiro_concluido:{label:'Balanceiro concluído',color:'#2e7d32',background:'#e8f5e9',next:'O caminhão deve retornar ao Balanção para registrar o peso final.'},
-  aguardando_preco:{label:'Aguardando preço',color:'#00838f',background:'#e0f7fa',next:'Pesagem concluída. Finalize preços e valores na Compra de Sucata.'}
+  aguardando_rota:{label:'Escolher fluxo',color:'#ef6c00',background:'#fff3e0',next:'Escolha onde esta carga será pesada.'},
+  rodoviaria_materiais:{label:'Pesando materiais',color:'#1565c0',background:'#e3f2fd',next:'Descarregue um material por vez, registre o peso e depois conclua a pesagem.'},
+  balanceiro:{label:'No Balanceiro',color:'#6a1b9a',background:'#f3e5f5',next:'Registre os bags/itens no Balanceiro e conclua essa etapa.'},
+  balanceiro_concluido:{label:'Retorno à Rodoviária',color:'#2e7d32',background:'#e8f5e9',next:'Informe o peso final do caminhão para concluir o atendimento.'},
+  aguardando_preco:{label:'Pronto para Compra',color:'#00838f',background:'#e0f7fa',next:'Pesagem concluída. Informe os preços na Compra de Sucata.'}
 };
 
 function number(value){
@@ -46,7 +46,7 @@ function stage(ticket){
   if(!ticket)return '';
   if(ticket._balBagsFinalizado&&!(number(ticket.pesoTara)>0))return 'balanceiro_concluido';
   if(ticket._balSessao&&!ticket._balBagsFinalizado)return 'balanceiro';
-  if(Array.isArray(ticket.pesagensCompra)&&ticket.pesagensCompra.length)return 'rodoviaria_materiais';
+  if(Array.isArray(ticket.pesagensCompra)&&ticket.pesagensCompra.length&&!ticket._balFinalizado)return 'rodoviaria_materiais';
   if(ticket._rodEntrada&&!(number(ticket.pesoTara)>0))return 'aguardando_rota';
   return isFinal(ticket)?'aguardando_preco':'';
 }
@@ -56,7 +56,7 @@ function stageInfo(ticket){
     label:text(ticket?.status)||'Em atendimento',
     color:'#546e7a',
     background:'#eceff1',
-    next:'Continue o fluxo do atendimento.'
+    next:'Continue o atendimento.'
   };
 }
 
@@ -98,6 +98,10 @@ function materials(ticket){
   return [...grouped.entries()].map(([material,weight])=>({material,weight}));
 }
 
+function materialSummary(ticket){
+  return materials(ticket).map(item=>item.material).filter(Boolean).join(', ');
+}
+
 function syncItemsFromBalance(ticket){
   if(!ticket)return;
   const grouped=new Map();
@@ -128,6 +132,7 @@ function syncItemsFromBalance(ticket){
     });
   });
   ticket.totalKg=ticket.itens.reduce((sum,item)=>sum+number(item.pesoLiq||item.lq),0);
+  ticket.material=materialSummary(ticket);
 }
 
 function syncItemsFromRoad(ticket){
@@ -158,6 +163,23 @@ function syncItemsFromRoad(ticket){
     });
   });
   ticket.totalKg=ticket.itens.reduce((sum,item)=>sum+number(item.pesoLiq||item.lq),0);
+  ticket.material=materialSummary(ticket);
+}
+
+function markReadyForPurchase(ticket,origin){
+  if(!ticket)return;
+  ticket._rodSessao=false;
+  ticket._rodEntrada=false;
+  ticket._balSessao=false;
+  ticket._balFinalizado=true;
+  ticket._weighingStage='aguardando_preco';
+  ticket.status='Aguard. Preço';
+  ticket.origemFechamentoPesagem=origin||ticket.origemFechamentoPesagem||'';
+  ticket.material=materialSummary(ticket)||text(ticket.material);
+}
+
+function isReadyForPurchase(ticket){
+  return Boolean(ticket&&ticket._balFinalizado&&ticket.status==='Aguard. Preço'&&!ticket._balSessao&&!ticket._rodEntrada);
 }
 
 global.RoadWeighingDomain=Object.freeze({
@@ -172,7 +194,10 @@ global.RoadWeighingDomain=Object.freeze({
   registerFlow,
   registerWeight,
   materials,
+  materialSummary,
   syncItemsFromBalance,
-  syncItemsFromRoad
+  syncItemsFromRoad,
+  markReadyForPurchase,
+  isReadyForPurchase
 });
 })(window);
