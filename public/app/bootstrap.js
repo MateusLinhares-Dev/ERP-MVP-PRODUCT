@@ -15,6 +15,14 @@ function loadClassic(src) {
   });
 }
 
+function loadStyle(href) {
+  if (document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = href;
+  document.head.appendChild(link);
+}
+
 function showFatal(error) {
   console.error(error);
   const login = document.getElementById('login-screen');
@@ -126,6 +134,14 @@ async function main() {
   await loadClassic('/legacy/alert-state-sync.js');
   await loadClassic('/legacy/chat-read-sync.js');
   await loadClassic('/legacy/access-dependencies.js');
+
+  loadStyle('/modules/weighing/road-weighing-flow.css');
+  await loadClassic('/modules/weighing/road-weighing-domain.js');
+  await loadClassic('/modules/weighing/road-weighing-view.js');
+  await loadClassic('/modules/weighing/road-weighing-flow.js');
+
+  loadStyle('/modules/pricing/purchase-price-table.css');
+  await loadClassic('/modules/pricing/purchase-price-table.js');
 
   initProfilePhoto({ auth, db, storage });
 
