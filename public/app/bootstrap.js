@@ -143,6 +143,28 @@ async function main() {
   loadStyle('/modules/pricing/purchase-price-table.css');
   await loadClassic('/modules/pricing/purchase-price-table.js');
 
+  loadStyle('/modules/phase1/phase1-purchase.css');
+  loadStyle('/modules/phase1/phase1-agenda.css');
+  loadStyle('/modules/phase1/phase1-alerts.css');
+  loadStyle('/modules/phase1/phase1-commercial.css');
+  loadStyle('/modules/phase1/phase1-usability.css');
+  loadStyle('/modules/phase1/phase1-finance.css');
+  loadStyle('/modules/phase1/phase1-operations.css');
+  loadStyle('/modules/phase1/phase1-fiscal-admin.css');
+
+  await loadClassic('/modules/phase1/phase1-requirements.js');
+  await loadClassic('/modules/phase1/phase1-store.js');
+  await loadClassic('/modules/phase1/phase1-dom.js');
+  await loadClassic('/modules/phase1/phase1-purchase.js');
+  await loadClassic('/modules/phase1/phase1-agenda.js');
+  await loadClassic('/modules/phase1/phase1-alerts.js');
+  await loadClassic('/modules/phase1/phase1-commercial.js');
+  await loadClassic('/modules/phase1/phase1-usability.js');
+  await loadClassic('/modules/phase1/phase1-finance.js');
+  await loadClassic('/modules/phase1/phase1-operations.js');
+  await loadClassic('/modules/phase1/phase1-fiscal-admin.js');
+  window.__PHASE1_READY__ = true;
+
   initProfilePhoto({ auth, db, storage });
 
   document.dispatchEvent(new CustomEvent('erp:ready'));

@@ -68,6 +68,27 @@ function routeActions(ticketId,ticket){
   return '';
 }
 
+
+function queueActions(ticketId,ticket){
+  const stage=global.RoadWeighingDomain.stage(ticket);
+  if(stage==='aguardando_rota'){
+    return `<div class="road-weighing-actions">
+      <button class="road-weighing-button road-weighing-button-road" onclick="roadWeighingContinueOnRoad('${escapeHtml(ticketId)}')">⚖️ Balança</button>
+      <button class="road-weighing-button road-weighing-button-balance" onclick="roadWeighingSendToBalance('${escapeHtml(ticketId)}')">📦 Balanceiro</button>
+    </div>`;
+  }
+  if(stage==='rodoviaria_materiais'){
+    return `<div class="road-weighing-actions"><button class="road-weighing-button road-weighing-button-road" onclick="roadWeighingFocusMaterials('${escapeHtml(ticketId)}')">📦 Continuar materiais</button></div>`;
+  }
+  if(stage==='balanceiro'){
+    return `<div class="road-weighing-actions"><button class="road-weighing-button road-weighing-button-balance" onclick="roadWeighingOpenBalance('${escapeHtml(ticketId)}')">⚖️ Abrir Balanceiro</button></div>`;
+  }
+  if(stage==='balanceiro_concluido'){
+    return `<div class="road-weighing-actions"><button class="road-weighing-button road-weighing-button-success" onclick="roadWeighingFocusFinalWeight('${escapeHtml(ticketId)}')">🚛 Informar peso final</button></div>`;
+  }
+  return '';
+}
+
 function managedTicketCard(ticketId,ticket){
   const domain=global.RoadWeighingDomain;
   const info=domain.stageInfo(ticket);
@@ -87,7 +108,7 @@ function managedTicketCard(ticketId,ticket){
     </div>
     <div class="road-weighing-materials">${materialText}</div>
     <div class="road-weighing-next"><b>Próximo passo:</b> ${escapeHtml(info.next)}</div>
-    ${routeActions(ticketId,ticket)}
+    ${queueActions(ticketId,ticket)}
   </div>`;
 }
 

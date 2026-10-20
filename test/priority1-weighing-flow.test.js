@@ -115,3 +115,15 @@ test('interface guiada reduz ambiguidade da operação',()=>{
   assert.match(view,/Último passo: peso final do caminhão/);
   assert.match(view,/road-weighing-stepper/);
 });
+
+
+test('fila lateral não renderiza formulário completo de peso final e mantém ação compacta',()=>{
+  const view=fs.readFileSync(viewPath,'utf8');
+  const flow=fs.readFileSync(flowPath,'utf8');
+  const css=fs.readFileSync(cssPath,'utf8');
+  assert.match(view,/function queueActions/);
+  assert.match(view,/roadWeighingFocusFinalWeight/);
+  assert.match(flow,/global\.roadWeighingFocusFinalWeight/);
+  assert.match(css,/#rod-modo-fila \.road-weighing-ticket/);
+  assert.match(css,/\.road-weighing-final-box\{display:none!important\}/);
+});

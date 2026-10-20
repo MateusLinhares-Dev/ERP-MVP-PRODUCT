@@ -519,6 +519,21 @@ if(typeof original.updateRoadWeight==='function'){
   };
 }
 
+
+global.roadWeighingFocusFinalWeight=function(ticketId){
+  const item=ticket(ticketId);
+  if(!item)return;
+  try{_rodTicketSaida=ticketId;}catch(error){}
+  try{if(typeof rodSelecionarParaSaida==='function')rodSelecionarParaSaida(ticketId);}catch(error){}
+  try{renderRoadEnhancements();}catch(error){}
+  setTimeout(function(){
+    const board=document.getElementById('road-weighing-flow-board');
+    const input=document.getElementById(`road-weighing-final-weight-${ticketId}`);
+    if(board&&board.scrollIntoView)board.scrollIntoView({behavior:'smooth',block:'start'});
+    if(input){input.focus();if(input.select)input.select();}
+  },50);
+};
+
 global.RoadWeighingFlow=Object.freeze({
   renderRoad:renderRoadEnhancements,
   renderBalance:renderBalanceEnhancements,
