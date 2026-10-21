@@ -1,0 +1,28 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const js=fs.readFileSync(path.join(root,'public/modules/phase3/phase3-homologation.js'),'utf8');
+const css=fs.readFileSync(path.join(root,'public/modules/phase3/phase3-homologation.css'),'utf8');
+const boot=fs.readFileSync(path.join(root,'public/app/bootstrap.js'),'utf8');
+const phase2=fs.readFileSync(path.join(root,'public/modules/phase2/phase2-feedback.js'),'utf8');
+const has=(...xs)=>xs.forEach(x=>assert.ok(js.includes(x),`Faltou: ${x}`));
+
+test('bootstrap carrega phase3 após phase2',()=>{assert.ok(boot.includes("/modules/phase3/phase3-homologation.js"));assert.ok(boot.indexOf('/modules/phase3/phase3-homologation.js')>boot.indexOf('/modules/phase2/phase2-feedback.js'));});
+test('ticket da Compra é resolvido por chave ou número visível',()=>has('resolveTicketKey','global.abrirDetalheCompra','global.csAbrirImpureza','t?.ticket'));
+test('clientes e fornecedores recebem multibanco compartilhado',()=>has("'partyBanks'",'phase3OpenPartyBanks','phase3BankSave','ERPPartyBanks','saveFornecedores','saveClientes'));
+test('preços deixam uma busca de entidade e preservam busca de material legado',()=>{has('fixPriceSearches','phase2-price-material-search','Procurar ${label.toLowerCase()}');assert.ok(css.includes('.phase3-price-party-bar'));});
+test('calendário atribui compromisso ao usuário e lembra 5 3 1 dias antes',()=>has("'calendarEvents'",'userKey','[5,3,1]','checkCalendarPopups','phase3CalendarFilter','Todos os usuários'));
+test('calendário injeta compromissos na aba Avisos',()=>has('injectCalendarAvisos','Meus compromissos','avisosAtualizarBadge'));
+test('cheques explicam Abate compra e recalculam KPIs ao excluir',()=>has('Abate compra?','adiantamento ao fornecedor','legacyChequeDelete','live=Object.entries(CHQ_CTRL'));
+test('contas pessoais da dona possuem vencimento, filtro mensal e pagamento',()=>has('ownerDueDate','Vence hoje','phase3OwnerPay','phase3OwnerReopen','type="month"'));
+test('adiantamento usa compra selecionável e atualiza saldo do ticket por delta',()=>has('Compra relacionada (opcional)','supplierTicketOptions','setTicketAdvance','before+amount','oldBefore-oldValue+newValue'));
+test('EPI corrige ReferenceError data e faz uma única baixa',()=>{has('deliveryDate','data:deliveryDate','Estoque insuficiente','O estoque foi baixado uma única vez');assert.ok(phase2.includes('data:deliveryDate'));});
+test('funcionários ativos usam regra consistente em módulos operacionais',()=>{has('activeEmployee','getEmployees','vg-motorista','reu-partic-list','adv-mat');assert.ok(phase2.includes("['inativo','demitido','desligado','rescindido']"));assert.ok(!phase2.includes("&&!f.dataRescisao"));});
+test('próxima revisão da frota vira data e filtro é reaplicado',()=>has("el.type='date'",'phase2FrotaFilter','phase2-maint-card'));
+test('edição da viagem possui gastos extras e remove inativos',()=>has('p3-vg-edit-extra','gastosExtras','vg-edit-motorista'));
+test('contas a receber ganham vínculo fiscal sem misturar cadastros',()=>has('fiscalLinks','Cliente Fiscal','Fluxo consolidado','phase3ReceivableFiscal'));
+test('Casa Glória é consolidada em Casa e removida da navegação',()=>has("norm(x.area)==='casa gloria'","x.area='Casa'",'removeCasaGloria'));
+test('Coordenação repovoa reuniões e advertências com todos funcionários ativos',()=>has('fixCoordination','reu-partic-list','adv-mat','getEmployees'));
+test('layout possui responsividade para calendário, bancos e contas pessoais',()=>{assert.ok(css.includes('@media(max-width:1000px)'));assert.ok(css.includes('.p3-cal-layout'));assert.ok(css.includes('.phase3-bank-row'));assert.ok(css.includes('.p3-owner-calendar'));});

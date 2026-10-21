@@ -165,8 +165,12 @@ async function main() {
   await loadClassic('/modules/phase1/phase1-operations.js');
   await loadClassic('/modules/phase1/phase1-fiscal-admin.js');
   await loadClassic('/modules/phase2/phase2-feedback.js');
+
+  loadStyle('/modules/phase3/phase3-homologation.css');
+  await loadClassic('/modules/phase3/phase3-homologation.js');
   window.__PHASE1_READY__ = true;
   window.__PHASE2_FEEDBACK_READY__ = true;
+  window.__PHASE3_HOMOLOGATION_READY__ = true;
 
   initProfilePhoto({ auth, db, storage });
 
