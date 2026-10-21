@@ -15,13 +15,91 @@ function getEmployees(){try{return (FUNCIONARIOS||[]).filter(activeEmployee).sli
 function getUsers(){try{return Object.entries(USERS||{}).map(([key,u])=>({key,name:u?.name||key,role:u?.role||''})).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));}catch(e){return [];}}
 function currentUserKey(){try{return String(cuKey||sessionStorage.getItem('mm_sessao')||'');}catch(e){return '';}}
 
-/* Ticket robusto: aceita chave Firebase ou número visível */
-function resolveTicketKey(ref){let db={};try{db=TICKETS_DB||{};}catch(e){}const raw=String(ref||'').trim();if(raw&&db[raw])return raw;const up=raw.toUpperCase();const found=Object.entries(db).find(([k,t])=>String(t?.ticket||'').trim().toUpperCase()===up||String(k).trim().toUpperCase()===up);return found?.[0]||'';}
+/* Ticket robusto: chave Firebase, número visível e recuperação da nuvem */
+const ticketRefIndex=new Map();
+let currentPurchaseTicketKey='';
+function ticketDb(){try{return TICKETS_DB||{};}catch(e){return {};}}
+function normalizeTicketRef(ref){
+  return String(ref||'').trim().replace(/^ticket\s*#?\s*/i,'').trim();
+}
+function captureTicketMappings(){
+  const body=$('#tb-compras');if(!body)return;
+  Array.from(body.rows||[]).forEach(row=>{
+    const visible=normalizeTicketRef(row.cells?.[0]?.textContent||'');
+    const edit=row.querySelector('button[onclick*="csAbrirImpureza"],button[onclick*="abrirDetalheCompra"]');
+    const code=String(edit?.getAttribute('onclick')||'');
+    const m=code.match(/(?:csAbrirImpureza|abrirDetalheCompra)\(['"]([^'"]+)['"]\)/);
+    const key=normalizeTicketRef(m?.[1]||'');
+    if(visible&&key){ticketRefIndex.set(visible,key);ticketRefIndex.set(key,visible);}
+  });
+}
+function resolveTicketKey(ref){
+  const db=ticketDb(),raw=normalizeTicketRef(ref);
+  if(raw&&db[raw])return raw;
+  const mapped=ticketRefIndex.get(raw);
+  if(mapped&&db[mapped])return mapped;
+  const up=raw.toUpperCase();
+  const found=Object.entries(db).find(([k,t])=>{
+    const values=[k,t?.ticket,t?.id,t?.codigo,t?.numero].map(normalizeTicketRef);
+    return values.some(v=>v&&v.toUpperCase()===up);
+  });
+  if(found)return found[0];
+  if(mapped){
+    const mup=mapped.toUpperCase();
+    const byMapped=Object.entries(db).find(([k,t])=>normalizeTicketRef(t?.ticket).toUpperCase()===mup||normalizeTicketRef(k).toUpperCase()===mup);
+    if(byMapped)return byMapped[0];
+  }
+  return '';
+}
+async function ensureTicketKey(ref){
+  captureTicketMappings();
+  let key=resolveTicketKey(ref);
+  if(key)return key;
+  const raw=normalizeTicketRef(ref),mapped=normalizeTicketRef(ticketRefIndex.get(raw)||'');
+  const db=ticketDb(),fb=global._fbDB;
+  if(!fb)return '';
+  const directCandidates=[raw,mapped].filter(Boolean);
+  for(const candidate of directCandidates){
+    try{
+      const snap=await fb.ref('erp/tickets/'+candidate).once('value');
+      const value=snap?.val?.();
+      if(value){db[candidate]=value;return candidate;}
+    }catch(e){}
+  }
+  const visible=(mapped&&mapped.toUpperCase().startsWith('T'))?mapped:raw;
+  if(visible){
+    try{
+      const snap=await fb.ref('erp/tickets').orderByChild('ticket').equalTo(visible).limitToFirst(1).once('value');
+      const value=snap?.val?.()||{};
+      const entry=Object.entries(value)[0];
+      if(entry){db[entry[0]]=entry[1];ticketRefIndex.set(visible,entry[0]);ticketRefIndex.set(entry[0],visible);return entry[0];}
+    }catch(e){console.warn('[phase3] busca ticket na nuvem',e);}
+  }
+  return '';
+}
+function resetPurchaseDetailInputs(){
+  ['dc-add-mat','dc-add-br','dc-add-lq','dc-add-pr','dc-add-valor','dc-add-valor-obs'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.value='';
+  });
+}
 const legacyDetail=global.abrirDetalheCompra;
-if(typeof legacyDetail==='function')global.abrirDetalheCompra=function(ref){const k=resolveTicketKey(ref);if(!k){notify('Ticket não encontrado. Atualize a tela e tente novamente.','error');return;}return legacyDetail.call(this,k);};
+if(typeof legacyDetail==='function')global.abrirDetalheCompra=async function(ref){
+  resetPurchaseDetailInputs();
+  const k=await ensureTicketKey(ref);
+  if(!k){notify('Ticket não encontrado. O registro não está mais disponível na base atual.','error');return;}
+  currentPurchaseTicketKey=k;
+  const result=legacyDetail.call(this,k);
+  setTimeout(()=>{resetPurchaseDetailInputs();captureTicketMappings();},0);
+  return result;
+};
 const legacyImp=global.csAbrirImpureza;
-if(typeof legacyImp==='function')global.csAbrirImpureza=function(ref){const k=resolveTicketKey(ref);if(!k){notify('Ticket não encontrado. Atualize a tela e tente novamente.','error');return;}return legacyImp.call(this,k);};
+if(typeof legacyImp==='function')global.csAbrirImpureza=async function(ref){
+  const k=await ensureTicketKey(ref);
+  if(!k){notify('Ticket não encontrado. O registro não está mais disponível na base atual.','error');return;}
+  return legacyImp.call(this,k);
+};
 global.phase3ResolveTicketKey=resolveTicketKey;
+global.phase3EnsureTicketKey=ensureTicketKey;
 
 /* Bancos múltiplos em cliente e fornecedor + compatibilidade com legado */
 let partyBanks={};
@@ -35,35 +113,260 @@ global.phase3BankAdd=function(v={}){const box=$('#phase3-bank-rows');if(!box)ret
 global.phase3BankSave=async function(kind,key){if(!store)return;const rows=$$('#phase3-bank-rows .phase3-bank-row').map(row=>{const o={};$$('input',row).forEach(i=>o[i.dataset.f]=i.value.trim());return o;}).filter(x=>Object.values(x).some(Boolean));partyBanks[bankKey(kind,key)]=rows;await store.save('partyBanks',bankKey(kind,key),rows);const e=partyEntity(kind,key),p=rows[0]||{};if(e){e.banco=p.bank||'';e.agencia=p.agency||'';e.conta=p.account||'';e.pix=p.pix||'';try{kind==='fornecedor'?saveFornecedores():saveClientes();}catch(_e){}try{fbSalvar();}catch(_e){}}$('#phase3-bank-ov')?.remove();notify('Contas bancárias salvas.','success');};
 global.ERPPartyBanks=Object.freeze({list:(kind,key)=>bankList(kind,key).slice(),primary:(kind,key)=>bankList(kind,key)[0]||null});
 
-/* Pesquisa de preços: 1 busca da entidade + busca de material legado */
-function fixPriceSearches(){[['#tab-precos_fornecedores','#pf-forn-sel','Fornecedor'],['#tab-precos_clientes','#pc-cli-sel','Cliente']].forEach(([tabSel,selectSel,label])=>{const tab=$(tabSel),sel=$(selectSel);if(!tab||!sel)return;tab.querySelectorAll('.phase2-price-material-search').forEach(x=>x.remove());let inp=tab.querySelector('.phase2-price-party-search');if(!inp)return;inp.placeholder=`🔍 Procurar ${label.toLowerCase()}...`;const bar=inp.parentElement;if(bar){bar.classList.add('phase3-price-party-bar');if(bar.children.length>1)Array.from(bar.children).forEach(x=>{if(x!==inp&&x.classList.contains('phase2-price-material-search'))x.remove();});}if(!inp.dataset.p3){inp.dataset.p3='1';inp.addEventListener('input',()=>{const q=norm(inp.value);Array.from(sel.options).forEach(o=>o.hidden=!!q&&!norm(o.textContent).includes(q));});}});}
+/* Preços: uma única pesquisa integrada à própria lista da entidade */
+function priceComboOptions(select){
+  return Array.from(select?.options||[])
+    .filter(o=>o.value&&String(o.textContent||'').trim())
+    .map(o=>({value:o.value,label:String(o.textContent||'').trim()}));
+}
+function closePriceCombos(except){
+  $$('.phase3-price-combo.open').forEach(x=>{if(x!==except)x.classList.remove('open');});
+}
+function renderPriceComboList(combo,select,query=''){
+  const list=$('.phase3-price-combo-list',combo);if(!list)return;
+  const q=norm(query),items=priceComboOptions(select).filter(x=>!q||norm(x.label).includes(q));
+  list.innerHTML=items.length
+    ?items.slice(0,80).map(x=>`<button type="button" data-value="${esc(x.value)}">${esc(x.label)}</button>`).join('')
+    :'<div class="phase3-price-empty">Nenhum resultado.</div>';
+  $$('button[data-value]',list).forEach(btn=>btn.addEventListener('mousedown',e=>{
+    e.preventDefault();
+    const value=btn.dataset.value||'',opt=Array.from(select.options).find(o=>o.value===value);
+    select.value=value;
+    const input=$('input',combo);if(input)input.value=opt?.textContent?.trim()||'';
+    combo.classList.remove('open');
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+  }));
+}
+function ensurePriceCombo(tabSel,selectSel,label){
+  const tab=$(tabSel),select=$(selectSel);if(!tab||!select)return;
+  tab.querySelectorAll('.phase2-price-searches').forEach(x=>x.remove());
+  let combo=tab.querySelector(`.phase3-price-combo[data-for="${select.id}"]`);
+  if(!combo){
+    combo=document.createElement('div');combo.className='phase3-price-combo';combo.dataset.for=select.id;
+    combo.innerHTML=`<input type="search" autocomplete="off" placeholder="🔍 Digite para localizar ${label.toLowerCase()}..."><div class="phase3-price-combo-list"></div>`;
+    select.insertAdjacentElement('afterend',combo);
+    select.classList.add('phase3-original-select');
+    const input=$('input',combo);
+    input.addEventListener('focus',()=>{closePriceCombos(combo);combo.classList.add('open');renderPriceComboList(combo,select,input.value);});
+    input.addEventListener('input',()=>{combo.classList.add('open');renderPriceComboList(combo,select,input.value);});
+    input.addEventListener('keydown',e=>{
+      if(e.key==='Escape')combo.classList.remove('open');
+      if(e.key==='Enter'){
+        const first=combo.querySelector('.phase3-price-combo-list button[data-value]');
+        if(first){e.preventDefault();first.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));}
+      }
+    });
+    input.addEventListener('blur',()=>setTimeout(()=>combo.classList.remove('open'),120));
+  }
+  const input=$('input',combo),selected=select.options[select.selectedIndex];
+  if(input&&document.activeElement!==input)input.value=select.value?(selected?.textContent?.trim()||''):'';
+}
+function fixPriceSearches(){
+  ensurePriceCombo('#tab-precos_fornecedores','#pf-forn-sel','Fornecedor');
+  ensurePriceCombo('#tab-precos_clientes','#pc-cli-sel','Cliente');
+}
+document.addEventListener('mousedown',e=>{if(!e.target.closest('.phase3-price-combo'))closePriceCombos();});
 
-/* Calendário de compromissos por usuário + avisos 5/3/1 */
-let calendarEvents={},calendarMonth=today().slice(0,7),calendarSelected=today(),calendarFrom='',calendarTo='',calendarSearch='',calendarUser='';
-async function loadCalendar(){if(!store)return;calendarEvents=await store.load('calendarEvents',{});renderCalendar();setTimeout(checkCalendarPopups,500);}
-function dateDiff(a,b){const [ay,am,ad]=a.split('-').map(Number),[by,bm,bd]=b.split('-').map(Number);return Math.round((new Date(by,bm-1,bd)-new Date(ay,am-1,ad))/86400000);}
-function calendarList(){const q=norm(calendarSearch),user=calendarUser;return Object.values(calendarEvents||{}).filter(e=>e&&(!user||e.userKey===user)&&(!calendarFrom||e.date>=calendarFrom)&&(!calendarTo||e.date<=calendarTo)&&(!q||norm([e.title,e.description,e.category,userName(e.userKey)].join(' ')).includes(q))).sort((a,b)=>String(a.date+a.time).localeCompare(String(b.date+b.time)));}
+/* Calendário unificado: período por datas/meses, usuário e avisos 5/3/1 */
+let calendarEvents={},calendarMonth=today().slice(0,7),calendarSelected=today(),calendarRangeMode='date',
+  calendarFrom='',calendarTo='',calendarMonthFrom='',calendarMonthTo='',calendarSearch='',calendarUser='',calendarMigrating=false;
+function hideLegacyCalendarUi(){
+  const tab=$('#tab-afazeres');if(!tab)return;
+  Array.from(tab.children).forEach(ch=>{if(ch.id!=='phase3-calendar')ch.classList.add('phase3-calendar-legacy');});
+}
+function isAdminUser(){
+  try{return cu?.admin===true||/dona|admin/i.test(String(cu?.role||''));}catch(e){return false;}
+}
 function userName(key){return getUsers().find(x=>x.key===key)?.name||key||'Não atribuído';}
+function dateDiff(a,b){const [ay,am,ad]=a.split('-').map(Number),[by,bm,bd]=b.split('-').map(Number);return Math.round((new Date(by,bm-1,bd)-new Date(ay,am-1,ad))/86400000);}
 function monthDays(ym){const [y,m]=ym.split('-').map(Number),first=new Date(y,m-1,1).getDay(),last=new Date(y,m,0).getDate();const out=[];for(let i=0;i<first;i++)out.push(null);for(let d=1;d<=last;d++)out.push(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);return out;}
-function renderCalendar(){const tab=$('#tab-afazeres');if(!tab)return;Array.from(tab.children).forEach(ch=>{if(ch.id!=='phase3-calendar')ch.classList.add('phase3-calendar-legacy');});let root=$('#phase3-calendar');if(!root){root=document.createElement('div');root.id='phase3-calendar';tab.prepend(root);}const users=getUsers(),list=calendarList(),byDay={};list.forEach(e=>(byDay[e.date]||(byDay[e.date]=[])).push(e));const [y,m]=calendarMonth.split('-');const monthTitle=new Date(Number(y),Number(m)-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});const dayEvents=(byDay[calendarSelected]||[]);root.innerHTML=`<div class="p3-cal-head"><div><h2>📅 Agenda e compromissos</h2><p>Compromissos podem ser atribuídos a um usuário. O responsável recebe avisos automáticos 5, 3 e 1 dia antes.</p></div><button class="p3-primary" onclick="phase3CalendarOpen()">＋ Novo compromisso</button></div><div class="p3-cal-filters"><button onclick="phase3CalendarToday()">Hoje</button><input type="month" value="${calendarMonth}" onchange="phase3CalendarSetMonth(this.value)"><label>De <input type="date" value="${calendarFrom}" onchange="phase3CalendarFilter('from',this.value)"></label><label>Até <input type="date" value="${calendarTo}" onchange="phase3CalendarFilter('to',this.value)"></label><select onchange="phase3CalendarFilter('user',this.value)"><option value="">Todos os usuários</option>${users.map(u=>`<option value="${esc(u.key)}" ${calendarUser===u.key?'selected':''}>${esc(u.name)}</option>`).join('')}</select><input placeholder="🔍 Buscar compromisso..." value="${esc(calendarSearch)}" oninput="phase3CalendarFilter('search',this.value)"></div><div class="p3-cal-layout"><section class="p3-month"><div class="p3-month-nav"><button onclick="phase3CalendarMove(-1)">‹</button><b>${esc(monthTitle)}</b><button onclick="phase3CalendarMove(1)">›</button></div><div class="p3-week">${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(x=>`<span>${x}</span>`).join('')}</div><div class="p3-days">${monthDays(calendarMonth).map(d=>d?`<button class="${d===calendarSelected?'selected':''} ${d===today()?'today':''}" onclick="phase3CalendarSelect('${d}')"><b>${Number(d.slice(-2))}</b>${byDay[d]?.length?`<span>${byDay[d].length}</span>`:''}</button>`:'<i></i>').join('')}</div></section><section class="p3-day"><header><div><h3>${toBR(calendarSelected)}</h3><small>${dayEvents.length} compromisso(s)</small></div><button onclick="phase3CalendarOpen('', '${calendarSelected}')">＋ Adicionar neste dia</button></header><div>${dayEvents.length?dayEvents.map(eventCard).join(''):'<div class="p3-empty">Nenhum compromisso neste dia.</div>'}</div></section></div><section class="p3-cal-list"><h3>Compromissos no período</h3>${list.length?list.slice(0,80).map(eventCard).join(''):'<div class="p3-empty">Nenhum compromisso no filtro atual.</div>'}</section><details class="p3-legacy"><summary>Registros antigos do antigo “Afazeres”</summary><div>${legacyAfazeres()}</div></details>`;}
-function eventCard(e){return `<article class="p3-event ${e.status==='Concluído'?'done':''}"><div class="date"><b>${toBR(e.date)}</b><small>${esc(e.time||'Sem horário')}</small></div><div class="body"><b>${esc(e.title)}</b><small>${esc(e.category||'Compromisso')} · 👤 ${esc(userName(e.userKey))}</small>${e.description?`<p>${esc(e.description)}</p>`:''}</div><span class="status">${esc(e.status||'Pendente')}</span><div class="actions"><button onclick="phase3CalendarToggle('${e.id}')">${e.status==='Concluído'?'↩':'✓'}</button><button onclick="phase3CalendarOpen('${e.id}')">✏️</button><button onclick="phase3CalendarDelete('${e.id}')">🗑</button></div></article>`;}
-function legacyAfazeres(){let a=[];try{a=AFAZERES_DB||[];}catch(e){}return a.slice(-30).reverse().map(x=>`<div class="p3-legacy-row"><span>${esc(toBR(x.data||''))}</span><b>${esc(x.texto||'')}</b><small>${x.feito?'Concluído':'Pendente'}</small></div>`).join('')||'<div class="p3-empty">Nenhum registro antigo.</div>';}
+function calendarRangePass(e){
+  if(!e?.date)return false;
+  if(calendarRangeMode==='month'){
+    const ym=e.date.slice(0,7);
+    return (!calendarMonthFrom||ym>=calendarMonthFrom)&&(!calendarMonthTo||ym<=calendarMonthTo);
+  }
+  return (!calendarFrom||e.date>=calendarFrom)&&(!calendarTo||e.date<=calendarTo);
+}
+function calendarList(){
+  const q=norm(calendarSearch),user=calendarUser;
+  return Object.values(calendarEvents||{})
+    .filter(e=>e&&calendarRangePass(e)&&(!user||e.userKey===user)&&(!q||norm([e.title,e.description,e.category,userName(e.userKey)].join(' ')).includes(q)))
+    .sort((a,b)=>String(a.date+' '+(a.time||'')).localeCompare(String(b.date+' '+(b.time||''))));
+}
+function resolveLegacyUser(author){
+  const a=norm(author),users=getUsers();
+  return users.find(u=>norm(u.name)===a||norm(u.key)===a)?.key||currentUserKey();
+}
+async function migrateLegacyAfazeres(){
+  if(calendarMigrating||!store||!isAdminUser())return;
+  let legacy=[];try{legacy=(AFAZERES_DB||[]).filter(Boolean);}catch(e){}
+  if(!legacy.length)return;
+  const existingLegacy=new Set(Object.values(calendarEvents||{}).map(e=>String(e?.legacyAfazerId||'')).filter(Boolean));
+  const pending=legacy.filter(a=>a?.id&&!existingLegacy.has(String(a.id))&&(a.data||a.criadoEm)&&a.texto);
+  if(!pending.length)return;
+  calendarMigrating=true;
+  try{
+    for(const a of pending){
+      let date=toISO(a.data||'');
+      if(!date){
+        const m=String(a.criadoEm||'').match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+        if(m)date=`${m[3]}-${m[2]}-${m[1]}`;
+      }
+      if(!date)continue;
+      const id=`LEGACY-${String(a.id).replace(/[^a-zA-Z0-9_-]/g,'_')}`;
+      const userKey=resolveLegacyUser(a.autor);
+      const e={id,title:String(a.texto||'').trim(),date,time:'',userKey,category:'Compromisso',description:'',status:a.feito?'Concluído':'Pendente',
+        createdBy:currentUserKey(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),legacyAfazerId:String(a.id)};
+      if(a.feito&&a.feitoEm)e.completedAt=String(a.feitoEm);
+      calendarEvents[id]=e;
+      await store.save('calendarEvents',id,e);
+    }
+  }catch(error){console.warn('[phase3] migração Afazeres → Calendário',error);}
+  finally{calendarMigrating=false;}
+}
+async function loadCalendar(){
+  if(!store)return;
+  calendarEvents=await store.load('calendarEvents',{});
+  await migrateLegacyAfazeres();
+  renderCalendar();
+  setTimeout(checkCalendarPopups,500);
+}
+const legacyRenderAfazeresPhase3=global.renderAfazeres;
+if(typeof legacyRenderAfazeresPhase3==='function')global.renderAfazeres=function(){
+  const r=legacyRenderAfazeresPhase3.apply(this,arguments);
+  setTimeout(()=>{hideLegacyCalendarUi();renderCalendar();},0);
+  return r;
+};
+
+function preserveCalendarFocus(){
+  const a=document.activeElement;
+  if(!a||!a.id||!a.closest('#phase3-calendar'))return null;
+  return {id:a.id,start:a.selectionStart,end:a.selectionEnd};
+}
+function restoreCalendarFocus(state){
+  if(!state)return;
+  const el=document.getElementById(state.id);if(!el)return;
+  el.focus();
+  try{if(typeof state.start==='number')el.setSelectionRange(state.start,state.end);}catch(e){}
+}
+function eventCard(e){
+  return `<article class="p3-event ${e.status==='Concluído'?'done':''}" data-date="${esc(e.date)}">
+    <div class="date"><b>${toBR(e.date)}</b><small>${esc(e.time||'Sem horário')}</small></div>
+    <div class="body"><b>${esc(e.title)}</b><small>${esc(e.category||'Compromisso')} · 👤 ${esc(userName(e.userKey))}</small>${e.description?`<p>${esc(e.description)}</p>`:''}</div>
+    <span class="status">${esc(e.status||'Pendente')}</span>
+    <div class="actions"><button title="${e.status==='Concluído'?'Reabrir':'Concluir'}" onclick="phase3CalendarToggle('${e.id}')">${e.status==='Concluído'?'↩':'✓'}</button><button title="Editar" onclick="phase3CalendarOpen('${e.id}')">✏️</button><button title="Excluir" onclick="phase3CalendarDelete('${e.id}')">🗑</button></div>
+  </article>`;
+}
+function renderCalendar(){
+  const tab=$('#tab-afazeres');if(!tab)return;
+  const focus=preserveCalendarFocus();
+  hideLegacyCalendarUi();
+  let root=$('#phase3-calendar');
+  if(!root){root=document.createElement('div');root.id='phase3-calendar';tab.prepend(root);}
+  const users=getUsers(),list=calendarList(),byDay={};
+  list.forEach(e=>(byDay[e.date]||(byDay[e.date]=[])).push(e));
+  const [y,m]=calendarMonth.split('-');
+  const monthTitle=new Date(Number(y),Number(m)-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  const rangeLabel=calendarRangeMode==='month'
+    ?`${calendarMonthFrom||'início'} → ${calendarMonthTo||'fim'}`
+    :`${calendarFrom?toBR(calendarFrom):'início'} → ${calendarTo?toBR(calendarTo):'fim'}`;
+  root.innerHTML=`<div class="p3-cal-head">
+    <div><h2>📅 Agenda e compromissos</h2><p>Uma agenda única. Filtre por período e responsável; o usuário recebe aviso automático 5, 3 e 1 dia antes.</p></div>
+    <button class="p3-primary" onclick="phase3CalendarOpen()">＋ Novo compromisso</button>
+  </div>
+  <div class="p3-cal-filter-card">
+    <div class="p3-range-switch">
+      <button class="${calendarRangeMode==='date'?'active':''}" onclick="phase3CalendarRangeMode('date')">Por datas</button>
+      <button class="${calendarRangeMode==='month'?'active':''}" onclick="phase3CalendarRangeMode('month')">Por meses</button>
+    </div>
+    <div class="p3-cal-range-fields">
+      ${calendarRangeMode==='date'
+        ?`<label>De<input id="p3cal-from" type="date" value="${calendarFrom}" onchange="phase3CalendarFilter('from',this.value)"></label><label>Até<input id="p3cal-to" type="date" value="${calendarTo}" onchange="phase3CalendarFilter('to',this.value)"></label>`
+        :`<label>Mês inicial<input id="p3cal-month-from" type="month" value="${calendarMonthFrom}" onchange="phase3CalendarFilter('monthFrom',this.value)"></label><label>Mês final<input id="p3cal-month-to" type="month" value="${calendarMonthTo}" onchange="phase3CalendarFilter('monthTo',this.value)"></label>`}
+      <label>Responsável<select id="p3cal-user-filter" onchange="phase3CalendarFilter('user',this.value)"><option value="">Todos</option>${users.map(u=>`<option value="${esc(u.key)}" ${calendarUser===u.key?'selected':''}>${esc(u.name)}</option>`).join('')}</select></label>
+      <label class="search">Buscar<input id="p3cal-search" type="search" placeholder="Título, descrição, categoria..." value="${esc(calendarSearch)}" oninput="phase3CalendarSearch(this.value)"></label>
+      <button class="clear" onclick="phase3CalendarClearFilters()">Limpar filtros</button>
+    </div>
+    <div class="p3-cal-filter-summary"><b>${list.length}</b> compromisso(s) · período ${esc(rangeLabel)}</div>
+  </div>
+  <div class="p3-cal-layout">
+    <section class="p3-month">
+      <div class="p3-month-nav"><button onclick="phase3CalendarMove(-1)">‹</button><b>${esc(monthTitle)}</b><button onclick="phase3CalendarMove(1)">›</button></div>
+      <div class="p3-week">${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(x=>`<span>${x}</span>`).join('')}</div>
+      <div class="p3-days">${monthDays(calendarMonth).map(d=>d?`<button class="${d===calendarSelected?'selected':''} ${d===today()?'today':''}" onclick="phase3CalendarSelect('${d}')"><b>${Number(d.slice(-2))}</b>${byDay[d]?.length?`<span>${byDay[d].length}</span>`:''}</button>`:'<i></i>').join('')}</div>
+      <div class="p3-cal-day-actions"><span>Dia selecionado: <b>${toBR(calendarSelected)}</b></span><button onclick="phase3CalendarOpen('', '${calendarSelected}')">＋ Adicionar neste dia</button></div>
+    </section>
+    <section class="p3-period-results">
+      <header><div><h3>Agendas encontradas</h3><small>Todos os compromissos que correspondem aos filtros.</small></div></header>
+      <div class="p3-period-scroll">${list.length?list.map(eventCard).join(''):'<div class="p3-empty">Nenhum compromisso nesse período/filtro.</div>'}</div>
+    </section>
+  </div>`;
+  restoreCalendarFocus(focus);
+}
 global.phase3CalendarToday=()=>{calendarMonth=today().slice(0,7);calendarSelected=today();renderCalendar();};
 global.phase3CalendarSetMonth=v=>{calendarMonth=v||calendarMonth;calendarSelected=`${calendarMonth}-01`;renderCalendar();};
 global.phase3CalendarMove=d=>{const [y,m]=calendarMonth.split('-').map(Number),dt=new Date(y,m-1+d,1);calendarMonth=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;calendarSelected=`${calendarMonth}-01`;renderCalendar();};
 global.phase3CalendarSelect=d=>{calendarSelected=d;renderCalendar();};
-global.phase3CalendarFilter=(k,v)=>{if(k==='from')calendarFrom=v;if(k==='to')calendarTo=v;if(k==='search')calendarSearch=v;if(k==='user')calendarUser=v;renderCalendar();};
-global.phase3CalendarOpen=function(id='',date=''){const e=id?calendarEvents[id]:null,users=getUsers(),body=$('#modal-body');if(!body)return;body.className='modal';body.innerHTML=`<h3>${e?'✏️ Editar':'＋ Novo'} compromisso</h3><input type="hidden" id="p3cal-id" value="${esc(id)}"><div class="fg"><label>Título *</label><input id="p3cal-title" value="${esc(e?.title||'')}" placeholder="Ex.: Renovar certificado, reunião, visita..."></div><div class="phase3-grid2"><div class="fg"><label>Data *</label><input id="p3cal-date" type="date" value="${esc(e?.date||date||calendarSelected||today())}"></div><div class="fg"><label>Horário</label><input id="p3cal-time" type="time" value="${esc(e?.time||'')}"></div></div><div class="fg"><label>Responsável *</label><select id="p3cal-user"><option value="">— Selecione —</option>${users.map(u=>`<option value="${esc(u.key)}" ${(e?.userKey||currentUserKey())===u.key?'selected':''}>${esc(u.name)} · ${esc(u.role)}</option>`).join('')}</select><small class="p3-help">Somente este usuário receberá o popup e verá o compromisso nos seus avisos.</small></div><div class="fg"><label>Categoria</label><select id="p3cal-cat">${['Compromisso','Financeiro','Fiscal','Cliente','Fornecedor','RH','Frota','Outro'].map(x=>`<option ${e?.category===x?'selected':''}>${x}</option>`).join('')}</select></div><div class="fg"><label>Descrição</label><textarea id="p3cal-desc" rows="3">${esc(e?.description||'')}</textarea></div><div class="p3-reminder-info">🔔 Lembretes fixos: <b>5 dias</b>, <b>3 dias</b> e <b>1 dia</b> antes.</div><div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="phase3CalendarSave()">Salvar</button></div>`;$('#modal-ov')?.classList.add('open');};
-global.phase3CalendarSave=async function(){if(!store)return;const id=$('#p3cal-id')?.value||store.id('CAL'),title=$('#p3cal-title')?.value.trim(),date=$('#p3cal-date')?.value,userKey=$('#p3cal-user')?.value;if(!title||!date||!userKey){notify('Informe título, data e responsável.','error');return;}const prev=calendarEvents[id]||{};const e={...prev,id,title,date,time:$('#p3cal-time')?.value||'',userKey,category:$('#p3cal-cat')?.value||'Compromisso',description:$('#p3cal-desc')?.value.trim()||'',status:prev.status||'Pendente',createdBy:prev.createdBy||currentUserKey(),createdAt:prev.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};calendarEvents[id]=e;await store.save('calendarEvents',id,e);cm();calendarMonth=date.slice(0,7);calendarSelected=date;renderCalendar();refreshAvisos();notify('Compromisso salvo.','success');};
-global.phase3CalendarToggle=async id=>{const e=calendarEvents[id];if(!e||!store)return;e.status=e.status==='Concluído'?'Pendente':'Concluído';e.completedAt=e.status==='Concluído'?new Date().toISOString():'';await store.save('calendarEvents',id,e);renderCalendar();refreshAvisos();};
+global.phase3CalendarRangeMode=mode=>{calendarRangeMode=mode==='month'?'month':'date';renderCalendar();};
+global.phase3CalendarClearFilters=()=>{calendarFrom='';calendarTo='';calendarMonthFrom='';calendarMonthTo='';calendarSearch='';calendarUser='';renderCalendar();};
+global.phase3CalendarFilter=(k,v)=>{
+  if(k==='from')calendarFrom=v;if(k==='to')calendarTo=v;
+  if(k==='monthFrom')calendarMonthFrom=v;if(k==='monthTo')calendarMonthTo=v;
+  if(k==='user')calendarUser=v;renderCalendar();
+};
+let calendarSearchTimer=null;
+global.phase3CalendarSearch=value=>{
+  calendarSearch=value||'';
+  clearTimeout(calendarSearchTimer);
+  calendarSearchTimer=setTimeout(renderCalendar,120);
+};
+global.phase3CalendarOpen=function(id='',date=''){
+  const e=id?calendarEvents[id]:null,users=getUsers(),body=$('#modal-body');if(!body)return;
+  body.className='modal';
+  body.innerHTML=`<h3>${e?'✏️ Editar':'＋ Novo'} compromisso</h3><input type="hidden" id="p3cal-id" value="${esc(id)}">
+    <div class="fg"><label>Título *</label><input id="p3cal-title" value="${esc(e?.title||'')}" placeholder="Ex.: Renovar certificado, reunião, visita..."></div>
+    <div class="phase3-grid2"><div class="fg"><label>Data *</label><input id="p3cal-date" type="date" value="${esc(e?.date||date||calendarSelected||today())}"></div><div class="fg"><label>Horário</label><input id="p3cal-time" type="time" value="${esc(e?.time||'')}"></div></div>
+    <div class="fg"><label>Responsável *</label><select id="p3cal-user"><option value="">— Selecione —</option>${users.map(u=>`<option value="${esc(u.key)}" ${(e?.userKey||currentUserKey())===u.key?'selected':''}>${esc(u.name)} · ${esc(u.role)}</option>`).join('')}</select><small class="p3-help">O popup e o aviso são exibidos para o responsável selecionado.</small></div>
+    <div class="fg"><label>Categoria</label><select id="p3cal-cat">${['Compromisso','Financeiro','Fiscal','Cliente','Fornecedor','RH','Frota','Outro'].map(x=>`<option ${e?.category===x?'selected':''}>${x}</option>`).join('')}</select></div>
+    <div class="fg"><label>Descrição</label><textarea id="p3cal-desc" rows="3">${esc(e?.description||'')}</textarea></div>
+    <div class="p3-reminder-info">🔔 Avisos fixos para o responsável: <b>5 dias</b>, <b>3 dias</b> e <b>1 dia</b> antes.</div>
+    <div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="phase3CalendarSave()">Salvar</button></div>`;
+  $('#modal-ov')?.classList.add('open');
+};
+global.phase3CalendarSave=async function(){
+  if(!store)return;
+  const id=$('#p3cal-id')?.value||store.id('CAL'),title=$('#p3cal-title')?.value.trim(),date=$('#p3cal-date')?.value,userKey=$('#p3cal-user')?.value;
+  if(!title||!date||!userKey){notify('Informe título, data e responsável.','error');return;}
+  const prev=calendarEvents[id]||{};
+  const e={...prev,id,title,date,time:$('#p3cal-time')?.value||'',userKey,category:$('#p3cal-cat')?.value||'Compromisso',description:$('#p3cal-desc')?.value.trim()||'',
+    status:prev.status||'Pendente',createdBy:prev.createdBy||currentUserKey(),createdAt:prev.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  calendarEvents[id]=e;await store.save('calendarEvents',id,e);cm();calendarMonth=date.slice(0,7);calendarSelected=date;renderCalendar();refreshAvisos();notify('Compromisso salvo.','success');
+};
+global.phase3CalendarToggle=async id=>{const e=calendarEvents[id];if(!e||!store)return;e.status=e.status==='Concluído'?'Pendente':'Concluído';e.completedAt=e.status==='Concluído'?new Date().toISOString():'';e.updatedAt=new Date().toISOString();await store.save('calendarEvents',id,e);renderCalendar();refreshAvisos();};
 global.phase3CalendarDelete=async id=>{if(!calendarEvents[id]||!store||!confirm('Excluir este compromisso?'))return;delete calendarEvents[id];await store.remove('calendarEvents',id);renderCalendar();refreshAvisos();};
 function myUpcoming(){const me=currentUserKey(),now=today();return Object.values(calendarEvents||{}).filter(e=>e&&e.userKey===me&&e.status!=='Concluído'&&e.date>=now&&dateDiff(now,e.date)<=5).sort((a,b)=>a.date.localeCompare(b.date));}
-function checkCalendarPopups(){const me=currentUserKey();if(!me)return;const now=today(),due=Object.values(calendarEvents||{}).filter(e=>e&&e.userKey===me&&e.status!=='Concluído'&&[5,3,1].includes(dateDiff(now,e.date)));if(!due.length)return;const key=`mm_cal_seen_${me}`,seen=JSON.parse(localStorage.getItem(key)||'{}');const fresh=due.filter(e=>!seen[`${e.id}|${now}`]);if(!fresh.length)return;fresh.forEach(e=>seen[`${e.id}|${now}`]=1);localStorage.setItem(key,JSON.stringify(seen));const msg=fresh.map(e=>`• ${e.title} — ${toBR(e.date)} (${dateDiff(now,e.date)} dia(s))`).join('\n');setTimeout(()=>alert(`🔔 Compromissos próximos\n\n${msg}`),350);}
+function checkCalendarPopups(){
+  const me=currentUserKey();if(!me)return;
+  const now=today(),due=Object.values(calendarEvents||{}).filter(e=>e&&e.userKey===me&&e.status!=='Concluído'&&[5,3,1].includes(dateDiff(now,e.date)));
+  if(!due.length)return;
+  const key=`mm_cal_seen_${me}`,seen=JSON.parse(localStorage.getItem(key)||'{}'),fresh=due.filter(e=>!seen[`${e.id}|${now}`]);
+  if(!fresh.length)return;
+  fresh.forEach(e=>seen[`${e.id}|${now}`]=1);localStorage.setItem(key,JSON.stringify(seen));
+  const msg=fresh.map(e=>`• ${e.title} — ${toBR(e.date)} (${dateDiff(now,e.date)} dia(s))`).join('\n');
+  setTimeout(()=>alert(`🔔 Compromissos próximos\n\n${msg}`),350);
+}
 const legacyAvisos=global.renderAvisos,legacyBadge=global.avisosAtualizarBadge;
-function injectCalendarAvisos(){const box=$('#tab-avisos');if(!box)return;$('#phase3-calendar-alerts')?.remove();const list=myUpcoming(),card=document.createElement('div');card.id='phase3-calendar-alerts';card.className='p3-alert-card';card.innerHTML=`<h3>📅 Meus compromissos</h3>${list.length?list.map(e=>`<div><b>${esc(e.title)}</b><span>${toBR(e.date)} · ${dateDiff(today(),e.date)} dia(s)</span></div>`).join(''):'<p>Nenhum compromisso seu nos próximos 5 dias.</p>'}`;(box.querySelector('div')||box).prepend(card);}
+function injectCalendarAvisos(){
+  const box=$('#tab-avisos');if(!box)return;
+  $('#phase3-calendar-alerts')?.remove();
+  const list=myUpcoming(),card=document.createElement('div');card.id='phase3-calendar-alerts';card.className='p3-alert-card';
+  card.innerHTML=`<h3>📅 Meus compromissos</h3>${list.length?list.map(e=>`<div><b>${esc(e.title)}</b><span>${toBR(e.date)} · ${dateDiff(today(),e.date)} dia(s)</span></div>`).join(''):'<p>Nenhum compromisso seu nos próximos 5 dias.</p>'}`;
+  (box.querySelector('div')||box).prepend(card);
+}
 function refreshAvisos(){try{global.avisosAtualizarBadge?.();if($('#tab-avisos')?.classList.contains('active'))global.renderAvisos?.();}catch(e){}}
 if(typeof legacyAvisos==='function')global.renderAvisos=function(){const r=legacyAvisos.apply(this,arguments);setTimeout(injectCalendarAvisos,0);return r;};
-if(typeof legacyBadge==='function')global.avisosAtualizarBadge=function(){const r=legacyBadge.apply(this,arguments);setTimeout(()=>{const el=$('.nav-tab[data-tab="avisos"] .nt-label');if(!el)return;const base=Number(el.querySelector('span')?.textContent||0),extra=myUpcoming().length,total=base+extra;el.innerHTML=`Avisos${total?` <span class="p3-aviso-count">${total}</span>`:''}`;},0);return r;};
+if(typeof legacyBadge==='function')global.avisosAtualizarBadge=function(){const r=legacyBadge.apply(this,arguments);setTimeout(()=>{const el=$('.nav-tab[data-tab="avisos"] .nt-label');if(!el)return;const old=el.querySelector('.p3-aviso-count');if(old)old.remove();const extra=myUpcoming().length;if(extra){const s=document.createElement('span');s.className='p3-aviso-count';s.textContent=String(extra);el.appendChild(document.createTextNode(' '));el.appendChild(s);}},0);return r;};
 
 /* Cheques: explicação, contagem consistente e limpeza do controle */
 function chequeSequence(){let list=[];try{list=Object.values(CHQ_CTRL||{}).filter(Boolean);}catch(e){}const groups={};list.forEach(c=>{const b=String(c.b||'Sem banco'),n=parseInt(String(c.n||'').replace(/\D/g,''),10);if(Number.isFinite(n))(groups[b]||(groups[b]=[])).push(n);});return Object.entries(groups).map(([b,nums])=>{nums=[...new Set(nums)].sort((a,b)=>a-b);const miss=[];for(let n=nums[0];nums.length&&n<nums[nums.length-1];n++)if(!nums.includes(n))miss.push(n);return {bank:b,missing:miss};});}
@@ -77,7 +380,15 @@ async function loadOwnerBills(){if(!store)return;ownerBills=await store.load('ow
 function ownerDueDate(b,month){const [y,m]=month.split('-').map(Number),last=new Date(y,m,0).getDate();return `${month}-${String(Math.min(last,Math.max(1,Number(b.dueDay||1)))).padStart(2,'0')}`;}
 function ownerStatus(b,month){const p=b.payments?.[month];if(p?.paid)return 'pago';const due=ownerDueDate(b,month),now=today();return due<now?'atrasado':due===now?'hoje':'pendente';}
 function renderOwnerBillsV3(){const host=$('#phase2-owner-bills');if(!host)return;host.dataset.p3owner='1';const items=Object.values(ownerBills||{}).filter(x=>x&&x.active!==false).filter(x=>ownerFilter==='todos'||ownerStatus(x,ownerMonth)===ownerFilter);const total=items.reduce((s,x)=>s+Number(x.value||0),0),paid=items.filter(x=>ownerStatus(x,ownerMonth)==='pago').reduce((s,x)=>s+Number(x.value||0),0),over=items.filter(x=>ownerStatus(x,ownerMonth)==='atrasado').length,todayCount=items.filter(x=>ownerStatus(x,ownerMonth)==='hoje').length;host.innerHTML=`<div class="p3-owner-head"><div><h2>🏠 Contas pessoais da Dona</h2><p>Controle mensal de despesas pessoais recorrentes, vencimentos e pagamentos.</p></div><button class="p3-primary" onclick="phase3OwnerOpen()">＋ Nova conta</button></div><div class="p3-owner-toolbar"><input type="month" value="${ownerMonth}" onchange="phase3OwnerMonth(this.value)"><select onchange="phase3OwnerFilter(this.value)"><option value="todos">Todos</option><option value="pendente" ${ownerFilter==='pendente'?'selected':''}>Pendentes</option><option value="hoje" ${ownerFilter==='hoje'?'selected':''}>Vence hoje</option><option value="atrasado" ${ownerFilter==='atrasado'?'selected':''}>Atrasadas</option><option value="pago" ${ownerFilter==='pago'?'selected':''}>Pagas</option></select></div><div class="p3-owner-kpis"><div><small>Previsto</small><b>R$ ${money(total)}</b></div><div><small>Pago</small><b>R$ ${money(paid)}</b></div><div class="warn"><small>Atrasadas</small><b>${over}</b></div><div class="today"><small>Vence hoje</small><b>${todayCount}</b></div></div><div class="p3-owner-calendar">${items.length?items.sort((a,b)=>Number(a.dueDay)-Number(b.dueDay)).map(b=>{const st=ownerStatus(b,ownerMonth),due=ownerDueDate(b,ownerMonth);return `<article class="${st}"><div class="day"><small>Vence</small><b>${due.slice(-2)}</b></div><div class="main"><b>${esc(b.desc)}</b><small>${esc(b.category||'Sem categoria')} · ${toBR(due)}</small>${b.obs?`<p>${esc(b.obs)}</p>`:''}</div><strong>R$ ${money(b.value)}</strong><span class="badge">${st==='pago'?'Pago':st==='atrasado'?'Atrasada':st==='hoje'?'Vence hoje':'Pendente'}</span><div class="actions">${st==='pago'?`<button onclick="phase3OwnerReopen('${b.id}')">↩ Reabrir</button>`:`<button class="pay" onclick="phase3OwnerPay('${b.id}')">✓ Pagar</button>`}<button onclick="phase3OwnerOpen('${b.id}')">✏️</button><button onclick="phase3OwnerToggle('${b.id}')">Pausar</button></div></article>`;}).join(''):'<div class="p3-empty">Nenhuma conta neste filtro.</div>'}</div>`;}
-global.phase2OpenOwnerBills=function(){try{document.querySelectorAll('.tab-panel').forEach(x=>x.classList.remove('active'));$('#tab-contas-dona')?.classList.add('active');}catch(e){}loadOwnerBills();};
+global.phase2OpenOwnerBills=function(){
+  try{
+    $$('.nav-tab').forEach(x=>x.classList.remove('active'));
+    $$('.tab-panel').forEach(x=>x.classList.remove('active'));
+    $('.nav-tab[data-tab="contas_dona"]')?.classList.add('active');
+    $('#tab-contas_dona')?.classList.add('active');
+  }catch(e){}
+  loadOwnerBills();
+};
 global.phase3OwnerMonth=v=>{ownerMonth=v||ownerMonth;renderOwnerBillsV3();};global.phase3OwnerFilter=v=>{ownerFilter=v;renderOwnerBillsV3();};
 global.phase3OwnerOpen=function(id=''){const b=id?ownerBills[id]:null,body=$('#modal-body');if(!body)return;body.className='modal';body.innerHTML=`<h3>${b?'✏️ Editar':'＋ Nova'} conta pessoal</h3><input type="hidden" id="p3ob-id" value="${esc(id)}"><div class="fg"><label>Descrição</label><input id="p3ob-desc" value="${esc(b?.desc||'')}"></div><div class="phase3-grid2"><div class="fg"><label>Categoria</label><input id="p3ob-cat" value="${esc(b?.category||'')}"></div><div class="fg"><label>Valor R$</label><input id="p3ob-value" inputmode="decimal" value="${b?money(b.value):''}"></div></div><div class="fg"><label>Vencimento mensal</label><input id="p3ob-due" type="date" value="${ownerDueDate(b||{dueDay:10},ownerMonth)}"><small class="p3-help">Será usada a mesma data/dia nos próximos meses.</small></div><div class="fg"><label>Observação</label><input id="p3ob-obs" value="${esc(b?.obs||'')}"></div><div class="modal-ft"><button onclick="cm()">Cancelar</button><button class="btn-save" onclick="phase3OwnerSave()">Salvar</button></div>`;$('#modal-ov')?.classList.add('open');};
 global.phase3OwnerSave=async function(){if(!store)return;const id=$('#p3ob-id')?.value||store.id('PESS'),desc=$('#p3ob-desc')?.value.trim(),value=parseBR($('#p3ob-value')?.value),due=$('#p3ob-due')?.value;if(!desc||!(value>0)||!due){notify('Informe descrição, valor e vencimento.','error');return;}const old=ownerBills[id]||{};const b={...old,id,desc,category:$('#p3ob-cat')?.value.trim()||'',value,dueDay:Number(due.slice(-2)),obs:$('#p3ob-obs')?.value.trim()||'',active:old.active!==false,payments:old.payments||{}};ownerBills[id]=b;await store.save('ownerBills',id,b);cm();renderOwnerBillsV3();};
@@ -87,13 +398,111 @@ global.phase3OwnerPay=async id=>{const b=ownerBills[id];if(!b||!store)return;b.p
 function supplierTicketOptions(fornCod,current=''){let arr=[];try{arr=Object.entries(TICKETS_DB||{}).filter(([k,t])=>!fornCod||t?.fornecedorCod===fornCod||(FORNECEDORES||[]).find(f=>f.cod===fornCod)?.nome===t?.fornecedor).map(([k,t])=>({key:k,ticket:t.ticket||k,total:t.totalGeral||0}));}catch(e){}const seen=new Set();return arr.filter(x=>!seen.has(x.ticket)&&seen.add(x.ticket)).sort((a,b)=>String(b.ticket).localeCompare(String(a.ticket))).map(x=>`<option value="${esc(x.ticket)}" ${String(current)===String(x.ticket)?'selected':''}>${esc(x.ticket)} · R$ ${money(x.total)}</option>`).join('');}
 function replaceTicketInput(id,fornCod,current){const old=$(id);if(!old||old.tagName==='SELECT')return;const sel=document.createElement('select');sel.id=old.id;sel.innerHTML=`<option value="">— Crédito geral, sem compra específica —</option>${supplierTicketOptions(fornCod,current||old.value)}`;old.replaceWith(sel);const label=sel.closest('.fg')?.querySelector('label');if(label)label.textContent='Compra relacionada (opcional)';}
 function enhanceAdvanceTickets(){[['#adt-ticket','#adt-forn'],['#ea-ticket','#ea-forn']].forEach(([tid,fid])=>{const el=$(tid),forn=$(fid)?.value||'',cur=el?.value||'';if(!el)return;if(el.tagName!=='SELECT'){replaceTicketInput(tid,forn,cur);return;}const html=`<option value="">— Crédito geral, sem compra específica —</option>${supplierTicketOptions(forn,cur)}`;if(el.dataset.p3forn!==forn){el.innerHTML=html;el.dataset.p3forn=forn;if(cur&&Array.from(el.options).some(o=>o.value===cur))el.value=cur;}});[['#adt-forn-busca'],['#ea-forn-busca']].forEach(([s])=>{const x=$(s);if(x&&!x.dataset.p3ticket){x.dataset.p3ticket='1';x.addEventListener('change',()=>setTimeout(enhanceAdvanceTickets,30));x.addEventListener('input',()=>setTimeout(enhanceAdvanceTickets,80));}});}
-function advanceSumForTicket(ticket){let sum=0;try{Object.values(ADT_POR_FORN||{}).forEach(list=>(list||[]).forEach(a=>{if(String(a.ticket||'').trim()===String(ticket).trim())sum+=Number(a.valor||0);}));}catch(e){}return Math.round(sum*100)/100;}
-function reconcileAdvanceTicket(ticket){if(!ticket)return;const key=resolveTicketKey(ticket);if(!key)return;let t;try{t=TICKETS_DB[key];}catch(e){}if(!t)return;const total=Number(t.totalGeral||0),adt=advanceSumForTicket(t.ticket||ticket),saldo=Math.max(0,Math.round((total-adt)*100)/100);t.adiantamento=adt;t.saldoPagar=saldo;if(total>0)t.status=saldo<=0.009?'Pago':'Pendente';try{const cp=(CONTAS_PAGAR||[]).find(x=>String(x.ticket||'')===String(t.ticket||ticket));if(cp){cp.valor=saldo;cp.status=saldo<=0.009?'Pago':'Pendente';if(saldo>0)cp.dataPgto='';}saveContasPagar();saveDB();fbSalvarImediato?.();renderTickets();renderContasPagar();}catch(e){console.warn('[phase3] reconcile adiantamento',e);} }
-function setTicketAdvance(ticket,value){if(!ticket)return;const key=resolveTicketKey(ticket);if(!key)return;let t;try{t=TICKETS_DB[key];}catch(e){}if(!t)return;const total=Number(t.totalGeral||0),adt=Math.max(0,Math.round(Number(value||0)*100)/100),saldo=Math.max(0,Math.round((total-adt)*100)/100);t.adiantamento=adt;t.saldoPagar=saldo;if(total>0)t.status=saldo<=0.009?'Pago':'Pendente';try{const cp=(CONTAS_PAGAR||[]).find(x=>String(x.ticket||'')===String(t.ticket||ticket));if(cp){cp.valor=saldo;cp.status=saldo<=0.009?'Pago':'Pendente';if(saldo>0)cp.dataPgto='';}saveContasPagar();saveDB();fbSalvarImediato?.();renderTickets();renderContasPagar();}catch(e){console.warn('[phase3] set adiantamento ticket',e);}}
-const legacySaveAdvance=global.salvarAdiantamento;if(typeof legacySaveAdvance==='function')global.salvarAdiantamento=function(){const ticket=$('#adt-ticket')?.value||'',amount=parseBR($('#adt-valor')?.value),key=resolveTicketKey(ticket),before=key?Number(TICKETS_DB[key]?.adiantamento||0):0;const r=legacySaveAdvance.apply(this,arguments);setTimeout(()=>{if(ticket&&amount>0)setTicketAdvance(ticket,before+amount);},280);return r;};
-const legacyEditAdvance=global.editAdiantamento;if(typeof legacyEditAdvance==='function')global.editAdiantamento=function(f,c){const r=legacyEditAdvance.apply(this,arguments);setTimeout(()=>enhanceAdvanceTickets(),0);return r;};
-const legacySaveEditAdvance=global.salvarEditAdiantamento;if(typeof legacySaveEditAdvance==='function')global.salvarEditAdiantamento=function(f,c){let old={};try{old={...(ADT_POR_FORN[f]||[]).find(x=>x.cod===c)};}catch(e){}const oldTicket=old.ticket||'',oldValue=Number(old.valor||0),newTicket=$('#ea-ticket')?.value||'',newValue=parseBR($('#ea-valor')?.value),oldKey=resolveTicketKey(oldTicket),newKey=resolveTicketKey(newTicket),oldBefore=oldKey?Number(TICKETS_DB[oldKey]?.adiantamento||0):0,newBefore=newKey?Number(TICKETS_DB[newKey]?.adiantamento||0):0;const r=legacySaveEditAdvance.apply(this,arguments);setTimeout(()=>{if(oldTicket&&oldTicket===newTicket)setTicketAdvance(oldTicket,Math.max(0,oldBefore-oldValue+newValue));else{if(oldTicket)setTicketAdvance(oldTicket,Math.max(0,oldBefore-oldValue));if(newTicket)setTicketAdvance(newTicket,newBefore+newValue);}},280);return r;};
-global.phase3ReconcileAdvanceTicket=reconcileAdvanceTicket;global.phase3SetTicketAdvance=setTicketAdvance;
+function linkedAdvanceRecords(ticket){
+  const out=[];try{Object.values(ADT_POR_FORN||{}).forEach(list=>(list||[]).forEach(a=>{if(a&&String(a.ticket||'').trim()===String(ticket||'').trim())out.push(a);}));}catch(e){}
+  return out;
+}
+function ticketSnapshotAdvanceCodes(t){
+  const list=Array.isArray(t?.reciboFinanceiro?.adiantamentos)?t.reciboFinanceiro.adiantamentos:[];
+  return new Set(list.map(x=>String(x?.cod||'').trim()).filter(Boolean));
+}
+function externalAdvanceSum(ticket,ticketObj){
+  const key=resolveTicketKey(ticket),t=ticketObj||(key?ticketDb()[key]:null),snapshotCodes=ticketSnapshotAdvanceCodes(t);
+  const sum=linkedAdvanceRecords(ticket).reduce((total,a)=>{
+    const cod=String(a?.cod||'').trim();
+    if(a?.origem==='compra_inline'||(cod&&snapshotCodes.has(cod)))return total;
+    return total+Number(a?.valor||0);
+  },0);
+  return Math.round(sum*100)/100;
+}
+function ticketAdvanceBase(t){
+  const explicit=Number(t?._phase3AdvanceBase);
+  if(Number.isFinite(explicit))return Math.max(0,Math.round(explicit*100)/100);
+  const snapshot=Number(t?.reciboFinanceiro?.total);
+  if(Number.isFinite(snapshot))return Math.max(0,Math.round(snapshot*100)/100);
+  return null;
+}
+function advanceSumForTicket(ticket){
+  const key=resolveTicketKey(ticket),t=key?ticketDb()[key]:null;
+  if(!t)return 0;
+  const base=ticketAdvanceBase(t);
+  return Math.round(((base==null?Number(t.adiantamento||0):base)+externalAdvanceSum(ticket,t))*100)/100;
+}
+function updateTicketAdvance(ticket,totalAdvance){
+  if(!ticket)return false;
+  const key=resolveTicketKey(ticket);if(!key)return false;
+  let t;try{t=TICKETS_DB[key];}catch(e){}if(!t)return false;
+  const total=Number(t.totalGeral||0),saldoAnterior=Number(t.saldoAnterior||0),adt=Math.max(0,Math.round(Number(totalAdvance||0)*100)/100),saldo=Math.round((total-adt+saldoAnterior)*100)/100;
+  const changed=Math.abs(Number(t.adiantamento||0)-adt)>0.005||Math.abs(Number(t.saldoPagar||0)-saldo)>0.005;
+  t.adiantamento=adt;t.saldoPagar=saldo;
+  if(total>0)t.status=saldo<=0.009?'Pago':'Pendente';
+  try{
+    const cp=(CONTAS_PAGAR||[]).find(x=>String(x.ticket||'')===String(t.ticket||ticket));
+    if(cp){cp.valor=Math.max(0,saldo);cp.status=saldo<=0.009?'Pago':'Pendente';if(saldo>0)cp.dataPgto='';}
+    if(changed){saveContasPagar?.();saveDB?.();fbSalvarImediato?.();renderTickets?.();renderContasPagar?.();}
+  }catch(e){console.warn('[phase3] atualizar adiantamento ticket',e);}
+  return changed;
+}
+function reconcileAdvanceTicket(ticket,fallbackBase=null){
+  if(!ticket)return false;
+  const key=resolveTicketKey(ticket),t=key?ticketDb()[key]:null;if(!t)return false;
+  let base=ticketAdvanceBase(t);
+  if(base==null&&fallbackBase!=null&&Number.isFinite(Number(fallbackBase))){base=Math.max(0,Number(fallbackBase));t._phase3AdvanceBase=Math.round(base*100)/100;}
+  if(base==null)return false;
+  return updateTicketAdvance(ticket,base+externalAdvanceSum(ticket,t));
+}
+function reconcileKnownLinkedAdvances(){
+  let changed=false;
+  Object.values(ticketDb()).forEach(t=>{
+    const ticket=String(t?.ticket||'').trim();
+    if(!ticket||ticketAdvanceBase(t)==null)return;
+    if(reconcileAdvanceTicket(ticket))changed=true;
+  });
+  return changed;
+}
+function scheduleAdvanceReconcile(ticket,fallbackBase=null){
+  if(!ticket)return;
+  [0,120,420].forEach(delay=>setTimeout(()=>reconcileAdvanceTicket(ticket,fallbackBase),delay));
+}
+const legacySaveAdvance=global.salvarAdiantamento;
+if(typeof legacySaveAdvance==='function')global.salvarAdiantamento=function(){
+  const ticket=$('#adt-ticket')?.value||'',key=resolveTicketKey(ticket),t=key?ticketDb()[key]:null,
+    fallbackBase=t&&ticketAdvanceBase(t)==null?Number(t.adiantamento||0):null;
+  const r=legacySaveAdvance.apply(this,arguments);
+  scheduleAdvanceReconcile(ticket,fallbackBase);
+  return r;
+};
+const legacyEditAdvance=global.editAdiantamento;
+if(typeof legacyEditAdvance==='function')global.editAdiantamento=function(f,c){
+  const r=legacyEditAdvance.apply(this,arguments);setTimeout(()=>enhanceAdvanceTickets(),0);return r;
+};
+const legacySaveEditAdvance=global.salvarEditAdiantamento;
+if(typeof legacySaveEditAdvance==='function')global.salvarEditAdiantamento=function(f,c){
+  let old={};try{old={...(ADT_POR_FORN[f]||[]).find(x=>x.cod===c)};}catch(e){}
+  const oldTicket=old.ticket||'',newTicket=$('#ea-ticket')?.value||'',
+    oldKey=resolveTicketKey(oldTicket),newKey=resolveTicketKey(newTicket),
+    oldObj=oldKey?ticketDb()[oldKey]:null,newObj=newKey?ticketDb()[newKey]:null,
+    oldBase=oldObj&&ticketAdvanceBase(oldObj)==null?Math.max(0,Number(oldObj.adiantamento||0)-Number(old.valor||0)):null,
+    newBase=newObj&&ticketAdvanceBase(newObj)==null?Number(newObj.adiantamento||0):null;
+  const r=legacySaveEditAdvance.apply(this,arguments);
+  scheduleAdvanceReconcile(oldTicket,oldBase);
+  if(newTicket)scheduleAdvanceReconcile(newTicket,newBase);
+  return r;
+};
+const legacyCorrectPurchaseAdvance=global.salvarAdiantamentoCompra;
+if(typeof legacyCorrectPurchaseAdvance==='function')global.salvarAdiantamentoCompra=function(){
+  let ticket='',key='',beforeExternal=0;
+  try{key=resolveTicketKey(currentPurchaseTicketKey)||resolveTicketKey(String($('#dc-info')?.textContent||'').match(/T\d+/i)?.[0]||'');ticket=key?String(ticketDb()[key]?.ticket||key):'';beforeExternal=ticket?externalAdvanceSum(ticket,ticketDb()[key]):0;}catch(e){}
+  const r=legacyCorrectPurchaseAdvance.apply(this,arguments);
+  setTimeout(()=>{
+    try{
+      const k=resolveTicketKey(ticket||key);const t=k?ticketDb()[k]:null;if(!t)return;
+      const base=Math.max(0,Math.round((Number(t.adiantamento||0)-beforeExternal)*100)/100);
+      t._phase3AdvanceBase=base;saveDB?.();fbSalvarImediato?.();
+    }catch(e){}
+  },80);
+  return r;
+};
 
 /* Funcionários ativos consistentes em EPI/Almox/Viagem/Coordenação */
 function rebuildSelect(sel,allLabel=false,valueMode='mat'){if(!sel)return;const cur=sel.value,items=getEmployees(),sig=items.map(f=>`${f.mat}|${f.nome}|${f.status}`).join('~')+'|'+allLabel+'|'+valueMode;const actual=Array.from(sel.options).slice(allLabel||sel.options[0]?.value===''?1:0).map(o=>o.value).join('~'),expected=items.map(f=>valueMode==='nome'?(f.nome||f.mat):(f.mat||f.nome)).join('~');if(sel.dataset.p3sig===sig&&actual===expected)return;sel.innerHTML=(allLabel?'<option value="">— Todos —</option>':'<option value="">— Selecione —</option>')+items.map(f=>{const val=valueMode==='nome'?(f.nome||f.mat):(f.mat||f.nome);return `<option value="${esc(val||'')}">${esc(f.nome||'')} ${f.mat?'('+esc(f.mat)+')':''}</option>`;}).join('');sel.dataset.p3sig=sig;if(cur&&Array.from(sel.options).some(o=>o.value===cur))sel.value=cur;}
@@ -109,10 +518,39 @@ const legacyEditMaint=global.editManutencao;if(typeof legacyEditMaint==='functio
 global.phase2FrotaFilter=function(){const q=norm($('#p2-frota-search')?.value||''),st=norm($('#p2-frota-status')?.value||'');$$('.phase2-maint-card').forEach(c=>{const text=norm(c.dataset.search||c.textContent),cs=norm(c.dataset.status||'');c.style.display=((q&&!text.includes(q))||(st&&cs!==st))?'none':'';});};
 function bindMaintFilter(){const q=$('#p2-frota-search'),s=$('#p2-frota-status');[q,s].forEach(el=>{if(el&&!el.dataset.p3){el.dataset.p3='1';el.addEventListener(el===q?'input':'change',()=>global.phase2FrotaFilter());}});}
 
-/* Viagem: só ativos + gastos extras na edição */
-function patchTripEdit(){const modal=$('#modal-body');if(!modal||!$('#vg-edit-motorista'))return;rebuildSelect($('#vg-edit-motorista'),false,'nome');if(!$('#p3-vg-edit-extra')){const obs=$('#vg-edit-obs')?.closest('.fg'),wrap=document.createElement('div');wrap.className='fg';wrap.innerHTML='<label>Gastos extras / supérfluos aprovados R$</label><input id="p3-vg-edit-extra" inputmode="decimal" value="0,00">';obs?.insertAdjacentElement('beforebegin',wrap);try{const id=$('#vg-edit-id')?.value,v=(VIAGEM_DB||[]).find(x=>String(x.id)===String(id));if(v)$('#p3-vg-edit-extra').value=money(v.gastosExtras||0);}catch(e){}}}
-const legacyEditTrip=global.editViagem;if(typeof legacyEditTrip==='function')global.editViagem=function(){const r=legacyEditTrip.apply(this,arguments);setTimeout(patchTripEdit,0);return r;};
-const legacySaveEditTrip=global.salvarEditViagem;if(typeof legacySaveEditTrip==='function')global.salvarEditViagem=function(){const id=$('#vg-edit-id')?.value,extra=parseBR($('#p3-vg-edit-extra')?.value);const r=legacySaveEditTrip.apply(this,arguments);setTimeout(()=>{try{const v=(VIAGEM_DB||[]).find(x=>String(x.id)===String(id));if(v){v.gastosExtras=extra;saveDB?.();renderViagens?.();}}catch(e){}},80);return r;};
+/* Viagem: só ativos + gastos extras realmente editáveis */
+function patchTripEdit(){
+  const modal=$('#modal-edit-viagem');if(!modal||!$('#vg-edit-motorista'))return;
+  rebuildSelect($('#vg-edit-motorista'),false,'nome');
+  let row=$('#p3-vg-edit-extra-row');
+  if(!row){
+    const obs=$('#vg-edit-obs'),grid=obs?.parentElement?.parentElement;
+    row=document.createElement('div');row.id='p3-vg-edit-extra-row';row.className='p3-trip-edit-extra';
+    row.innerHTML='<label>Gastos extras / supérfluos aprovados R$</label><input id="p3-vg-edit-extra" inputmode="decimal" placeholder="0,00">';
+    if(grid)grid.insertAdjacentElement('afterend',row);
+    else modal.querySelector('#vg-edit-dias-wrap')?.insertAdjacentElement('beforebegin',row);
+  }
+  try{
+    const id=$('#vg-edit-id')?.value,v=(VIAGEM_DB||[]).find(x=>String(x.id)===String(id));
+    if(v&&$('#p3-vg-edit-extra'))$('#p3-vg-edit-extra').value=money(v.gastosExtras||0);
+  }catch(e){}
+}
+const legacyEditTrip=global.editViagem;
+if(typeof legacyEditTrip==='function')global.editViagem=function(){
+  const r=legacyEditTrip.apply(this,arguments);setTimeout(patchTripEdit,0);return r;
+};
+const legacySaveEditTrip=global.salvarEditViagem;
+if(typeof legacySaveEditTrip==='function')global.salvarEditViagem=function(){
+  const id=$('#vg-edit-id')?.value,extraEl=$('#p3-vg-edit-extra'),extra=extraEl?parseBR(extraEl.value):null;
+  const r=legacySaveEditTrip.apply(this,arguments);
+  if(extra!==null)setTimeout(()=>{
+    try{
+      const v=(VIAGEM_DB||[]).find(x=>String(x.id)===String(id));
+      if(v){v.gastosExtras=extra;saveDB?.();renderViagens?.();}
+    }catch(e){}
+  },80);
+  return r;
+};
 
 /* Fiscal + Vendas + Contas a Receber: vínculo explícito */
 let fiscalLinks={};async function loadFiscalLinks(){if(!store)return;fiscalLinks=await store.load('fiscalLinks',{});decorateReceivables();}
@@ -126,10 +564,34 @@ global.phase3ReceivableFiscalSave=async function(id){if(!store)return;const part
 function removeCasaGloria(){let changed=false;try{Object.keys(CUSTO_CASA||{}).forEach(m=>(CUSTO_CASA[m]||[]).forEach(x=>{if(norm(x.area)==='casa gloria'){x.area='Casa';changed=true;}}));}catch(e){}const tab=$('#tab-custo_casa');if(tab){$$('button,[role="tab"],.cc-area-tab',tab).forEach(el=>{const txt=norm(el.textContent),id=norm(el.id),data=norm(el.dataset?.ccArea||'');if(txt==='casa gloria'||id.includes('casa gloria')||data==='casa gloria')el.remove();});}if(changed){try{saveCustoCasa?.();}catch(e){}}const note=$('#phase1-house-history-note');if(note&&note.textContent!=='Histórico preservado por período. Casa, Sítio e Veículos Pessoais permanecem separados.')note.textContent='Histórico preservado por período. Casa, Sítio e Veículos Pessoais permanecem separados.';}
 
 /* Coordenação: reconstruir participantes/advertência com todos ativos */
-function fixCoordination(){const employees=getEmployees(),desired=employees.map(f=>String(f.mat)).join('|');const part=$('#reu-partic-list');if(part){const actual=$$('input[type=checkbox]',part).map(x=>x.value).join('|');if(actual!==desired){const selected=new Set($$('input:checked',part).map(x=>x.value));part.innerHTML=employees.map(f=>`<label><input type="checkbox" value="${esc(f.mat)}" ${selected.has(f.mat)?'checked':''}> ${esc(f.nome)}${f.cargo?` — <small>${esc(f.cargo)}</small>`:''}</label>`).join('');}}const adv=$('#adv-mat');if(adv){const actual=Array.from(adv.options).slice(1).map(o=>o.value).join('|');if(actual!==desired){const cur=adv.value;adv.innerHTML='<option value="">— Selecione —</option>'+employees.map(f=>`<option value="${esc(f.mat)}">${esc(f.nome)} (${esc(f.mat)})</option>`).join('');if(cur&&Array.from(adv.options).some(o=>o.value===cur))adv.value=cur;}}const type=$('#reu-tipo');if(type&&type.options.length<5)type.innerHTML='<option value="reuniao">Reunião</option><option value="dds">DDS — Diálogo Diário de Segurança</option><option value="treinamento">Treinamento</option><option value="inspecao">Inspeção / Segurança</option><option value="outro">Outro</option>';}
+function fixCoordination(){
+  const employees=getEmployees(),desired=employees.map(f=>String(f.mat)).join('|');
+  const part=$('#reu-partic-list');
+  if(part){
+    part.classList.add('p3-coord-participants');
+    const actual=$$('input[type=checkbox]',part).map(x=>x.value).join('|');
+    if(actual!==desired){
+      const selected=new Set($$('input:checked',part).map(x=>x.value));
+      part.innerHTML=employees.map(f=>`<label class="p3-coord-person"><input type="checkbox" value="${esc(f.mat)}" ${selected.has(f.mat)?'checked':''}><span><b>${esc(f.nome)}</b>${f.mat?`<small>${esc(f.mat)}</small>`:''}${f.cargo?`<em>${esc(f.cargo)}</em>`:''}</span></label>`).join('');
+    }else{
+      $$('label',part).forEach(x=>x.classList.add('p3-coord-person'));
+    }
+  }
+  const adv=$('#adv-mat');
+  if(adv){
+    const actual=Array.from(adv.options).slice(1).map(o=>o.value).join('|');
+    if(actual!==desired){
+      const cur=adv.value;
+      adv.innerHTML='<option value="">— Selecione —</option>'+employees.map(f=>`<option value="${esc(f.mat)}">${esc(f.nome)} (${esc(f.mat)})</option>`).join('');
+      if(cur&&Array.from(adv.options).some(o=>o.value===cur))adv.value=cur;
+    }
+  }
+  const type=$('#reu-tipo');
+  if(type&&type.options.length<5)type.innerHTML='<option value="reuniao">Reunião</option><option value="dds">DDS — Diálogo Diário de Segurança</option><option value="treinamento">Treinamento</option><option value="inspecao">Inspeção / Segurança</option><option value="outro">Outro</option>';
+}
 
 /* Aplicação recorrente */
-function apply(){decoratePartyBanks();fixPriceSearches();decorateCheque();enhanceAdvanceTickets();fixOperationalEmployees();patchMaintenanceModal();bindMaintFilter();removeCasaGloria();fixCoordination();decorateReceivables();const owner=$('#phase2-owner-bills');if(owner&&owner.offsetParent!==null&&owner.dataset.p3owner!=='1')renderOwnerBillsV3();if($('#tab-afazeres')&&!$('#phase3-calendar'))renderCalendar();}
+function apply(){captureTicketMappings();decoratePartyBanks();fixPriceSearches();decorateCheque();enhanceAdvanceTickets();reconcileKnownLinkedAdvances();fixOperationalEmployees();patchMaintenanceModal();bindMaintFilter();removeCasaGloria();fixCoordination();decorateReceivables();hideLegacyCalendarUi();const owner=$('#phase2-owner-bills');if(owner&&owner.offsetParent!==null&&owner.dataset.p3owner!=='1')renderOwnerBillsV3();if($('#tab-afazeres')&&!$('#phase3-calendar'))renderCalendar();}
 if(global.Phase1Dom)global.Phase1Dom.register(apply);else setInterval(apply,1200);
 setTimeout(()=>{loadPartyBanks();loadCalendar();loadOwnerBills();loadFiscalLinks();apply();},650);
 document.addEventListener('erp:user-started',()=>setTimeout(()=>{apply();checkCalendarPopups();refreshAvisos();},900));

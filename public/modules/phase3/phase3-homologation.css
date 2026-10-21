@@ -3,3 +3,88 @@
 .p3-cheque-help{background:#f3f7f5;border-left:4px solid #174d34;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:.8rem}.p3-cheque-help b{color:#174d34}.p3-cheque-gaps,#phase3-cheque-gaps{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px}#phase3-cheque-gaps>div{background:#fff3d6;border:1px solid #efcc74;border-radius:8px;padding:5px 9px;font-size:.75rem}#phase3-cheque-gaps .ok{background:#e8f5ec;border-color:#b9dfc5;color:#176036}
 .p3-owner-head{display:flex;justify-content:space-between;align-items:center}.p3-owner-head h2{margin:0}.p3-owner-head p{margin:3px 0;color:#667}.p3-owner-toolbar{display:flex;gap:8px;margin:12px 0}.p3-owner-toolbar input,.p3-owner-toolbar select{padding:8px;border:1px solid #ccd8d1;border-radius:7px}.p3-owner-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.p3-owner-kpis>div{background:#fff;border:1px solid #dbe4df;border-top:3px solid #1b6a45;border-radius:10px;padding:12px;display:grid}.p3-owner-kpis small{color:#778}.p3-owner-kpis b{font-size:1.2rem}.p3-owner-kpis .warn{border-top-color:#d33}.p3-owner-kpis .today{border-top-color:#e89800}.p3-owner-calendar{margin-top:12px}.p3-owner-calendar article{display:grid;grid-template-columns:65px 1fr 130px 100px auto;gap:12px;align-items:center;background:#fff;border:1px solid #e0e7e3;border-radius:10px;padding:9px 12px;margin:7px 0}.p3-owner-calendar article.atrasado{border-left:4px solid #d33}.p3-owner-calendar article.hoje{border-left:4px solid #e89800}.p3-owner-calendar article.pago{opacity:.65;border-left:4px solid #1b8b4b}.p3-owner-calendar .day{display:grid;text-align:center}.p3-owner-calendar .day b{font-size:1.4rem}.p3-owner-calendar .main{display:grid}.p3-owner-calendar .main small,.p3-owner-calendar .main p{font-size:.72rem;color:#778;margin:2px 0}.p3-owner-calendar .badge{font-size:.7rem;background:#f3f5f4;border-radius:10px;padding:3px 6px;text-align:center}.p3-owner-calendar .actions{display:flex;gap:5px}.p3-owner-calendar .actions button{border:1px solid #ccd8d1;background:#fff;border-radius:6px;padding:5px 7px}.p3-owner-calendar .actions .pay{background:#19713e;color:#fff;border-color:#19713e}.p3-cr-fiscal-note{display:flex;gap:12px;background:#edf5f8;border-left:4px solid #277ca2;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:.8rem}.p3-fiscal-link-btn{background:#245c7a;color:#fff;border:0;border-radius:6px;padding:5px 7px;margin-right:4px}
 @media(max-width:1000px){.p3-cal-filters{grid-template-columns:repeat(2,1fr)}.p3-cal-layout{grid-template-columns:1fr}.p3-owner-kpis{grid-template-columns:repeat(2,1fr)}.p3-owner-calendar article{grid-template-columns:55px 1fr 100px}.p3-owner-calendar .badge,.p3-owner-calendar .actions{grid-column:2/-1}.phase3-bank-row{grid-template-columns:1fr 1fr}.phase3-bank-row button{grid-column:2}}
+
+
+/* Fase 3.1 — estabilização de UX */
+.phase3-modal header button,
+.phase3-bank-row button,
+.phase3-modal footer button,
+.p3-secondary,
+.phase3-price-combo button,
+.p3-event .actions button,
+.p3-cal-filter-card button,
+.p3-cal-day-actions button,
+.p3-month-nav button,
+.p3-days button,
+.p3-coord-person,
+.p3-primary{cursor:pointer!important}
+
+.phase3-price-party-bar{display:none!important}
+.phase3-original-select{position:absolute!important;opacity:0!important;pointer-events:none!important;width:1px!important;height:1px!important}
+.phase3-price-combo{position:relative;max-width:760px;width:min(100%,760px);margin:7px 0 8px;z-index:40}
+.phase3-price-combo>input{width:100%;height:40px;border:1.5px solid #b9c9c0;border-radius:8px;padding:0 12px;font-size:.88rem;background:#fff;box-sizing:border-box}
+.phase3-price-combo>input:focus{outline:2px solid #cfe5d8;border-color:#1d6b47}
+.phase3-price-combo-list{display:none;position:absolute;left:0;right:0;top:44px;background:#fff;border:1px solid #cfdad4;border-radius:9px;box-shadow:0 10px 28px #0002;max-height:280px;overflow:auto;padding:5px;z-index:100}
+.phase3-price-combo.open .phase3-price-combo-list{display:block}
+.phase3-price-combo-list button{display:block;width:100%;text-align:left;border:0;background:#fff;border-radius:6px;padding:9px 10px;font-size:.84rem}
+.phase3-price-combo-list button:hover{background:#eaf5ee;color:#174d34}
+.phase3-price-empty{padding:15px;text-align:center;color:#889;font-size:.8rem}
+.phase3-material-search-only{grid-template-columns:minmax(260px,460px)!important;margin-top:6px!important}
+.phase3-material-search-only .phase2-price-material-search{width:100%!important}
+
+.p3-cal-filter-card{background:#fff;border:1px solid #dbe4df;border-radius:12px;padding:11px 12px;margin-bottom:12px}
+.p3-range-switch{display:flex;gap:6px;margin-bottom:9px}
+.p3-range-switch button{border:1px solid #cdd8d2;background:#fff;color:#4d5f56;border-radius:999px;padding:6px 12px;font-weight:700}
+.p3-range-switch button.active{background:#174d34;color:#fff;border-color:#174d34}
+.p3-cal-range-fields{display:grid;grid-template-columns:180px 180px 220px minmax(260px,1fr) auto;gap:8px;align-items:end}
+.p3-cal-range-fields label{display:grid;gap:4px;font-size:.69rem;font-weight:800;color:#617168;text-transform:uppercase;letter-spacing:.02em}
+.p3-cal-range-fields input,.p3-cal-range-fields select{height:38px;border:1px solid #ccd8d1;border-radius:8px;padding:0 9px;background:#fff;font-size:.82rem;text-transform:none;font-weight:500}
+.p3-cal-range-fields .clear{height:38px;border:1px solid #d1dad5;background:#f8faf9;border-radius:8px;padding:0 12px;font-weight:700;color:#526158}
+.p3-cal-filter-summary{margin-top:8px;color:#617168;font-size:.75rem}
+.p3-cal-filter-summary b{color:#174d34;font-size:.9rem}
+.p3-cal-layout{grid-template-columns:minmax(500px,.9fr) minmax(520px,1.1fr)!important}
+.p3-period-results{background:#fff;border:1px solid #dbe4df;border-radius:12px;padding:12px;min-width:0}
+.p3-period-results>header{display:flex;justify-content:space-between;border-bottom:1px solid #e6ece8;padding-bottom:8px;margin-bottom:4px}
+.p3-period-results h3{margin:0;color:#173d2a}
+.p3-period-results small{color:#78867f}
+.p3-period-scroll{max-height:560px;overflow:auto;padding-right:4px}
+.p3-cal-day-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #e8eeea;margin-top:10px;padding-top:10px;font-size:.78rem;color:#65756d}
+.p3-cal-day-actions button{border:0;background:#e9f5ed;color:#174d34;border-radius:7px;padding:7px 10px;font-weight:800}
+.p3-period-results .p3-event{grid-template-columns:92px minmax(0,1fr) auto auto}
+.p3-period-results .p3-event .body b{overflow-wrap:anywhere}
+.p3-period-results .p3-event .actions button{cursor:pointer}
+.p3-legacy{display:none!important}
+
+.phase2-purchase-history-obs{min-width:190px!important}
+.phase2-purchase-history-obs input{width:100%!important;min-width:170px!important;box-sizing:border-box!important}
+
+.p3-trip-edit-extra{display:grid;grid-template-columns:220px minmax(180px,260px);gap:10px;align-items:center;background:#fff8df;border:1px solid #efd178;border-radius:8px;padding:9px 11px;margin:-2px 0 12px}
+.p3-trip-edit-extra label{font-size:.78rem;font-weight:800;color:#765c08}
+.p3-trip-edit-extra input{padding:7px 9px;border:1px solid #d8b44a;border-radius:7px}
+
+.p3-coord-participants{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px!important;padding:8px!important;background:#f8fbf9;border:1px solid #dce6df;border-radius:9px;max-height:230px;overflow:auto}
+.p3-coord-person{display:flex!important;align-items:center!important;gap:9px!important;background:#fff;border:1px solid #dde6e1;border-radius:8px;padding:8px 10px!important;margin:0!important;min-width:0}
+.p3-coord-person:hover{border-color:#6fa788;background:#f1f8f4}
+.p3-coord-person input{flex:0 0 auto;margin:0!important}
+.p3-coord-person span{display:grid;min-width:0;line-height:1.15}
+.p3-coord-person b{font-size:.8rem;color:#173d2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p3-coord-person small{font-size:.66rem;color:#718078}
+.p3-coord-person em{font-size:.66rem;color:#87938d;font-style:normal}
+
+@media(max-width:1200px){
+  .p3-cal-range-fields{grid-template-columns:1fr 1fr 1fr}
+  .p3-cal-range-fields .search{grid-column:1/3}
+  .p3-cal-layout{grid-template-columns:1fr!important}
+}
+@media(max-width:760px){
+  .p3-cal-range-fields{grid-template-columns:1fr}
+  .p3-cal-range-fields .search{grid-column:auto}
+  .p3-coord-participants{grid-template-columns:1fr}
+  .p3-trip-edit-extra{grid-template-columns:1fr}
+}
+
+/* Compra Sucata: observação permanece visível durante a rolagem da tabela */
+#dc-itens-body .phase2-purchase-history-obs{position:sticky!important;right:88px!important;z-index:3!important;background:#fff!important;box-shadow:-5px 0 8px -8px #0008}
+#dc-itens-body .phase2-purchase-history-obs + td{position:sticky!important;right:0!important;z-index:3!important;background:#fff!important;min-width:88px!important}
+#dc-itens-body tr:nth-child(even) .phase2-purchase-history-obs,#dc-itens-body tr:nth-child(even) .phase2-purchase-history-obs + td{background:#f8faf9!important}
+thead .phase2-purchase-history-obs{position:sticky!important;top:0!important;right:88px!important;z-index:6!important;background:#1a3a2a!important;color:#fff!important;min-width:190px!important}

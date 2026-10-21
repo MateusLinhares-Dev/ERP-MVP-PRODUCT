@@ -67,7 +67,7 @@
         ".read": "auth != null && auth.token.erpAccess == true && auth.token.canPartyBanks == true",
         "$partyKey": {
           ".write": "auth != null && auth.token.erpAccess == true && auth.token.canPartyBanks == true",
-          ".validate": "!newData.exists() || newData.numChildren() <= 20",
+          ".validate": "newData.hasChildren()",
           "$index": {
             "bank": {
               ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 120)"

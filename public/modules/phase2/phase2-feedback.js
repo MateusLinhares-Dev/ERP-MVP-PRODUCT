@@ -30,27 +30,41 @@ if(typeof originalPurchaseDetail==='function'){
 }
 function enhancePurchaseHistory(dbKey){
   const body=$('#dc-itens-body');if(!body)return;
-  let ticket=null;try{ticket=TICKETS_DB?.[dbKey];}catch(e){}
+  let resolved=dbKey;
+  try{resolved=global.phase3ResolveTicketKey?.(dbKey)||dbKey;}catch(e){}
+  purchaseDetailKey=resolved;
+  let ticket=null;try{ticket=TICKETS_DB?.[resolved];}catch(e){}
   if(!ticket||!Array.isArray(ticket.itens))return;
   const table=body.closest('table'),head=table?.querySelector('thead tr');
   if(head&&!head.querySelector('[data-phase2-obs]')){
-    const th=document.createElement('th');th.dataset.phase2Obs='1';th.textContent='Observação';
+    const th=document.createElement('th');th.dataset.phase2Obs='1';th.className='phase2-purchase-history-obs';th.textContent='Observação';
     const cells=Array.from(head.children);head.insertBefore(th,cells[cells.length-1]||null);
   }
   Array.from(body.rows).forEach((row,i)=>{
-    if(i>=ticket.itens.length||row.querySelector('[data-phase2-obs]'))return;
-    const td=document.createElement('td');td.dataset.phase2Obs='1';td.className='phase2-purchase-history-obs';
-    td.innerHTML=`<input value="${esc(ticket.itens[i]?.obs||'')}" placeholder="Observação deste material" onchange="phase2PurchaseObsSave(${i},this.value)">`;
-    row.insertBefore(td,row.cells[row.cells.length-1]||null);
+    if(i>=ticket.itens.length)return;
+    let td=row.querySelector('[data-phase2-obs]');
+    if(!td){
+      td=document.createElement('td');td.dataset.phase2Obs='1';td.className='phase2-purchase-history-obs';
+      row.insertBefore(td,row.cells[row.cells.length-1]||null);
+    }
+    td.innerHTML=`<input data-purchase-obs-index="${i}" value="${esc(ticket.itens[i]?.obs||'')}" placeholder="Observação deste material" oninput="phase2PurchaseObsSave(${i},this.value)">`;
   });
   const foot=$('#dc-itens-foot');if(foot)$$('td[colspan="4"]',foot).forEach(td=>td.colSpan=5);
 }
+let purchaseObsSaveTimer=null;
 global.phase2PurchaseObsSave=function(index,value){
-  let t=null;try{t=TICKETS_DB?.[purchaseDetailKey];}catch(e){}
+  let key=purchaseDetailKey;
+  try{key=global.phase3ResolveTicketKey?.(key)||key;}catch(e){}
+  let t=null;try{t=TICKETS_DB?.[key];}catch(e){}
   if(!t||!Array.isArray(t.itens)||!t.itens[index])return;
   t.itens[index].obs=String(value||'').trim();
-  try{if(typeof saveDB==='function')saveDB();if(typeof _rodPersistirTicketCritico==='function')_rodPersistirTicketCritico(purchaseDetailKey);}catch(e){}
-  notify('Observação do material atualizada.','success',2500);
+  clearTimeout(purchaseObsSaveTimer);
+  purchaseObsSaveTimer=setTimeout(()=>{
+    try{
+      if(typeof saveDB==='function')saveDB();
+      if(typeof _rodPersistirTicketCritico==='function')_rodPersistirTicketCritico(key);
+    }catch(e){}
+  },180);
 };
 
 /* ---------- UI transversal ---------- */
@@ -98,6 +112,7 @@ function renderCompactCalendarHistory(){
 /* ---------- Preços: busca de pessoa e material ---------- */
 function ensurePriceSearch(tabId,selectId,renderFn){
   const tab=$('#'+tabId);if(!tab)return;
+  if(tab.querySelector('.phase3-price-combo'))return;
   let bar=tab.querySelector('.phase2-price-searches');
   if(!bar){
     bar=document.createElement('div');bar.className='phase2-price-searches';
@@ -135,11 +150,22 @@ function renderChequeSequenceStatus(){
 }
 function cleanChequeControl(){
   const tab=$('#tab-cheques_compensar');if(!tab)return;
-  // Remove ajuda e sincronização legadas; a tela passa a mostrar apenas ações úteis ao fluxo atual.
   removeByText(tab,'button',/sincronizar aba antiga/i);
   const root=$('#chq-ctrl-root');
-  if(root)Array.from(root.children).forEach(el=>{const text=String(el.textContent||'');if(/Controle de cheques por banco|Desc\. Compra\?/i.test(text)&&!/A Compensar|Compensados|Cancelados/i.test(text))el.remove();else if(/Ver por banco \(em ordem\)/i.test(text))el.classList.add('phase2-hidden');});
-  if(root&&!$('#phase2-cheque-head')){const head=document.createElement('div');head.id='phase2-cheque-head';head.className='phase2-cheque-head';head.innerHTML='<div><b>Controle de cheques</b><small>Cadastre por banco. O sistema avisa duplicidades e números faltantes na sequência.</small></div><span>⚠ Lacunas ficam destacadas abaixo</span>';root.prepend(head);}
+  if(root){
+    Array.from(root.children).forEach(el=>{
+      const text=String(el.textContent||'');
+      const hasTable=!!el.querySelector?.('table');
+      const isLegacyHelp=!hasTable&&/Controle de cheques por banco/i.test(text)&&/Desc\. Compra\?/i.test(text);
+      if(isLegacyHelp)el.remove();
+      else if(!hasTable&&/Ver por banco \(em ordem\)/i.test(text))el.classList.add('phase2-hidden');
+    });
+  }
+  if(root&&!$('#phase2-cheque-head')){
+    const head=document.createElement('div');head.id='phase2-cheque-head';head.className='phase2-cheque-head';
+    head.innerHTML='<div><b>Controle de cheques</b><small>Cadastre por banco. O sistema avisa duplicidades e números faltantes na sequência.</small></div><span>⚠ Lacunas ficam destacadas abaixo</span>';
+    root.prepend(head);
+  }
   const search=tab.querySelector('input[placeholder*="Nº ou cliente"],input[placeholder*="cliente"]');
   if(search&&!search.dataset.phase2Bound){
     search.dataset.phase2Bound='1';search.removeAttribute('oninput');
@@ -151,20 +177,77 @@ function phase2FilterChequeRows(q){q=norm(q);$$('#tab-cheques_compensar tbody tr
 if(typeof originalRenderChequeControl==='function')global.renderChequesCompensar=function(){const result=originalRenderChequeControl.apply(this,arguments);setTimeout(cleanChequeControl,0);return result;};
 if(typeof originalChqSetBusca==='function')global.chqSetBusca=function(v){try{_chqFbusca=norm(v);}catch(e){}phase2FilterChequeRows(v);};
 if(typeof originalChqModal==='function')global._chqModal=function(){const r=originalChqModal.apply(this,arguments);setTimeout(enhanceChequeModal,0);return r;};
+function chequeDateToIso(value){
+  const s=String(value||'').trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m?`${m[3]}-${m[2]}-${m[1]}`:'';
+}
+function chequeDateToBR(value){
+  const s=String(value||'').trim();
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(s))return s;
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m?`${m[3]}/${m[2]}/${m[1]}`:'';
+}
 function enhanceChequeModal(){
   const num=$('#chqm-n');if(!num)return;
-  let hint=$('#phase2-cheque-num-hint');if(!hint){hint=document.createElement('div');hint.id='phase2-cheque-num-hint';hint.className='phase2-field-hint';num.insertAdjacentElement('afterend',hint);}
-  const update=()=>{const bank=$('#chqm-b')?.value||'',n=parseInt(String(num.value||'').replace(/\D/g,''),10),editingId=String($('#chqm-id')?.value||''),existing=Object.entries((()=>{try{return CHQ_CTRL||{};}catch(e){return {};}})()).filter(([id,c])=>id!==editingId&&chequeBank(c)===bank).map(([,c])=>chequeNumber(c)).filter(Number.isFinite),max=existing.length?Math.max(...existing):null;let msg='',cls='';if(Number.isFinite(n)&&existing.includes(n)){msg='⛔ Este número já existe neste banco.';cls='bad';}else if(Number.isFinite(n)&&max!=null&&n>max+1){const missed=[];for(let x=max+1;x<n;x++)missed.push(x);msg='⚠️ Você está pulando: '+missed.join(', ');cls='warn';}else if(Number.isFinite(n)&&max!=null&&n===max+1){msg='✓ Próximo número da sequência.';cls='ok';}else if(max!=null){msg='Último número cadastrado neste banco: '+max;cls='';}hint.className='phase2-field-hint '+cls;hint.textContent=msg;};
-  num.addEventListener('input',update);$('#chqm-b')?.addEventListener('change',update);update();
+  let hint=$('#phase2-cheque-num-hint');
+  if(!hint){
+    hint=document.createElement('div');hint.id='phase2-cheque-num-hint';hint.className='phase2-field-hint';
+    num.insertAdjacentElement('afterend',hint);
+  }
+  ['#chqm-d','#chqm-venc','#chqm-cd'].forEach(selector=>{
+    const input=$(selector);if(!input)return;
+    const iso=chequeDateToIso(input.value);
+    input.type='date';input.removeAttribute('placeholder');
+    if(iso)input.value=iso;
+  });
+  const update=()=>{
+    const bank=$('#chqm-b')?.value||'',
+      n=parseInt(String(num.value||'').replace(/\D/g,''),10),
+      editingId=String($('#chqm-id')?.value||''),
+      existing=Object.entries((()=>{try{return CHQ_CTRL||{};}catch(e){return {};}})())
+        .filter(([id,c])=>id!==editingId&&chequeBank(c)===bank)
+        .map(([,c])=>chequeNumber(c)).filter(Number.isFinite),
+      max=existing.length?Math.max(...existing):null;
+    let msg='',cls='';
+    if(Number.isFinite(n)&&existing.includes(n)){msg='⛔ Este número já existe neste banco.';cls='bad';}
+    else if(Number.isFinite(n)&&max!=null&&n>max+1){
+      const missed=[];for(let x=max+1;x<n;x++)missed.push(x);
+      msg='⚠️ Você está pulando: '+missed.join(', ');cls='warn';
+    }else if(Number.isFinite(n)&&max!=null&&n===max+1){msg='✓ Próximo número da sequência.';cls='ok';}
+    else if(max!=null){msg='Último número cadastrado neste banco: '+max;}
+    hint.className='phase2-field-hint '+cls;hint.textContent=msg;
+  };
+  if(!num.dataset.phase2SeqBound){
+    num.dataset.phase2SeqBound='1';num.addEventListener('input',update);
+    $('#chqm-b')?.addEventListener('change',update);
+  }
+  update();
 }
 if(typeof originalChqSave==='function')global.chqSalvarModal=function(){
-  const bank=$('#chqm-b')?.value||'',n=parseInt(String($('#chqm-n')?.value||'').replace(/\D/g,''),10),editingId=String($('#chqm-id')?.value||'');
-  const sameBank=Object.entries((()=>{try{return CHQ_CTRL||{};}catch(e){return {};}})()).filter(([id,c])=>id!==editingId&&chequeBank(c)===bank).map(([,c])=>c);
+  const bank=$('#chqm-b')?.value||'',
+    n=parseInt(String($('#chqm-n')?.value||'').replace(/\D/g,''),10),
+    editingId=String($('#chqm-id')?.value||'');
+  const sameBank=Object.entries((()=>{try{return CHQ_CTRL||{};}catch(e){return {};}})())
+    .filter(([id,c])=>id!==editingId&&chequeBank(c)===bank).map(([,c])=>c);
   const existing=sameBank.map(chequeNumber).filter(Number.isFinite);
-  if(Number.isFinite(n)&&existing.includes(n)){notify('Esse número de cheque já existe neste banco.','error',6500);return;}
+  if(Number.isFinite(n)&&existing.includes(n)){
+    notify('Esse número de cheque já existe neste banco.','error',6500);return;
+  }
   const max=existing.length?Math.max(...existing):null;
-  if(!editingId&&Number.isFinite(n)&&max!=null&&n>max+1){const missing=[];for(let x=max+1;x<n;x++)missing.push(x);if(!confirm('Atenção: ficará uma lacuna na sequência. Números faltantes: '+missing.join(', ')+'.\n\nDeseja salvar mesmo assim?'))return;}
-  const r=originalChqSave.apply(this,arguments);setTimeout(()=>{renderChequeSequenceStatus();cleanChequeControl();},80);return r;
+  if(!editingId&&Number.isFinite(n)&&max!=null&&n>max+1){
+    const missing=[];for(let x=max+1;x<n;x++)missing.push(x);
+    if(!confirm('Atenção: ficará uma lacuna na sequência. Números faltantes: '+missing.join(', ')+'.\n\nDeseja salvar mesmo assim?'))return;
+  }
+  ['#chqm-d','#chqm-venc','#chqm-cd'].forEach(selector=>{
+    const input=$(selector);if(!input)return;
+    const br=chequeDateToBR(input.value);
+    input.type='text';input.value=br;
+  });
+  const r=originalChqSave.apply(this,arguments);
+  setTimeout(()=>{renderChequeSequenceStatus();cleanChequeControl();},80);
+  return r;
 };
 
 /* ---------- Contas a pagar empresarial mais limpa + módulo pessoal da dona ---------- */

@@ -90,3 +90,12 @@ test('storage rules validam mime e corrigem claim da frota', () => {
   assert.match(rules, /application\/pdf/);
   assert.match(rules, /image\/\(jpeg\|png\|webp\|gif\)/);
 });
+
+test('database rules não usam APIs inexistentes do RTDB Rules', () => {
+  const source = fs.readFileSync(
+    new URL('../database.rules.json', import.meta.url),
+    'utf8',
+  );
+
+  assert.doesNotMatch(source, /numChildren\s*\(/);
+});
