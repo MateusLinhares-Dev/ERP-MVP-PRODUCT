@@ -88,3 +88,18 @@
 #dc-itens-body .phase2-purchase-history-obs + td{position:sticky!important;right:0!important;z-index:3!important;background:#fff!important;min-width:88px!important}
 #dc-itens-body tr:nth-child(even) .phase2-purchase-history-obs,#dc-itens-body tr:nth-child(even) .phase2-purchase-history-obs + td{background:#f8faf9!important}
 thead .phase2-purchase-history-obs{position:sticky!important;top:0!important;right:88px!important;z-index:6!important;background:#1a3a2a!important;color:#fff!important;min-width:190px!important}
+
+/* Fase 3.2 — estabilização da homologação */
+.phase3-price-combo{position:static!important;max-width:760px;width:min(100%,760px);margin:7px 0 10px;z-index:auto!important}
+.phase3-price-search-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.phase3-price-search-head>input{flex:1;min-width:0;width:100%;height:40px;border:1.5px solid #b9c9c0;border-radius:8px;padding:0 12px;font-size:.88rem;background:#fff;box-sizing:border-box}
+.phase3-price-search-head>input:focus{outline:2px solid #cfe5d8;border-color:#1d6b47}
+.phase3-price-count{white-space:nowrap;color:#65736c;font-size:.75rem;font-weight:700}
+.phase3-price-combo-list{display:block!important;position:static!important;left:auto!important;right:auto!important;top:auto!important;background:#fff;border:1px solid #d7e1db;border-radius:9px;box-shadow:none!important;max-height:260px;overflow:auto;padding:5px;z-index:auto!important}
+.phase3-price-combo-list button{display:flex!important;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;border:0;background:#fff;border-radius:6px;padding:9px 10px;font-size:.84rem;cursor:pointer}
+.phase3-price-combo-list button:hover{background:#eaf5ee;color:#174d34}
+.phase3-price-combo-list button.selected{background:#e4f3e9;color:#155b37;font-weight:800}
+.phase3-price-combo-list button b{font-size:.7rem;color:#1a6a42;white-space:nowrap}
+.phase3-price-empty{padding:12px;color:#7b8781;text-align:center}
+.p3-owner-head button,.p3-owner-toolbar button,.p3-owner-calendar button,.p3-owner-calendar .actions button{cursor:pointer!important}
+.p3-payable-today-empty{padding:10px 12px;background:#fff;border:1px dashed #d4ddd8;border-radius:8px;color:#6d7972;font-size:.82rem}

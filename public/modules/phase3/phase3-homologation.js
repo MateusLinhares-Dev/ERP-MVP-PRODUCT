@@ -94,8 +94,10 @@ if(typeof legacyDetail==='function')global.abrirDetalheCompra=async function(ref
 };
 const legacyImp=global.csAbrirImpureza;
 if(typeof legacyImp==='function')global.csAbrirImpureza=async function(ref){
-  const k=await ensureTicketKey(ref);
+  const target=normalizeTicketRef(ref)||currentPurchaseTicketKey;
+  const k=await ensureTicketKey(target);
   if(!k){notify('Ticket não encontrado. O registro não está mais disponível na base atual.','error');return;}
+  currentPurchaseTicketKey=k;
   return legacyImp.call(this,k);
 };
 global.phase3ResolveTicketKey=resolveTicketKey;
@@ -114,58 +116,65 @@ global.phase3BankSave=async function(kind,key){if(!store)return;const rows=$$('#
 global.ERPPartyBanks=Object.freeze({list:(kind,key)=>bankList(kind,key).slice(),primary:(kind,key)=>bankList(kind,key)[0]||null});
 
 /* Preços: uma única pesquisa integrada à própria lista da entidade */
-function priceComboOptions(select){
-  return Array.from(select?.options||[])
-    .filter(o=>o.value&&String(o.textContent||'').trim())
-    .map(o=>({value:o.value,label:String(o.textContent||'').trim()}));
+function priceComboOptions(select,kind){
+  const map=new Map();
+  const put=(value,label)=>{value=String(value||'').trim();label=String(label||'').trim();if(value&&label&&!map.has(value))map.set(value,{value,label});};
+  try{
+    if(kind==='fornecedor'){
+      const list=typeof getFornAtivos==='function'?getFornAtivos():(FORNECEDORES||[]);
+      list.filter(Boolean).forEach(f=>put(f.cod,f.nome||f.cod));
+    }else if(kind==='cliente'){
+      (CLIENTES||[]).filter(Boolean).forEach(c=>put(c.nome,c.nome));
+    }
+  }catch(e){}
+  Array.from(select?.options||[]).forEach(o=>put(o.value,o.textContent));
+  return Array.from(map.values()).sort((a,b)=>a.label.localeCompare(b.label,'pt-BR',{sensitivity:'base'}));
 }
-function closePriceCombos(except){
-  $$('.phase3-price-combo.open').forEach(x=>{if(x!==except)x.classList.remove('open');});
-}
-function renderPriceComboList(combo,select,query=''){
+function renderPriceComboList(combo,select,query='',kind=''){
   const list=$('.phase3-price-combo-list',combo);if(!list)return;
-  const q=norm(query),items=priceComboOptions(select).filter(x=>!q||norm(x.label).includes(q));
+  const q=norm(query),selected=String(select?.value||''),items=priceComboOptions(select,kind).filter(x=>!q||norm(x.label).includes(q));
+  const count=$('.phase3-price-count',combo);if(count)count.textContent=`${items.length} ${kind==='fornecedor'?'fornecedor(es)':'cliente(s)'}`;
   list.innerHTML=items.length
-    ?items.slice(0,80).map(x=>`<button type="button" data-value="${esc(x.value)}">${esc(x.label)}</button>`).join('')
-    :'<div class="phase3-price-empty">Nenhum resultado.</div>';
-  $$('button[data-value]',list).forEach(btn=>btn.addEventListener('mousedown',e=>{
+    ?items.slice(0,250).map(x=>`<button type="button" class="${selected===x.value?'selected':''}" data-value="${esc(x.value)}"><span>${esc(x.label)}</span>${selected===x.value?'<b>✓ selecionado</b>':''}</button>`).join('')
+    :'<div class="phase3-price-empty">Nenhum cadastro encontrado.</div>';
+  $$('button[data-value]',list).forEach(btn=>btn.addEventListener('click',e=>{
     e.preventDefault();
-    const value=btn.dataset.value||'',opt=Array.from(select.options).find(o=>o.value===value);
+    const value=btn.dataset.value||'';
+    if(!Array.from(select.options||[]).some(o=>String(o.value)===value)){
+      const item=priceComboOptions(select,kind).find(x=>x.value===value),opt=document.createElement('option');
+      opt.value=value;opt.textContent=item?.label||value;select.appendChild(opt);
+    }
     select.value=value;
-    const input=$('input',combo);if(input)input.value=opt?.textContent?.trim()||'';
-    combo.classList.remove('open');
+    const input=$('input[type="search"]',combo);if(input)input.value='';
     select.dispatchEvent(new Event('change',{bubbles:true}));
+    renderPriceComboList(combo,select,'',kind);
   }));
 }
-function ensurePriceCombo(tabSel,selectSel,label){
+function ensurePriceCombo(tabSel,selectSel,label,kind){
   const tab=$(tabSel),select=$(selectSel);if(!tab||!select)return;
   tab.querySelectorAll('.phase2-price-searches').forEach(x=>x.remove());
   let combo=tab.querySelector(`.phase3-price-combo[data-for="${select.id}"]`);
   if(!combo){
-    combo=document.createElement('div');combo.className='phase3-price-combo';combo.dataset.for=select.id;
-    combo.innerHTML=`<input type="search" autocomplete="off" placeholder="🔍 Digite para localizar ${label.toLowerCase()}..."><div class="phase3-price-combo-list"></div>`;
+    combo=document.createElement('div');combo.className='phase3-price-combo';combo.dataset.for=select.id;combo.dataset.kind=kind;
+    combo.innerHTML=`<div class="phase3-price-search-head"><input type="search" autocomplete="off" placeholder="🔍 Digite para localizar ${label.toLowerCase()}..."><small class="phase3-price-count"></small></div><div class="phase3-price-combo-list"></div>`;
     select.insertAdjacentElement('afterend',combo);
     select.classList.add('phase3-original-select');
-    const input=$('input',combo);
-    input.addEventListener('focus',()=>{closePriceCombos(combo);combo.classList.add('open');renderPriceComboList(combo,select,input.value);});
-    input.addEventListener('input',()=>{combo.classList.add('open');renderPriceComboList(combo,select,input.value);});
+    const input=$('input[type="search"]',combo);
+    input.addEventListener('input',()=>renderPriceComboList(combo,select,input.value,kind));
     input.addEventListener('keydown',e=>{
-      if(e.key==='Escape')combo.classList.remove('open');
+      if(e.key==='Escape'){input.value='';renderPriceComboList(combo,select,'',kind);}
       if(e.key==='Enter'){
         const first=combo.querySelector('.phase3-price-combo-list button[data-value]');
-        if(first){e.preventDefault();first.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));}
+        if(first){e.preventDefault();first.click();}
       }
     });
-    input.addEventListener('blur',()=>setTimeout(()=>combo.classList.remove('open'),120));
   }
-  const input=$('input',combo),selected=select.options[select.selectedIndex];
-  if(input&&document.activeElement!==input)input.value=select.value?(selected?.textContent?.trim()||''):'';
+  renderPriceComboList(combo,select,$('input[type="search"]',combo)?.value||'',kind);
 }
 function fixPriceSearches(){
-  ensurePriceCombo('#tab-precos_fornecedores','#pf-forn-sel','Fornecedor');
-  ensurePriceCombo('#tab-precos_clientes','#pc-cli-sel','Cliente');
+  ensurePriceCombo('#tab-precos_fornecedores','#pf-forn-sel','Fornecedor','fornecedor');
+  ensurePriceCombo('#tab-precos_clientes','#pc-cli-sel','Cliente','cliente');
 }
-document.addEventListener('mousedown',e=>{if(!e.target.closest('.phase3-price-combo'))closePriceCombos();});
 
 /* Calendário unificado: período por datas/meses, usuário e avisos 5/3/1 */
 let calendarEvents={},calendarMonth=today().slice(0,7),calendarSelected=today(),calendarRangeMode='date',
@@ -265,7 +274,7 @@ function renderCalendar(){
   let root=$('#phase3-calendar');
   if(!root){root=document.createElement('div');root.id='phase3-calendar';tab.prepend(root);}
   const users=getUsers(),list=calendarList(),byDay={};
-  list.forEach(e=>(byDay[e.date]||(byDay[e.date]=[])).push(e));
+  Object.values(calendarEvents||{}).filter(e=>e&&String(e.date||'').slice(0,7)===calendarMonth).forEach(e=>(byDay[e.date]||(byDay[e.date]=[])).push(e));
   const [y,m]=calendarMonth.split('-');
   const monthTitle=new Date(Number(y),Number(m)-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
   const rangeLabel=calendarRangeMode==='month'
@@ -307,7 +316,7 @@ function renderCalendar(){
 global.phase3CalendarToday=()=>{calendarMonth=today().slice(0,7);calendarSelected=today();renderCalendar();};
 global.phase3CalendarSetMonth=v=>{calendarMonth=v||calendarMonth;calendarSelected=`${calendarMonth}-01`;renderCalendar();};
 global.phase3CalendarMove=d=>{const [y,m]=calendarMonth.split('-').map(Number),dt=new Date(y,m-1+d,1);calendarMonth=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;calendarSelected=`${calendarMonth}-01`;renderCalendar();};
-global.phase3CalendarSelect=d=>{calendarSelected=d;renderCalendar();};
+global.phase3CalendarSelect=d=>{calendarSelected=d;calendarRangeMode='date';calendarFrom=d;calendarTo=d;calendarMonthFrom='';calendarMonthTo='';renderCalendar();};
 global.phase3CalendarRangeMode=mode=>{calendarRangeMode=mode==='month'?'month':'date';renderCalendar();};
 global.phase3CalendarClearFilters=()=>{calendarFrom='';calendarTo='';calendarMonthFrom='';calendarMonthTo='';calendarSearch='';calendarUser='';renderCalendar();};
 global.phase3CalendarFilter=(k,v)=>{
@@ -406,16 +415,23 @@ function ticketSnapshotAdvanceCodes(t){
   const list=Array.isArray(t?.reciboFinanceiro?.adiantamentos)?t.reciboFinanceiro.adiantamentos:[];
   return new Set(list.map(x=>String(x?.cod||'').trim()).filter(Boolean));
 }
+function purchaseAdvanceOverride(t){
+  const raw=t?._phase3AdvanceOverride;
+  if(!raw||!Number.isFinite(Number(raw.total)))return null;
+  return {total:Math.max(0,Math.round(Number(raw.total)*100)/100),ignoredCodes:new Set(Array.isArray(raw.ignoredCodes)?raw.ignoredCodes.map(x=>String(x||'').trim()).filter(Boolean):[])};
+}
 function externalAdvanceSum(ticket,ticketObj){
-  const key=resolveTicketKey(ticket),t=ticketObj||(key?ticketDb()[key]:null),snapshotCodes=ticketSnapshotAdvanceCodes(t);
+  const key=resolveTicketKey(ticket),t=ticketObj||(key?ticketDb()[key]:null),snapshotCodes=ticketSnapshotAdvanceCodes(t),override=purchaseAdvanceOverride(t),ignored=override?.ignoredCodes||new Set();
   const sum=linkedAdvanceRecords(ticket).reduce((total,a)=>{
     const cod=String(a?.cod||'').trim();
-    if(a?.origem==='compra_inline'||(cod&&snapshotCodes.has(cod)))return total;
+    if(a?.origem==='compra_inline'||(cod&&snapshotCodes.has(cod))||(cod&&ignored.has(cod)))return total;
     return total+Number(a?.valor||0);
   },0);
   return Math.round(sum*100)/100;
 }
 function ticketAdvanceBase(t){
+  const override=purchaseAdvanceOverride(t);
+  if(override)return override.total;
   const explicit=Number(t?._phase3AdvanceBase);
   if(Number.isFinite(explicit))return Math.max(0,Math.round(explicit*100)/100);
   const snapshot=Number(t?.reciboFinanceiro?.total);
@@ -491,19 +507,69 @@ if(typeof legacySaveEditAdvance==='function')global.salvarEditAdiantamento=funct
 };
 const legacyCorrectPurchaseAdvance=global.salvarAdiantamentoCompra;
 if(typeof legacyCorrectPurchaseAdvance==='function')global.salvarAdiantamentoCompra=function(){
-  let ticket='',key='',beforeExternal=0;
-  try{key=resolveTicketKey(currentPurchaseTicketKey)||resolveTicketKey(String($('#dc-info')?.textContent||'').match(/T\d+/i)?.[0]||'');ticket=key?String(ticketDb()[key]?.ticket||key):'';beforeExternal=ticket?externalAdvanceSum(ticket,ticketDb()[key]):0;}catch(e){}
-  const r=legacyCorrectPurchaseAdvance.apply(this,arguments);
-  setTimeout(()=>{
-    try{
-      const k=resolveTicketKey(ticket||key);const t=k?ticketDb()[k]:null;if(!t)return;
-      const base=Math.max(0,Math.round((Number(t.adiantamento||0)-beforeExternal)*100)/100);
-      t._phase3AdvanceBase=base;saveDB?.();fbSalvarImediato?.();
-    }catch(e){}
-  },80);
-  return r;
+  const raw=String($('#dc-adt-novo')?.value||'').trim(),novo=Math.max(0,Math.round(parseBR(raw)*100)/100);
+  let key=resolveTicketKey(currentPurchaseTicketKey)||resolveTicketKey(String($('#dc-titulo')?.textContent||'').match(/T\d+/i)?.[0]||'');
+  const t=key?ticketDb()[key]:null;
+  if(!t){notify('Ticket não encontrado para corrigir o adiantamento.','error');return;}
+  const ticket=String(t.ticket||key),antigo=Number(t.adiantamento||0);
+  if(Math.abs(novo-antigo)<0.005){$('#dc-adt-editor')?.replaceChildren();return;}
+  if(!confirm(`Trocar o adiantamento desta compra de R$ ${money(antigo)} para R$ ${money(novo)}?\n\nIsso recalcula o Saldo a Pagar e a Conta a Pagar desta compra.`))return;
+  const ignoredCodes=linkedAdvanceRecords(ticket).map(a=>String(a?.cod||'').trim()).filter(Boolean);
+  t._phase3AdvanceOverride={total:novo,ignoredCodes,updatedAt:new Date().toISOString()};
+  t._phase3AdvanceBase=novo;
+  const total=Number(t.totalGeral||0),saldoAnterior=Number(t.saldoAnterior||0);
+  let cp=null;try{cp=(CONTAS_PAGAR||[]).find(x=>String(x.ticket||'')===ticket&&x.status!=='Pago')||(CONTAS_PAGAR||[]).find(x=>String(x.ticket||'')===ticket)||null;}catch(e){}
+  const pago=Number(cp?.valorPago||0),saldo=Math.max(0,Math.round((total-novo+saldoAnterior-pago)*100)/100);
+  t.adiantamento=novo;t.saldoPagar=saldo;if(total>0)t.status=saldo<=0.009?'Pago':'Pendente';
+  if(t.reciboFinanceiro&&typeof t.reciboFinanceiro==='object')t.reciboFinanceiro.correcaoAdiantamento={de:antigo,para:novo,em:new Date().toISOString()};
+  try{
+    if(cp){cp.valor=saldo;cp.status=saldo<=0.009?'Pago':'Pendente';if(saldo>0)cp.dataPgto='';else if(!cp.dataPgto)cp.dataPgto=t.data||toBR(today());cp._upd=Date.now();saveContasPagar?.();}
+    saveDB?.();fbSalvarImediato?.();
+    registrarHistorico?.('Compra','Adiantamento corrigido',`${t.fornecedor||''} — Ticket ${ticket} — adiant. de R$ ${money(antigo)} → R$ ${money(novo)}`,null,{ticket});
+    renderTickets?.();renderContasPagar?.();renderFluxo?.();renderDashboard?.();
+  }catch(e){console.warn('[phase3] salvar correção de adiantamento',e);}
+  notify('Adiantamento da compra corrigido e salvo.','success');
+  setTimeout(()=>global.abrirDetalheCompra?.(key),40);
 };
 
+/* Contas a Pagar: calendário e vencimentos coerentes com a lista */
+function payableISO(v){return toISO(v);}
+function resetPayableCalendarFilters(iso){
+  try{_cpFiltroTipo='todos';_cpMesFiltro='';_cpFiltroEmpresa='';_cpFiltroDia=iso||'';}catch(e){}
+  ['cp-filtro-cat','cp-filtro-banco','cp-filtro-valor-min','cp-filtro-valor-max','cp-busca','cp-filtro-de','cp-filtro-ate'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const op=$('#cp-filtro-opcao');if(op)op.value='todas';
+  [['cp-tipo-todos',true],['cp-tipo-compra',false],['cp-tipo-despesa',false]].forEach(([id,on])=>{const b=$('#'+id);if(!b)return;b.style.background=on?'#1a3a2a':'#fff';b.style.color=on?'#fff':'#1a3a2a';});
+}
+const legacyCpCalFiltrarDia=global.cpCalFiltrarDia;
+if(typeof legacyCpCalFiltrarDia==='function')global.cpCalFiltrarDia=function(iso){
+  resetPayableCalendarFilters(iso);
+  try{renderContasPagar?.();}catch(e){}
+  notify('Filtrado pelo calendário: '+toBR(iso),'info',2500);
+};
+function bindPayableRange(){
+  ['#cp-filtro-de','#cp-filtro-ate'].forEach(sel=>{const el=$(sel);if(!el||el.dataset.p3range==='1')return;el.dataset.p3range='1';el.addEventListener('change',()=>{try{_cpMesFiltro='';_cpFiltroDia='';}catch(e){}setTimeout(()=>renderContasPagar?.(),0);});});
+}
+function fixPayableToday(){
+  const details=$('details.phase2-cp-today'),panel=$('#cp-hoje-panel'),list=$('#cp-hoje-lista');if(!details||!panel||!list)return;
+  let source=[];try{source=typeof _cpVisiveis==='function'?_cpVisiveis():(CONTAS_PAGAR||[]);}catch(e){try{source=CONTAS_PAGAR||[];}catch(_e){source=[];}}
+  const now=today(),due=source.filter(c=>c&&c.status!=='Pago'&&payableISO(c.venc)===now);
+  panel.style.display='block';
+  if(!due.length)list.innerHTML='<div class="p3-payable-today-empty">Nenhuma conta vencendo hoje.</div>';
+  const summary=details.querySelector('summary'),hint=summary?.querySelector('span');if(hint)hint.textContent=due.length?`${due.length} conta(s) · clique para ver`:'nenhuma hoje · clique para ver';
+  if(summary&&summary.dataset.p3today!=='1'){
+    summary.dataset.p3today='1';summary.addEventListener('click',()=>setTimeout(()=>{
+      if(!details.open)return;
+      let current=[];
+      try{const src=typeof _cpVisiveis==='function'?_cpVisiveis():(CONTAS_PAGAR||[]);current=src.filter(c=>c&&c.status!=='Pago'&&payableISO(c.venc)===today());}catch(e){}
+      if(current.length){resetPayableCalendarFilters(today());try{renderContasPagar?.();}catch(e){}details.open=true;}
+      else{panel.style.display='block';list.innerHTML='<div class="p3-payable-today-empty">Nenhuma conta vencendo hoje.</div>';}
+    },0));
+  }
+}
+const legacyRenderPayables=global.renderContasPagar;
+if(typeof legacyRenderPayables==='function')global.renderContasPagar=function(){
+  const r=legacyRenderPayables.apply(this,arguments);setTimeout(()=>{bindPayableRange();fixPayableToday();},0);return r;
+};
 /* Funcionários ativos consistentes em EPI/Almox/Viagem/Coordenação */
 function rebuildSelect(sel,allLabel=false,valueMode='mat'){if(!sel)return;const cur=sel.value,items=getEmployees(),sig=items.map(f=>`${f.mat}|${f.nome}|${f.status}`).join('~')+'|'+allLabel+'|'+valueMode;const actual=Array.from(sel.options).slice(allLabel||sel.options[0]?.value===''?1:0).map(o=>o.value).join('~'),expected=items.map(f=>valueMode==='nome'?(f.nome||f.mat):(f.mat||f.nome)).join('~');if(sel.dataset.p3sig===sig&&actual===expected)return;sel.innerHTML=(allLabel?'<option value="">— Todos —</option>':'<option value="">— Selecione —</option>')+items.map(f=>{const val=valueMode==='nome'?(f.nome||f.mat):(f.mat||f.nome);return `<option value="${esc(val||'')}">${esc(f.nome||'')} ${f.mat?'('+esc(f.mat)+')':''}</option>`;}).join('');sel.dataset.p3sig=sig;if(cur&&Array.from(sel.options).some(o=>o.value===cur))sel.value=cur;}
 function fixOperationalEmployees(){rebuildSelect($('#p2epi-func'));rebuildSelect($('#alx-func-sel'),true);rebuildSelect($('#vg-motorista'),false,'nome');rebuildSelect($('#vg-fil-mot'),true,'nome');rebuildSelect($('#adv-mat'));const part=$('#reu-partic-list');if(part){const checked=new Set($$('input:checked',part).map(x=>x.value));part.innerHTML=getEmployees().map(f=>`<label><input type="checkbox" value="${esc(f.mat)}" ${checked.has(f.mat)?'checked':''}> ${esc(f.nome)}${f.cargo?` — <small>${esc(f.cargo)}</small>`:''}</label>`).join('');}}
@@ -591,7 +657,7 @@ function fixCoordination(){
 }
 
 /* Aplicação recorrente */
-function apply(){captureTicketMappings();decoratePartyBanks();fixPriceSearches();decorateCheque();enhanceAdvanceTickets();reconcileKnownLinkedAdvances();fixOperationalEmployees();patchMaintenanceModal();bindMaintFilter();removeCasaGloria();fixCoordination();decorateReceivables();hideLegacyCalendarUi();const owner=$('#phase2-owner-bills');if(owner&&owner.offsetParent!==null&&owner.dataset.p3owner!=='1')renderOwnerBillsV3();if($('#tab-afazeres')&&!$('#phase3-calendar'))renderCalendar();}
+function apply(){captureTicketMappings();decoratePartyBanks();fixPriceSearches();decorateCheque();enhanceAdvanceTickets();reconcileKnownLinkedAdvances();bindPayableRange();fixPayableToday();fixOperationalEmployees();patchMaintenanceModal();bindMaintFilter();removeCasaGloria();fixCoordination();decorateReceivables();hideLegacyCalendarUi();const owner=$('#phase2-owner-bills');if(owner&&owner.offsetParent!==null&&owner.dataset.p3owner!=='1')renderOwnerBillsV3();if($('#tab-afazeres')&&!$('#phase3-calendar'))renderCalendar();}
 if(global.Phase1Dom)global.Phase1Dom.register(apply);else setInterval(apply,1200);
 setTimeout(()=>{loadPartyBanks();loadCalendar();loadOwnerBills();loadFiscalLinks();apply();},650);
 document.addEventListener('erp:user-started',()=>setTimeout(()=>{apply();checkCalendarPopups();refreshAvisos();},900));

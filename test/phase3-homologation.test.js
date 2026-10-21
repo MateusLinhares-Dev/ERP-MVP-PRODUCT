@@ -85,3 +85,34 @@ test('reconciliação de adiantamento preserva saldo anterior da compra',()=>{
 test('fase2 não recria barra duplicada de preços depois do combobox novo',()=>{
   assert.ok(phase2.includes("if(tab.querySelector('.phase3-price-combo'))return;"));
 });
+
+test('Editar Impureza usa o ticket corrente quando o modal legado zera _dcDbKey',()=>{
+  has('const target=normalizeTicketRef(ref)||currentPurchaseTicketKey','return legacyImp.call(this,k)');
+});
+
+test('marcadores do calendário mensal não dependem do filtro de período',()=>{
+  has("String(e.date||'').slice(0,7)===calendarMonth","calendarFrom=d;calendarTo=d");
+});
+
+test('preços exibem a lista cadastrada permanentemente e filtram na própria lista',()=>{
+  has("typeof getFornAtivos==='function'?getFornAtivos():(FORNECEDORES||[])","(CLIENTES||[]).filter(Boolean)",'phase3-price-count');
+  assert.match(css,/\.phase3-price-combo-list\{display:block!important;position:static!important/);
+  assert.match(css,/\.phase3-price-combo-list button\.selected/);
+});
+
+test('botões de Contas da Dona usam cursor de ação',()=>{
+  assert.match(css,/\.p3-owner-head button[^\{]*,[^\n]*\.p3-owner-calendar button[^\{]*\{cursor:pointer!important\}/);
+});
+
+test('correção manual de adiantamento é override exato e não é desfeita pela reconciliação automática',()=>{
+  has('purchaseAdvanceOverride','_phase3AdvanceOverride={total:novo,ignoredCodes','override?.ignoredCodes','if(override)return override.total','correcaoAdiantamento');
+});
+
+test('calendário de Contas a Pagar limpa filtros conflitantes antes de filtrar o dia',()=>{
+  has('resetPayableCalendarFilters','_cpFiltroTipo=\'todos\'','_cpMesFiltro=\'\'','_cpFiltroEmpresa=\'\'','_cpFiltroDia=iso||\'\'','Filtrado pelo calendário');
+});
+
+test('intervalo de Contas a Pagar deixa de ficar preso ao mês e Vencimentos de hoje nunca abre vazio',()=>{
+  has('bindPayableRange','fixPayableToday','Nenhuma conta vencendo hoje.','_cpMesFiltro=\'\';_cpFiltroDia=\'\'');
+  assert.ok(css.includes('.p3-payable-today-empty'));
+});
