@@ -1,36 +1,90 @@
 rules_version = '2';
+
 service firebase.storage {
   match /b/{bucket}/o {
+
+    function authenticated() {
+      return request.auth != null
+        && request.auth.token.erpAccess == true;
+    }
+
+    function isBusinessDocument() {
+      return request.resource.size <= 20 * 1024 * 1024
+        && (
+          request.resource.contentType == 'application/pdf'
+          || request.resource.contentType == 'application/msword'
+          || request.resource.contentType == 'application/vnd.ms-excel'
+          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          || request.resource.contentType == 'text/plain'
+          || request.resource.contentType == 'text/csv'
+          || request.resource.contentType.matches('image/(jpeg|png|webp|gif)')
+        );
+    }
+
+    function isChatImage() {
+      return request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+    }
+
     match /erp-files/funcDocs/{employee}/{fileName} {
-      allow read: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canEmployeeDocs == true;
-      allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canEmployeeDocs == true && request.resource.size <= 20 * 1024 * 1024;
-      allow delete: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canEmployeeDocs == true;
+      allow read: if authenticated()
+        && request.auth.token.canEmployeeDocs == true;
+
+      allow create, update: if authenticated()
+        && request.auth.token.canEmployeeDocs == true
+        && isBusinessDocument();
+
+      allow delete: if authenticated()
+        && request.auth.token.canEmployeeDocs == true;
     }
+
     match /erp-files/empresaDocs/{fileName} {
-      allow read: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canBusinessDocs == true;
-      allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canBusinessDocs == true && request.resource.size <= 20 * 1024 * 1024;
-      allow delete: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canBusinessDocs == true;
+      allow read: if authenticated()
+        && request.auth.token.canBusinessDocs == true;
+
+      allow create, update: if authenticated()
+        && request.auth.token.canBusinessDocs == true
+        && isBusinessDocument();
+
+      allow delete: if authenticated()
+        && request.auth.token.canBusinessDocs == true;
     }
+
     match /erp-files/frotaDocs/{vehicle}/{fileName} {
-      allow read: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canFleetDocs == true;
-      allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canFleetDocs == true && request.resource.size <= 20 * 1024 * 1024;
-      allow delete: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canFleetDocs == true;
+      allow read: if authenticated()
+        && request.auth.token.canFleetDocs == true;
+
+      allow create, update: if authenticated()
+        && request.auth.token.canFleetDocs == true
+        && isBusinessDocument();
+
+      allow delete: if authenticated()
+        && request.auth.token.canFleetDocs == true;
     }
+
     match /erp-files/chat/{conversation}/{fileName} {
-      allow read: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canChat == true;
-      allow create, update: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canChat == true && request.resource.size <= 5 * 1024 * 1024 && request.resource.contentType.matches('image/.*');
-      allow delete: if request.auth != null && request.auth.token.erpAccess == true && request.auth.token.canChat == true;
+      allow read: if authenticated()
+        && request.auth.token.canChat == true;
+
+      allow create, update: if authenticated()
+        && request.auth.token.canChat == true
+        && isChatImage();
+
+      allow delete: if authenticated()
+        && request.auth.token.canChat == true;
     }
+
     match /erp-files/profilePhotos/{uid}/{fileName} {
-      allow read: if request.auth != null && request.auth.token.erpAccess == true;
-      allow create, update: if request.auth != null
-        && request.auth.token.erpAccess == true
+      allow read: if authenticated();
+
+      allow create, update: if authenticated()
         && request.auth.uid == uid
         && fileName == 'avatar.webp'
         && request.resource.size <= 2 * 1024 * 1024
         && request.resource.contentType == 'image/webp';
-      allow delete: if request.auth != null
-        && request.auth.token.erpAccess == true
+
+      allow delete: if authenticated()
         && request.auth.uid == uid
         && fileName == 'avatar.webp';
     }

@@ -12,8 +12,8 @@
     },
     "erp": {
       "$node": {
-        ".read": "auth != null && auth.token.erpAccess == true && $node != 'users' && $node != 'usersDeleted' && $node != 'config' && $node != 'chat' && $node != 'chatRead' && $node != 'alertState' && $node != 'funcDocs' && $node != 'empresaDocs' && $node != 'frotaDocs' && $node != 'senhasCofre' && $node != 'senhasCofreEnc' && $node != 'senhasCofreMeta' && $node != 'suporte_patches' && $node != '_reset'",
-        ".write": "auth != null && auth.token.erpAccess == true && $node != 'users' && $node != 'usersDeleted' && $node != 'config' && $node != 'chat' && $node != 'chatRead' && $node != 'alertState' && $node != 'funcDocs' && $node != 'empresaDocs' && $node != 'frotaDocs' && $node != 'senhasCofre' && $node != 'senhasCofreEnc' && $node != 'senhasCofreMeta' && $node != 'suporte_patches' && $node != '_reset'"
+        ".read": "auth != null && auth.token.erpAccess == true && $node != 'users' && $node != 'usersDeleted' && $node != 'config' && $node != 'chat' && $node != 'chatRead' && $node != 'alertState' && $node != 'funcDocs' && $node != 'empresaDocs' && $node != 'frotaDocs' && $node != 'senhasCofre' && $node != 'senhasCofreEnc' && $node != 'senhasCofreMeta' && $node != 'suporte_patches' && $node != '_reset' && $node != 'partyBanks' && $node != 'calendarEvents' && $node != 'ownerBills' && $node != 'fixedPayables' && $node != 'fiscalParties' && $node != 'fiscalLinks'",
+        ".write": "auth != null && auth.token.erpAccess == true && $node != 'users' && $node != 'usersDeleted' && $node != 'config' && $node != 'chat' && $node != 'chatRead' && $node != 'alertState' && $node != 'funcDocs' && $node != 'empresaDocs' && $node != 'frotaDocs' && $node != 'senhasCofre' && $node != 'senhasCofreEnc' && $node != 'senhasCofreMeta' && $node != 'suporte_patches' && $node != '_reset' && $node != 'partyBanks' && $node != 'calendarEvents' && $node != 'ownerBills' && $node != 'fixedPayables' && $node != 'fiscalParties' && $node != 'fiscalLinks'"
       },
       "users": {
         ".read": "auth != null && auth.token.erpAccess == true",
@@ -62,6 +62,67 @@
       "frotaDocs": {
         ".read": "auth != null && auth.token.erpAccess == true && auth.token.canFleetDocs == true",
         ".write": "auth != null && auth.token.erpAccess == true && auth.token.canFleetDocs == true"
+      },
+      "partyBanks": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.canPartyBanks == true",
+        "$partyKey": {
+          ".write": "auth != null && auth.token.erpAccess == true && auth.token.canPartyBanks == true",
+          ".validate": "!newData.exists() || newData.numChildren() <= 20",
+          "$index": {
+            "bank": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 120)"
+            },
+            "agency": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 60)"
+            },
+            "account": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 80)"
+            },
+            "pix": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 180)"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
+      },
+      "calendarEvents": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.canCalendar == true",
+        "$eventId": {
+          ".write": "auth != null && auth.token.erpAccess == true && auth.token.canCalendar == true && (auth.token.admin == true || ((!data.exists() && newData.exists() && newData.child('userKey').val() == auth.token.erpUser && newData.child('createdBy').val() == auth.token.erpUser) || (data.exists() && data.child('userKey').val() == auth.token.erpUser && (!newData.exists() || newData.child('userKey').val() == auth.token.erpUser))))",
+          ".validate": "!newData.exists() || (newData.hasChildren(['id','title','date','userKey','status','createdBy','createdAt','updatedAt']) && newData.child('id').isString() && newData.child('id').val().length <= 120 && newData.child('title').isString() && newData.child('title').val().length > 0 && newData.child('title').val().length <= 240 && newData.child('date').isString() && newData.child('date').val().length == 10 && newData.child('userKey').isString() && newData.child('userKey').val().length > 0 && newData.child('userKey').val().length <= 120 && newData.child('status').isString() && (newData.child('status').val() == 'Pendente' || newData.child('status').val() == 'Concluído') && newData.child('createdBy').isString() && newData.child('createdBy').val().length <= 120 && newData.child('createdAt').isString() && newData.child('createdAt').val().length <= 60 && newData.child('updatedAt').isString() && newData.child('updatedAt').val().length <= 60 && (!newData.child('time').exists() || (newData.child('time').isString() && newData.child('time').val().length <= 8)) && (!newData.child('category').exists() || (newData.child('category').isString() && newData.child('category').val().length <= 80)) && (!newData.child('description').exists() || (newData.child('description').isString() && newData.child('description').val().length <= 4000)) && (!newData.child('completedAt').exists() || (newData.child('completedAt').isString() && newData.child('completedAt').val().length <= 60)) && (auth.token.admin == true || !data.exists() || newData.child('createdBy').val() == data.child('createdBy').val()))"
+        },
+        ".indexOn": [
+          "date",
+          "userKey",
+          "status"
+        ]
+      },
+      "ownerBills": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.canOwnerBills == true",
+        "$billId": {
+          ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.canOwnerBills == true",
+          ".validate": "!newData.exists() || ((!newData.child('id').exists() || (newData.child('id').isString() && newData.child('id').val().length <= 120)) && (!newData.child('desc').exists() || (newData.child('desc').isString() && newData.child('desc').val().length <= 240)) && (!newData.child('category').exists() || (newData.child('category').isString() && newData.child('category').val().length <= 160)) && (!newData.child('value').exists() || (newData.child('value').isNumber() && newData.child('value').val() >= 0)) && (!newData.child('day').exists() || (newData.child('day').isNumber() && newData.child('day').val() >= 1 && newData.child('day').val() <= 31)) && (!newData.child('dueDay').exists() || (newData.child('dueDay').isNumber() && newData.child('dueDay').val() >= 1 && newData.child('dueDay').val() <= 31)) && (!newData.child('obs').exists() || (newData.child('obs').isString() && newData.child('obs').val().length <= 2000)) && (!newData.child('active').exists() || newData.child('active').isBoolean()))"
+        }
+      },
+      "fixedPayables": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.canOwnerBills == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.canOwnerBills == true"
+      },
+      "fiscalParties": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.canFiscalRead == true",
+        "$partyId": {
+          ".write": "auth != null && auth.token.erpAccess == true && auth.token.canFiscalWrite == true",
+          ".validate": "!newData.exists() || ((!newData.child('id').exists() || (newData.child('id').isString() && newData.child('id').val().length <= 120)) && (!newData.child('kind').exists() || (newData.child('kind').isString() && newData.child('kind').val().length <= 40)) && (!newData.child('type').exists() || (newData.child('type').isString() && newData.child('type').val().length <= 40)) && (!newData.child('legalName').exists() || (newData.child('legalName').isString() && newData.child('legalName').val().length <= 240)) && (!newData.child('name').exists() || (newData.child('name').isString() && newData.child('name').val().length <= 240)) && (!newData.child('cnpj').exists() || (newData.child('cnpj').isString() && newData.child('cnpj').val().length <= 30)) && (!newData.child('cpf').exists() || (newData.child('cpf').isString() && newData.child('cpf').val().length <= 20)) && (!newData.child('email').exists() || (newData.child('email').isString() && newData.child('email').val().length <= 240)) && (!newData.child('phone').exists() || (newData.child('phone').isString() && newData.child('phone').val().length <= 40)) && (!newData.child('notes').exists() || (newData.child('notes').isString() && newData.child('notes').val().length <= 4000)))"
+        }
+      },
+      "fiscalLinks": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canReceivables == true || auth.token.canFiscalRead == true)",
+        "$linkId": {
+          ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canReceivables == true || auth.token.canFiscalWrite == true)",
+          ".validate": "!newData.exists() || (newData.child('id').isString() && newData.child('id').val().length <= 120 && newData.child('fiscalPartyId').isString() && newData.child('fiscalPartyId').val().length > 0 && newData.child('fiscalPartyId').val().length <= 120 && (!newData.child('nf').exists() || (newData.child('nf').isString() && newData.child('nf').val().length <= 120)) && (!newData.child('updatedAt').exists() || (newData.child('updatedAt').isString() && newData.child('updatedAt').val().length <= 60)))"
+        }
       },
       "senhasCofre": {
         ".read": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.canPasswords == true",
