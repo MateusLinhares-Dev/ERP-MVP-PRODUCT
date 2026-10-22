@@ -884,6 +884,14 @@ function dateBR(value){
 function daysBetween(a,b){
   try{const da=new Date(String(a||'')+'T12:00:00'),db=new Date(String(b||'')+'T12:00:00');if(Number.isNaN(+da)||Number.isNaN(+db))return 0;return Math.max(0,Math.round((db-da)/86400000));}catch(e){return 0;}
 }
+function companyLogoSrc(){
+  try{
+    const base=typeof window!=='undefined'&&window.location&&window.location.href?window.location.href:'http://localhost/';
+    return new URL('assets/branding/manuela-metais-logo.webp',base).href;
+  }catch(e){
+    return 'assets/branding/manuela-metais-logo.webp';
+  }
+}
 function printHtml(key,ticket){
   const info=companyInfo();
   const supplier=supplierInfo(ticket);
@@ -935,9 +943,13 @@ function printHtml(key,ticket){
     ?'<tr><td class="center">'+daysBetween(purchaseDate,dueDate)+'</td><td>'+esc(dateBR(dueDate))+'</td><td class="numeric">R$ '+money(balance)+'</td><td>'+esc(advance>0?'Abatimentos/adiantamentos aplicados: R$ '+money(advance):'Saldo do pedido')+'</td></tr>'
     :'<tr><td class="center">0</td><td>'+esc(dateBR(purchaseDate))+'</td><td class="numeric">R$ 0,00</td><td>Pedido quitado por abatimentos/adiantamentos</td></tr>';
 
+  const logoSrc=esc(companyLogoSrc());
+
   return '<main class="phase4-print">'+
     '<div class="doc-topline"><span>'+esc(issued)+'</span><span>Pedido de Compra</span></div>'+
-    '<header class="doc-header"><div class="brand"><div class="logo">'+esc(companyName())+'</div></div>'+
+    '<header class="doc-header"><div class="brand"><div class="logo">'+
+      '<img class="logo-image" src="'+logoSrc+'" alt="Logo Manuela Metais" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'+
+      '<div class="logo-fallback">'+esc(companyName())+'</div></div></div>'+
       '<div class="company"><strong>'+esc(companyLegal())+'</strong>'+
       (info.cnpj?'<span>CNPJ: '+esc(info.cnpj)+'</span>':'')+
       (info.endereco||info.enderecoCurto?'<span>'+esc(info.endereco||info.enderecoCurto)+'</span>':'')+
@@ -968,9 +980,11 @@ function printCss(){
     body{background:#e7e9ec;color:#151515;font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .phase4-print{width:210mm;min-height:297mm;margin:16px auto;padding:14mm;background:#fff;box-shadow:0 3px 18px #0002;font-size:10px;line-height:1.3}
     .doc-topline{display:flex;justify-content:space-between;align-items:center;font-size:8px;margin-bottom:13px}
-    .doc-header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;min-height:78px}
-    .brand{width:135px;flex-shrink:0;display:flex;align-items:flex-start}
-    .logo{width:90px;min-height:55px;border:1px solid #dfe6e0;background:#f7faf7;color:#1a3a2a;padding:11px 8px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:13px;line-height:1.1;font-weight:900;overflow-wrap:anywhere}
+    .doc-header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;min-height:88px}
+    .brand{width:150px;flex-shrink:0;display:flex;align-items:flex-start}
+    .logo{width:118px;min-height:76px;border:1px solid #29453a;background:#fff;padding:7px;display:flex;align-items:center;justify-content:center;position:relative}
+    .logo-image{display:block;max-width:100%;max-height:60px;object-fit:contain}
+    .logo-fallback{display:none;width:100%;min-height:60px;align-items:center;justify-content:center;text-align:center;color:#1a3a2a;font-size:13px;line-height:1.1;font-weight:900;overflow-wrap:anywhere}
     .company{display:flex;flex-direction:column;text-align:right;gap:2px;max-width:64%;font-size:8px;line-height:1.25;overflow-wrap:anywhere}
     .company strong{font-size:8.5px}
     .phase4-print h1{text-align:center;font-size:15px;font-weight:700;margin:10px 0 22px}

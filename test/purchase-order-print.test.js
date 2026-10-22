@@ -18,7 +18,10 @@ function makePrint(ticket){
     _empresaPrincipalLabel(){return 'Manuela Metais';},
     _empresaPrincipalRazao(){return 'Manuela Metais LTDA';},
     _empresaPrincipalInfo(){return {cnpj:'28.071.250/0001-31',endereco:'Endereço comercial'};},
-    window:{open(){return {document:{write(value){html+=value;},close(){}}};}}
+    window:{
+      location:{href:'https://erp.exemplo.com/app'},
+      open(){return {document:{write(value){html+=value;},close(){}}};}
+    }
   };
   context.window.window=context.window;
   runInNewContext(source,context);
@@ -65,4 +68,12 @@ test('descrição detalhada impressa preserva quebras e escapa conteúdo do item
   const {html}=makePrint({...base,itens:[{...base.itens[0],descricaoDetalhada:'Primeira linha\nSegunda <linha>'}]});
   assert.match(html,/Primeira linha\nSegunda &lt;linha&gt;/);
   assert.match(html,/\.item-description span\{white-space:pre-wrap/);
+});
+
+
+test('impressão inclui a logo enviada no cabeçalho com fallback em texto',()=>{
+  const {html}=makePrint(base);
+  assert.match(html,/class="logo-image"/);
+  assert.match(html,/assets\/branding\/manuela-metais-logo\.webp/);
+  assert.match(html,/class="logo-fallback">Manuela Metais</);
 });
