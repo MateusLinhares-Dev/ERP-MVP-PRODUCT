@@ -105,3 +105,31 @@ thead .phase2-purchase-history-obs{position:sticky!important;top:0!important;rig
 .phase3-price-empty{padding:12px;color:#7b8781;text-align:center}
 .p3-owner-head button,.p3-owner-toolbar button,.p3-owner-calendar button,.p3-owner-calendar .actions button{cursor:pointer!important}
 .p3-payable-today-empty{padding:10px 12px;background:#fff;border:1px dashed #d4ddd8;border-radius:8px;color:#6d7972;font-size:.82rem}
+
+/* Fase 3.4 — seletor pesquisável de preços sem recorte pelo card */
+#tab-precos_fornecedores > .tcard,
+#tab-precos_clientes > .tcard{
+  overflow:visible!important;
+}
+
+#tab-precos_fornecedores .phase3-price-combo,
+#tab-precos_clientes .phase3-price-combo{
+  z-index:250!important;
+}
+
+#tab-precos_fornecedores .phase3-price-combo-list,
+#tab-precos_clientes .phase3-price-combo-list{
+  max-height:320px!important;
+  overflow-y:auto!important;
+  overscroll-behavior:contain;
+}
+
+#tab-precos_fornecedores .phase3-price-search-head,
+#tab-precos_clientes .phase3-price-search-head{
+  cursor:text;
+}
+
+#tab-precos_fornecedores .phase3-price-arrow,
+#tab-precos_clientes .phase3-price-arrow{
+  cursor:pointer;
+}
