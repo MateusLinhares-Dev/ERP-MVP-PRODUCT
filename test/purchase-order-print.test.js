@@ -56,9 +56,9 @@ test('impressão não confunde vencimento financeiro com data prevista de entreg
   assert.match(withDelivery,/<th>Data prevista<\/th><td>13\/11\/2026<\/td>/);
 });
 
-test('observações vazias ficam ocultas, mas notas reais continuam imprimíveis e escapadas',()=>{
+test('seção de observações fica visível mesmo vazia e imprime texto salvo com escape',()=>{
   const blank=makePrint(base).html;
-  assert.doesNotMatch(blank,/class="print-section order-notes"/);
+  assert.match(blank,/<section class="print-section order-notes"><h2>Observações<\/h2><div class="notes"><\/div><\/section>/);
   const withNotes=makePrint({...base,observacoesPedido:'Coleta no pátio <B> & revisada'}).html;
   assert.match(withNotes,/class="print-section order-notes"/);
   assert.match(withNotes,/Coleta no pátio &lt;B&gt; &amp; revisada/);
@@ -76,4 +76,32 @@ test('impressão inclui a logo enviada no cabeçalho com fallback em texto',()=>
   assert.match(html,/class="logo-image"/);
   assert.match(html,/assets\/branding\/manuela-metais-logo\.webp/);
   assert.match(html,/class="logo-fallback">Manuela Metais</);
+});
+
+
+test('cadastro das observações gerais mantém o campo único antes dos totais e a persistência existente',()=>{
+  const start=source.indexOf("'<section class=\"phase4-po-card phase4-po-notes-card");
+  const totals=source.indexOf("'<div class=\"phase4-po-columns");
+  assert.ok(start>=0&&totals>start);
+  assert.match(source,/id=\"phase4-po-notes\" name=\"observacoesPedido\"/);
+  assert.ok(source.includes("ticket.observacoesPedido=String(state.notes||'').trim()"));
+  assert.match(source,/observacoes:ticket\.observacoesPedido/);
+});
+
+test('observações gerais podem ser apagadas do formulário sem ressurgir ao salvar',()=>{
+  const order={supplierName:'Fornecedor de teste',items:[],notes:'Observação anterior'};
+  const body={dataset:{phase4Order:JSON.stringify(order)}};
+  const input={value:''};
+  const fields={'cs-lanc-body':body,'phase4-po-notes':input};
+  const context={
+    document:{addEventListener(){},getElementById(id){return fields[id]||null;}},
+    window:{},
+    setTimeout(){},clearTimeout(){}
+  };
+  runInNewContext(source,context);
+  context.window.phase4PurchaseSyncMeta();
+  assert.equal(JSON.parse(body.dataset.phase4Order).notes,'');
+  input.value='Entrega no pátio <seguro>';
+  context.window.phase4PurchaseSyncMeta();
+  assert.equal(JSON.parse(body.dataset.phase4Order).notes,'Entrega no pátio <seguro>');
 });

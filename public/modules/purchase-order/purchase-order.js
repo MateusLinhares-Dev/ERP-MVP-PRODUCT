@@ -238,9 +238,10 @@ function render(body){
     '<div class="phase4-po-title"><div><h2>Pedido de compra</h2><p>Compra de sucata</p></div><div class="phase4-po-title-actions"><button type="button" class="phase4-po-outline" onclick="phase4PurchaseCancel()">Cancelar</button><button type="button" class="phase4-po-save" onclick="phase4PurchaseSave()">Salvar</button></div></div>'+
     '<section class="phase4-po-card"><h3>Fornecedor</h3><label class="phase4-po-field full"><span>Fornecedor *</span><input id="phase4-po-supplier" list="phase4-po-suppliers" autocomplete="off" value="'+esc(selected)+'" placeholder="Digite ou selecione o fornecedor" onchange="phase4PurchaseSupplierChanged()"><datalist id="phase4-po-suppliers">'+supplierOptions()+'</datalist></label>'+sourceTicketsHtml(state)+'</section>'+
     '<section class="phase4-po-card"><h3>Itens do pedido de compra</h3><div class="phase4-po-table-wrap"><table class="phase4-po-table"><thead><tr><th>#</th><th>Item / Material</th><th>Observação</th><th>Un.</th><th>Quantidade</th><th>Preço unitário</th><th>Preço total</th><th></th></tr></thead><tbody id="phase4-po-items"></tbody></table></div><datalist id="phase4-po-materials">'+materialOptions()+'</datalist><button type="button" class="phase4-po-add-item" onclick="phase4PurchaseAddItem()">＋ Adicionar outro item</button></section>'+
+    '<section class="phase4-po-card phase4-po-notes-card" aria-labelledby="phase4-po-notes-title"><div class="phase4-po-notes-head"><h3 id="phase4-po-notes-title">Observações gerais do pedido</h3><span class="phase4-po-print-hint">Aparece na seção Observações do canhoto / PDF</span></div><label class="phase4-po-field phase4-po-order-notes" for="phase4-po-notes"><span>Texto das observações</span><textarea id="phase4-po-notes" name="observacoesPedido" rows="4" placeholder="Ex.: Instruções de coleta, condições negociadas ou informações adicionais para o fornecedor" oninput="phase4PurchaseSyncMeta()">'+esc(state.notes||'')+'</textarea></label><small class="phase4-po-notes-help">As descrições de cada material são cadastradas separadamente pelo botão Adicionar na linha do item.</small></section>'+
     '<div class="phase4-po-columns">'+
       '<section class="phase4-po-card"><h3>Totais da compra</h3><div class="phase4-po-summary"><div><span>Nº de itens</span><b id="phase4-po-item-count">0</b></div><div><span>Soma das quantidades</span><b id="phase4-po-qty-total">0 kg</b></div><div><span>Total dos produtos</span><b id="phase4-po-products-total">R$ 0,00</b></div><div class="grand"><span>Total do pedido</span><b id="phase4-po-grand-total">R$ 0,00</b></div></div><div class="phase4-po-form-grid two"><label class="phase4-po-field"><span>Desconto R$</span><input id="phase4-po-discount" inputmode="decimal" value="'+esc(state.discount?money(state.discount):'0,00')+'" oninput="phase4PurchaseRecalc()"></label><label class="phase4-po-field"><span>Frete R$</span><input id="phase4-po-freight" inputmode="decimal" value="'+esc(state.freight?money(state.freight):'0,00')+'" oninput="phase4PurchaseRecalc()"></label></div></section>'+
-      '<section class="phase4-po-card"><h3>Detalhes da compra</h3><div class="phase4-po-form-grid"><label class="phase4-po-field"><span>Número do pedido</span><input id="phase4-po-number" value="'+esc(state.orderNumber||'')+'" oninput="phase4PurchaseSyncMeta()"></label><label class="phase4-po-field"><span>Ordem de compra</span><input id="phase4-po-order" value="'+esc(state.purchaseOrder||'')+'" oninput="phase4PurchaseSyncMeta()"></label><label class="phase4-po-field"><span>Data da compra</span><input id="phase4-po-date" type="date" value="'+esc(state.purchaseDate||today())+'" onchange="phase4PurchaseSyncMeta()"></label></div><label class="phase4-po-field phase4-po-order-notes"><span>Observações do pedido</span><textarea id="phase4-po-notes" rows="3" placeholder="Informações gerais que devem aparecer no pedido impresso" oninput="phase4PurchaseSyncMeta()">'+esc(state.notes||'')+'</textarea></label></section>'+
+      '<section class="phase4-po-card"><h3>Detalhes da compra</h3><div class="phase4-po-form-grid"><label class="phase4-po-field"><span>Número do pedido</span><input id="phase4-po-number" value="'+esc(state.orderNumber||'')+'" oninput="phase4PurchaseSyncMeta()"></label><label class="phase4-po-field"><span>Ordem de compra</span><input id="phase4-po-order" value="'+esc(state.purchaseOrder||'')+'" oninput="phase4PurchaseSyncMeta()"></label><label class="phase4-po-field"><span>Data da compra</span><input id="phase4-po-date" type="date" value="'+esc(state.purchaseDate||today())+'" onchange="phase4PurchaseSyncMeta()"></label></div></section>'+
     '</div>'+
     '<section class="phase4-po-card"><h3>Pagamento</h3><div class="phase4-po-payment-head"><label class="phase4-po-field"><span>Vencimento do saldo</span><input id="cs-lanc-venc" type="date" value="'+esc(state.dueDate||today())+'" onchange="phase4PurchaseSyncMeta()"></label><div class="phase4-po-payment-total"><span>Adiantamentos / abatimentos</span><b id="phase4-po-advance-total">R$ 0,00</b></div><div class="phase4-po-payment-total main"><span>Saldo a pagar</span><b id="phase4-po-balance">R$ 0,00</b></div></div><div class="phase4-po-pay-list">'+paymentHtml(state)+'</div></section>'+
     '<div class="phase4-po-footer"><button type="button" class="phase4-po-outline" onclick="phase4PurchaseCancel()">Cancelar</button><button type="button" class="phase4-po-save" onclick="phase4PurchaseSave()">Salvar pedido de compra</button></div>'+
@@ -321,13 +322,18 @@ global.phase4PurchaseSaveDescription=function(index){
   renderItems(body,state);
   global.phase4PurchaseCloseDescription();
 };
+function readOrderNotes(state){
+  const field=document.getElementById('phase4-po-notes');
+  // Uma observação removida no formulário precisa continuar vazia, sem restaurar o valor anterior.
+  return String(field?field.value:(state?.notes||'')).trim();
+}
 global.phase4PurchaseSyncMeta=function(){
   const tuple=getState(),body=tuple[0],state=tuple[1];
   state.orderNumber=String(document.getElementById('phase4-po-number')?.value||state.orderNumber||'').trim();
   state.purchaseOrder=String(document.getElementById('phase4-po-order')?.value||state.purchaseOrder||'').trim();
   state.purchaseDate=document.getElementById('phase4-po-date')?.value||state.purchaseDate||today();
   state.dueDate=document.getElementById('cs-lanc-venc')?.value||state.dueDate||today();
-  state.notes=String(document.getElementById('phase4-po-notes')?.value||state.notes||'').trim();
+  state.notes=readOrderNotes(state);
   storeState(body,state);
 };
 global.phase4PurchaseRecalc=function(){
@@ -639,7 +645,7 @@ global.phase4PurchaseSave=function(){
   state.purchaseOrder=String(document.getElementById('phase4-po-order')?.value||state.purchaseOrder||'').trim();
   state.purchaseDate=document.getElementById('phase4-po-date')?.value||state.purchaseDate||today();
   state.dueDate=document.getElementById('cs-lanc-venc')?.value||state.dueDate||today();
-  state.notes=String(document.getElementById('phase4-po-notes')?.value||state.notes||'').trim();
+  state.notes=readOrderNotes(state);
   let prepared;
   try{
     validateSourceTickets(state);
@@ -969,7 +975,7 @@ function printHtml(key,ticket){
       '<thead><tr><th>Descrição do produto/serviço</th><th>Código</th><th>Código do fornecedor</th><th>Un</th><th>Qtde</th><th>Valor unitário</th><th>Valor total</th></tr></thead><tbody>'+itemRows+'</tbody></table>'+
       '<table class="print-totals" aria-label="Totais da compra"><tbody>'+totals+'</tbody></table></section>'+
     '<section class="print-section"><h2>Parcelas</h2><table class="installments"><thead><tr><th>Dias</th><th>Data Vencimento</th><th>Valor</th><th>Observações</th></tr></thead><tbody>'+installments+'</tbody></table></section>'+
-    (orderNotes?'<section class="print-section order-notes"><h2>Observações</h2><div class="notes">'+esc(orderNotes)+'</div></section>':'')+
+    '<section class="print-section order-notes"><h2>Observações</h2><div class="notes">'+esc(orderNotes)+'</div></section>'+
   '</main>';
 }
 function printCss(){
@@ -1020,7 +1026,7 @@ function printCss(){
     .print-totals td{min-width:75px}
     .print-totals .grand th,.print-totals .grand td{border-top:1px solid #555;font-weight:800}
     .installments th:nth-child(1){width:12%}.installments th:nth-child(2){width:28%}.installments th:nth-child(3){width:22%}
-    .notes{min-height:31px;border:1px solid #555;padding:7px;white-space:pre-wrap;overflow-wrap:anywhere}
+    .notes{min-height:42px;border:1px solid #555;padding:7px;white-space:pre-wrap;overflow-wrap:anywhere}
     .print-actions{text-align:center;margin:18px 0 25px}
     .print-actions button{padding:11px 25px;border:0;border-radius:7px;background:#1a3a2a;color:#fff;font-size:13px;font-weight:700;cursor:pointer}
     @media print{
