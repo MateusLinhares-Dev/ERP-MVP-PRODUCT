@@ -168,9 +168,13 @@ async function main() {
 
   loadStyle('/modules/phase3/phase3-homologation.css');
   await loadClassic('/modules/phase3/phase3-homologation.js');
+
+  loadStyle('/modules/purchase-order/purchase-order.css');
+  await loadClassic('/modules/purchase-order/purchase-order.js');
   window.__PHASE1_READY__ = true;
   window.__PHASE2_FEEDBACK_READY__ = true;
   window.__PHASE3_HOMOLOGATION_READY__ = true;
+  window.__PURCHASE_ORDER_LAYOUT_READY__ = true;
 
   initProfilePhoto({ auth, db, storage });
 

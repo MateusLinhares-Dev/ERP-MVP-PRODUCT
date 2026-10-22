@@ -1,0 +1,63 @@
+
+#cst-lancamento .phase4-po-legacy-supplier{display:none!important}
+.phase4-po{display:grid;gap:14px;max-width:1500px}
+.phase4-po *{box-sizing:border-box}
+.phase4-po button{cursor:pointer}
+.phase4-po-title{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:2px 0 4px}
+.phase4-po-title h2{margin:0;color:var(--primary,#1a3a2a);font-size:1.15rem}
+.phase4-po-title p{margin:3px 0 0;color:#7a857f;font-size:.78rem}
+.phase4-po-title-actions,.phase4-po-footer{display:flex;gap:10px;justify-content:flex-end}
+.phase4-po-card{background:#fff;border:1px solid var(--border,#dfe5e1);border-radius:10px;padding:14px 16px}
+.phase4-po-card h3{margin:0 0 12px;color:#23372d;font-size:.9rem}
+.phase4-po-field{display:grid;gap:5px}
+.phase4-po-field.full{width:100%}
+.phase4-po-field span{font-size:.7rem;font-weight:800;color:#5f6d66;text-transform:uppercase;letter-spacing:.02em}
+.phase4-po-field input{width:100%;min-height:37px;padding:8px 10px;border:1px solid #cbd5ce;border-radius:6px;background:#fff;color:#1f2f27;font-size:.85rem;outline:none}
+.phase4-po-field input:focus,.phase4-po-table input:focus{border-color:var(--primary,#1a3a2a);box-shadow:0 0 0 2px rgba(26,58,42,.08)}
+.phase4-po-source{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:.72rem;color:#69756f}
+.phase4-po-source b{padding:4px 8px;border-radius:999px;background:#eef5f0;color:#29553d;font-weight:700}
+.phase4-po-table-wrap{overflow:auto;border:1px solid #e1e6e3;border-radius:8px}
+.phase4-po-table{width:100%;border-collapse:collapse;min-width:1040px}
+.phase4-po-table th{padding:8px 9px;background:#f4f7f5;color:#58655e;font-size:.68rem;text-transform:uppercase;text-align:left;border-bottom:1px solid #dfe5e1;white-space:nowrap}
+.phase4-po-table td{padding:6px;border-bottom:1px solid #edf1ee;vertical-align:middle}
+.phase4-po-table tr:last-child td{border-bottom:none}
+.phase4-po-table input{width:100%;min-height:34px;padding:7px 8px;border:1px solid #d2dad5;border-radius:5px;font-size:.82rem;outline:none}
+.phase4-po-table input[readonly]{background:#f4f6f5;color:#4e5b54}
+.phase4-po-table .idx{width:34px;text-align:center;font-weight:800;color:#7a857f}
+.phase4-po-table .description{min-width:260px}
+.phase4-po-table .total{text-align:right;white-space:nowrap;font-weight:800;color:#17492f}
+.phase4-po-table .action{width:42px;text-align:center}
+.phase4-po-table .action button{border:0;background:#fdeaea;color:#b42318;border-radius:5px;padding:6px 9px;font-weight:900}
+.phase4-po-unit{display:inline-flex;min-width:38px;justify-content:center;padding:6px 8px;border-radius:5px;background:#f2f5f3;color:#536159;font-weight:700}
+.phase4-po-locked{opacity:.55}
+.phase4-po-add-item{margin-top:9px;border:1px dashed #6c967c;background:#f1f7f3;color:#1d5836;border-radius:6px;padding:7px 12px;font-size:.78rem;font-weight:800}
+.phase4-po-columns{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);gap:14px}
+.phase4-po-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.phase4-po-summary div{display:grid;gap:3px;padding:9px 10px;background:#f6f8f7;border-radius:7px}
+.phase4-po-summary span{font-size:.66rem;text-transform:uppercase;color:#7a857f;font-weight:700}
+.phase4-po-summary b{font-size:.92rem;color:#24392e}
+.phase4-po-summary .grand{background:#edf5ef}
+.phase4-po-form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.phase4-po-form-grid.two{grid-template-columns:1fr 1fr}
+.phase4-po-payment-head{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(200px,.6fr) minmax(200px,.6fr);gap:12px;align-items:end}
+.phase4-po-payment-total{display:grid;gap:4px;padding:9px 12px;border-radius:7px;background:#f6f8f7}
+.phase4-po-payment-total span{font-size:.68rem;text-transform:uppercase;color:#728078;font-weight:700}
+.phase4-po-payment-total b{font-size:1rem}
+.phase4-po-payment-total.main{background:#edf5ef}
+.phase4-po-payment-total b.credit{color:#b42318}
+.phase4-po-pay-list{display:grid;gap:6px;margin-top:10px}
+.phase4-po-pay-row{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:7px 9px;border:1px solid #e4e9e6;border-radius:7px;cursor:pointer}
+.phase4-po-pay-row input{width:16px;height:16px;cursor:pointer}
+.phase4-po-pay-row span{display:grid;gap:2px}
+.phase4-po-pay-row small{color:#7a857f}
+.phase4-po-pay-row.credit{background:#fff9e8}
+.phase4-po-empty-pay{color:#89938e;font-size:.8rem;padding:6px 0}
+.phase4-po-outline,.phase4-po-save{border-radius:6px;padding:8px 18px;font-weight:800;font-size:.8rem}
+.phase4-po-outline{background:#fff;color:var(--primary,#1a3a2a);border:1px solid var(--primary,#1a3a2a)}
+.phase4-po-save{background:var(--primary,#1a3a2a);color:#fff;border:1px solid var(--primary,#1a3a2a)}
+.phase4-po-footer{padding:2px 0 8px}
+@media(max-width:980px){
+  .phase4-po-columns{grid-template-columns:1fr}
+  .phase4-po-summary{grid-template-columns:1fr 1fr}
+  .phase4-po-form-grid,.phase4-po-payment-head{grid-template-columns:1fr}
+}
