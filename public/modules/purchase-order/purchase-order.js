@@ -14,6 +14,7 @@ let manualMode=false;
 let rowSeed=0;
 let saving=false;
 let activeSourceTicketKey='';
+let supplierChangeTimer=null;
 
 function esc(value){
   return String(value==null?'':value).replace(/[&<>"']/g,function(c){
@@ -235,8 +236,8 @@ function render(body){
 
   body.innerHTML='<div class="phase4-po">'+
     '<div class="phase4-po-title"><div><h2>Pedido de compra</h2><p>Compra de sucata</p></div><div class="phase4-po-title-actions"><button type="button" class="phase4-po-outline" onclick="phase4PurchaseCancel()">Cancelar</button><button type="button" class="phase4-po-save" onclick="phase4PurchaseSave()">Salvar</button></div></div>'+
-    '<section class="phase4-po-card"><h3>Fornecedor</h3><label class="phase4-po-field full"><span>Fornecedor *</span><input id="phase4-po-supplier" list="phase4-po-suppliers" autocomplete="off" value="'+esc(selected)+'" placeholder="Digite ou selecione o fornecedor" onchange="phase4PurchaseSupplierChanged()" onblur="phase4PurchaseSupplierChanged()"><datalist id="phase4-po-suppliers">'+supplierOptions()+'</datalist></label>'+sourceTicketsHtml(state)+'</section>'+
-    '<section class="phase4-po-card"><h3>Itens do pedido de compra</h3><div class="phase4-po-table-wrap"><table class="phase4-po-table"><thead><tr><th>#</th><th>Material</th><th>Detalhes</th><th>Un.</th><th>Quantidade</th><th>Preço unitário</th><th>Preço total</th><th></th></tr></thead><tbody id="phase4-po-items"></tbody></table></div><datalist id="phase4-po-materials">'+materialOptions()+'</datalist><button type="button" class="phase4-po-add-item" onclick="phase4PurchaseAddItem()">＋ Adicionar outro item</button></section>'+
+    '<section class="phase4-po-card"><h3>Fornecedor</h3><label class="phase4-po-field full"><span>Fornecedor *</span><input id="phase4-po-supplier" list="phase4-po-suppliers" autocomplete="off" value="'+esc(selected)+'" placeholder="Digite ou selecione o fornecedor" onchange="phase4PurchaseSupplierChanged()"><datalist id="phase4-po-suppliers">'+supplierOptions()+'</datalist></label>'+sourceTicketsHtml(state)+'</section>'+
+    '<section class="phase4-po-card"><h3>Itens do pedido de compra</h3><div class="phase4-po-table-wrap"><table class="phase4-po-table"><thead><tr><th>#</th><th>Item / Material</th><th>Observação</th><th>Un.</th><th>Quantidade</th><th>Preço unitário</th><th>Preço total</th><th></th></tr></thead><tbody id="phase4-po-items"></tbody></table></div><datalist id="phase4-po-materials">'+materialOptions()+'</datalist><button type="button" class="phase4-po-add-item" onclick="phase4PurchaseAddItem()">＋ Adicionar outro item</button></section>'+
     '<div class="phase4-po-columns">'+
       '<section class="phase4-po-card"><h3>Totais da compra</h3><div class="phase4-po-summary"><div><span>Nº de itens</span><b id="phase4-po-item-count">0</b></div><div><span>Soma das quantidades</span><b id="phase4-po-qty-total">0 kg</b></div><div><span>Total dos produtos</span><b id="phase4-po-products-total">R$ 0,00</b></div><div class="grand"><span>Total do pedido</span><b id="phase4-po-grand-total">R$ 0,00</b></div></div><div class="phase4-po-form-grid two"><label class="phase4-po-field"><span>Desconto R$</span><input id="phase4-po-discount" inputmode="decimal" value="'+esc(state.discount?money(state.discount):'0,00')+'" oninput="phase4PurchaseRecalc()"></label><label class="phase4-po-field"><span>Frete R$</span><input id="phase4-po-freight" inputmode="decimal" value="'+esc(state.freight?money(state.freight):'0,00')+'" oninput="phase4PurchaseRecalc()"></label></div></section>'+
       '<section class="phase4-po-card"><h3>Detalhes da compra</h3><div class="phase4-po-form-grid"><label class="phase4-po-field"><span>Número do pedido</span><input id="phase4-po-number" value="'+esc(state.orderNumber||'')+'" oninput="phase4PurchaseSyncMeta()"></label><label class="phase4-po-field"><span>Ordem de compra</span><input id="phase4-po-order" value="'+esc(state.purchaseOrder||'')+'" oninput="phase4PurchaseSyncMeta()"></label><label class="phase4-po-field"><span>Data da compra</span><input id="phase4-po-date" type="date" value="'+esc(state.purchaseDate||today())+'" onchange="phase4PurchaseSyncMeta()"></label></div><label class="phase4-po-field phase4-po-order-notes"><span>Observações do pedido</span><textarea id="phase4-po-notes" rows="3" placeholder="Informações gerais que devem aparecer no pedido impresso" oninput="phase4PurchaseSyncMeta()">'+esc(state.notes||'')+'</textarea></label></section>'+
@@ -259,7 +260,7 @@ function renderItems(body,state){
       '<td><span class="phase4-po-unit">'+esc(item.unidade||'kg')+'</span></td>'+
       '<td><input inputmode="decimal" value="'+esc(item.quantidade?String(item.quantidade).replace('.',','):'')+'" placeholder="0" '+(item.source?'readonly title="Quantidade originada da pesagem"':'')+' oninput="phase4PurchaseItem('+index+',\'quantidade\',this.value)"></td>'+
       '<td><input inputmode="decimal" value="'+esc(item.preco?money(item.preco):'')+'" placeholder="0,00" oninput="phase4PurchaseItem('+index+',\'preco\',this.value)"></td>'+
-      '<td class="total" id="phase4-po-row-total-'+index+'">R$ '+money(total)+'</td>'+
+      '<td class="total"><input class="phase4-po-row-total" id="phase4-po-row-total-'+index+'" type="text" readonly tabindex="-1" aria-label="Preço total do item '+(index+1)+'" value="R$ '+money(total)+'"></td>'+
       '<td class="action">'+(item.source?'<span class="phase4-po-locked" title="Item vindo da pesagem">🔒</span>':'<button type="button" title="Remover item" onclick="phase4PurchaseRemoveItem('+index+')">✕</button>')+'</td>'+
     '</tr>';
   }).join('');
@@ -275,7 +276,7 @@ global.phase4PurchaseItem=function(index,field,value){
   else item[field]=String(value||'');
   storeState(body,state);
   const total=document.getElementById('phase4-po-row-total-'+index);
-  if(total)total.textContent='R$ '+money(Number(item.quantidade||0)*Number(item.preco||0));
+  if(total)total.value='R$ '+money(Number(item.quantidade||0)*Number(item.preco||0));
   global.phase4PurchaseRecalc();
 };
 global.phase4PurchaseAddItem=function(){
@@ -370,26 +371,42 @@ global.phase4PurchaseRecalc=function(){
   return {productTotal,total,advances,balance};
 };
 global.phase4PurchaseSupplierChanged=function(){
-  const name=selectedSupplierName();
-  const supplier=supplierByName(name);
-  if(!supplier)return;
-  if(!setHiddenSupplier(supplier.nome))return;
-  if(manualMode){
-    const body=document.getElementById('cs-lanc-body');if(!body)return;
-    const state=currentState(body);
-    const fin=financialData(body,supplier.cod);
-    state.supplierName=supplier.nome;
-    state.supplierCode=supplier.cod||'';
-    state.adts=fin.adts;
-    state.cheques=fin.cheques;
-    state.previousCredit=fin.balance;
-    state.sourceTicketKeys=[];
-    if(!state.items?.length)state.items=[newItem()];
-    storeState(body,state);
-    render(body);
+  // A troca de fornecedor nunca deve desmontar o input dentro do evento change/blur.
+  // O Chrome pode disparar NotFoundError ao tentar atualizar o foco de um nó removido.
+  const input=document.getElementById('phase4-po-supplier');
+  const typed=String(input?.value||'').trim();
+  const supplier=supplierByName(typed);
+  if(supplierChangeTimer!==null)clearTimeout(supplierChangeTimer);
+  if(!supplier){
+    if(typed){try{showToast('Selecione um fornecedor cadastrado na lista.','error');}catch(e){}}
     return;
   }
-  global.csCarregarForn(supplier.nome);
+  const body=document.getElementById('cs-lanc-body');
+  const state=body?currentState(body):null;
+  if(state&&String(state.supplierCode||'')===String(supplier.cod||'')&&state.supplierName===supplier.nome)return;
+  supplierChangeTimer=setTimeout(function(){
+    supplierChangeTimer=null;
+    if(!document.getElementById('cs-lanc-body')||document.getElementById('phase4-po-supplier')!==input)return;
+    if(document.activeElement===input)input.blur();
+    if(!setHiddenSupplier(supplier.nome))return;
+    if(manualMode){
+      const target=document.getElementById('cs-lanc-body');if(!target)return;
+      const next=currentState(target);
+      // Não reutilizar os datasets financeiros do fornecedor anterior.
+      const fin=financialData(null,supplier.cod);
+      next.supplierName=supplier.nome;
+      next.supplierCode=supplier.cod||'';
+      next.adts=fin.adts;
+      next.cheques=fin.cheques;
+      next.previousCredit=fin.balance;
+      next.sourceTicketKeys=[];
+      if(!next.items?.length)next.items=[newItem()];
+      storeState(target,next);
+      render(target);
+      return;
+    }
+    global.csCarregarForn(supplier.nome);
+  },0);
 };
 function prepareLegacy(body,state){
   const supplier=supplierByName(state.supplierName||selectedSupplierName());

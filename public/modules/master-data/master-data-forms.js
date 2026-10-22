@@ -50,7 +50,9 @@ function normalizeCityUf(entity){
 }
 function bankButton(kind,key,name){
   if(!key)return '<span class="phase4-master-bank-hint">Salve o cadastro para liberar múltiplas contas bancárias.</span>';
-  return '<button type="button" class="phase4-master-secondary" onclick="phase3OpenPartyBanks(\''+esc(kind)+'\',\''+esc(key)+'\',\''+esc(name)+'\')">🏦 Gerenciar contas bancárias</button>';
+  // Parâmetros em JSON escapado: nomes com apóstrofos não quebram handlers JS.
+  const jsArg=value=>esc(JSON.stringify(String(value||'')));
+  return '<button type="button" class="phase4-master-secondary" onclick="phase3OpenPartyBanks('+jsArg(kind)+','+jsArg(key)+','+jsArg(name)+')">🏦 Gerenciar contas bancárias</button>';
 }
 
 function supplierForm(entity){
@@ -118,9 +120,121 @@ function employeeForm(entity,index){
   return top(editing?'Editar funcionário':'Novo funcionário','Cadastro de RH utilizado em folha, ponto, EPI, viagens e coordenação.',save)+section('Dados cadastrais','Identificação e vínculo do funcionário.',identification)+section('Contato','Canais de contato do colaborador.',contact)+section('Endereço','Dados opcionais para cadastro completo.',address)+section('Remuneração e pagamento','Valores usados pelos módulos financeiros de RH.',payroll)+section('Contrato e alertas','Datas de experiência e lembretes.',alerts)+'<div class="phase4-master-bottom"><button type="button" class="phase4-master-outline" onclick="cm()">Cancelar</button><button type="button" class="phase4-master-save" onclick="'+save+'">Salvar</button></div>';
 }
 
-function openSupplier(entity){const body=modal();body.innerHTML=supplierForm(entity);global.phase4MasterTogglePerson(entity?'ef':'nf');}
-function openClient(entity,index){const body=modal();body.innerHTML=clientForm(entity,index);global.phase4MasterTogglePerson(entity?'ec':'nc');}
+// Clientes e fornecedores compartilham a navegação visual. Os módulos/coleções e
+// respectivos controles de acesso permanecem separados para não afetar integrações.
+const PARTY_TABS={cliente:'clientes',fornecedor:'fornecedores'};
+let editingParty='';
+function partyAccess(kind){
+  const tab=PARTY_TABS[kind];
+  return typeof global.erpCanAccessTab!=='function'||global.erpCanAccessTab(tab);
+}
+function ensurePartyShell(kind){
+  const id=PARTY_TABS[kind];
+  const panel=document.getElementById('tab-'+id);
+  if(!panel)return null;
+  let shell=document.getElementById('phase4-party-'+id);
+  if(shell)return shell;
+  // Move only DOM nodes; no table is recreated or detached from its legacy handlers.
+  const listing=document.createElement('div');
+  listing.className='phase4-master-listing';
+  while(panel.firstChild)listing.appendChild(panel.firstChild);
+  shell=document.createElement('div');
+  shell.className='phase4-master-workspace';
+  shell.id='phase4-party-'+id;
+  shell.dataset.mode='list';
+  shell.innerHTML='<div class="phase4-master-workspace-title"><div><h2>Clientes e fornecedores</h2><p>Consulte o histórico e gerencie cadastros sem sair do módulo.</p></div></div>'+
+    '<div class="phase4-master-workspace-tabs" role="navigation" aria-label="Cadastros de clientes e fornecedores">'+
+      '<button type="button" data-party-target="clientes" onclick="phase4MasterGo(\'clientes\')">👥 Clientes</button>'+
+      '<button type="button" data-party-target="fornecedores" onclick="phase4MasterGo(\'fornecedores\')">🤝 Fornecedores</button></div>'+
+    '<div class="phase4-master-workspace-views" role="tablist" aria-label="Histórico e cadastro">'+
+      '<button type="button" role="tab" data-party-view="list" onclick="phase4MasterShowList(\''+kind+'\')">📋 Histórico / Cadastros</button>'+
+      '<button type="button" role="tab" data-party-view="form" onclick="phase4MasterCreate(\''+kind+'\')">＋ Novo cadastro</button></div>';
+  shell.appendChild(listing);
+  const editor=document.createElement('div');
+  editor.id='phase4-master-editor-'+id;
+  editor.className='phase4-master-inline-editor phase4-master-modal';
+  editor.hidden=true;
+  shell.appendChild(editor);
+  panel.appendChild(shell);
+  updatePartyShell(kind,'list');
+  return shell;
+}
+function updatePartyShell(kind,mode){
+  const shell=document.getElementById('phase4-party-'+PARTY_TABS[kind]);
+  if(!shell)return;
+  shell.dataset.mode=mode;
+  shell.querySelectorAll('[data-party-target]').forEach(function(button){
+    const target=button.dataset.partyTarget;
+    button.classList.toggle('active',target===PARTY_TABS[kind]);
+    button.setAttribute('aria-current',target===PARTY_TABS[kind]?'page':'false');
+    // A permissão é validada no clique pelo switchTab protegido,
+    // não congelada no bootstrap antes de a sessão ser carregada.
+  });
+  shell.querySelectorAll('[data-party-view]').forEach(function(button){
+    const isActive=button.dataset.partyView===mode;
+    button.classList.toggle('active',isActive);
+    button.setAttribute('aria-selected',String(isActive));
+  });
+  shell.querySelector('.phase4-master-listing').hidden=mode!=='list';
+  shell.querySelector('.phase4-master-inline-editor').hidden=mode!=='form';
+}
+function navigateToParty(kind){
+  if(!partyAccess(kind)){
+    try{showToast('Você não tem acesso a este cadastro.','error');}catch(e){}
+    return false;
+  }
+  const tab=PARTY_TABS[kind];
+  if(!tab)return false;
+  if(!document.getElementById('tab-'+tab)?.classList.contains('active')){
+    if(typeof global.switchTab!=='function'||global.switchTab(tab)===false)return false;
+  }
+  ensurePartyShell(kind);
+  return true;
+}
+function inlinePartyForm(kind,entity,index){
+  if(!navigateToParty(kind))return;
+  const shell=ensurePartyShell(kind);
+  const body=shell?.querySelector('.phase4-master-inline-editor');
+  if(!body)return;
+  editingParty=kind;
+  const markup=kind==='fornecedor'?supplierForm(entity):clientForm(entity,index);
+  // Só os formulários de clientes/fornecedores usam navegação inline.
+  // O modal de funcionários e de documentos mantém o comportamento original.
+  body.innerHTML=markup.replaceAll('onclick="cm()"','onclick="phase4MasterCancel()"');
+  updatePartyShell(kind,'form');
+  global.phase4MasterTogglePerson(kind==='fornecedor'?(entity?'ef':'nf'):(entity?'ec':'nc'));
+  body.querySelector('input:not([type=hidden])')?.focus({preventScroll:true});
+  shell.scrollIntoView({block:'start',behavior:'auto'});
+}
+function openSupplier(entity){inlinePartyForm('fornecedor',entity);}
+function openClient(entity,index){inlinePartyForm('cliente',entity,index);}
 function openEmployee(entity,index){const body=modal();body.innerHTML=employeeForm(entity,index);if(entity){try{_efnLembretes=Array.isArray(entity.lembretes)?entity.lembretes.map(l=>({t:l.t||'',d:l.d||'',a:l.a!=null?l.a:5})):[];_efnRenderLembretes();}catch(e){}}}
+
+global.phase4MasterGo=function(tab){
+  const kind=tab==='clientes'?'cliente':tab==='fornecedores'?'fornecedor':null;
+  if(!kind)return;
+  if(navigateToParty(kind))global.phase4MasterShowList(kind);
+};
+global.phase4MasterShowList=function(kind){
+  if(!PARTY_TABS[kind])return;
+  editingParty='';
+  updatePartyShell(kind,'list');
+  // Atualização apenas da listagem existente; persistência continua nos repositórios legados.
+  try{if(kind==='cliente'&&typeof renderClientes==='function')renderClientes();
+    if(kind==='fornecedor'&&typeof renderTabelaFornecedores==='function')renderTabelaFornecedores();}catch(e){console.warn('[master-data] lista',e);}
+};
+global.phase4MasterCreate=function(kind){
+  if(kind==='cliente')openClient(null,null);
+  else if(kind==='fornecedor')openSupplier(null);
+};
+global.phase4MasterCancel=function(){
+  if(editingParty)global.phase4MasterShowList(editingParty);
+};
+function initPartyShells(){
+  ensurePartyShell('cliente');
+  ensurePartyShell('fornecedor');
+}
+document.addEventListener('erp:ready',initPartyShells);
 
 global.phase4MasterTogglePerson=function(prefix){
   const type=val(prefix+'-pessoa');
@@ -151,19 +265,19 @@ function persistEmployees(){
 if(typeof legacy.saveNewSupplier==='function')global.salvarNovoFornecedor=function(){
   const extras=supplierExtras('nf'),before=new Set((FORNECEDORES||[]).map(f=>f.cod));
   const result=legacy.saveNewSupplier.apply(this,arguments);
-  const entity=(FORNECEDORES||[]).find(f=>!before.has(f.cod));if(entity){Object.assign(entity,extras);persistSuppliers();}
+  const entity=(FORNECEDORES||[]).find(f=>!before.has(f.cod));if(entity){Object.assign(entity,extras);persistSuppliers();global.phase4MasterShowList('fornecedor');}
   return result;
 };
 if(typeof legacy.saveSupplier==='function')global.salvarEditFornecedor=function(){
-  const code=val('ef-cod'),extras=supplierExtras('ef');const result=legacy.saveSupplier.apply(this,arguments);const entity=supplierByCode(code);if(entity){Object.assign(entity,extras);persistSuppliers();}return result;
+  const code=val('ef-cod'),extras=supplierExtras('ef');const result=legacy.saveSupplier.apply(this,arguments);const entity=supplierByCode(code);if(entity){Object.assign(entity,extras);persistSuppliers();global.phase4MasterShowList('fornecedor');}return result;
 };
 if(typeof legacy.saveNewClient==='function')global.salvarNovoCliente=function(){
   const extras=clientExtras('nc'),before=new Set((CLIENTES||[]).map(c=>c.cod));const bank={banco:val('nc-banco'),agencia:val('nc-agencia'),conta:val('nc-conta'),pix:val('nc-pix')};
-  const result=legacy.saveNewClient.apply(this,arguments);const entity=(CLIENTES||[]).find(c=>!before.has(c.cod));if(entity){Object.assign(entity,extras,bank);try{saveClientes();}catch(e){}}return result;
+  const result=legacy.saveNewClient.apply(this,arguments);const entity=(CLIENTES||[]).find(c=>!before.has(c.cod));if(entity){Object.assign(entity,extras,bank);try{saveClientes();}catch(e){}global.phase4MasterShowList('cliente');}return result;
 };
 if(typeof legacy.saveClient==='function')global.salvarEditCliente=function(){
   const idx=Number(document.getElementById('ec-idx')?.value),extras=clientExtras('ec'),bank={banco:val('ec-banco'),agencia:val('ec-agencia'),conta:val('ec-conta'),pix:val('ec-pix')};
-  const result=legacy.saveClient.apply(this,arguments);const entity=CLIENTES?.[idx];if(entity){Object.assign(entity,extras,bank);try{saveClientes();}catch(e){}}return result;
+  const result=legacy.saveClient.apply(this,arguments);const entity=CLIENTES?.[idx];if(entity){Object.assign(entity,extras,bank);try{saveClientes();}catch(e){}global.phase4MasterShowList('cliente');}return result;
 };
 if(typeof legacy.saveNewEmployee==='function')global.salvarNovoFuncionario=function(){
   const extras=employeeExtras('nfu'),before=new Set((FUNCIONARIOS||[]).map(f=>f.mat));const result=legacy.saveNewEmployee.apply(this,arguments);const entity=(FUNCIONARIOS||[]).find(f=>!before.has(f.mat));if(entity){Object.assign(entity,extras);persistEmployees();}return result;

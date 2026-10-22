@@ -82,3 +82,18 @@ test('pedido impresso segue estrutura operacional inspirada no documento de refe
     assert.ok(js.includes(label),`faltando na impressão: ${label}`);
   }
 });
+
+test('troca de fornecedor não remove o campo no evento de blur nem mistura datasets financeiros',()=>{
+  assert.ok(js.includes('onchange="phase4PurchaseSupplierChanged()"'));
+  assert.ok(!js.includes('onblur="phase4PurchaseSupplierChanged()"'));
+  assert.match(js,/supplierChangeTimer=setTimeout/);
+  assert.match(js,/document\.activeElement===input/);
+  assert.match(js,/const fin=financialData\(null,supplier\.cod\)/);
+});
+
+test('valor total do item aparece em campo somente leitura recalculado por quantidade e preço',()=>{
+  assert.ok(js.includes('class="phase4-po-row-total"'));
+  assert.ok(js.includes('type="text" readonly'));
+  assert.match(js,/total\.value='R\$ '/);
+  assert.match(css,/\.phase4-po-row-total/);
+});

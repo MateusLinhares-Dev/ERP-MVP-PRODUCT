@@ -38,3 +38,19 @@ test('visual segue identidade clara do ERP com formulário amplo e responsivo',(
   assert.match(css,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(css,/@media\(max-width:650px\)/);
 });
+
+test('clientes e fornecedores compartilham navegação de histórico e cadastro inline',()=>{
+  has('Clientes e fornecedores','Histórico / Cadastros','Novo cadastro');
+  has('phase4-master-inline-editor','phase4MasterCreate','phase4MasterShowList','inlinePartyForm');
+  assert.match(js,/while\(panel\.firstChild\)listing\.appendChild/);
+  assert.match(css,/\.phase4-master-inline-editor/);
+});
+
+test('acesso aos cadastros passa pelo guard existente e persiste via salvamento legado',()=>{
+  assert.match(js,/global\.erpCanAccessTab\(tab\)/);
+  assert.match(js,/global\.switchTab\(tab\)===false/);
+  assert.match(js,/legacy\.saveNewClient\.apply/);
+  assert.match(js,/legacy\.saveNewSupplier\.apply/);
+  assert.match(js,/global\.phase4MasterShowList\('cliente'\)/);
+  assert.match(js,/global\.phase4MasterShowList\('fornecedor'\)/);
+});

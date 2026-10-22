@@ -96,3 +96,9 @@
 .phase4-pending-empty{display:grid;gap:6px;text-align:center;padding:42px 20px;border:1px dashed #c9d4cd;border-radius:10px;background:#fafcfb;color:#78847d}
 .phase4-pending-empty b{color:#2e6f46}
 @media(max-width:900px){.phase4-pending-card{grid-template-columns:1fr 1fr}.phase4-pending-actions{grid-column:1/-1}.phase4-pending-weight{text-align:left}}
+
+/* O preço total é calculado, mas mantém aparência de campo como no pedido de compra. */
+.phase4-po-table .total{min-width:150px}
+.phase4-po-table .phase4-po-row-total{min-width:136px;text-align:right;font-weight:800;color:#17492f;background:#f3f8f4;border-color:#dce9df;font-variant-numeric:tabular-nums;cursor:default}
+.phase4-po-table .phase4-po-row-total:focus{box-shadow:none}
+.phase4-po-table .description{min-width:126px}
