@@ -63,13 +63,9 @@
 }
 
 .phase4-po-notes-card{border-left:3px solid var(--primary,#1a3a2a)}
-.phase4-po-notes-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.phase4-po-notes-head h3{margin:0}
-.phase4-po-print-hint{font-size:.73rem;font-weight:700;color:#27633e;background:#edf6ef;padding:5px 10px;border-radius:6px}
 .phase4-po-order-notes{display:block;margin-top:10px}
 .phase4-po-order-notes textarea{display:block;width:100%;resize:vertical;min-height:96px;padding:10px 12px;border:1px solid #cbd5ce;border-radius:6px;background:#fff;color:#1f2f27;font:inherit;outline:none}
 .phase4-po-order-notes textarea:focus{border-color:var(--primary,#1a3a2a);box-shadow:0 0 0 2px rgba(26,58,42,.08)}
-.phase4-po-notes-help{display:block;margin-top:7px;font-size:.72rem;color:#78847c}
 .phase4-po-table .description{width:118px;min-width:118px;text-align:center}
 .phase4-po-detail-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:92px;padding:7px 9px;border:1px solid #d8dfda;border-radius:7px;background:#f8faf9;color:#69756f;font-weight:700;font-size:.72rem;cursor:pointer;transition:.15s ease}
 .phase4-po-detail-button:hover{border-color:#6f927c;background:#eff6f1;color:#1a5e36}
