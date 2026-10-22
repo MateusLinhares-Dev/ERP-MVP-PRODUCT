@@ -94,10 +94,11 @@ test('marcadores do calendário mensal não dependem do filtro de período',()=>
   has("String(e.date||'').slice(0,7)===calendarMonth","calendarFrom=d;calendarTo=d");
 });
 
-test('preços exibem a lista cadastrada permanentemente e filtram na própria lista',()=>{
-  has("typeof getFornAtivos==='function'?getFornAtivos():(FORNECEDORES||[])","(CLIENTES||[]).filter(Boolean)",'phase3-price-count');
-  assert.match(css,/\.phase3-price-combo-list\{display:block!important;position:static!important/);
-  assert.match(css,/\.phase3-price-combo-list button\.selected/);
+test('preços abrem uma lista pesquisável com todos os cadastros e scroll',()=>{
+  has("typeof getFornAtivos==='function'?getFornAtivos():(FORNECEDORES||[])","(CLIENTES||[]).filter(Boolean)",'openPriceCombo','selectedPriceComboLabel','Clique para listar ou digite para procurar');
+  assert.match(css,/\.phase3-price-combo-list\{display:none!important;position:absolute!important/);
+  assert.match(css,/\.phase3-price-combo\.open \.phase3-price-combo-list\{display:block!important/);
+  assert.match(css,/max-height:300px;overflow-y:auto/);
 });
 
 test('botões de Contas da Dona usam cursor de ação',()=>{
@@ -115,4 +116,10 @@ test('calendário de Contas a Pagar limpa filtros conflitantes antes de filtrar 
 test('intervalo de Contas a Pagar deixa de ficar preso ao mês e Vencimentos de hoje nunca abre vazio',()=>{
   has('bindPayableRange','fixPayableToday','Nenhuma conta vencendo hoje.','_cpMesFiltro=\'\';_cpFiltroDia=\'\'');
   assert.ok(css.includes('.p3-payable-today-empty'));
+});
+
+
+test('agenda recarrega direto da nuvem depois do login e ao abrir Calendário',()=>{
+  has('loadCalendarFresh',"repository.read('calendarEvents')","tabId==='afazeres'","document.addEventListener('erp:user-started'",'calendarLoadSequence');
+  assert.ok(!js.includes('loadPartyBanks();loadCalendar();loadOwnerBills()'));
 });

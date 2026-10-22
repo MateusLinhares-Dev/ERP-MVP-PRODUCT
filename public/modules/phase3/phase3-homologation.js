@@ -130,25 +130,38 @@ function priceComboOptions(select,kind){
   Array.from(select?.options||[]).forEach(o=>put(o.value,o.textContent));
   return Array.from(map.values()).sort((a,b)=>a.label.localeCompare(b.label,'pt-BR',{sensitivity:'base'}));
 }
+function selectedPriceComboLabel(select,kind){
+  const value=String(select?.value||'');
+  return priceComboOptions(select,kind).find(x=>x.value===value)?.label||'';
+}
 function renderPriceComboList(combo,select,query='',kind=''){
   const list=$('.phase3-price-combo-list',combo);if(!list)return;
   const q=norm(query),selected=String(select?.value||''),items=priceComboOptions(select,kind).filter(x=>!q||norm(x.label).includes(q));
   const count=$('.phase3-price-count',combo);if(count)count.textContent=`${items.length} ${kind==='fornecedor'?'fornecedor(es)':'cliente(s)'}`;
   list.innerHTML=items.length
-    ?items.slice(0,250).map(x=>`<button type="button" class="${selected===x.value?'selected':''}" data-value="${esc(x.value)}"><span>${esc(x.label)}</span>${selected===x.value?'<b>✓ selecionado</b>':''}</button>`).join('')
+    ?items.slice(0,400).map(x=>`<button type="button" class="${selected===x.value?'selected':''}" data-value="${esc(x.value)}"><span>${esc(x.label)}</span>${selected===x.value?'<b>✓ selecionado</b>':''}</button>`).join('')
     :'<div class="phase3-price-empty">Nenhum cadastro encontrado.</div>';
-  $$('button[data-value]',list).forEach(btn=>btn.addEventListener('click',e=>{
+  $$('button[data-value]',list).forEach(btn=>btn.addEventListener('mousedown',e=>{
     e.preventDefault();
-    const value=btn.dataset.value||'';
+    const value=btn.dataset.value||'',itemsNow=priceComboOptions(select,kind);
     if(!Array.from(select.options||[]).some(o=>String(o.value)===value)){
-      const item=priceComboOptions(select,kind).find(x=>x.value===value),opt=document.createElement('option');
+      const item=itemsNow.find(x=>x.value===value),opt=document.createElement('option');
       opt.value=value;opt.textContent=item?.label||value;select.appendChild(opt);
     }
     select.value=value;
-    const input=$('input[type="search"]',combo);if(input)input.value='';
+    const input=$('input[type="search"]',combo),item=itemsNow.find(x=>x.value===value);
+    if(input)input.value=item?.label||value;
+    combo.classList.remove('open');
     select.dispatchEvent(new Event('change',{bubbles:true}));
-    renderPriceComboList(combo,select,'',kind);
   }));
+}
+function openPriceCombo(combo,select,input,kind){
+  $$('.phase3-price-combo.open').forEach(x=>{if(x!==combo)x.classList.remove('open');});
+  combo.classList.add('open');
+  renderPriceComboList(combo,select,'',kind);
+  if(select.value&&input.value===selectedPriceComboLabel(select,kind)){
+    try{input.select();}catch(e){}
+  }
 }
 function ensurePriceCombo(tabSel,selectSel,label,kind){
   const tab=$(tabSel),select=$(selectSel);if(!tab||!select)return;
@@ -156,25 +169,39 @@ function ensurePriceCombo(tabSel,selectSel,label,kind){
   let combo=tab.querySelector(`.phase3-price-combo[data-for="${select.id}"]`);
   if(!combo){
     combo=document.createElement('div');combo.className='phase3-price-combo';combo.dataset.for=select.id;combo.dataset.kind=kind;
-    combo.innerHTML=`<div class="phase3-price-search-head"><input type="search" autocomplete="off" placeholder="🔍 Digite para localizar ${label.toLowerCase()}..."><small class="phase3-price-count"></small></div><div class="phase3-price-combo-list"></div>`;
+    combo.innerHTML=`<div class="phase3-price-search-head"><input type="search" autocomplete="off" placeholder="🔍 Clique para listar ou digite para procurar ${label.toLowerCase()}..."><small class="phase3-price-count"></small><span class="phase3-price-arrow">⌄</span></div><div class="phase3-price-combo-list"></div>`;
     select.insertAdjacentElement('afterend',combo);
     select.classList.add('phase3-original-select');
     const input=$('input[type="search"]',combo);
-    input.addEventListener('input',()=>renderPriceComboList(combo,select,input.value,kind));
+    input.addEventListener('focus',()=>openPriceCombo(combo,select,input,kind));
+    input.addEventListener('click',()=>openPriceCombo(combo,select,input,kind));
+    input.addEventListener('input',()=>{combo.classList.add('open');renderPriceComboList(combo,select,input.value,kind);});
     input.addEventListener('keydown',e=>{
-      if(e.key==='Escape'){input.value='';renderPriceComboList(combo,select,'',kind);}
+      if(e.key==='Escape'){combo.classList.remove('open');input.value=selectedPriceComboLabel(select,kind);input.blur();}
+      if(e.key==='ArrowDown'){
+        const first=combo.querySelector('.phase3-price-combo-list button[data-value]');
+        if(first){e.preventDefault();first.focus();}
+      }
       if(e.key==='Enter'){
         const first=combo.querySelector('.phase3-price-combo-list button[data-value]');
-        if(first){e.preventDefault();first.click();}
+        if(first){e.preventDefault();first.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));}
       }
     });
+    input.addEventListener('blur',()=>setTimeout(()=>{
+      if(!combo.matches(':focus-within')){
+        combo.classList.remove('open');
+        input.value=selectedPriceComboLabel(select,kind);
+      }
+    },120));
   }
-  renderPriceComboList(combo,select,$('input[type="search"]',combo)?.value||'',kind);
+  const input=$('input[type="search"]',combo);
+  if(input&&document.activeElement!==input)input.value=selectedPriceComboLabel(select,kind);
 }
 function fixPriceSearches(){
   ensurePriceCombo('#tab-precos_fornecedores','#pf-forn-sel','Fornecedor','fornecedor');
   ensurePriceCombo('#tab-precos_clientes','#pc-cli-sel','Cliente','cliente');
 }
+document.addEventListener('mousedown',e=>{if(!e.target.closest('.phase3-price-combo'))$$('.phase3-price-combo.open').forEach(x=>x.classList.remove('open'));});
 
 /* Calendário unificado: período por datas/meses, usuário e avisos 5/3/1 */
 let calendarEvents={},calendarMonth=today().slice(0,7),calendarSelected=today(),calendarRangeMode='date',
@@ -234,12 +261,23 @@ async function migrateLegacyAfazeres(){
   }catch(error){console.warn('[phase3] migração Afazeres → Calendário',error);}
   finally{calendarMigrating=false;}
 }
-async function loadCalendar(){
-  if(!store)return;
-  calendarEvents=await store.load('calendarEvents',{});
-  await migrateLegacyAfazeres();
-  renderCalendar();
-  setTimeout(checkCalendarPopups,500);
+let calendarLoadSequence=0;
+async function loadCalendarFresh(){
+  const repository=global.__businessRepository;
+  if(!repository)return false;
+  const sequence=++calendarLoadSequence;
+  try{
+    const cloud=await repository.read('calendarEvents');
+    if(sequence!==calendarLoadSequence)return false;
+    calendarEvents=cloud&&typeof cloud==='object'?cloud:{};
+    await migrateLegacyAfazeres();
+    renderCalendar();
+    setTimeout(checkCalendarPopups,250);
+    return true;
+  }catch(error){
+    console.warn('[phase3] calendário aguardando autenticação/sincronização',error);
+    return false;
+  }
 }
 const legacyRenderAfazeresPhase3=global.renderAfazeres;
 if(typeof legacyRenderAfazeresPhase3==='function')global.renderAfazeres=function(){
@@ -659,8 +697,17 @@ function fixCoordination(){
 /* Aplicação recorrente */
 function apply(){captureTicketMappings();decoratePartyBanks();fixPriceSearches();decorateCheque();enhanceAdvanceTickets();reconcileKnownLinkedAdvances();bindPayableRange();fixPayableToday();fixOperationalEmployees();patchMaintenanceModal();bindMaintFilter();removeCasaGloria();fixCoordination();decorateReceivables();hideLegacyCalendarUi();const owner=$('#phase2-owner-bills');if(owner&&owner.offsetParent!==null&&owner.dataset.p3owner!=='1')renderOwnerBillsV3();if($('#tab-afazeres')&&!$('#phase3-calendar'))renderCalendar();}
 if(global.Phase1Dom)global.Phase1Dom.register(apply);else setInterval(apply,1200);
-setTimeout(()=>{loadPartyBanks();loadCalendar();loadOwnerBills();loadFiscalLinks();apply();},650);
-document.addEventListener('erp:user-started',()=>setTimeout(()=>{apply();checkCalendarPopups();refreshAvisos();},900));
+const legacySwitchTabPhase3=global.switchTab;
+if(typeof legacySwitchTabPhase3==='function')global.switchTab=function(tabId){
+  const result=legacySwitchTabPhase3.apply(this,arguments);
+  if(tabId==='afazeres')setTimeout(()=>loadCalendarFresh(),30);
+  return result;
+};
+setTimeout(()=>{loadPartyBanks();loadOwnerBills();loadFiscalLinks();apply();if(currentUserKey())loadCalendarFresh();},650);
+document.addEventListener('erp:user-started',()=>{
+  setTimeout(async()=>{await loadCalendarFresh();apply();refreshAvisos();},120);
+  setTimeout(()=>loadCalendarFresh(),900);
+});
 
-global.Phase3Homologation=Object.freeze({resolveTicketKey,activeEmployee,advanceSumForTicket,chequeSequence,apply});
+global.Phase3Homologation=Object.freeze({resolveTicketKey,activeEmployee,advanceSumForTicket,chequeSequence,loadCalendarFresh,apply});
 })(window);
