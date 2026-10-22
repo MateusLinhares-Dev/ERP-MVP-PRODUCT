@@ -61,3 +61,38 @@
   .phase4-po-summary{grid-template-columns:1fr 1fr}
   .phase4-po-form-grid,.phase4-po-payment-head{grid-template-columns:1fr}
 }
+
+.phase4-po-order-notes{margin-top:12px}
+.phase4-po-order-notes textarea{width:100%;resize:vertical;min-height:72px;padding:9px 10px;border:1px solid #cbd5ce;border-radius:6px;background:#fff;color:#1f2f27;font:inherit;outline:none}
+.phase4-po-order-notes textarea:focus{border-color:var(--primary,#1a3a2a);box-shadow:0 0 0 2px rgba(26,58,42,.08)}
+.phase4-po-table .description{width:118px;min-width:118px;text-align:center}
+.phase4-po-detail-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:92px;padding:7px 9px;border:1px solid #d8dfda;border-radius:7px;background:#f8faf9;color:#69756f;font-weight:700;font-size:.72rem;cursor:pointer;transition:.15s ease}
+.phase4-po-detail-button:hover{border-color:#6f927c;background:#eff6f1;color:#1a5e36}
+.phase4-po-detail-button.active{border-color:#2e7d32;background:#e8f5e9;color:#1b5e20;box-shadow:inset 3px 0 0 #2e7d32}
+.phase4-po-detail-button.active .phase4-po-detail-icon{filter:saturate(1.2)}
+.phase4-po-detail-icon{font-size:.95rem}
+.phase4-po-detail-label{white-space:nowrap}
+.phase4-po-description-overlay{position:fixed;inset:0;z-index:100500;background:rgba(8,25,16,.55);display:flex;align-items:center;justify-content:center;padding:20px}
+.phase4-po-description-modal{width:min(620px,96vw);background:#fff;border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.28);overflow:hidden}
+.phase4-po-description-modal header{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid #e4e9e6;background:#f8faf9}
+.phase4-po-description-modal header h3{margin:0;color:#1a3a2a;font-size:1rem}
+.phase4-po-description-modal header small{display:block;margin-top:3px;color:#758179}
+.phase4-po-description-modal header button{border:0;background:transparent;font-size:1.25rem;color:#526159;cursor:pointer;padding:4px 7px;border-radius:6px}
+.phase4-po-description-modal header button:hover{background:#e9efeb}
+.phase4-po-description-modal textarea{display:block;width:calc(100% - 36px);margin:18px;min-height:190px;resize:vertical;padding:12px;border:1.5px solid #cbd5ce;border-radius:8px;font:inherit;outline:none}
+.phase4-po-description-modal textarea:focus{border-color:#1a5e36;box-shadow:0 0 0 3px rgba(26,94,54,.1)}
+.phase4-po-description-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:0 18px 18px}
+.phase4-po-save:disabled{opacity:.65;cursor:not-allowed}
+.phase4-po-saved-empty{padding:34px;text-align:center;border:1px dashed #aebbb3;border-radius:10px;background:#f8faf9;color:#67736d}
+.phase4-pending-intro{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:10px;padding:11px 13px;border:1px solid #dfe7e1;border-radius:9px;background:#f7faf8;color:#56645d}
+.phase4-pending-intro b{color:#1a3a2a}.phase4-pending-intro span{font-size:.78rem}
+.phase4-pending-grid{display:grid;gap:9px}
+.phase4-pending-card{display:grid;grid-template-columns:130px minmax(240px,1fr) 130px auto;gap:14px;align-items:center;padding:12px 14px;border:1px solid #dfe5e1;border-left:4px solid #1a5e36;border-radius:9px;background:#fff}
+.phase4-pending-ticket,.phase4-pending-main,.phase4-pending-weight{display:grid;gap:3px}
+.phase4-pending-ticket b{color:#145a32}.phase4-pending-ticket span,.phase4-pending-main span,.phase4-pending-weight span{color:#7a857f;font-size:.72rem}
+.phase4-pending-main strong{color:#27382f}.phase4-pending-weight{text-align:right}.phase4-pending-weight b{color:#17492f}
+.phase4-pending-actions{display:flex;gap:7px;justify-content:flex-end}
+.phase4-pending-actions button{white-space:nowrap}
+.phase4-pending-empty{display:grid;gap:6px;text-align:center;padding:42px 20px;border:1px dashed #c9d4cd;border-radius:10px;background:#fafcfb;color:#78847d}
+.phase4-pending-empty b{color:#2e6f46}
+@media(max-width:900px){.phase4-pending-card{grid-template-columns:1fr 1fr}.phase4-pending-actions{grid-column:1/-1}.phase4-pending-weight{text-align:left}}

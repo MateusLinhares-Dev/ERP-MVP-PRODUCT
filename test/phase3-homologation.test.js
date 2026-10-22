@@ -1,8 +1,9 @@
-const test=require('node:test');
-const assert=require('node:assert/strict');
-const fs=require('node:fs');
-const path=require('node:path');
-const root=path.resolve(__dirname,'..');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const root=fileURLToPath(new URL('..',import.meta.url));
 const js=fs.readFileSync(path.join(root,'public/modules/phase3/phase3-homologation.js'),'utf8');
 const css=fs.readFileSync(path.join(root,'public/modules/phase3/phase3-homologation.css'),'utf8');
 const boot=fs.readFileSync(path.join(root,'public/app/bootstrap.js'),'utf8');

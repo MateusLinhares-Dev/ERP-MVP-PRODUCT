@@ -127,3 +127,9 @@ test('fila lateral não renderiza formulário completo de peso final e mantém a
   assert.match(css,/#rod-modo-fila \.road-weighing-ticket/);
   assert.match(css,/\.road-weighing-final-box\{display:none!important\}/);
 });
+
+test('Balança abre a Compra Sucata no ticket exato quando o módulo novo está disponível',()=>{
+  const source=fs.readFileSync(new URL('../public/modules/weighing/road-weighing-flow.js',import.meta.url),'utf8');
+  assert.match(source,/phase4OpenTicketForPurchase/);
+  assert.match(source,/phase4OpenTicketForPurchase\(ticketId\)/);
+});

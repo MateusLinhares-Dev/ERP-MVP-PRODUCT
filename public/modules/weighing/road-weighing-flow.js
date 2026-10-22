@@ -118,6 +118,10 @@ function openPurchase(ticketId){
     try{
       if(typeof csTab==='function')csTab('pesagens');
       if(typeof csRenderPesagens==='function')csRenderPesagens();
+      if(typeof global.phase4OpenTicketForPurchase==='function'){
+        global.phase4OpenTicketForPurchase(ticketId);
+        return;
+      }
       const supplier=domain.text(item.fornecedor||item.fornecedorNome||item.forn);
       if(supplier&&typeof csAbrirLancamento==='function')csAbrirLancamento(supplier);
     }catch(error){console.warn('[road-weighing] abrir Compra de Sucata:',error);}
