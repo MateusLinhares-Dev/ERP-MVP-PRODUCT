@@ -890,36 +890,133 @@ function printHtml(key,ticket){
   const po=ticket.pedidoCompra||{};
   const orderNo=ticket.numeroPedido||po.numero||ticket.ticket||key;
   const purchaseDate=ticket.dataCompra||po.dataCompra||ticket.data||'';
+  // Vencimento financeiro não é a data prevista da entrega do material.
+  const expectedDate=ticket.dataPrevista||po.dataPrevista||'';
   const dueDate=ticket.vencimentoSaldo||po.vencimentoSaldo||purchaseDate;
-  const items=ticket.itens||[];
-  const productTotal=Number(ticket.totalProdutos!=null?ticket.totalProdutos:items.reduce(function(sum,item){return sum+Number(item.total!=null?item.total:Number(item.pesoLiq||item.quantidade||0)*Number(item.preco||0));},0));
+  const items=Array.isArray(ticket.itens)?ticket.itens:[];
+  const productTotal=Number(ticket.totalProdutos!=null?ticket.totalProdutos:items.reduce(function(sum,item){
+    return sum+Number(item.total!=null?item.total:Number(item.pesoLiq||item.quantidade||0)*Number(item.preco||0));
+  },0));
   const discount=Number(ticket.descontoCompra||po.desconto||0);
   const freight=Number(ticket.freteCompra||po.frete||0);
-  const total=Number(ticket.totalGeral||po.totalPedido||Math.max(0,productTotal-discount+freight));
+  const total=Number(ticket.totalGeral!=null?ticket.totalGeral:(po.totalPedido!=null?po.totalPedido:Math.max(0,productTotal-discount+freight)));
   const advance=Number(ticket.adiantamento||0);
   const balance=Math.max(0,Number(ticket.saldoPagar!=null?ticket.saldoPagar:total-advance));
   const sumQty=items.reduce(function(sum,item){return sum+Number(item.quantidade||item.pesoLiq||0);},0);
-  const supplierAddress=[supplier.rua||supplier.logradouro||'',supplier.num||supplier.numero||'',supplier.bairro||'',supplier.cidade||'',supplier.uf||''].filter(Boolean).join(', ');
-  const issued=new Date().toLocaleString('pt-BR');
   const orderNotes=String(ticket.observacoesPedido||po.observacoes||'').trim();
-  return '<div class="phase4-print">'+
-    '<div class="doc-topline"><span>'+esc(issued)+'</span><b>Pedido de Compra</b></div>'+
-    '<header><div class="brand"><div class="logo"><span>'+esc(companyName())+'</span></div></div><div class="company"><b>'+esc(companyLegal())+'</b><span>'+esc(info.cnpj?'CNPJ: '+info.cnpj:'')+'</span><span>'+esc(info.endereco||info.enderecoCurto||'')+'</span><span>'+esc([info.financeiro,info.escritorio,info.compras].filter(Boolean).join(' · '))+'</span><span>'+esc(info.email||'')+'</span></div></header>'+
+  const supplierAddress=[supplier.rua||supplier.logradouro||'',supplier.num||supplier.numero||'',supplier.bairro||'',supplier.cidade||'',supplier.uf||''].filter(Boolean).join(', ');
+  const supplierDocuments=supplier.cnpj?'CNPJ: '+supplier.cnpj:(supplier.cpf?'CPF: '+supplier.cpf:'');
+  const supplierContacts=[supplier.tel||supplier.telefone||supplier.wpp||'',supplier.email||''].filter(Boolean);
+  const companyContacts=[info.financeiro,info.escritorio,info.compras].filter(Boolean).join(' · ');
+  const purchaseOrder=String(ticket.ordemCompra||po.ordemCompra||'').trim();
+  const issued=new Date().toLocaleString('pt-BR');
+  const itemRows=items.map(function(item){
+    const quantity=Number(item.quantidade||item.pesoLiq||0);
+    const price=Number(item.preco||0);
+    const description=String(item.descricaoDetalhada||item.descricao||item.obs||'').trim();
+    return '<tr><td class="item-description"><strong>'+esc(item.mat||item.matBase||'—')+'</strong>'+
+      (description?'<span>'+esc(description)+'</span>':'')+'</td>'+
+      '<td>'+esc(item.codigo||'—')+'</td><td>'+esc(item.codigoFornecedor||'—')+'</td>'+
+      '<td class="center">'+esc(item.unidade||'kg')+'</td>'+
+      '<td class="numeric">'+qty(quantity)+'</td>'+
+      '<td class="numeric">'+money(price)+'</td>'+
+      '<td class="numeric">'+money(quantity*price)+'</td></tr>';
+  }).join('');
+  const totalRow=function(label,value,cssClass){
+    return '<tr class="'+(cssClass||'')+'"><th>'+esc(label)+'</th><td>'+esc(value)+'</td></tr>';
+  };
+  const totals=totalRow('Nº de itens',String(items.length))+
+    totalRow('Soma das Qtdes',qty(sumQty))+
+    totalRow('Total de produtos','R$ '+money(productTotal))+
+    (discount>0?totalRow('Desconto','- R$ '+money(discount)):'')+
+    (freight>0?totalRow('Frete','R$ '+money(freight)):'')+
+    totalRow('Total do pedido','R$ '+money(total),'grand');
+  const installments=balance>0
+    ?'<tr><td class="center">'+daysBetween(purchaseDate,dueDate)+'</td><td>'+esc(dateBR(dueDate))+'</td><td class="numeric">R$ '+money(balance)+'</td><td>'+esc(advance>0?'Abatimentos/adiantamentos aplicados: R$ '+money(advance):'Saldo do pedido')+'</td></tr>'
+    :'<tr><td class="center">0</td><td>'+esc(dateBR(purchaseDate))+'</td><td class="numeric">R$ 0,00</td><td>Pedido quitado por abatimentos/adiantamentos</td></tr>';
+
+  return '<main class="phase4-print">'+
+    '<div class="doc-topline"><span>'+esc(issued)+'</span><span>Pedido de Compra</span></div>'+
+    '<header class="doc-header"><div class="brand"><div class="logo">'+esc(companyName())+'</div></div>'+
+      '<div class="company"><strong>'+esc(companyLegal())+'</strong>'+
+      (info.cnpj?'<span>CNPJ: '+esc(info.cnpj)+'</span>':'')+
+      (info.endereco||info.enderecoCurto?'<span>'+esc(info.endereco||info.enderecoCurto)+'</span>':'')+
+      (companyContacts?'<span>'+esc(companyContacts)+'</span>':'')+
+      (info.email?'<span>'+esc(info.email)+'</span>':'')+'</div></header>'+
     '<h1>Pedido de compra Nº '+esc(orderNo)+'</h1>'+
-    '<div class="phase4-print-top"><div class="supplier"><h3>Fornecedor</h3><b>'+esc(ticket.fornecedor||ticket.fornecedorNome||'—')+'</b><span>'+esc(supplier.cnpj?'CNPJ: '+supplier.cnpj:(supplier.cpf?'CPF: '+supplier.cpf:''))+'</span><span>'+esc(supplierAddress)+'</span><span>'+esc(supplier.tel||supplier.telefone||supplier.wpp||'')+'</span><span>'+esc(supplier.email||'')+'</span></div><table class="meta"><tr><th>Número do pedido</th><td>'+esc(orderNo)+'</td></tr><tr><th>Ordem de compra</th><td>'+esc(ticket.ordemCompra||po.ordemCompra||'—')+'</td></tr><tr><th>Data</th><td>'+esc(dateBR(purchaseDate))+'</td></tr><tr><th>Data prevista</th><td>'+esc(dateBR(dueDate))+'</td></tr></table></div>'+
-    '<h3 class="section-title">Itens do pedido de compra</h3>'+
-    '<table class="items"><thead><tr><th>Descrição do produto/serviço</th><th>Código</th><th>Código do fornecedor</th><th>Un</th><th>Qtde</th><th>Valor unitário</th><th>Valor total</th></tr></thead><tbody>'+
-      items.map(function(item){
-        const quantity=Number(item.quantidade||item.pesoLiq||0),price=Number(item.preco||0),description=String(item.descricaoDetalhada||item.descricao||item.obs||'').trim();
-        return '<tr><td><b>'+esc(item.mat||item.matBase||'—')+'</b>'+(description?'<small>'+esc(description)+'</small>':'')+'</td><td>'+esc(item.codigo||'—')+'</td><td>'+esc(item.codigoFornecedor||'—')+'</td><td>'+esc(item.unidade||'kg')+'</td><td>'+qty(quantity)+'</td><td>R$ '+money(price)+'</td><td><b>R$ '+money(quantity*price)+'</b></td></tr>';
-      }).join('')+
-    '</tbody><tfoot><tr><td colspan="4"></td><td colspan="2">Nº de itens</td><td>'+items.length+'</td></tr><tr><td colspan="4"></td><td colspan="2">Soma das Qtdes</td><td>'+qty(sumQty)+'</td></tr><tr><td colspan="4"></td><td colspan="2">Total de produtos</td><td>R$ '+money(productTotal)+'</td></tr>'+(discount>0?'<tr><td colspan="4"></td><td colspan="2">Desconto</td><td>- R$ '+money(discount)+'</td></tr>':'')+(freight>0?'<tr><td colspan="4"></td><td colspan="2">Frete</td><td>R$ '+money(freight)+'</td></tr>':'')+'<tr class="grand"><td colspan="4"></td><td colspan="2">Total do pedido</td><td>R$ '+money(total)+'</td></tr></tfoot></table>'+
-    '<h3 class="section-title">Parcelas</h3><table class="installments"><thead><tr><th>Dias</th><th>Data Vencimento</th><th>Valor</th><th>Observações</th></tr></thead><tbody>'+(balance>0?'<tr><td>'+daysBetween(purchaseDate,dueDate)+'</td><td>'+esc(dateBR(dueDate))+'</td><td>R$ '+money(balance)+'</td><td>'+(advance>0?'Abatimentos/adiantamentos aplicados: R$ '+money(advance):'Saldo do pedido')+'</td></tr>':'<tr><td>0</td><td>'+esc(dateBR(purchaseDate))+'</td><td>R$ 0,00</td><td>Pedido quitado por abatimentos/adiantamentos</td></tr>')+'</tbody></table>'+
-    '<h3 class="section-title">Observações</h3><div class="notes">'+esc(orderNotes||'')+'</div>'+
-  '</div>';
+    '<div class="phase4-print-top"><section class="supplier"><h2>Fornecedor</h2><strong>'+esc(ticket.fornecedor||ticket.fornecedorNome||'—')+'</strong>'+
+      (supplierDocuments?'<span>'+esc(supplierDocuments)+'</span>':'')+
+      (supplierAddress?'<span>'+esc(supplierAddress)+'</span>':'')+
+      supplierContacts.map(function(contact){return '<span>'+esc(contact)+'</span>';}).join('')+'</section>'+
+      '<table class="meta"><tbody><tr><th>Número do pedido</th><td>'+esc(orderNo)+'</td></tr>'+
+      (purchaseOrder?'<tr><th>Ordem de compra</th><td>'+esc(purchaseOrder)+'</td></tr>':'')+
+      '<tr><th>Data</th><td>'+esc(dateBR(purchaseDate))+'</td></tr>'+
+      '<tr><th>Data prevista</th><td>'+esc(expectedDate?dateBR(expectedDate):'')+'</td></tr></tbody></table></div>'+
+    '<section class="print-section"><h2>Itens do pedido de compra</h2>'+
+      '<table class="items"><colgroup><col class="col-description"><col class="col-code"><col class="col-supplier-code"><col class="col-unit"><col class="col-quantity"><col class="col-unit-price"><col class="col-total"></colgroup>'+
+      '<thead><tr><th>Descrição do produto/serviço</th><th>Código</th><th>Código do fornecedor</th><th>Un</th><th>Qtde</th><th>Valor unitário</th><th>Valor total</th></tr></thead><tbody>'+itemRows+'</tbody></table>'+
+      '<table class="print-totals" aria-label="Totais da compra"><tbody>'+totals+'</tbody></table></section>'+
+    '<section class="print-section"><h2>Parcelas</h2><table class="installments"><thead><tr><th>Dias</th><th>Data Vencimento</th><th>Valor</th><th>Observações</th></tr></thead><tbody>'+installments+'</tbody></table></section>'+
+    (orderNotes?'<section class="print-section order-notes"><h2>Observações</h2><div class="notes">'+esc(orderNotes)+'</div></section>':'')+
+  '</main>';
 }
 function printCss(){
-  return '@page{size:A4;margin:11mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#151515;margin:0;background:#fff}.phase4-print{max-width:190mm;margin:auto;font-size:9.5px}.doc-topline{display:flex;justify-content:space-between;font-size:8px;margin-bottom:10px}.phase4-print header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;min-height:65px}.brand{display:flex;align-items:flex-start}.logo{border:2px solid #1a3a2a;padding:10px 12px;font-size:17px;font-weight:900;color:#1a3a2a}.company{display:grid;text-align:right;gap:1px;font-size:8px;line-height:1.25}.phase4-print h1{text-align:center;font-size:15px;margin:16px 0 13px}.phase4-print-top{display:grid;grid-template-columns:1fr 205px;gap:8px}.supplier,.meta{border:1px solid #222}.supplier{padding:7px;display:grid;gap:2px;min-height:66px}.supplier h3{margin:0 0 3px;font-size:9px}.meta{border-collapse:collapse;width:100%}.meta th,.meta td{border:1px solid #222;padding:5px;text-align:left}.meta th{width:56%}.section-title{margin:12px 0 3px;font-size:9px}.items,.installments{width:100%;border-collapse:collapse}.items th,.items td,.installments th,.installments td{border:1px solid #222;padding:4px 5px;vertical-align:top}.items th,.installments th{text-align:left;background:#f3f3f3}.items small{display:block;margin-top:2px;font-size:8px}.items tfoot td{border-left:0;border-right:0;padding:2px 5px;text-align:right}.items tfoot tr td:nth-last-child(2){font-weight:700}.items tfoot tr td:last-child{font-weight:700}.items tfoot .grand td{font-size:10px;border-top:1px solid #222}.installments th:nth-child(1){width:12%}.installments th:nth-child(2){width:30%}.installments th:nth-child(3){width:22%}.notes{border:1px solid #222;min-height:34px;padding:6px;white-space:pre-wrap}.print-actions{text-align:center;margin:18px}.print-actions button{padding:10px 20px;border:0;border-radius:6px;background:#1a3a2a;color:#fff;font-weight:700;cursor:pointer}@media print{.print-actions{display:none}}';
+  return `
+    @page{size:A4;margin:14mm}
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0}
+    body{background:#e7e9ec;color:#151515;font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .phase4-print{width:210mm;min-height:297mm;margin:16px auto;padding:14mm;background:#fff;box-shadow:0 3px 18px #0002;font-size:10px;line-height:1.3}
+    .doc-topline{display:flex;justify-content:space-between;align-items:center;font-size:8px;margin-bottom:13px}
+    .doc-header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;min-height:78px}
+    .brand{width:135px;flex-shrink:0;display:flex;align-items:flex-start}
+    .logo{width:90px;min-height:55px;border:1px solid #dfe6e0;background:#f7faf7;color:#1a3a2a;padding:11px 8px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:13px;line-height:1.1;font-weight:900;overflow-wrap:anywhere}
+    .company{display:flex;flex-direction:column;text-align:right;gap:2px;max-width:64%;font-size:8px;line-height:1.25;overflow-wrap:anywhere}
+    .company strong{font-size:8.5px}
+    .phase4-print h1{text-align:center;font-size:15px;font-weight:700;margin:10px 0 22px}
+    .phase4-print-top{display:grid;grid-template-columns:minmax(0,1fr) 38%;gap:7px;align-items:start}
+    .supplier{min-height:49px;border:1px solid #555;padding:5px 7px;display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere}
+    .supplier h2{font-size:9px;margin:0 0 3px;font-weight:700}
+    .supplier strong{font-size:9px}
+    .supplier span{font-size:8.5px}
+    .meta{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px}
+    .meta th,.meta td{border:1px solid #555;text-align:left;padding:4px 5px;overflow-wrap:anywhere}
+    .meta th{width:53%;font-weight:700}
+    .print-section{margin-top:24px;break-inside:avoid-page}
+    .print-section h2{font-size:10px;margin:0 0 5px;font-weight:700}
+    .items,.installments{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px}
+    .items .col-description{width:30%}
+    .items .col-code{width:9%}
+    .items .col-supplier-code{width:16%}
+    .items .col-unit{width:5%}
+    .items .col-quantity{width:10%}
+    .items .col-unit-price{width:15%}
+    .items .col-total{width:15%}
+    .items th,.items td,.installments th,.installments td{border:1px solid #555;padding:4px 5px;vertical-align:top;overflow-wrap:anywhere}
+    .items th,.installments th{font-weight:700;text-align:left}
+    .items td.numeric,.installments td.numeric{text-align:right;white-space:nowrap}
+    .items td.center,.installments td.center{text-align:center}
+    .item-description strong,.item-description span{display:block}
+    .item-description span{white-space:pre-wrap;font-size:8px;margin-top:2px}
+    .items thead{display:table-header-group}
+    .items tr,.installments tr{break-inside:avoid-page}
+    .print-totals{width:42%;margin:1px 0 0 auto;border-collapse:collapse;font-size:9px}
+    .print-totals th,.print-totals td{padding:1px 5px;text-align:right;vertical-align:top;white-space:nowrap}
+    .print-totals th{font-weight:700}
+    .print-totals td{min-width:75px}
+    .print-totals .grand th,.print-totals .grand td{border-top:1px solid #555;font-weight:800}
+    .installments th:nth-child(1){width:12%}.installments th:nth-child(2){width:28%}.installments th:nth-child(3){width:22%}
+    .notes{min-height:31px;border:1px solid #555;padding:7px;white-space:pre-wrap;overflow-wrap:anywhere}
+    .print-actions{text-align:center;margin:18px 0 25px}
+    .print-actions button{padding:11px 25px;border:0;border-radius:7px;background:#1a3a2a;color:#fff;font-size:13px;font-weight:700;cursor:pointer}
+    @media print{
+      html,body{background:#fff!important;margin:0!important;padding:0!important}
+      .phase4-print{width:auto;min-height:0;margin:0;padding:0;box-shadow:none}
+      .print-actions{display:none!important}
+      .print-section{break-inside:auto}
+      .print-section h2{break-after:avoid-page}
+    }
+  `;
 }
 global.phase4PurchasePrint=function(ticketRef){
   let key=String(ticketRef||'').trim();

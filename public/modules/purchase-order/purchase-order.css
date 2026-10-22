@@ -1,104 +1,673 @@
-
-#cst-lancamento .phase4-po-legacy-supplier{display:none!important}
-.phase4-po{display:grid;gap:14px;max-width:1500px}
-.phase4-po *{box-sizing:border-box}
-.phase4-po button{cursor:pointer}
-.phase4-po-title{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:2px 0 4px}
-.phase4-po-title h2{margin:0;color:var(--primary,#1a3a2a);font-size:1.15rem}
-.phase4-po-title p{margin:3px 0 0;color:#7a857f;font-size:.78rem}
-.phase4-po-title-actions,.phase4-po-footer{display:flex;gap:10px;justify-content:flex-end}
-.phase4-po-card{background:#fff;border:1px solid var(--border,#dfe5e1);border-radius:10px;padding:14px 16px}
-.phase4-po-card h3{margin:0 0 12px;color:#23372d;font-size:.9rem}
-.phase4-po-field{display:grid;gap:5px}
-.phase4-po-field.full{width:100%}
-.phase4-po-field span{font-size:.7rem;font-weight:800;color:#5f6d66;text-transform:uppercase;letter-spacing:.02em}
-.phase4-po-field input{width:100%;min-height:37px;padding:8px 10px;border:1px solid #cbd5ce;border-radius:6px;background:#fff;color:#1f2f27;font-size:.85rem;outline:none}
-.phase4-po-field input:focus,.phase4-po-table input:focus{border-color:var(--primary,#1a3a2a);box-shadow:0 0 0 2px rgba(26,58,42,.08)}
-.phase4-po-source{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:.72rem;color:#69756f}
-.phase4-po-source b{padding:4px 8px;border-radius:999px;background:#eef5f0;color:#29553d;font-weight:700}
-.phase4-po-table-wrap{overflow:auto;border:1px solid #e1e6e3;border-radius:8px}
-.phase4-po-table{width:100%;border-collapse:collapse;min-width:1040px}
-.phase4-po-table th{padding:8px 9px;background:#f4f7f5;color:#58655e;font-size:.68rem;text-transform:uppercase;text-align:left;border-bottom:1px solid #dfe5e1;white-space:nowrap}
-.phase4-po-table td{padding:6px;border-bottom:1px solid #edf1ee;vertical-align:middle}
-.phase4-po-table tr:last-child td{border-bottom:none}
-.phase4-po-table input{width:100%;min-height:34px;padding:7px 8px;border:1px solid #d2dad5;border-radius:5px;font-size:.82rem;outline:none}
-.phase4-po-table input[readonly]{background:#f4f6f5;color:#4e5b54}
-.phase4-po-table .idx{width:34px;text-align:center;font-weight:800;color:#7a857f}
-.phase4-po-table .description{min-width:260px}
-.phase4-po-table .total{text-align:right;white-space:nowrap;font-weight:800;color:#17492f}
-.phase4-po-table .action{width:42px;text-align:center}
-.phase4-po-table .action button{border:0;background:#fdeaea;color:#b42318;border-radius:5px;padding:6px 9px;font-weight:900}
-.phase4-po-unit{display:inline-flex;min-width:38px;justify-content:center;padding:6px 8px;border-radius:5px;background:#f2f5f3;color:#536159;font-weight:700}
-.phase4-po-locked{opacity:.55}
-.phase4-po-add-item{margin-top:9px;border:1px dashed #6c967c;background:#f1f7f3;color:#1d5836;border-radius:6px;padding:7px 12px;font-size:.78rem;font-weight:800}
-.phase4-po-columns{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);gap:14px}
-.phase4-po-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}
-.phase4-po-summary div{display:grid;gap:3px;padding:9px 10px;background:#f6f8f7;border-radius:7px}
-.phase4-po-summary span{font-size:.66rem;text-transform:uppercase;color:#7a857f;font-weight:700}
-.phase4-po-summary b{font-size:.92rem;color:#24392e}
-.phase4-po-summary .grand{background:#edf5ef}
-.phase4-po-form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.phase4-po-form-grid.two{grid-template-columns:1fr 1fr}
-.phase4-po-payment-head{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(200px,.6fr) minmax(200px,.6fr);gap:12px;align-items:end}
-.phase4-po-payment-total{display:grid;gap:4px;padding:9px 12px;border-radius:7px;background:#f6f8f7}
-.phase4-po-payment-total span{font-size:.68rem;text-transform:uppercase;color:#728078;font-weight:700}
-.phase4-po-payment-total b{font-size:1rem}
-.phase4-po-payment-total.main{background:#edf5ef}
-.phase4-po-payment-total b.credit{color:#b42318}
-.phase4-po-pay-list{display:grid;gap:6px;margin-top:10px}
-.phase4-po-pay-row{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:7px 9px;border:1px solid #e4e9e6;border-radius:7px;cursor:pointer}
-.phase4-po-pay-row input{width:16px;height:16px;cursor:pointer}
-.phase4-po-pay-row span{display:grid;gap:2px}
-.phase4-po-pay-row small{color:#7a857f}
-.phase4-po-pay-row.credit{background:#fff9e8}
-.phase4-po-empty-pay{color:#89938e;font-size:.8rem;padding:6px 0}
-.phase4-po-outline,.phase4-po-save{border-radius:6px;padding:8px 18px;font-weight:800;font-size:.8rem}
-.phase4-po-outline{background:#fff;color:var(--primary,#1a3a2a);border:1px solid var(--primary,#1a3a2a)}
-.phase4-po-save{background:var(--primary,#1a3a2a);color:#fff;border:1px solid var(--primary,#1a3a2a)}
-.phase4-po-footer{padding:2px 0 8px}
-@media(max-width:980px){
-  .phase4-po-columns{grid-template-columns:1fr}
-  .phase4-po-summary{grid-template-columns:1fr 1fr}
-  .phase4-po-form-grid,.phase4-po-payment-head{grid-template-columns:1fr}
+#cst-lancamento .phase4-po-legacy-supplier {
+  display: none !important
 }
 
-.phase4-po-order-notes{margin-top:12px}
-.phase4-po-order-notes textarea{width:100%;resize:vertical;min-height:72px;padding:9px 10px;border:1px solid #cbd5ce;border-radius:6px;background:#fff;color:#1f2f27;font:inherit;outline:none}
-.phase4-po-order-notes textarea:focus{border-color:var(--primary,#1a3a2a);box-shadow:0 0 0 2px rgba(26,58,42,.08)}
-.phase4-po-table .description{width:118px;min-width:118px;text-align:center}
-.phase4-po-detail-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:92px;padding:7px 9px;border:1px solid #d8dfda;border-radius:7px;background:#f8faf9;color:#69756f;font-weight:700;font-size:.72rem;cursor:pointer;transition:.15s ease}
-.phase4-po-detail-button:hover{border-color:#6f927c;background:#eff6f1;color:#1a5e36}
-.phase4-po-detail-button.active{border-color:#2e7d32;background:#e8f5e9;color:#1b5e20;box-shadow:inset 3px 0 0 #2e7d32}
-.phase4-po-detail-button.active .phase4-po-detail-icon{filter:saturate(1.2)}
-.phase4-po-detail-icon{font-size:.95rem}
-.phase4-po-detail-label{white-space:nowrap}
-.phase4-po-description-overlay{position:fixed;inset:0;z-index:100500;background:rgba(8,25,16,.55);display:flex;align-items:center;justify-content:center;padding:20px}
-.phase4-po-description-modal{width:min(620px,96vw);background:#fff;border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.28);overflow:hidden}
-.phase4-po-description-modal header{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid #e4e9e6;background:#f8faf9}
-.phase4-po-description-modal header h3{margin:0;color:#1a3a2a;font-size:1rem}
-.phase4-po-description-modal header small{display:block;margin-top:3px;color:#758179}
-.phase4-po-description-modal header button{border:0;background:transparent;font-size:1.25rem;color:#526159;cursor:pointer;padding:4px 7px;border-radius:6px}
-.phase4-po-description-modal header button:hover{background:#e9efeb}
-.phase4-po-description-modal textarea{display:block;width:calc(100% - 36px);margin:18px;min-height:190px;resize:vertical;padding:12px;border:1.5px solid #cbd5ce;border-radius:8px;font:inherit;outline:none}
-.phase4-po-description-modal textarea:focus{border-color:#1a5e36;box-shadow:0 0 0 3px rgba(26,94,54,.1)}
-.phase4-po-description-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:0 18px 18px}
-.phase4-po-save:disabled{opacity:.65;cursor:not-allowed}
-.phase4-po-saved-empty{padding:34px;text-align:center;border:1px dashed #aebbb3;border-radius:10px;background:#f8faf9;color:#67736d}
-.phase4-pending-intro{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:10px;padding:11px 13px;border:1px solid #dfe7e1;border-radius:9px;background:#f7faf8;color:#56645d}
-.phase4-pending-intro b{color:#1a3a2a}.phase4-pending-intro span{font-size:.78rem}
-.phase4-pending-grid{display:grid;gap:9px}
-.phase4-pending-card{display:grid;grid-template-columns:130px minmax(240px,1fr) 130px auto;gap:14px;align-items:center;padding:12px 14px;border:1px solid #dfe5e1;border-left:4px solid #1a5e36;border-radius:9px;background:#fff}
-.phase4-pending-ticket,.phase4-pending-main,.phase4-pending-weight{display:grid;gap:3px}
-.phase4-pending-ticket b{color:#145a32}.phase4-pending-ticket span,.phase4-pending-main span,.phase4-pending-weight span{color:#7a857f;font-size:.72rem}
-.phase4-pending-main strong{color:#27382f}.phase4-pending-weight{text-align:right}.phase4-pending-weight b{color:#17492f}
-.phase4-pending-actions{display:flex;gap:7px;justify-content:flex-end}
-.phase4-pending-actions button{white-space:nowrap}
-.phase4-pending-empty{display:grid;gap:6px;text-align:center;padding:42px 20px;border:1px dashed #c9d4cd;border-radius:10px;background:#fafcfb;color:#78847d}
-.phase4-pending-empty b{color:#2e6f46}
-@media(max-width:900px){.phase4-pending-card{grid-template-columns:1fr 1fr}.phase4-pending-actions{grid-column:1/-1}.phase4-pending-weight{text-align:left}}
+.phase4-po {
+  display: grid;
+  gap: 14px;
+  max-width: 1500px
+}
+
+.phase4-po * {
+  box-sizing: border-box
+}
+
+.phase4-po button {
+  cursor: pointer
+}
+
+.phase4-po-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 2px 0 4px
+}
+
+.phase4-po-title h2 {
+  margin: 0;
+  color: var(--primary, #1a3a2a);
+  font-size: 1.15rem
+}
+
+.phase4-po-title p {
+  margin: 3px 0 0;
+  color: #7a857f;
+  font-size: .78rem
+}
+
+.phase4-po-title-actions,
+.phase4-po-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end
+}
+
+.phase4-po-card {
+  background: #fff;
+  border: 1px solid var(--border, #dfe5e1);
+  border-radius: 10px;
+  padding: 14px 16px
+}
+
+.phase4-po-card h3 {
+  margin: 0 0 12px;
+  color: #23372d;
+  font-size: .9rem
+}
+
+.phase4-po-field {
+  display: grid;
+  gap: 5px
+}
+
+.phase4-po-field.full {
+  width: 100%
+}
+
+.phase4-po-field span {
+  font-size: .7rem;
+  font-weight: 800;
+  color: #5f6d66;
+  text-transform: uppercase;
+  letter-spacing: .02em
+}
+
+.phase4-po-field input {
+  width: 100%;
+  min-height: 37px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5ce;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2f27;
+  font-size: .85rem;
+  outline: none
+}
+
+.phase4-po-field input:focus,
+.phase4-po-table input:focus {
+  border-color: var(--primary, #1a3a2a);
+  box-shadow: 0 0 0 2px rgba(26, 58, 42, .08)
+}
+
+.phase4-po-source {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 10px;
+  font-size: .72rem;
+  color: #69756f
+}
+
+.phase4-po-source b {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eef5f0;
+  color: #29553d;
+  font-weight: 700
+}
+
+.phase4-po-table-wrap {
+  overflow: auto;
+  border: 1px solid #e1e6e3;
+  border-radius: 8px
+}
+
+.phase4-po-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1040px
+}
+
+.phase4-po-table th {
+  padding: 8px 9px;
+  background: #f4f7f5;
+  color: #58655e;
+  font-size: .68rem;
+  text-transform: uppercase;
+  text-align: left;
+  border-bottom: 1px solid #dfe5e1;
+  white-space: nowrap
+}
+
+.phase4-po-table td {
+  padding: 6px;
+  border-bottom: 1px solid #edf1ee;
+  vertical-align: middle
+}
+
+.phase4-po-table tr:last-child td {
+  border-bottom: none
+}
+
+.phase4-po-table input {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 8px;
+  border: 1px solid #d2dad5;
+  border-radius: 5px;
+  font-size: .82rem;
+  outline: none
+}
+
+.phase4-po-table input[readonly] {
+  background: #f4f6f5;
+  color: #4e5b54
+}
+
+.phase4-po-table .idx {
+  width: 34px;
+  text-align: center;
+  font-weight: 800;
+  color: #7a857f
+}
+
+.phase4-po-table .description {
+  min-width: 260px
+}
+
+.phase4-po-table .total {
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 800;
+  color: #17492f
+}
+
+.phase4-po-table .action {
+  width: 42px;
+  text-align: center
+}
+
+.phase4-po-table .action button {
+  border: 0;
+  background: #fdeaea;
+  color: #b42318;
+  border-radius: 5px;
+  padding: 6px 9px;
+  font-weight: 900
+}
+
+.phase4-po-unit {
+  display: inline-flex;
+  min-width: 38px;
+  justify-content: center;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: #f2f5f3;
+  color: #536159;
+  font-weight: 700
+}
+
+.phase4-po-locked {
+  opacity: .55
+}
+
+.phase4-po-add-item {
+  margin-top: 9px;
+  border: 1px dashed #6c967c;
+  background: #f1f7f3;
+  color: #1d5836;
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: .78rem;
+  font-weight: 800
+}
+
+.phase4-po-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
+  gap: 14px
+}
+
+.phase4-po-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px
+}
+
+.phase4-po-summary div {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  background: #f6f8f7;
+  border-radius: 7px
+}
+
+.phase4-po-summary span {
+  font-size: .66rem;
+  text-transform: uppercase;
+  color: #7a857f;
+  font-weight: 700
+}
+
+.phase4-po-summary b {
+  font-size: .92rem;
+  color: #24392e
+}
+
+.phase4-po-summary .grand {
+  background: #edf5ef
+}
+
+.phase4-po-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px
+}
+
+.phase4-po-form-grid.two {
+  grid-template-columns: 1fr 1fr
+}
+
+.phase4-po-payment-head {
+  display: grid;
+  grid-template-columns: minmax(220px, .8fr) minmax(200px, .6fr) minmax(200px, .6fr);
+  gap: 12px;
+  align-items: end
+}
+
+.phase4-po-payment-total {
+  display: grid;
+  gap: 4px;
+  padding: 9px 12px;
+  border-radius: 7px;
+  background: #f6f8f7
+}
+
+.phase4-po-payment-total span {
+  font-size: .68rem;
+  text-transform: uppercase;
+  color: #728078;
+  font-weight: 700
+}
+
+.phase4-po-payment-total b {
+  font-size: 1rem
+}
+
+.phase4-po-payment-total.main {
+  background: #edf5ef
+}
+
+.phase4-po-payment-total b.credit {
+  color: #b42318
+}
+
+.phase4-po-pay-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px
+}
+
+.phase4-po-pay-row {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 9px;
+  border: 1px solid #e4e9e6;
+  border-radius: 7px;
+  cursor: pointer
+}
+
+.phase4-po-pay-row input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer
+}
+
+.phase4-po-pay-row span {
+  display: grid;
+  gap: 2px
+}
+
+.phase4-po-pay-row small {
+  color: #7a857f
+}
+
+.phase4-po-pay-row.credit {
+  background: #fff9e8
+}
+
+.phase4-po-empty-pay {
+  color: #89938e;
+  font-size: .8rem;
+  padding: 6px 0
+}
+
+.phase4-po-outline,
+.phase4-po-save {
+  border-radius: 6px;
+  padding: 8px 18px;
+  font-weight: 800;
+  font-size: .8rem
+}
+
+.phase4-po-outline {
+  background: #fff;
+  color: var(--primary, #1a3a2a);
+  border: 1px solid var(--primary, #1a3a2a)
+}
+
+.phase4-po-save {
+  background: var(--primary, #1a3a2a);
+  color: #fff;
+  border: 1px solid var(--primary, #1a3a2a)
+}
+
+.phase4-po-footer {
+  padding: 2px 0 8px
+}
+
+@media(max-width:980px) {
+  .phase4-po-columns {
+    grid-template-columns: 1fr
+  }
+
+  .phase4-po-summary {
+    grid-template-columns: 1fr 1fr
+  }
+
+  .phase4-po-form-grid,
+  .phase4-po-payment-head {
+    grid-template-columns: 1fr
+  }
+}
+
+.phase4-po-order-notes {
+  margin-top: 12px
+}
+
+.phase4-po-order-notes textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 72px;
+  padding: 9px 10px;
+  border: 1px solid #cbd5ce;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2f27;
+  font: inherit;
+  outline: none
+}
+
+.phase4-po-order-notes textarea:focus {
+  border-color: var(--primary, #1a3a2a);
+  box-shadow: 0 0 0 2px rgba(26, 58, 42, .08)
+}
+
+.phase4-po-table .description {
+  width: 118px;
+  min-width: 118px;
+  text-align: center
+}
+
+.phase4-po-detail-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 92px;
+  padding: 7px 9px;
+  border: 1px solid #d8dfda;
+  border-radius: 7px;
+  background: #f8faf9;
+  color: #69756f;
+  font-weight: 700;
+  font-size: .72rem;
+  cursor: pointer;
+  transition: .15s ease
+}
+
+.phase4-po-detail-button:hover {
+  border-color: #6f927c;
+  background: #eff6f1;
+  color: #1a5e36
+}
+
+.phase4-po-detail-button.active {
+  border-color: #2e7d32;
+  background: #e8f5e9;
+  color: #1b5e20;
+  box-shadow: inset 3px 0 0 #2e7d32
+}
+
+.phase4-po-detail-button.active .phase4-po-detail-icon {
+  filter: saturate(1.2)
+}
+
+.phase4-po-detail-icon {
+  font-size: .95rem
+}
+
+.phase4-po-detail-label {
+  white-space: nowrap
+}
+
+.phase4-po-description-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100500;
+  background: rgba(8, 25, 16, .55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px
+}
+
+.phase4-po-description-modal {
+  width: min(620px, 96vw);
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .28);
+  overflow: hidden
+}
+
+.phase4-po-description-modal header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e4e9e6;
+  background: #f8faf9
+}
+
+.phase4-po-description-modal header h3 {
+  margin: 0;
+  color: #1a3a2a;
+  font-size: 1rem
+}
+
+.phase4-po-description-modal header small {
+  display: block;
+  margin-top: 3px;
+  color: #758179
+}
+
+.phase4-po-description-modal header button {
+  border: 0;
+  background: transparent;
+  font-size: 1.25rem;
+  color: #526159;
+  cursor: pointer;
+  padding: 4px 7px;
+  border-radius: 6px
+}
+
+.phase4-po-description-modal header button:hover {
+  background: #e9efeb
+}
+
+.phase4-po-description-modal textarea {
+  display: block;
+  width: calc(100% - 36px);
+  margin: 18px;
+  min-height: 190px;
+  resize: vertical;
+  padding: 12px;
+  border: 1.5px solid #cbd5ce;
+  border-radius: 8px;
+  font: inherit;
+  outline: none
+}
+
+.phase4-po-description-modal textarea:focus {
+  border-color: #1a5e36;
+  box-shadow: 0 0 0 3px rgba(26, 94, 54, .1)
+}
+
+.phase4-po-description-modal footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 18px 18px
+}
+
+.phase4-po-save:disabled {
+  opacity: .65;
+  cursor: not-allowed
+}
+
+.phase4-po-saved-empty {
+  padding: 34px;
+  text-align: center;
+  border: 1px dashed #aebbb3;
+  border-radius: 10px;
+  background: #f8faf9;
+  color: #67736d
+}
+
+.phase4-pending-intro {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 11px 13px;
+  border: 1px solid #dfe7e1;
+  border-radius: 9px;
+  background: #f7faf8;
+  color: #56645d
+}
+
+.phase4-pending-intro b {
+  color: #1a3a2a
+}
+
+.phase4-pending-intro span {
+  font-size: .78rem
+}
+
+.phase4-pending-grid {
+  display: grid;
+  gap: 9px
+}
+
+.phase4-pending-card {
+  display: grid;
+  grid-template-columns: 130px minmax(240px, 1fr) 130px auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid #dfe5e1;
+  border-left: 4px solid #1a5e36;
+  border-radius: 9px;
+  background: #fff
+}
+
+.phase4-pending-ticket,
+.phase4-pending-main,
+.phase4-pending-weight {
+  display: grid;
+  gap: 3px
+}
+
+.phase4-pending-ticket b {
+  color: #145a32
+}
+
+.phase4-pending-ticket span,
+.phase4-pending-main span,
+.phase4-pending-weight span {
+  color: #7a857f;
+  font-size: .72rem
+}
+
+.phase4-pending-main strong {
+  color: #27382f
+}
+
+.phase4-pending-weight {
+  text-align: right
+}
+
+.phase4-pending-weight b {
+  color: #17492f
+}
+
+.phase4-pending-actions {
+  display: flex;
+  gap: 7px;
+  justify-content: flex-end
+}
+
+.phase4-pending-actions button {
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.phase4-pending-empty {
+  display: grid;
+  gap: 6px;
+  text-align: center;
+  padding: 42px 20px;
+  border: 1px dashed #c9d4cd;
+  border-radius: 10px;
+  background: #fafcfb;
+  color: #78847d
+}
+
+.phase4-pending-empty b {
+  color: #2e6f46
+}
+
+@media(max-width:900px) {
+  .phase4-pending-card {
+    grid-template-columns: 1fr 1fr
+  }
+
+  .phase4-pending-actions {
+    grid-column: 1/-1
+  }
+
+  .phase4-pending-weight {
+    text-align: left
+  }
+}
 
 /* O preço total é calculado, mas mantém aparência de campo como no pedido de compra. */
-.phase4-po-table .total{min-width:150px}
-.phase4-po-table .phase4-po-row-total{min-width:136px;text-align:right;font-weight:800;color:#17492f;background:#f3f8f4;border-color:#dce9df;font-variant-numeric:tabular-nums;cursor:default}
-.phase4-po-table .phase4-po-row-total:focus{box-shadow:none}
-.phase4-po-table .description{min-width:126px}
+.phase4-po-table .total {
+  min-width: 150px
+}
+
+.phase4-po-table .phase4-po-row-total {
+  min-width: 136px;
+  text-align: right;
+  font-weight: 800;
+  color: #17492f;
+  background: #f3f8f4;
+  border-color: #dce9df;
+  font-variant-numeric: tabular-nums;
+  cursor: default
+}
+
+.phase4-po-table .phase4-po-row-total:focus {
+  box-shadow: none
+}
+
+.phase4-po-table .description {
+  min-width: 126px
+}
