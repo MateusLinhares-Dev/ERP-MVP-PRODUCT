@@ -11,6 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="/legacy/styles.css">
+<link rel="stylesheet" href="/legacy/professional-ui.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <!-- Firebase SDK -->
   
@@ -64,7 +65,7 @@
         <span class="hdr-chat-badge" id="hdr-chat-badge">0</span>
       </button>
       <button id="btn-tema" onclick="alternarTema()" title="Alternar tema claro/escuro" style="background:rgba(255,255,255,.15);border:none;border-radius:8px;padding:6px 10px;font-size:1rem;cursor:pointer">🌙</button>
-      <span id="fb-status-dot" title="Firebase OK" style="font-size:1rem;cursor:default;user-select:none" onclick="supEnviarFirebase()">🟢</span>
+      <span id="fb-status-dot" title="Firebase OK" style="font-size:1rem;cursor:default;user-select:none" >🟢</span>
       <button class="btn-out" onclick="doLogout()">Sair</button>
     </div>
   </div>
@@ -671,7 +672,7 @@
           <span id="rodhist-count" style="font-size:.78rem;color:#888;margin-left:auto"></span>
           <button onclick="rodDownloadHistorico()" style="padding:7px 14px;background:#1565c0;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:.8rem;cursor:pointer">⬇️ CSV</button>
           <button onclick="rodSalvarPDF()" style="padding:7px 14px;background:#c62828;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:.8rem;cursor:pointer">📄 PDF</button>
-          <button onclick="rodImprimirHistorico()" style="padding:7px 14px;background:#1a3a2a;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:.8rem;cursor:pointer">🖨️ Imprimir</button>
+          <button onclick="rodImprimirHistorico()" style="padding:7px 14px;background:#1a3a2a;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:.8rem;cursor:pointer">Imprimir</button>
         </div>
         <div style="overflow-x:auto">
           <table id="rodhist-table">
@@ -813,7 +814,7 @@
           <span id="balhist-count" style="font-size:.78rem;color:#888;margin-left:auto"></span>
           <button onclick="balDownloadHistorico()" style="padding:7px 14px;background:#1565c0;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:.8rem;cursor:pointer">⬇️ CSV</button>
           <button onclick="balSalvarPDF()" style="padding:7px 14px;background:#c62828;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:.8rem;cursor:pointer">📄 PDF</button>
-          <button onclick="balImprimirHistorico()" style="padding:7px 14px;background:#1a3a2a;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:.8rem;cursor:pointer">🖨️ Imprimir</button>
+          <button onclick="balImprimirHistorico()" style="padding:7px 14px;background:#1a3a2a;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:.8rem;cursor:pointer">Imprimir</button>
         </div>
         <div style="overflow-x:auto">
           <table id="balhist-table">
@@ -945,7 +946,7 @@
             <div style="display:flex;align-items:flex-end;gap:6px">
               <button onclick="renderHistoricoVendas()" style="padding:7px 18px;background:#1a5e2a;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700">🔎 Filtrar</button>
               <button onclick="vhLimpar()" style="padding:7px 12px;background:#999;color:#fff;border:none;border-radius:5px;cursor:pointer">Limpar</button>
-              <button onclick="vhImprimir()" style="padding:7px 12px;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:600">🖨 Imprimir</button>
+              <button onclick="vhImprimir()" style="padding:7px 12px;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:600">Imprimir</button>
             </div>
           </div>
         </div>
@@ -970,7 +971,7 @@
 
     <!-- CAMINHOES -->
     <div class="tab-panel" id="tab-caminhoes">
-      <div class="sec-title">🚛 Frota e Equipamentos</div>
+      <div class="sec-title">Frota e equipamentos</div>
       <div class="kpi-grid">
         <div class="kpi g"><div class="kpi-lbl">Caminhões</div><div class="kpi-val" id="frota-kpi-caminhoes">0</div><div class="kpi-sub" id="frota-sub-caminhoes">—</div></div>
         <div class="kpi"><div class="kpi-lbl">Empilhadeiras</div><div class="kpi-val" id="frota-kpi-empilhadeiras">0</div><div class="kpi-sub" id="frota-sub-empilhadeiras">—</div></div>
@@ -1612,7 +1613,7 @@
               <option value="12">Por 12 meses</option>
             </select>
           </div>
-          <button class="btn-add" onclick="afazerAdd()" style="padding:10px 18px">➕ Adicionar</button>
+          <button class="btn-add" onclick="afazerAdd()" style="padding:10px 18px">Adicionar</button>
         </div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
@@ -1670,20 +1671,20 @@
 
     <!-- CHEQUES -->
     <div class="tab-panel" id="tab-cheques">
-      <div class="sec-title">📋 Controle de Cheques</div>
+      <div class="sec-title">Controle de cheques</div>
       <div id="cheq-secretaria-banner" style="display:none"></div>
       <!-- Sub-tabs nav -->
       <div style="display:flex;gap:0;border-bottom:2px solid #ddd;margin-bottom:16px">
         <button id="cheqtab-btn-lista" onclick="cheqTab('lista')"
-          style="padding:9px 22px;border:none;border-bottom:3px solid #1a3a2a;background:#fff;font-weight:700;color:#1a3a2a;font-size:.88rem;cursor:pointer">📋 Lista de Cheques</button>
+          style="padding:9px 22px;border:none;border-bottom:3px solid #1a3a2a;background:#fff;font-weight:700;color:#1a3a2a;font-size:.88rem;cursor:pointer">Lista de cheques</button>
         <button id="cheqtab-btn-desconto" onclick="cheqTab('desconto')"
-          style="padding:9px 22px;border:none;border-bottom:3px solid transparent;background:#fff;font-weight:400;color:#999;font-size:.88rem;cursor:pointer">📉 Desconto Fornecedor</button>
+          style="padding:9px 22px;border:none;border-bottom:3px solid transparent;background:#fff;font-weight:400;color:#999;font-size:.88rem;cursor:pointer">Desconto por fornecedor</button>
         <button id="cheqtab-btn-historico" onclick="cheqTab('historico')"
-          style="padding:9px 22px;border:none;border-bottom:3px solid transparent;background:#fff;font-weight:400;color:#999;font-size:.88rem;cursor:pointer">🏦 Histórico por Banco</button>
+          style="padding:9px 22px;border:none;border-bottom:3px solid transparent;background:#fff;font-weight:400;color:#999;font-size:.88rem;cursor:pointer">Histórico por banco</button>
         <button class="btn-edit" onclick="cheqExportarJSON()" title="Baixa uma cópia de TODOS os cheques desta aba (pra juntar no Controle). Não apaga nada." style="margin-left:auto;background:#8e44ad;color:#fff">⬇️ Exportar p/ Controle</button>
         <button class="btn-edit" onclick="abrirSnapshots()" title="Cópia diária de dados de negócio do RTDB, sem arquivos do Storage. Restauração exclusiva da Elaine em manutenção.">📦 Snapshots Diários</button>
         <button class="btn-edit" onclick="om('historico_geral')" title="Vê tudo que foi criado, editado ou excluído em Adiantamentos, Cheques e Bancos — dá pra restaurar o que foi excluído" style="margin-left:auto">🕐 Log de Alterações</button>
-        <button class="btn-add" onclick="om('cheque')" style="margin-bottom:4px">+ Novo Cheque</button>
+        <button class="btn-add" onclick="om('cheque')" style="margin-bottom:4px">+ Novo cheque</button>
       </div>
       <!-- SUB-TAB: Lista -->
       <div id="cheqtab-lista">
@@ -1704,7 +1705,7 @@
       <div id="cheq-grand-pend-sub" style="display:none"></div>
       <!-- Barra de busca -->
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
-        <input type="text" id="cheq-busca-num" placeholder="🔍 Buscar por Nº cheque ou Fornecedor..." oninput="renderCheques()"
+        <input type="text" id="cheq-busca-num" placeholder="Buscar por número ou fornecedor..." oninput="renderCheques()"
           style="flex:1;min-width:160px;max-width:240px;padding:7px 12px;border:1.5px solid #1a3a2a;border-radius:8px;font-size:.88rem">
         <div style="display:flex;align-items:center;gap:6px">
           <label style="font-size:.8rem;color:#555;font-weight:600">Bom para:</label>
@@ -2007,7 +2008,7 @@
 
     <!-- CONTRATOS -->
     <div class="tab-panel" id="tab-contratos">
-      <div class="sec-title">📑 Contratos – Controle de Vencimentos</div>
+      <div class="sec-title">Contratos</div>
       <div class="kpi-grid">
         <div class="kpi g"><div class="kpi-lbl">Status</div><div class="kpi-val" id="kpi-cont-status">✅ OK</div><div class="kpi-sub" id="kpi-cont-sub">Nenhum vencendo no momento</div></div>
         <div class="kpi"><div class="kpi-lbl">Cadastrados</div><div class="kpi-val" id="kpi-cont-total">0</div><div class="kpi-sub">Contratos ativos</div></div>
@@ -2026,7 +2027,7 @@
 
     <!-- DOCUMENTOS DE EMPRESAS -->
     <div class="tab-panel" id="tab-documentos_empresas">
-      <div class="sec-title">📁 Documentos de Empresas</div>
+      <div class="sec-title">Documentos</div>
       <!-- Filtros -->
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
         <div>
@@ -2049,7 +2050,7 @@
             <option>Certidão</option><option>Procuração</option><option>Foto</option><option>Outros</option>
           </select>
         </div>
-        <button class="btn-add" onclick="deNovoDoc()" style="margin-bottom:0">📎 Adicionar Documento</button>
+        <button class="btn-add" onclick="deNovoDoc()" style="margin-bottom:0">Adicionar documento</button>
       </div>
       <!-- Lista -->
       <div class="tcard">
@@ -2089,7 +2090,7 @@
 
     <!-- CUSTO CASA -->
     <div class="tab-panel" id="tab-lista_compras">
-      <div class="sec-title">🛒 Lista de Compras — Escritório</div>
+      <div class="sec-title">Lista de compras</div>
       <div class="tcard" style="margin-bottom:14px;padding:14px">
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
           <div style="flex:2;min-width:170px"><label style="font-size:.72rem;font-weight:700;color:#555;text-transform:uppercase">Item</label>
@@ -2100,15 +2101,15 @@
             <input id="lc-quem" style="width:100%;padding:8px;border:1.5px solid #ccc;border-radius:7px;box-sizing:border-box"></div>
           <div style="flex:2;min-width:140px"><label style="font-size:.72rem;font-weight:700;color:#555;text-transform:uppercase">Obs</label>
             <input id="lc-obs" style="width:100%;padding:8px;border:1.5px solid #ccc;border-radius:7px;box-sizing:border-box"></div>
-          <button class="btn-add" onclick="lcAdd()" style="height:38px">➕ Adicionar</button>
+          <button class="btn-add" onclick="lcAdd()" style="height:38px">Adicionar</button>
         </div>
       </div>
       <div class="tcard">
         <div class="tcard-hdr">
-          <div class="tcard-title">📋 Itens</div>
+          <div class="tcard-title">Itens</div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button onclick="lcImprimir()" style="background:#2980b9;color:#fff;border:none;border-radius:7px;padding:7px 14px;cursor:pointer;font-weight:700;font-size:.85rem">🖨 Imprimir</button>
-            <button onclick="lcWhats()" style="background:#25D366;color:#fff;border:none;border-radius:7px;padding:7px 14px;cursor:pointer;font-weight:700;font-size:.85rem">📱 Whats</button>
+            <button onclick="lcImprimir()" style="background:#2980b9;color:#fff;border:none;border-radius:7px;padding:7px 14px;cursor:pointer;font-weight:700;font-size:.85rem">Imprimir</button>
+            <button onclick="lcWhats()" style="background:#25D366;color:#fff;border:none;border-radius:7px;padding:7px 14px;cursor:pointer;font-weight:700;font-size:.85rem">Enviar por WhatsApp</button>
             <select id="lc-filtro" onchange="renderListaCompras()" style="padding:6px 10px;border-radius:7px;border:1.5px solid #ccc;font-size:.85rem">
               <option value="acomprar">🕒 A comprar</option>
               <option value="comprado">✅ Comprados</option>
@@ -2194,7 +2195,7 @@
 
     <!-- VIAGEM MOTORISTA -->
     <div class="tab-panel" id="tab-viagem_motorista">
-      <div class="sec-title">🚗 Custo de Viagem – Motoristas</div>
+      <div class="sec-title">Viagens de motoristas</div>
       <div class="kpi-grid" id="viagem-kpis">
         <div class="kpi r"><div class="kpi-lbl">Total Diárias Pagas</div><div class="kpi-val" id="vkpi-total">R$ 0,00</div><div class="kpi-sub">A pagar aos motoristas</div></div>
         <div class="kpi o"><div class="kpi-lbl">☕ Total Alimentação</div><div class="kpi-val" id="vkpi-alim">R$ 0,00</div><div class="kpi-sub">Controle — não cobrado</div></div>
@@ -2206,7 +2207,7 @@
           <div class="tcard-title">📊 Custo por Motorista</div>
           <div style="display:flex;gap:8px;align-items:center">
             <select id="vg-custo-ano" style="padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-size:.82rem" onchange="renderCustoMotorista()"></select>
-            <button class="btn-add" style="padding:6px 14px;font-size:.82rem" onclick="toggleCustoAnual()" id="btn-custo-toggle">📅 Ver Anual</button>
+            <button class="btn-add" style="padding:6px 14px;font-size:.82rem" onclick="toggleCustoAnual()" id="btn-custo-toggle">Ver anual</button>
           </div>
         </div>
         <div id="custo-motorista-wrap" style="overflow-x:auto">
@@ -2225,7 +2226,7 @@
 
       <div class="tcard" style="margin-bottom:16px">
         <div class="tcard-hdr">
-          <div class="tcard-title">🚗 Registrar Viagem</div>
+          <div class="tcard-title">Registrar viagem</div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px">
           <div class="fg" style="margin:0"><label>Motorista</label>
@@ -2333,7 +2334,7 @@
         #tab-combustivel_rudnick .cbx-tblwrap{overflow-x:auto;max-height:420px;overflow-y:auto;border:1px solid #e3e8ee;border-radius:8px}
       </style>
 
-      <div class="cbx-h">⛽ Combustível</div>
+      <div class="cbx-h">Combustível</div>
       <div class="cbx-sub">Controle de abastecimento da frota — tanque Rudnick e postos na rua</div>
 
       <div class="cbx-kpis">
@@ -2511,13 +2512,13 @@
         </div>
         <div style="display:flex;gap:10px;justify-content:flex-end">
           <button class="btn-add" style="background:#888;padding:8px 20px" onclick="document.getElementById('modal-edit-comb').style.display='none'">Cancelar</button>
-          <button class="btn-save" onclick="salvarEditCombustivel()" style="padding:8px 24px">💾 Salvar</button>
+          <button class="btn-save" onclick="salvarEditCombustivel()" style="padding:8px 24px">Salvar</button>
         </div>
       </div>
     </div>
 <!-- DESPESAS GRUPO -->
     <div class="tab-panel" id="tab-despesas_grupo">
-      <div class="sec-title">🏢 Controle de Despesas – Grupo</div>
+      <div class="sec-title">Despesas por grupo</div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
         <input type="month" id="fil-mes" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:.88rem" onchange="despAtualizar()">
         <select id="fil-emp" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:.88rem" onchange="despAtualizar()">
@@ -2531,10 +2532,10 @@
       </div>
       <!-- TABS -->
   <div class="tabs">
-    <button class="desp-tab-btn desp-active" onclick="switchDespTab('lancar')">📝 Lançar Despesa</button>
-    <button class="desp-tab-btn" onclick="switchDespTab('extrato')">📋 Extrato do Mês</button>
-    <button class="desp-tab-btn" onclick="switchDespTab('historico')">📜 Histórico Completo</button>
-    <button class="desp-tab-btn" onclick="switchDespTab('resumo')">📊 Resumo por Fornecedor</button>
+    <button class="desp-tab-btn desp-active" onclick="switchDespTab('lancar')">Lançar despesa</button>
+    <button class="desp-tab-btn" onclick="switchDespTab('extrato')">Extrato do mês</button>
+    <button class="desp-tab-btn" onclick="switchDespTab('historico')">Histórico completo</button>
+    <button class="desp-tab-btn" onclick="switchDespTab('resumo')">Resumo por fornecedor</button>
   </div>
 
   <!-- KPIs -->
@@ -2543,7 +2544,7 @@
   <!-- TAB: LANÇAR -->
   <div class="desp-panel desp-active" id="desp-lancar">
     <div class="form-card">
-      <h3>➕ Nova Despesa</h3>
+      <h3>Nova despesa</h3>
       <div class="form-grid">
         <div class="fg">
           <label>Data</label>
@@ -2635,7 +2636,7 @@
             Gerar Conta a Pagar
           </label>
         </div>
-        <button class="btn btn-primary" style="align-self:flex-end" onclick="salvarDespesa()">💾 Salvar Despesa</button>
+        <button class="btn btn-primary" style="align-self:flex-end" onclick="salvarDespesa()">Salvar despesa</button>
       </div>
     </div>
   </div>
@@ -2682,7 +2683,7 @@
   <div class="desp-panel" id="desp-historico">
     <div class="tcard">
       <div class="tcard-hdr">
-        <div class="tcard-title">📜 Histórico Completo de Despesas</div>
+        <div class="tcard-title">Histórico completo de Despesas</div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <input type="text" id="hist-busca" placeholder="Buscar fornecedor, desc..." style="padding:5px 10px;border:1px solid #ddd;border-radius:6px;font-size:.85rem" oninput="renderHistorico()">
           <button class="btn btn-sm" style="background:#27ae60;color:#fff" onclick="exportarCSVHistorico()">⬇️ Exportar</button>
@@ -2719,7 +2720,7 @@
 
     <!-- CHEQUES A COMPENSAR (CONTROLE) -->
     <div class="tab-panel" id="tab-cheques_compensar">
-      <div class="sec-title">🧾 Cheques — Controle (a compensar)</div>
+      <div class="sec-title">Cheques a compensar</div>
       <div id="chq-ctrl-root"></div>
     </div>
 
@@ -2820,7 +2821,7 @@
             <div style="display:flex;gap:8px;margin-top:10px">
               <input id="alx-obs-autor" placeholder="Seu nome" value=""
                 style="flex:1;padding:9px;border:1.5px solid #ccc;border-radius:7px;font-size:.88rem">
-              <button class="btn-save" onclick="alxSalvarObs()" style="padding:9px 18px">💾 Salvar</button>
+              <button class="btn-save" onclick="alxSalvarObs()" style="padding:9px 18px">Salvar</button>
             </div>
           </div>
           <div>
@@ -2911,7 +2912,7 @@
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
               <button onclick="alxFecharModal()" class="btn-cancel">Cancelar</button>
-              <button onclick="alxSalvarItem()" class="btn-save" style="padding:8px 22px">💾 Salvar</button>
+              <button onclick="alxSalvarItem()" class="btn-save" style="padding:8px 22px">Salvar</button>
             </div>
           </div>
         </div>
@@ -2919,99 +2920,9 @@
     </div><!-- /tab-almoxarifado -->
 
 
-    <!-- SUPORTE TÉCNICO — apenas admin -->
-    <div class="tab-panel" id="tab-suporte_tecnico">
-      <div class="sec-title">🔧 Suporte Técnico</div>
-      <div style="background:#fff3cd;border:1.5px solid #f9a825;border-radius:10px;padding:12px 18px;margin-bottom:18px;font-size:.85rem;color:#795548">
-        ⚠️ <b>Área restrita à administradora Elaine.</b> Diagnósticos são apenas informativos; exportação/importação manual inclui exclusivamente os dados RTDB, sem anexos do Storage ou contas de acesso.
-      </div>
-
-      <!-- Diagnóstico -->
-      <div class="tcard" style="margin-bottom:16px">
-        <div class="tcard-hdr"><div class="tcard-title">📊 Diagnóstico do Sistema</div>
-          <button onclick="renderSuporteTecnico()" class="btn-edit" style="font-size:.8rem">🔄 Atualizar</button>
-        </div>
-        <div id="sup-diagnostico" style="padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px"></div>
-      </div>
-
-      <!-- Ferramentas de Reparo -->
-      <div class="tcard" style="margin-bottom:16px;display:none" aria-hidden="true">
-        <div class="tcard-hdr"><div class="tcard-title">🛠️ Ferramentas de Reparo — desativadas por segurança</div></div>
-        <div style="padding:16px;display:flex;flex-wrap:wrap;gap:10px">
-          <button onclick="supRecarregarTudo()" style="background:#1a3a2a;color:#fff;border:none;border-radius:8px;padding:9px 16px;cursor:pointer;font-size:.85rem;font-weight:700">🔄 Recarregar Todos os Módulos</button>
-          <button onclick="supReconstruirEstoque()" style="background:#1565c0;color:#fff;border:none;border-radius:8px;padding:9px 16px;cursor:pointer;font-size:.85rem;font-weight:700">📦 Reconstruir Índice de Estoque</button>
-          <button onclick="supCorrigirStatusTickets()" style="background:#6a1b9a;color:#fff;border:none;border-radius:8px;padding:9px 16px;cursor:pointer;font-size:.85rem;font-weight:700">🎫 Verificar Status dos Tickets</button>
-          <button onclick="supLimparOrfaos()" style="background:#e65100;color:#fff;border:none;border-radius:8px;padding:9px 16px;cursor:pointer;font-size:.85rem;font-weight:700">🧹 Limpar Entradas Órfãs</button>
-          <button onclick="supForcarSalvarTudo()" style="background:#2e7d32;color:#fff;border:none;border-radius:8px;padding:9px 16px;cursor:pointer;font-size:.85rem;font-weight:700">💾 Forçar Salvar Tudo no Navegador</button>
-          <button onclick="supRenderizarModulos()" style="background:#00838f;color:#fff;border:none;border-radius:8px;padding:9px 16px;cursor:pointer;font-size:.85rem;font-weight:700">🖥️ Forçar Re-render da Tela Atual</button>
-        </div>
-      </div>
-
-      <!-- Backup e Restauração -->
-      <div class="tcard" style="margin-bottom:16px">
-        <div class="tcard-hdr"><div class="tcard-title">💾 Backup &amp; Restauração de Dados</div></div>
-        <div style="padding:16px">
-          <!-- AVISO PRÉ-DEPLOY -->
-          <div style="background:#fff3cd;border:2px solid #ffc107;border-radius:10px;padding:12px 16px;margin-bottom:14px">
-            <div style="font-weight:800;color:#856404;font-size:.88rem;margin-bottom:6px">⚠️ ANTES DE FAZER DEPLOY NO VERCEL:</div>
-            <div style="font-size:.83rem;color:#856404">Use a sincronização Firebase apenas com o ERP totalmente carregado. Este botão não substitui backup, que deve incluir RTDB e Storage e ser verificado antes do deploy.</div>
-          </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
-            <button onclick="supEnviarFirebase()" style="background:#e65100;color:#fff;border:none;border-radius:8px;padding:12px 24px;cursor:pointer;font-size:.95rem;font-weight:900;box-shadow:0 2px 8px rgba(230,81,0,.4)">☁️ Sincronizar dados do ERP</button>
-          </div>
-          <p style="font-size:.82rem;color:#b45309;margin:0 0 10px;font-weight:700">⚠️ Exportação manual de DADOS do Firebase RTDB (não inclui PDFs/imagens do Storage nem credenciais Firebase Auth). Para backup integral, configure exportações separadas de RTDB + Storage no projeto Firebase.</p>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <button onclick="supExportarBackup()" style="background:#1a5c35;color:#fff;border:none;border-radius:8px;padding:9px 18px;cursor:pointer;font-size:.85rem;font-weight:700">📥 Exportar dados RTDB (.json)</button>
-            <label style="background:#1565c0;color:#fff;border:none;border-radius:8px;padding:9px 18px;cursor:pointer;font-size:.85rem;font-weight:700;display:inline-block">
-              📤 Importar dados RTDB
-              <input type="file" accept=".json" onchange="supImportarBackup(event)" style="display:none">
-            </label>
-          </div>
-          <div id="sup-backup-status" style="margin-top:10px;font-size:.83rem;color:#555"></div>
-        </div>
-      </div>
-
-      <!-- Log de Operações -->
-      <div class="tcard" style="margin-bottom:16px">
-        <div class="tcard-hdr"><div class="tcard-title">📋 Log de Operações</div>
-          <button onclick="document.getElementById('sup-log').innerHTML=''" class="btn-edit" style="font-size:.8rem;background:#e74c3c;color:#fff">🗑 Limpar</button>
-        </div>
-        <div id="sup-log" style="padding:12px;font-family:monospace;font-size:.78rem;max-height:220px;overflow-y:auto;background:#1a1a2e;color:#a8ff78;border-radius:0 0 10px 10px;min-height:60px">
-          <span style="color:#aaa">— Nenhuma operação registrada ainda —</span>
-        </div>
-      </div>
-
-      <!-- ═══ PATCHES DE SUPORTE ═══ -->
-      <div class="tcard" style="margin-bottom:16px;display:none;border:2px solid #1565c0" aria-hidden="true">
-        <div class="tcard-hdr" style="background:#1565c0">
-          <div class="tcard-title" style="color:#fff">🔧 Patches de Suporte — Histórico (execução remota desativada)</div>
-          <button onclick="supCarregarPatches()" class="btn-edit" style="font-size:.8rem;background:#fff;color:#1565c0">🔄 Recarregar</button>
-        </div>
-        <div style="padding:16px">
-          <p style="font-size:.83rem;color:#555;margin:0 0 14px">Patches JavaScript remotos foram <strong>desativados por segurança</strong>. Registros antigos continuam visíveis para auditoria; correções de código devem ser publicadas em uma nova versão/deploy do ERP.</p>
-          <div class="fg" style="margin-bottom:10px">
-            <label style="font-size:.82rem;font-weight:700">Título do patch (ex: "Correção botão Fiscal")</label>
-            <input id="sup-patch-titulo" placeholder="Descreva resumidamente o que muda" style="width:100%;padding:8px;border:1.5px solid #ccc;border-radius:7px;font-size:.88rem">
-          </div>
-          <div class="fg" style="margin-bottom:12px">
-            <label style="font-size:.82rem;font-weight:700">Código JavaScript do patch</label>
-            <textarea id="sup-patch-code" rows="8" readonly placeholder="Execução remota desativada por segurança" style="width:100%;padding:10px;border:1.5px solid #ccc;border-radius:7px;font-family:monospace;font-size:.8rem;resize:vertical"></textarea>
-          </div>
-          <div style="display:flex;gap:10px;margin-bottom:18px">
-            <button onclick="supAplicarPatch()" style="background:#78909c;color:#fff;border:none;border-radius:8px;padding:10px 22px;cursor:pointer;font-weight:800;font-size:.9rem">🔒 Patches remotos desativados</button>
-            <button onclick="document.getElementById('sup-patch-titulo').value='';document.getElementById('sup-patch-code').value=''" style="background:#eee;color:#555;border:none;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:.85rem">Limpar</button>
-          </div>
-          <div id="sup-patch-status" style="font-size:.83rem;margin-bottom:14px"></div>
-
-          <div style="font-weight:700;font-size:.82rem;color:#333;margin-bottom:8px;text-transform:uppercase">Registros antigos de patches no Firebase:</div>
-          <div id="sup-patches-lista" style="font-size:.82rem;color:#aaa">Carregando...</div>
-        </div>
-      </div>
-    </div>
-
     <!-- ══════ FISCAL ══════ -->
     <div class="tab-panel" id="tab-fiscal">
-      <div class="sec-title">🧾 Fiscal — Controle de Entradas, Saídas e Impostos</div>
+      <div class="sec-title">Fiscal</div>
 
       <!-- Seletor de Empresa -->
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;padding:10px 16px;background:#f0f4ff;border-radius:10px;border:1.5px solid #c5d3f0;flex-wrap:wrap">
@@ -3023,10 +2934,10 @@
 
       <!-- Sub-abas -->
       <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
-        <button id="fiscal-btn-mensal"  onclick="fiscalSubTab('mensal')"  class="btn-fiscal-tab active-fiscal-tab">📋 Lançamento Mensal</button>
-        <button id="fiscal-btn-anual"   onclick="fiscalSubTab('anual')"   class="btn-fiscal-tab">📊 Resumo Anual</button>
-        <button id="fiscal-btn-impostos"onclick="fiscalSubTab('impostos')"class="btn-fiscal-tab">🏛️ Impostos</button>
-        <button id="fiscal-btn-apuracao"onclick="fiscalSubTab('apuracao')"class="btn-fiscal-tab">📈 Apuração / Lucro</button>
+        <button id="fiscal-btn-mensal"  onclick="fiscalSubTab('mensal')"  class="btn-fiscal-tab active-fiscal-tab">Lançamento mensal</button>
+        <button id="fiscal-btn-anual"   onclick="fiscalSubTab('anual')"   class="btn-fiscal-tab">Resumo anual</button>
+        <button id="fiscal-btn-impostos"onclick="fiscalSubTab('impostos')"class="btn-fiscal-tab">Impostos</button>
+        <button id="fiscal-btn-apuracao"onclick="fiscalSubTab('apuracao')"class="btn-fiscal-tab">Apuração / Lucro</button>
       </div>
 
       <!-- ── PAINEL MENSAL ── -->
@@ -3047,7 +2958,7 @@
           <button id="fiscal-btn-fechar" onclick="fiscalFecharMes()" style="background:#f39c12;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:700;font-size:.82rem">🔒 Fechar Mês</button>
           <button id="fiscal-btn-reabrir" onclick="fiscalReabrirMes()" style="display:none;background:#27ae60;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:700;font-size:.82rem">🔓 Reabrir</button>
           <div style="flex:1"></div>
-          <button onclick="fiscalExportarPDF()" title="Gerar PDF das notas deste mês (para imprimir ou salvar)" style="background:#1a3a2a;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:700;font-size:.82rem">🖨️ Exportar PDF</button>
+          <button onclick="fiscalExportarPDF()" title="Gerar PDF das notas deste mês (para imprimir ou salvar)" style="background:#1a3a2a;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:700;font-size:.82rem">Exportar PDF</button>
           <button onclick="fiscalExportarXML()" title="Baixar um arquivo XML com os dados das notas deste mês" style="background:#2980b9;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:700;font-size:.82rem">📄 Exportar XML</button>
         </div>
 
@@ -3364,7 +3275,7 @@
         </div>
 
         <div style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 6px rgba(0,0,0,.08);max-width:600px">
-          <div style="font-weight:700;font-size:.95rem;margin-bottom:16px;color:var(--primary)">🏛️ Impostos e Encargos</div>
+          <div style="font-weight:700;font-size:.95rem;margin-bottom:16px;color:var(--primary)">Impostos e Encargos</div>
           <!-- Simples Nacional: só DAS -->
           <div id="imp-bloco-simples" style="display:none">
             <div class="fg"><label>DAS – Guia Simples (R$)</label><input type="text" id="imp-das" placeholder="0,00" oninput="fiscalCalcImpostos()"></div>
@@ -3418,15 +3329,15 @@
 
     <!-- COORDENAÇÃO: REUNIÕES / ADVERTÊNCIAS / BAGS -->
     <div class="tab-panel" id="tab-coordenacao">
-      <div class="sec-title">📋 Coordenação</div>
+      <div class="sec-title">Coordenação</div>
 
       <!-- Sub-tabs -->
       <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid #1565c0;align-items:flex-end">
-        <button id="coord-stab-btn-reunioes"    onclick="coordTab('reunioes')"    style="padding:9px 18px;border:none;background:#1565c0;color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;border-radius:8px 8px 0 0;margin-right:2px">📅 Reuniões / DDS</button>
-        <button id="coord-stab-btn-advertencias" onclick="coordTab('advertencias')" style="padding:9px 18px;border:none;background:#f5f5f5;color:#555;font-weight:600;font-size:.85rem;cursor:pointer;border-radius:8px 8px 0 0;margin-right:2px">⚠️ Advertências</button>
-        <button id="coord-stab-btn-bags"        onclick="coordTab('bags')"        style="padding:9px 18px;border:none;background:#f5f5f5;color:#555;font-weight:600;font-size:.85rem;cursor:pointer;border-radius:8px 8px 0 0;margin-right:2px">🛍️ Bags</button>
-        <button id="coord-stab-btn-funcpanel"   onclick="coordTab('funcpanel')"   style="padding:9px 18px;border:none;background:#f5f5f5;color:#555;font-weight:600;font-size:.85rem;cursor:pointer;border-radius:8px 8px 0 0">📊 Funcionários</button>
-        <button onclick="coordImprimirTudo()" style="margin-left:auto;padding:7px 16px;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.83rem;margin-bottom:4px">🖨️ Imprimir</button>
+        <button id="coord-stab-btn-reunioes"    onclick="coordTab('reunioes')"    style="padding:9px 18px;border:none;background:#1565c0;color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;border-radius:8px 8px 0 0;margin-right:2px">Reuniões / DDS</button>
+        <button id="coord-stab-btn-advertencias" onclick="coordTab('advertencias')" style="padding:9px 18px;border:none;background:#f5f5f5;color:#555;font-weight:600;font-size:.85rem;cursor:pointer;border-radius:8px 8px 0 0;margin-right:2px">Advertências</button>
+        <button id="coord-stab-btn-bags"        onclick="coordTab('bags')"        style="padding:9px 18px;border:none;background:#f5f5f5;color:#555;font-weight:600;font-size:.85rem;cursor:pointer;border-radius:8px 8px 0 0;margin-right:2px">Bags</button>
+        <button id="coord-stab-btn-funcpanel"   onclick="coordTab('funcpanel')"   style="padding:9px 18px;border:none;background:#f5f5f5;color:#555;font-weight:600;font-size:.85rem;cursor:pointer;border-radius:8px 8px 0 0">Funcionários</button>
+        <button onclick="coordImprimirTudo()" style="margin-left:auto;padding:7px 16px;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.83rem;margin-bottom:4px">Imprimir</button>
       </div>
 
       <!-- ──────────── REUNIÕES ──────────── -->
@@ -3434,7 +3345,7 @@
         <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:20px">
           <!-- Form -->
           <div style="background:#f0f4ff;border:2px solid #1565c0;border-radius:12px;padding:18px">
-            <div style="font-weight:800;font-size:.9rem;color:#1565c0;margin-bottom:14px">➕ Nova Reunião / DDS</div>
+            <div style="font-weight:800;font-size:.9rem;color:#1565c0;margin-bottom:14px">Nova reunião / DDS</div>
             <input type="hidden" id="reu-edit-id">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
               <div>
@@ -3467,7 +3378,7 @@
               <label style="font-size:.72rem;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Ata / Resultado</label>
               <textarea id="reu-ata" rows="2" placeholder="Decisões, encaminhamentos..." style="width:100%;padding:8px;border:1.5px solid #ccc;border-radius:7px;font-size:.85rem;resize:vertical;box-sizing:border-box;font-family:inherit"></textarea>
             </div>
-            <button onclick="reuSalvar()" style="width:100%;padding:10px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:.92rem">💾 Salvar Registro</button>
+            <button onclick="reuSalvar()" style="width:100%;padding:10px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:.92rem">Salvar registro</button>
           </div>
           <!-- List -->
           <div>
@@ -3578,7 +3489,7 @@
         <div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
             <div style="font-weight:800;font-size:.9rem;color:#333">📋 Histórico de Movimentações</div>
-            <button onclick="bagsImprimirRelatorio()" style="background:#1565c0;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-weight:700;cursor:pointer;font-size:.82rem">🖨️ Imprimir</button>
+            <button onclick="bagsImprimirRelatorio()" style="background:#1565c0;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-weight:700;cursor:pointer;font-size:.82rem">Imprimir</button>
           </div>
           <div id="bags-hist" style="max-height:360px;overflow-y:auto"></div>
         </div>

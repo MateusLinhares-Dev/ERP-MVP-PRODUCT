@@ -125,6 +125,7 @@ async function main() {
 
   await loadClassic('/legacy/audit-trail.js');
   await loadClassic('/legacy/firebase-sync.js');
+  await loadClassic('/legacy/whatsapp-format.js');
   await loadClassic('/legacy/app-core.js');
   await loadClassic('/legacy/module-access-guard.js');
   await loadClassic('/legacy/app-agenda.js');

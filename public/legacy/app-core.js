@@ -953,7 +953,6 @@ const TABS_CFG = {
   usuarios:           {label:'Usuários',        icon:'👤'},
   almoxarifado:       {label:'Almoxarifado',    icon:'🏭'},
   chat:              {label:'Chat',           icon:'💬'},
-  suporte_tecnico:    {label:'Suporte Técnico', icon:'🔧'},
   documentos_empresas:{label:'Documentos',      icon:'📁'},
   fiscal:             {label:'Fiscal',           icon:'🧾'},
   epi:                {label:'EPI / NR-06',       icon:'🦺'},
@@ -1249,7 +1248,7 @@ function startApp(username) {
     {id:'rh',          label:'RH',          icon:'👷', tabs:['funcionarios','ponto','folha_pagamento','vales','epi']},
     {id:'frota',       label:'Frota',       icon:'🚛', tabs:['caminhoes','combustivel_rudnick','viagem_motorista']},
     {id:'fiscal',      label:'Fiscal',       icon:'🧾', tabs:['fiscal']},
-    {id:'admin',       label:'Administração',icon:'🏢', tabs:['despesas_grupo','contratos','custo_casa','lista_compras','documentos_empresas','usuarios','config','suporte_tecnico','senhas']},
+    {id:'admin',       label:'Administração',icon:'🏢', tabs:['despesas_grupo','contratos','custo_casa','lista_compras','documentos_empresas','usuarios','config','senhas']},
     {id:'coordenador', label:'Coordenador',  icon:'🏭', tabs:['almoxarifado','coordenacao']},
     {id:'comunicacao',  label:'Comunicação',  icon:'💬', tabs:['chat']},
     {id:'afazeres_grp', label:'Afazeres',     icon:'✅', tabs:['afazeres']},
@@ -1618,6 +1617,7 @@ if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded
 else { _montarFinClientes(); }
 
 function switchTab(tid){
+  if(tid==='suporte_tecnico') tid='dashboard';
   
   const _openOv=document.getElementById('modal-ov'); if(_openOv) _openOv.classList.remove('open');
   document.querySelectorAll('.nav-tab').forEach(e=>e.classList.remove('active'));
@@ -1677,7 +1677,6 @@ function switchTab(tid){
     else if(tid==='chat'){ chatInit(); }
     
     if(tid!=='chat'){ try{ chatDestroy(); }catch(e){} }
-    if(tid==='suporte_tecnico') renderSuporteTecnico();
   }catch(e){ console.warn('switchTab render error',tid,e); }
 }
 
@@ -2664,10 +2663,14 @@ ${div}
   return msg;
 }
 
+function _erpWhatsFormat(msg){
+  return typeof window.erpWhatsFormat==='function'?window.erpWhatsFormat(msg):String(msg==null?'':msg);
+}
+
 function compartilharWppExtrato(){
   const msg=getMsgExtrato();
   if(!msg){alert('Selecione um fornecedor primeiro.');return;}
-  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+  window.open('https://wa.me/?text='+encodeURIComponent(_erpWhatsFormat(msg)),'_blank');
 }
 
 function compartilharWppNumeroExtrato(){
@@ -2676,7 +2679,7 @@ function compartilharWppNumeroExtrato(){
   let phone=document.getElementById('wpp-phone').value.replace(/\D/g,'');
   if(!phone){alert('Informe o telefone do fornecedor.');return;}
   if(!phone.startsWith('55')) phone='55'+phone;
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank');
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(_erpWhatsFormat(msg))}`,'_blank');
 }
 
 function imprimirExtrato(){
@@ -3133,7 +3136,7 @@ function getMsgAdiantamentos(){
 function compartilharWppAdiantamentos(){
   const msg=getMsgAdiantamentos();
   if(!msg){alert('Selecione um fornecedor primeiro.');return;}
-  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+  window.open('https://wa.me/?text='+encodeURIComponent(_erpWhatsFormat(msg)),'_blank');
 }
 
 function compartilharWppNumeroAdiantamentos(){
@@ -3142,7 +3145,7 @@ function compartilharWppNumeroAdiantamentos(){
   let phone=document.getElementById('wpp-phone').value.replace(/\D/g,'');
   if(!phone){alert('Informe o telefone do fornecedor/cliente.');return;}
   if(!phone.startsWith('55')) phone='55'+phone;
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank');
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(_erpWhatsFormat(msg))}`,'_blank');
 }
 
 function imprimirFichaAdiantamentos(){
@@ -3260,7 +3263,7 @@ function compartilharWpp(){
   
   const msg=getMsgTicket();
   if(!msg){alert('Nenhum ticket selecionado.');return;}
-  const url='https://wa.me/?text='+encodeURIComponent(msg);
+  const url='https://wa.me/?text='+encodeURIComponent(_erpWhatsFormat(msg));
   window.open(url,'_blank');
 }
 
@@ -3271,7 +3274,7 @@ function compartilharWppNumero(){
   let phone=document.getElementById('wpp-phone').value.replace(/\D/g,'');
   if(!phone){alert('Informe o telefone do fornecedor/cliente.');return;}
   if(!phone.startsWith('55')) phone='55'+phone;
-  const url=`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+  const url=`https://wa.me/${phone}?text=${encodeURIComponent(_erpWhatsFormat(msg))}`;
   window.open(url,'_blank');
 }
 
@@ -9916,7 +9919,7 @@ function getPrecosFornMsg(){
 function compartilharPrecosFornWpp(){
   const msg=getPrecosFornMsg();
   if(!msg) return;
-  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+  window.open('https://wa.me/?text='+encodeURIComponent(_erpWhatsFormat(msg)),'_blank');
 }
 
 function compartilharPrecosFornNumero(){
@@ -9924,7 +9927,7 @@ function compartilharPrecosFornNumero(){
   if(!msg) return;
   const num=prompt('Número WhatsApp do fornecedor (com DDD, só números):');
   if(!num) return;
-  window.open('https://wa.me/55'+num.replace(/\D/g,'')+'?text='+encodeURIComponent(msg),'_blank');
+  window.open('https://wa.me/55'+num.replace(/\D/g,'')+'?text='+encodeURIComponent(_erpWhatsFormat(msg)),'_blank');
 }
 
 async function compartilharImagemPrecosForn(){
@@ -12515,7 +12518,7 @@ function compartilharPrecosCliWpp(){
   if(!cliNome) return;
   const msg=getPrecosCliMsg(cliNome);
   if(!msg) return;
-  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+  window.open('https://wa.me/?text='+encodeURIComponent(_erpWhatsFormat(msg)),'_blank');
 }
 
 function compartilharPrecosCliNumero(){
@@ -12525,7 +12528,7 @@ function compartilharPrecosCliNumero(){
   if(!msg) return;
   const num=prompt('Número WhatsApp do cliente (com DDD, só números):');
   if(!num) return;
-  window.open('https://wa.me/55'+num.replace(/\D/g,'')+'?text='+encodeURIComponent(msg),'_blank');
+  window.open('https://wa.me/55'+num.replace(/\D/g,'')+'?text='+encodeURIComponent(_erpWhatsFormat(msg)),'_blank');
 }
 
 function imprimirPrecosCli(){
@@ -13364,43 +13367,60 @@ function _lcItensFiltro(){
   });
 }
 function _lcTexto(){
-  const f=(document.getElementById('lc-filtro')||{}).value||'acomprar';
-  const rot=f==='comprado'?'COMPRADOS':(f==='todos'?'TODOS OS ITENS':'A COMPRAR');
+  const filtro=(document.getElementById('lc-filtro')||{}).value||'acomprar';
+  const titulo=filtro==='comprado'?'COMPRADOS':(filtro==='todos'?'TODOS':'PENDENTES');
   const itens=_lcItensFiltro();
-  let t='🛒 *LISTA DE COMPRAS — ESCRITÓRIO* ('+rot+')\n';
-  t+=_empresaPrincipalLabel()+' — '+new Date().toLocaleDateString('pt-BR')+'\n\n';
-  if(!itens.length){ t+='(nenhum item)'; return t; }
+  const empresa=_empresaPrincipalRazao();
+  const hoje=new Date().toLocaleDateString('pt-BR');
+  const texto=[
+    '*LISTA DE COMPRAS*',
+    empresa,
+    'Data: '+hoje,
+    'Situação: '+titulo,
+    '--------------------------------',
+  ];
+  if(!itens.length) texto.push('Nenhum item encontrado.');
   itens.forEach(function(it,i){
-    t+=(i+1)+'. '+(it.nome||'')+(it.qtd?(' — '+it.qtd):'');
-    if(it.quem) t+=' (pediu: '+it.quem+')';
-    if(it.obs) t+='\n   Obs: '+it.obs;
-    if((it.status||'')==='comprado') t+='\n   ✅ comprado'+(it.compradoEm?(' em '+String(it.compradoEm).split('-').reverse().join('/')):'');
-    t+='\n';
+    texto.push((i+1)+'. *'+String(it.nome||'Item')+'*');
+    if(it.qtd) texto.push('Quantidade: '+it.qtd);
+    if(it.quem) texto.push('Solicitante: '+it.quem);
+    if(it.obs) texto.push('Observações: '+it.obs);
+    texto.push('Status: '+((it.status||'')==='comprado'?'Comprado':'A comprar'));
+    if(it.status==='comprado'&&it.compradoEm) texto.push('Comprado em: '+String(it.compradoEm).split('-').reverse().join('/'));
+    if(i<itens.length-1) texto.push('');
   });
-  return t;
+  texto.push('--------------------------------');
+  return texto.join('\n');
 }
 function lcWhats(){
   const t=_lcTexto();
-  window.open('https://wa.me/?text='+encodeURIComponent(t.replace(/🛒 \*|\*/g,function(m){return m;})),'_blank');
+  window.open('https://wa.me/?text='+encodeURIComponent(_erpWhatsFormat(t)),'_blank');
 }
 function lcImprimir(){
   const itens=_lcItensFiltro();
   const f=(document.getElementById('lc-filtro')||{}).value||'acomprar';
   const rot=f==='comprado'?'Comprados':(f==='todos'?'Todos os itens':'A comprar');
-  const esc2=function(s){ return String(s==null?'':s).replace(/</g,'&lt;'); };
+  const esc2=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
   let linhas=itens.map(function(it,i){
-    return '<tr><td>'+(i+1)+'</td><td><b>'+esc2(it.nome)+'</b></td><td>'+esc2(it.qtd||'')+'</td><td>'+esc2(it.quem||'')+'</td><td>'+esc2(it.obs||'')+'</td><td>'+((it.status||'')==='comprado'?'✅':'🕒')+'</td></tr>';
+    return '<tr><td>'+(i+1)+'</td><td><strong>'+esc2(it.nome)+'</strong></td><td>'+esc2(it.qtd||'')+'</td><td>'+esc2(it.quem||'')+'</td><td>'+esc2(it.obs||'')+'</td><td>'+((it.status||'')==='comprado'?'Comprado':'Pendente')+'</td></tr>';
   }).join('');
-  if(!linhas) linhas='<tr><td colspan="6" style="text-align:center;color:#888">Nenhum item</td></tr>';
+  if(!linhas) linhas='<tr><td colspan="6" class="empty">Nenhum item nesta seleção</td></tr>';
   const w=window.open('','_blank');
-  if(!w){ showToast('O navegador bloqueou a janela de impressão — libere pop-ups pro site.','error'); return; }
-  w.document.write('<html><head><title>Lista de Compras</title><style>body{font-family:Arial;padding:20px}h2{margin:0 0 4px}table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #999;padding:6px 8px;font-size:13px;text-align:left}th{background:#eee}</style></head><body>'+
-    '<h2>🛒 Lista de Compras — Escritório</h2><div>'+rot+' · '+esc(_empresaPrincipalLabel())+' · '+new Date().toLocaleDateString('pt-BR')+'</div>'+
-    '<table><tr><th>#</th><th>Item</th><th>Qtd</th><th>Quem pediu</th><th>Obs</th><th>Status</th></tr>'+linhas+'</table>'+
-    '</body></html>');
+  if(!w){showToast('Permita a abertura da janela de impressão.','error');return;}
+  w.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Lista de compras</title><style>'+
+    '@page{size:A4;margin:15mm}*{box-sizing:border-box}body{font:12px Arial,Helvetica,sans-serif;color:#1c2d22;background:#fff;margin:0}'+
+    'header{border-bottom:2px solid #214733;padding-bottom:14px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px}'+
+    'h1{font-size:18px;margin:0 0 5px}small{color:#6a746e}table{border-collapse:collapse;width:100%;table-layout:fixed}'+
+    'th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;background:#f0f3f1;border:1px solid #d4dfd7;padding:9px 7px}'+
+    'td{border-bottom:1px solid #e1e9e4;padding:8px 7px;vertical-align:top;overflow-wrap:anywhere}'+
+    'tr{break-inside:avoid}th:first-child{width:32px}th:nth-child(3){width:54px}th:last-child{width:75px}.empty{text-align:center;color:#66766c;padding:26px 12px}'+
+    'footer{font-size:10px;color:#738077;border-top:1px solid #e0e7e2;padding-top:10px;margin-top:24px}'+
+    '</style></head><body><header><div><h1>Lista de compras</h1><small>'+esc2(_empresaPrincipalRazao())+'</small></div><div>'+esc2(rot)+'<div><small>'+new Date().toLocaleDateString('pt-BR')+'</small></div></div></header>'+
+    '<table><thead><tr><th>#</th><th>Item</th><th>Qtd.</th><th>Solicitante</th><th>Observações</th><th>Status</th></tr></thead><tbody>'+linhas+'</tbody></table>'+
+    '<footer>'+itens.length+' item(ns) nesta seleção</footer></body></html>');
   w.document.close();
   w.focus();
-  setTimeout(function(){ try{ w.print(); }catch(e){} },300);
+  setTimeout(function(){try{w.print();}catch(e){}},300);
 }
 function lcToggle(id){
   const it=LISTA_COMPRAS.find(x=>x.id===id); if(!it) return;
@@ -18516,39 +18536,39 @@ function compartilharBanco(idx){
   
   
   const emp=EMPRESAS_INFO[b.empresa||_empresaPorTexto([b.banco,b.titular,b.pix,b.cpfcnpj].filter(Boolean).join(' '))] || _empresaPrincipalInfo();
-  const div='━━━━━━━━━━━━━━━━━━━━━━━━━';
-  let msg='🏭 *'+emp.nome+'*\n';
-  msg+='_'+emp.razaoSocial+'_\n';
-  msg+='CNPJ: '+emp.cnpj+'\n';
-  if(emp.ie) msg+='IE: '+emp.ie+'\n';
-  if(emp.endereco) msg+='📍 '+emp.endereco+'\n';
-  msg+=div+'\n';
-  msg+='🏦 *DADOS BANCÁRIOS PARA PAGAMENTO*\n';
-  msg+=div+'\n';
-  msg+='🏦 *Banco:* '+b.banco+'\n';
-  if(b.tipo) msg+='📋 *Tipo:* '+b.tipo+'\n';
-  if(b.titular && b.titular!==emp.razaoSocial) msg+='👤 *Titular:* '+b.titular+'\n';
-  else msg+='👤 *Titular:* '+emp.razaoSocial+'\n';
-  if(b.cpfcnpj) msg+='📄 *CPF/CNPJ:* '+b.cpfcnpj+'\n';
-  else msg+='📄 *CNPJ:* '+emp.cnpj+'\n';
-  if(b.agencia) msg+='🏢 *Agência:* '+b.agencia+'\n';
-  if(b.conta) msg+='💳 *Conta:* '+b.conta+'\n';
-  if(b.pix) msg+='⚡ *PIX:* '+b.pix+'\n';
-  if(b.endereco && b.endereco!==emp.endereco) msg+='📍 *Endereço da conta:* '+b.endereco+'\n';
-  if(b.obs) msg+='📝 '+b.obs+'\n';
-  msg+=div+'\n';
-  const contatos=[];
-  if(emp.financeiro) contatos.push('Financeiro: '+emp.financeiro);
-  if(emp.escritorio) contatos.push('Escritório: '+emp.escritorio);
-  if(emp.compras) contatos.push('Compras: '+emp.compras);
-  if(contatos.length) msg+='📞 '+contatos.join(' | ')+'\n';
-  if(emp.email) msg+='📧 '+emp.email;
+  const titular=String(b.titular||emp.razaoSocial||'').trim();
+  const doc=String(b.cpfcnpj||emp.cnpj||'').trim();
+  const linhas=[
+    '*'+String(emp.razaoSocial||emp.nome||_empresaPrincipalRazao())+'*',
+    'CNPJ: '+String(emp.cnpj||'—'),
+    '',
+    '*DADOS BANCÁRIOS*',
+    '--------------------------------',
+    'Banco: '+String(b.banco||'—'),
+    'Titular: '+(titular||'—'),
+    'Documento: '+(doc||'—'),
+  ];
+  if(b.tipo) linhas.push('Tipo de conta: '+b.tipo);
+  if(b.agencia) linhas.push('Agência: '+b.agencia);
+  if(b.conta) linhas.push('Conta: '+b.conta);
+  if(b.pix) linhas.push('Chave PIX: '+b.pix);
+  if(b.endereco&&b.endereco!==emp.endereco) linhas.push('Endereço da conta: '+b.endereco);
+  if(b.obs) linhas.push('Observações: '+b.obs);
+  linhas.push('--------------------------------');
+  if(emp.endereco) linhas.push('Endereço: '+emp.endereco);
+  const contatos=[
+    emp.financeiro?'Financeiro: '+emp.financeiro:'',
+    emp.escritorio?'Escritório: '+emp.escritorio:'',
+    emp.compras?'Compras: '+emp.compras:''
+  ].filter(Boolean);
+  linhas.push(...contatos);
+  if(emp.email) linhas.push('E-mail: '+emp.email);
+  const msg=linhas.join('\n');
 
-  
   const ov=document.getElementById('banco-share-ov');
-  document.getElementById('banco-share-msg').value=msg;
+  document.getElementById('banco-share-msg').value=_erpWhatsFormat(msg);
   ov.style.display='flex';
-  window._bancoCopiarMsg=msg;
+  window._bancoCopiarMsg=_erpWhatsFormat(msg);
 }
 
 function fecharBancoShare(){
@@ -18562,14 +18582,14 @@ function copiarDadosBanco(){
 }
 
 function wppDadosBanco(){
-  const msg=encodeURIComponent(window._bancoCopiarMsg||'');
+  const msg=encodeURIComponent(_erpWhatsFormat(window._bancoCopiarMsg||''));
   window.open('https://wa.me/?text='+msg,'_blank');
 }
 
 function wppNumeroDadosBanco(){
   const num=prompt('Número WhatsApp (com DDD, só números):');
   if(!num) return;
-  const msg=encodeURIComponent(window._bancoCopiarMsg||'');
+  const msg=encodeURIComponent(_erpWhatsFormat(window._bancoCopiarMsg||''));
   window.open('https://wa.me/55'+num.replace(/\D/g,'')+'?text='+msg,'_blank');
 }
 
@@ -21491,7 +21511,7 @@ function initDespesas(){
         var kEl = document.getElementById('fc-kpis');
         var kText = kEl ? kEl.innerText.replace(/\n+/g,'\n').trim() : '';
         var msg = '📋 *Ficha Financeira — '+_fcCliAtual+'*\n\n'+kText+'\n\nEmitido por: '+_empresaPrincipalRazao();
-        window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+        window.open('https://wa.me/?text='+encodeURIComponent(_erpWhatsFormat(msg)),'_blank');
       }
 
       function ffBuscaChange(nome){
@@ -26493,8 +26513,8 @@ function coordTab(name){
     const btn=document.getElementById('coord-stab-btn-'+s);
     if(panel) panel.style.display=(s===name)?'':'none';
     if(btn){
-      if(s===name){ btn.style.background='#1565c0'; btn.style.color='#fff'; }
-      else { btn.style.background='#f5f5f5'; btn.style.color='#555'; }
+      btn.classList.toggle('is-active',s===name);
+      btn.setAttribute('aria-pressed',String(s===name));
     }
   });
   if(name==='reunioes'){ _coordPopFuncs(); reuRender(); }
