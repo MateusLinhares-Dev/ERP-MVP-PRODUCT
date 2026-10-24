@@ -58,25 +58,35 @@ function setText(selector, value) {
   document.querySelectorAll(selector).forEach((el) => { el.textContent = value || ''; });
 }
 
-function buildBrandLogoMarkup(branding = {}, company = {}) {
-  const wrap = document.createDocumentFragment();
-  const img = document.createElement('img');
-  img.src = '/assets/branding/manuela-metais-logo.webp';
-  img.alt = company.nome || company.razaoSocial || 'Logo da empresa';
-  img.className = 'brand-logo-img';
-  img.onerror = () => { img.style.display = 'none'; };
-  wrap.appendChild(img);
+function buildBrandLogoMarkup(branding = {}, company = {}, placement = 'header') {
+  const isLogin = placement === 'login';
+  const wrapper = document.createDocumentFragment();
+  const image = document.createElement('img');
+  image.className = 'brand-logo-img';
+  image.src = isLogin
+    ? '/assets/branding/manuela-metais-logo.webp'
+    : '/assets/branding/manuela-metais-symbol.png';
+  image.alt = company.nome || company.razaoSocial || 'Manuela Metais';
+  image.decoding = 'async';
 
   const text = document.createElement('span');
   text.className = 'brand-logo-text';
-  const prefix = branding.logoPrefix || company.nome || '';
+  const prefix = branding.logoPrefix || company.nome || 'Manuela Metais';
   const accent = branding.logoAccent || '';
   text.append(document.createTextNode(prefix));
-  const span = document.createElement('span');
-  span.textContent = accent;
-  text.appendChild(span);
-  wrap.appendChild(text);
-  return wrap;
+  if (accent) {
+    const highlight = document.createElement('span');
+    highlight.className = 'brand-logo-accent';
+    highlight.textContent = accent;
+    text.appendChild(highlight);
+  }
+
+  image.addEventListener('error', () => {
+    image.hidden = true;
+    if (isLogin) text.style.display = 'inline-flex';
+  });
+  wrapper.append(image, text);
+  return wrapper;
 }
 
 function applyPublicBranding(publicConfig) {
@@ -84,7 +94,7 @@ function applyPublicBranding(publicConfig) {
   const company = publicConfig?.company || {};
   document.querySelectorAll('[data-brand-logo]').forEach((el) => {
     el.textContent = '';
-    el.appendChild(buildBrandLogoMarkup(branding, company));
+    el.appendChild(buildBrandLogoMarkup(branding, company, el.classList.contains('login-logo') ? 'login' : 'header'));
   });
   setText('[data-brand-tagline]', branding.tagline);
   setText('[data-brand-cnpj]', company.cnpj);
@@ -200,6 +210,10 @@ async function main() {
   window.__PURCHASE_ORDER_LAYOUT_READY__ = true;
 
   initProfilePhoto({ auth, db, storage });
+
+  // A folha visual deve ser a última para prevalecer sobre estilos de módulos legados.
+  const uiStylesheet = document.querySelector('link[href="/legacy/professional-ui.css"]');
+  if (uiStylesheet) document.head.appendChild(uiStylesheet);
 
   document.dispatchEvent(new CustomEvent('erp:ready'));
 }

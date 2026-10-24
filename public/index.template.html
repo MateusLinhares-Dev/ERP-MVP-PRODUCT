@@ -7,6 +7,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#183c2b">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="256x256" href="/assets/branding/favicon-256.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/branding/apple-touch-icon.png">
 <title>ERP</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1673,18 +1677,23 @@
     <div class="tab-panel" id="tab-cheques">
       <div class="sec-title">Controle de cheques</div>
       <div id="cheq-secretaria-banner" style="display:none"></div>
-      <!-- Sub-tabs nav -->
-      <div style="display:flex;gap:0;border-bottom:2px solid #ddd;margin-bottom:16px">
-        <button id="cheqtab-btn-lista" onclick="cheqTab('lista')"
-          style="padding:9px 22px;border:none;border-bottom:3px solid #1a3a2a;background:#fff;font-weight:700;color:#1a3a2a;font-size:.88rem;cursor:pointer">Lista de cheques</button>
-        <button id="cheqtab-btn-desconto" onclick="cheqTab('desconto')"
-          style="padding:9px 22px;border:none;border-bottom:3px solid transparent;background:#fff;font-weight:400;color:#999;font-size:.88rem;cursor:pointer">Desconto por fornecedor</button>
-        <button id="cheqtab-btn-historico" onclick="cheqTab('historico')"
-          style="padding:9px 22px;border:none;border-bottom:3px solid transparent;background:#fff;font-weight:400;color:#999;font-size:.88rem;cursor:pointer">Histórico por banco</button>
-        <button class="btn-edit" onclick="cheqExportarJSON()" title="Baixa uma cópia de TODOS os cheques desta aba (pra juntar no Controle). Não apaga nada." style="margin-left:auto;background:#8e44ad;color:#fff">⬇️ Exportar p/ Controle</button>
-        <button class="btn-edit" onclick="abrirSnapshots()" title="Cópia diária de dados de negócio do RTDB, sem arquivos do Storage. Restauração exclusiva da Elaine em manutenção.">📦 Snapshots Diários</button>
-        <button class="btn-edit" onclick="om('historico_geral')" title="Vê tudo que foi criado, editado ou excluído em Adiantamentos, Cheques e Bancos — dá pra restaurar o que foi excluído" style="margin-left:auto">🕐 Log de Alterações</button>
-        <button class="btn-add" onclick="om('cheque')" style="margin-bottom:4px">+ Novo cheque</button>
+      <div class="erp-checks-toolbar">
+        <div class="erp-checks-tabs" role="tablist" aria-label="Visualização de cheques">
+          <button id="cheqtab-btn-lista" type="button" onclick="cheqTab('lista')" class="erp-checks-tab" style="font-weight:700;color:#1a3a2a;border-bottom-color:#1a3a2a">Lista de cheques</button>
+          <button id="cheqtab-btn-desconto" type="button" onclick="cheqTab('desconto')" class="erp-checks-tab">Desconto por fornecedor</button>
+          <button id="cheqtab-btn-historico" type="button" onclick="cheqTab('historico')" class="erp-checks-tab">Histórico por banco</button>
+        </div>
+        <div class="erp-checks-actions">
+          <details class="erp-actions-dropdown">
+            <summary>Mais ações</summary>
+            <div class="erp-actions-dropdown-list">
+              <button type="button" onclick="cheqExportarJSON()" title="Exportar cheques para o Controle">Exportar para controle</button>
+              <button type="button" onclick="abrirSnapshots()" title="Acessar snapshots diários">Snapshots diários</button>
+              <button type="button" onclick="om('historico_geral')" title="Consultar o log de alterações">Log de alterações</button>
+            </div>
+          </details>
+          <button type="button" class="btn-add" onclick="om('cheque')">Novo cheque</button>
+        </div>
       </div>
       <!-- SUB-TAB: Lista -->
       <div id="cheqtab-lista">
@@ -1704,7 +1713,7 @@
       <div id="cheq-grand-total" style="display:none"></div>
       <div id="cheq-grand-pend-sub" style="display:none"></div>
       <!-- Barra de busca -->
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+      <div class="erp-checks-filters">
         <input type="text" id="cheq-busca-num" placeholder="Buscar por número ou fornecedor..." oninput="renderCheques()"
           style="flex:1;min-width:160px;max-width:240px;padding:7px 12px;border:1.5px solid #1a3a2a;border-radius:8px;font-size:.88rem">
         <div style="display:flex;align-items:center;gap:6px">
@@ -2029,7 +2038,7 @@
     <div class="tab-panel" id="tab-documentos_empresas">
       <div class="sec-title">Documentos</div>
       <!-- Filtros -->
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+      <div class="erp-docs-filters">
         <div>
           <label style="font-size:.75rem;font-weight:700;color:#555;display:block;margin-bottom:3px">Tipo</label>
           <select id="de-filtro-tipo" onchange="renderDocsEmpresas()" style="padding:7px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:.88rem;background:#fff">
@@ -2519,7 +2528,7 @@
 <!-- DESPESAS GRUPO -->
     <div class="tab-panel" id="tab-despesas_grupo">
       <div class="sec-title">Despesas por grupo</div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+      <div class="erp-expenses-filters">
         <input type="month" id="fil-mes" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:.88rem" onchange="despAtualizar()">
         <select id="fil-emp" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:.88rem" onchange="despAtualizar()">
           <option value="">Todas as empresas</option>
