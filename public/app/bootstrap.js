@@ -58,15 +58,33 @@ function setText(selector, value) {
   document.querySelectorAll(selector).forEach((el) => { el.textContent = value || ''; });
 }
 
+function buildBrandLogoMarkup(branding = {}, company = {}) {
+  const wrap = document.createDocumentFragment();
+  const img = document.createElement('img');
+  img.src = '/assets/branding/manuela-metais-logo.webp';
+  img.alt = company.nome || company.razaoSocial || 'Logo da empresa';
+  img.className = 'brand-logo-img';
+  img.onerror = () => { img.style.display = 'none'; };
+  wrap.appendChild(img);
+
+  const text = document.createElement('span');
+  text.className = 'brand-logo-text';
+  const prefix = branding.logoPrefix || company.nome || '';
+  const accent = branding.logoAccent || '';
+  text.append(document.createTextNode(prefix));
+  const span = document.createElement('span');
+  span.textContent = accent;
+  text.appendChild(span);
+  wrap.appendChild(text);
+  return wrap;
+}
+
 function applyPublicBranding(publicConfig) {
   const branding = publicConfig?.branding || {};
   const company = publicConfig?.company || {};
   document.querySelectorAll('[data-brand-logo]').forEach((el) => {
-    const prefix = branding.logoPrefix || '';
-    const accent = branding.logoAccent || '';
     el.textContent = '';
-    el.append(document.createTextNode(prefix));
-    const span = document.createElement('span'); span.textContent = accent; el.appendChild(span);
+    el.appendChild(buildBrandLogoMarkup(branding, company));
   });
   setText('[data-brand-tagline]', branding.tagline);
   setText('[data-brand-cnpj]', company.cnpj);

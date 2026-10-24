@@ -963,6 +963,58 @@ const TABS_CFG = {
 
 
 
+
+function _svgIcon(paths, cls=''){return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" class="'+cls+'">'+paths+'</svg>';}
+function _icon(kind){
+  const icons={
+    chart:_svgIcon('<path d="M4 19V5"/><path d="M10 19V10"/><path d="M16 19V7"/><path d="M22 19V3"/><path d="M3 19h20"/>'),
+    cart:_svgIcon('<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l2.2 10.2a1 1 0 0 0 1 .8h9.8a1 1 0 0 0 1-.8L21 7H7"/>'),
+    calendar:_svgIcon('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M3 10h18"/>'),
+    truck:_svgIcon('<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7.5" cy="18" r="1.5"/><circle cx="17.5" cy="18" r="1.5"/>'),
+    scale:_svgIcon('<path d="M12 4v16"/><path d="M6 8h12"/><path d="M4 8l-2 4h4z"/><path d="M20 8l-2 4h4z"/><path d="M8 20h8"/>'),
+    box:_svgIcon('<path d="M12 3l8 4-8 4-8-4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/><path d="M12 11v10"/>'),
+    handshake:_svgIcon('<path d="M9 11l2 2a2 2 0 0 0 3 0l3-3"/><path d="M7 13l-2 2a2 2 0 0 1-3-3l4-4a2 2 0 0 1 3 0l1 1"/><path d="M17 11l2 2a2 2 0 0 0 3-3l-4-4a2 2 0 0 0-3 0l-1 1"/>'),
+    users:_svgIcon('<path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 4.13a3 3 0 0 1 0 5.74"/>'),
+    currency:_svgIcon('<path d="M12 2v20"/><path d="M17 6.5c0-1.7-2.2-3-5-3s-5 1.3-5 3 1.5 2.6 5 3 5 1.3 5 3-2.2 3-5 3-5-1.3-5-3"/>'),
+    clock:_svgIcon('<circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/>'),
+    file:_svgIcon('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'),
+    receipt:_svgIcon('<path d="M7 3h10v18l-2-1-2 1-2-1-2 1-2-1-2 1V3z"/><path d="M9 8h6"/><path d="M9 12h6"/><path d="M9 16h4"/>'),
+    bell:_svgIcon('<path d="M6 8a6 6 0 1 1 12 0c0 7 3 6 3 8H3c0-2 3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/>'),
+    bank:_svgIcon('<path d="M3 10l9-5 9 5"/><path d="M5 10v8"/><path d="M10 10v8"/><path d="M14 10v8"/><path d="M19 10v8"/><path d="M3 21h18"/>'),
+    clipboard:_svgIcon('<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4.5h6"/><path d="M9 10h6"/><path d="M9 14h6"/>'),
+    flow:_svgIcon('<circle cx="6" cy="6" r="2"/><circle cx="18" cy="12" r="2"/><circle cx="6" cy="18" r="2"/><path d="M8 6h4a4 4 0 0 1 4 4v0"/><path d="M8 18h4a4 4 0 0 0 4-4v0"/>'),
+    briefcase:_svgIcon('<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 12h18"/>'),
+    card:_svgIcon('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/>'),
+    tag:_svgIcon('<path d="M20 12l-8 8-9-9V4h7z"/><circle cx="7.5" cy="7.5" r="1"/>'),
+    contract:_svgIcon('<path d="M8 3h8l5 5v13H8z"/><path d="M16 3v5h5"/><path d="M10 13h8"/><path d="M10 17h8"/>'),
+    settings:_svgIcon('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.54V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.54 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.54-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.54-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.54V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.54 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.67.24 1.12.87 1.12 1.58V11a2 2 0 1 1 0 4h-.09c-.71 0-1.34.45-1.58 1z"/>'),
+    home:_svgIcon('<path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/>'),
+    list:_svgIcon('<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>'),
+    car:_svgIcon('<path d="M5 16l1.5-5h11L19 16"/><path d="M3 16h18"/><circle cx="7" cy="17" r="1.5"/><circle cx="17" cy="17" r="1.5"/>'),
+    fuel:_svgIcon('<path d="M6 20V5a2 2 0 0 1 2-2h5v17z"/><path d="M14 7h2l2 2v7a2 2 0 1 0 4 0v-4"/><path d="M8 7h3"/>'),
+    building:_svgIcon('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h.01"/><path d="M12 7h.01"/><path d="M16 7h.01"/><path d="M8 11h.01"/><path d="M12 11h.01"/><path d="M16 11h.01"/><path d="M10 21v-4h4v4"/>'),
+    shield:_svgIcon('<path d="M12 3l7 3v6c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V6z"/><path d="M9 12l2 2 4-4"/>'),
+    warehouse:_svgIcon('<path d="M3 10l9-6 9 6"/><path d="M5 10v10h14V10"/><path d="M9 20v-5h6v5"/>'),
+    chat:_svgIcon('<path d="M4 5h16v10H8l-4 4z"/>'),
+    folder:_svgIcon('<path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
+    vest:_svgIcon('<path d="M9 3l3 2 3-2 3 5-2 2v11H8V10L6 8z"/><path d="M10 11h4"/><path d="M10 15h4"/>'),
+    lock:_svgIcon('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+    check:_svgIcon('<circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/>'),
+    grid:_svgIcon('<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>')
+  };
+  return icons[kind]||icons.grid;
+}
+function _sidebarTabIcon(tab){
+  const map={
+    dashboard:'chart',compra_sucata:'cart',agenda_entregas:'calendar',rod_balanca:'truck',balanceiro:'scale',estoque:'box',fornecedores:'handshake',clientes:'users',vendas:'currency',caminhoes:'truck',adiantamentos:'currency',ponto:'clock',canhoto_compra:'file',contas_pagar:'receipt',contas_receber:'receipt',afazeres:'check',avisos:'bell',contas_banco:'bank',cheques:'clipboard',cheques_compensar:'receipt',fin_clientes:'users',fluxo_caixa:'flow',funcionarios:'users',vales:'card',folha_pagamento:'receipt',precos_fornecedores:'tag',precos_clientes:'tag',contratos:'contract',config:'settings',custo_casa:'home',lista_compras:'list',viagem_motorista:'car',combustivel_rudnick:'fuel',despesas_grupo:'building',usuarios:'shield',almoxarifado:'warehouse',chat:'chat',documentos_empresas:'folder',fiscal:'receipt',epi:'vest',coordenacao:'clipboard',senhas:'lock'
+  };
+  return _icon(map[tab]||'grid');
+}
+function _sidebarGroupIcon(groupId){
+  const map={_dash:'grid',operacional:'warehouse',comercial:'briefcase',financeiro:'bank',rh:'users',frota:'truck',fiscal:'receipt',admin:'building',coordenador:'clipboard',comunicacao:'chat',afazeres_grp:'check'};
+  return _icon(map[groupId]||'grid');
+}
+
 const FUNCIONARIOS = [];
 
 
@@ -1264,7 +1316,7 @@ function startApp(username) {
     if(!isDash){
       const hdr=document.createElement('div');
       hdr.className='sb-group-hdr';
-      hdr.innerHTML=`<span class="sb-gicon">${mod.icon}</span><span class="sb-glabel">${mod.label}</span><span class="sb-arr">▶</span>`;
+      hdr.innerHTML=`<span class="sb-gicon">${_sidebarGroupIcon(mod.id)}</span><span class="sb-glabel">${mod.label}</span><span class="sb-arr">▶</span>`;
       hdr.onclick=()=>{ grp.classList.toggle('open'); };
       grp.appendChild(hdr);
     }
@@ -1274,7 +1326,7 @@ function startApp(username) {
       const cfg=TABS_CFG[tid];
       const el=document.createElement('div');
       el.className='nav-tab'; el.dataset.tab=tid;
-      el.innerHTML=`<span class="nt-icon">${cfg.icon}</span><span class="nt-label">${cfg.label}</span>`;
+      el.innerHTML=`<span class="nt-icon">${_sidebarTabIcon(tid)}</span><span class="nt-label">${cfg.label}</span>`;
       el.onclick=()=>switchTab(tid);
       items.appendChild(el);
     });
