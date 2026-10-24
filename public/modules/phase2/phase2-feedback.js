@@ -438,9 +438,137 @@ function fixSearchFocus(){
   const adv=$('#adv-busca');keepSearchFocus(adv,v=>{const q=norm(v);$$('#adv-lista>div').forEach(x=>x.hidden=!!q&&!norm(x.textContent).includes(q));});
 }
 
+/* ---------- Navegação compacta dos módulos operacionais ---------- */
+function workspaceCreate(tab, entries, activeKey){
+  if(tab.querySelector('.erp-workspace-nav'))return null;
+  const nav=document.createElement('nav');
+  nav.className='erp-workspace-nav';
+  nav.setAttribute('aria-label','Seções do módulo');
+  const buttons=document.createElement('div');
+  buttons.className='erp-workspace-buttons';
+  buttons.setAttribute('role','tablist');
+  const panels=document.createElement('div');
+  panels.className='erp-workspace-panels';
+  const views={};
+  entries.forEach(({key,label})=>{
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='erp-workspace-tab';
+    button.textContent=label;
+    button.id='erp-'+tab.id+'-'+key+'-button';
+    button.setAttribute('role','tab');
+    button.setAttribute('aria-controls','erp-'+tab.id+'-'+key+'-panel');
+    const panel=document.createElement('section');
+    panel.className='erp-workspace-panel';
+    panel.id='erp-'+tab.id+'-'+key+'-panel';
+    panel.setAttribute('role','tabpanel');
+    panel.setAttribute('aria-labelledby',button.id);
+    views[key]={button,panel};
+    buttons.appendChild(button);
+    panels.appendChild(panel);
+    button.addEventListener('click',()=>select(key));
+    button.addEventListener('keydown',ev=>{
+      if(ev.key!=='ArrowLeft'&&ev.key!=='ArrowRight'&&ev.key!=='Home'&&ev.key!=='End')return;
+      ev.preventDefault();
+      const keys=entries.map(item=>item.key);
+      const index=keys.indexOf(key);
+      const next=ev.key==='Home'?keys[0]:ev.key==='End'?keys[keys.length-1]:keys[(index+keys.length+(ev.key==='ArrowLeft'?-1:1))%keys.length];
+      select(next);
+      views[next].button.focus();
+    });
+  });
+  function select(key){
+    Object.entries(views).forEach(([name,{button,panel}])=>{
+      const on=name===key;
+      button.classList.toggle('is-active',on);
+      button.setAttribute('aria-selected',String(on));
+      button.tabIndex=on?0:-1;
+      panel.hidden=!on;
+    });
+    tab.dataset.erpWorkspaceView=key;
+  }
+  nav.appendChild(buttons);
+  tab.querySelector('.sec-title')?.insertAdjacentElement('afterend',nav);
+  nav.insertAdjacentElement('afterend',panels);
+  select(activeKey);
+  return {views,select};
+}
+function workspaceTripExpenses(){
+  const register=document.querySelector('#tab-viagem_motorista .phase2-trip-card');
+  const obs=document.getElementById('vg-obs');
+  if(!register||!obs||register.querySelector('.erp-trip-expenses'))return;
+  const details=document.createElement('details');
+  details.className='erp-trip-expenses';
+  const summary=document.createElement('summary');
+  summary.textContent='Despesas e adiantamento';
+  details.appendChild(summary);
+  const fields=document.createElement('div');
+  fields.className='erp-trip-expenses-fields';
+  details.appendChild(fields);
+  ['vg-comb','vg-dinheiro-alim'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el&&el.parentElement)fields.appendChild(el.parentElement);
+  });
+  const change=document.getElementById('vg-troco-show');
+  if(change)fields.appendChild(change);
+  const extra=register.querySelector('.phase1-trip-extra');
+  if(extra)fields.appendChild(extra);
+  const oldMeals=register.querySelector('.phase2-trip-meals');
+  if(oldMeals)oldMeals.insertAdjacentElement('afterend',details);
+  else obs.closest('.fg')?.insertAdjacentElement('beforebegin',details);
+}
+function workspaceTrip(){
+  const tab=document.getElementById('tab-viagem_motorista');
+  if(!tab||tab.querySelector('.erp-workspace-nav')||tab.dataset.phase2!=='1')return;
+  const cards=Array.from(tab.children).filter(node=>node.classList?.contains('tcard'));
+  const register=cards.find(node=>node.classList.contains('phase2-trip-card'));
+  const cost=cards.find(node=>node.classList.contains('phase2-trip-secondary'));
+  const history=cards.find(node=>node.classList.contains('phase2-trip-history-card'));
+  const kpis=tab.querySelector('#viagem-kpis');
+  const limit=document.getElementById('vg-limite-alim')?.parentElement;
+  if(!register||!cost||!history||!kpis||!limit)return;
+  workspaceTripExpenses();
+  const workspace=workspaceCreate(tab,[
+    {key:'history',label:'Viagens'},
+    {key:'register',label:'Nova viagem'},
+    {key:'cost',label:'Custos e limites'}
+  ],'history');
+  if(!workspace)return;
+  const {views}=workspace;
+  views.history.panel.appendChild(history);
+  views.register.panel.appendChild(register);
+  views.cost.panel.appendChild(kpis);
+  views.cost.panel.appendChild(cost);
+  views.cost.panel.appendChild(limit);
+  tab.classList.add('erp-workspace-ready');
+}
+function workspacePoint(){
+  const tab=document.getElementById('tab-ponto');
+  if(!tab||tab.querySelector('.erp-workspace-nav'))return;
+  const cards=Array.from(tab.children).filter(node=>node.classList?.contains('tcard'));
+  const manual=cards.find(node=>node.querySelector('#tb-ponto'));
+  const imported=cards.find(node=>node.querySelector('#ponto-rhid-input'));
+  if(!manual||!imported)return;
+  const manualTable=manual.querySelector('table');
+  if(manualTable&&!manualTable.closest('.erp-point-table-scroll')){
+    const scroll=document.createElement('div');
+    scroll.className='erp-point-table-scroll';
+    manualTable.parentElement.insertBefore(scroll,manualTable);
+    scroll.appendChild(manualTable);
+  }
+  const workspace=workspaceCreate(tab,[
+    {key:'manual',label:'Lançamentos'},
+    {key:'imported',label:'Cartões importados'}
+  ],'manual');
+  if(!workspace)return;
+  const {views}=workspace;
+  views.manual.panel.appendChild(manual);
+  views.imported.panel.appendChild(imported);
+  tab.classList.add('erp-workspace-ready');
+}
 /* ---------- Aplicação recorrente ---------- */
 function apply(){
-  removeNumberSpinners();fixPartyBanks();rebuildCalendarTools();priceSearches();cleanChequeControl();simplifyPayables();cleanAdvances();repairDiscreteStocks();ensureUnifiedEpi();redesignTrip();replaceFiscalRegistry();simplifyExpensesGroup();addContractRenameButtons();mergeCasaGloria();restoreCoordTypes();filterCoordEmployees();filterCoordFunctionCards();fixSearchFocus();renderTripHistoryCards();
+  removeNumberSpinners();fixPartyBanks();rebuildCalendarTools();priceSearches();cleanChequeControl();simplifyPayables();cleanAdvances();repairDiscreteStocks();ensureUnifiedEpi();redesignTrip();workspaceTrip();workspacePoint();replaceFiscalRegistry();simplifyExpensesGroup();addContractRenameButtons();mergeCasaGloria();restoreCoordTypes();filterCoordEmployees();filterCoordFunctionCards();fixSearchFocus();renderTripHistoryCards();
 }
 if(global.Phase1Dom)global.Phase1Dom.register(apply);else setInterval(apply,1000);
 setTimeout(()=>{apply();ensureOwnerModule();loadFiscalParties();},350);

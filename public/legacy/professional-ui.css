@@ -262,3 +262,195 @@
   #app-screen .content{background:#fff!important}
   #tab-cheques .erp-checks-toolbar,#tab-cheques .erp-checks-filters{display:none!important}
 }
+
+/* Grupos do menu: cabeçalho e opções devem ser percebidos como níveis diferentes. */
+#app-screen .sidebar .sb-group:not(.sb-standalone){
+  margin:11px 8px 0;
+  border:1px solid #355442;
+  border-radius:8px;
+  background:#193627;
+  overflow:hidden;
+}
+#app-screen .sidebar .sb-group:not(.sb-standalone) .sb-group-hdr{
+  min-height:40px;
+  padding:11px 10px;
+  gap:9px;
+  background:#244331;
+  border-bottom:1px solid transparent;
+  color:#d6e5d8;
+  font-size:.7rem;
+  font-weight:800;
+  letter-spacing:.065em;
+}
+#app-screen .sidebar .sb-group.open:not(.sb-standalone) .sb-group-hdr{
+  border-bottom-color:#355442;
+}
+#app-screen .sidebar .sb-group:not(.sb-standalone) .sb-items{
+  padding:5px 3px 7px;
+  background:#193627;
+}
+#app-screen .sidebar .sb-group:not(.sb-standalone) .nav-tab{
+  margin:2px 2px;
+  padding:9px 8px 9px 11px;
+  min-height:35px;
+  border-radius:5px;
+  border-left:2px solid transparent;
+  line-height:1.28;
+  gap:10px;
+}
+#app-screen .sidebar .sb-group:not(.sb-standalone) .nav-tab:hover{
+  background:#294938;
+}
+#app-screen .sidebar .sb-group:not(.sb-standalone) .nav-tab.active{
+  border-left-color:#e2cc7f;
+  background:#31523e;
+}
+#app-screen .sidebar .sb-standalone{
+  margin:6px 8px 10px;
+  padding-bottom:9px;
+  border-bottom:1px solid #355442;
+}
+#app-screen .sidebar .sb-standalone .nav-tab{
+  margin:2px 0;
+  border-radius:5px;
+  padding:10px 12px;
+}
+#app-screen .sidebar.collapsed .sb-group:not(.sb-standalone){margin:6px 2px}
+#app-screen .sidebar.collapsed .sb-group:not(.sb-standalone) .sb-group-hdr{padding:10px 13px}
+#app-screen .sidebar.collapsed .sb-group:not(.sb-standalone) .sb-items{display:none!important}
+#app-screen .sidebar.collapsed .sb-standalone{margin:4px 2px;padding:0}
+
+/* Subnavegação funcional: preserva inputs, eventos e IDs das telas originais. */
+#app-screen .erp-workspace-nav{
+  display:flex;
+  align-items:center;
+  background:#fff;
+  border:1px solid #dce5de;
+  border-radius:8px;
+  margin:0 0 18px;
+  padding:0 12px;
+  min-height:48px;
+}
+#app-screen .erp-workspace-buttons{display:flex;flex-wrap:wrap;gap:3px;align-items:stretch}
+#app-screen .erp-workspace-tab{
+  appearance:none;
+  font:650 .85rem 'Inter',system-ui,sans-serif;
+  color:#627369;
+  background:transparent;
+  padding:14px 18px;
+  border:0;
+  border-bottom:2px solid transparent;
+  margin-bottom:-1px;
+  transition:background .15s,color .15s;
+}
+#app-screen .erp-workspace-tab:hover{background:#f2f6f2;color:#254d35}
+#app-screen .erp-workspace-tab.is-active{
+  color:#1c5036;
+  border-bottom-color:#1c5036;
+  background:#f5f9f5;
+  font-weight:750;
+}
+#app-screen .erp-workspace-tab:focus-visible{outline:2px solid #27754e;outline-offset:-4px}
+#app-screen .erp-workspace-panel[hidden]{display:none!important}
+#app-screen .erp-workspace-panel>.tcard{margin:0 0 16px!important}
+#app-screen .erp-workspace-panel>.tcard:last-child{margin-bottom:0!important}
+
+/* Controle de ponto: totais objetivos, tabela de lançamentos e importação em páginas distintas. */
+#tab-ponto .kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}
+#tab-ponto .kpi{padding:12px 15px;border-radius:7px;min-height:85px}
+#tab-ponto .kpi-val{font-size:1.25rem;line-height:1.3}
+#tab-ponto .kpi-sub{font-size:.72rem}
+#tab-ponto .erp-workspace-panel .tcard-hdr{min-height:58px}
+#tab-ponto .erp-workspace-panel .tcard{
+  min-width:0;
+  overflow:hidden;
+}
+#tab-ponto .erp-point-table-scroll{width:100%;overflow-x:auto}
+#tab-ponto .erp-point-table-scroll table{width:100%;min-width:890px;table-layout:auto}
+#tab-ponto .erp-point-table-scroll :is(th,td){padding:11px 14px;white-space:nowrap}
+#tab-ponto .erp-workspace-panel .btn-import-pdf{background:#1d4933!important;border:1px solid #1d4933!important}
+#tab-ponto #ponto-cartao-host{max-width:100%;overflow:auto}
+#tab-ponto #ponto-cartao-host:empty{min-height:48px}
+
+/* Viagem motorista: o registro deixa de competir com histórico e relatório anual. */
+#tab-viagem_motorista .erp-workspace-panel{min-width:0}
+#tab-viagem_motorista .erp-workspace-panel>.kpi-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px;
+}
+#tab-viagem_motorista .erp-workspace-panel>.kpi-grid .kpi{padding:12px 15px;min-height:90px}
+#tab-viagem_motorista .phase2-trip-card{overflow:visible!important}
+#tab-viagem_motorista .phase2-trip-card>.tcard-hdr{min-height:58px}
+#tab-viagem_motorista .phase2-trip-card>.phase2-step{
+  margin:19px 0 11px;
+  padding-bottom:8px;
+  border-bottom:1px solid #e4ebe6;
+  font-size:.85rem;
+  font-weight:750;
+  color:#2a4635;
+}
+#tab-viagem_motorista .phase2-trip-card>.phase2-step>b{display:none}
+#tab-viagem_motorista .phase2-trip-card>.phase2-step>span{font-weight:750}
+#tab-viagem_motorista .phase2-trip-card>div[style*="grid-template-columns:repeat(4,1fr)"],
+#tab-viagem_motorista .phase2-trip-card>div[style*="grid-template-columns:repeat(5,1fr)"]{
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr))!important;
+  gap:14px!important;
+  margin-bottom:15px!important;
+}
+#tab-viagem_motorista .phase2-trip-meals,
+#tab-viagem_motorista .erp-trip-expenses{border:1px solid #dce5de;border-radius:7px;background:#fff;margin:12px 0}
+#tab-viagem_motorista .phase2-trip-meals>summary,
+#tab-viagem_motorista .erp-trip-expenses>summary{
+  display:flex;align-items:center;gap:10px;
+  padding:13px 16px;
+  font-size:.84rem;font-weight:750;color:#324e3b;
+  list-style:none;cursor:pointer;
+}
+#tab-viagem_motorista .phase2-trip-meals>summary::-webkit-details-marker,
+#tab-viagem_motorista .erp-trip-expenses>summary::-webkit-details-marker{display:none}
+#tab-viagem_motorista .phase2-trip-meals>summary>b{display:none}
+#tab-viagem_motorista .phase2-trip-meals>summary>span{font-weight:750}
+#tab-viagem_motorista .phase2-trip-meals>summary>small{display:none}
+#tab-viagem_motorista .phase2-trip-meals>summary::after,
+#tab-viagem_motorista .erp-trip-expenses>summary::after{
+  content:'⌄';margin-left:auto;color:#587260;font-size:1.1rem;line-height:1;
+}
+#tab-viagem_motorista .phase2-trip-meals[open]>summary,
+#tab-viagem_motorista .erp-trip-expenses[open]>summary{background:#f7faf8;border-bottom:1px solid #e5ebe6}
+#tab-viagem_motorista .phase2-trip-meals[open]>summary::after,
+#tab-viagem_motorista .erp-trip-expenses[open]>summary::after{transform:rotate(180deg)}
+#tab-viagem_motorista .erp-trip-expenses-fields{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px 16px;padding:16px;
+}
+#tab-viagem_motorista .erp-trip-expenses-fields>div{min-width:0;max-width:100%}
+#tab-viagem_motorista .erp-trip-expenses-fields :is(label,input){display:block!important;margin:0!important}
+#tab-viagem_motorista .erp-trip-expenses-fields label{margin-bottom:7px!important}
+#tab-viagem_motorista .erp-trip-expenses-fields input{width:100%!important;max-width:100%!important;height:37px}
+#tab-viagem_motorista .erp-trip-expenses-fields .phase1-trip-extra{padding:0;border:0;background:transparent;display:flex;flex-direction:column;gap:6px}
+#tab-viagem_motorista .erp-trip-expenses-fields .phase1-trip-extra small{font-size:.7rem;color:#76857b}
+#tab-viagem_motorista .erp-trip-expenses-fields #vg-troco-show{align-self:end;min-height:37px}
+#tab-viagem_motorista .phase2-trip-summary{
+  grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px;margin:14px 0;
+}
+#tab-viagem_motorista .phase2-trip-summary>div{padding:12px;border-radius:6px}
+#tab-viagem_motorista .phase2-trip-summary small{font-size:.67rem}
+#tab-viagem_motorista .phase2-trip-summary b{font-size:.9rem}
+#tab-viagem_motorista .phase2-trip-history-list{padding:14px;gap:10px}
+#tab-viagem_motorista .phase2-trip-history-item{padding:13px 14px;border-radius:7px}
+#tab-viagem_motorista .phase2-trip-secondary{opacity:1}
+#tab-viagem_motorista #vg-limite-alim{background:#fff}
+#tab-viagem_motorista .erp-workspace-panel[data-empty]{min-height:0}
+
+@media(max-width:1050px){
+  #tab-ponto .kpi-grid,#tab-viagem_motorista .erp-workspace-panel>.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:650px){
+  #app-screen .erp-workspace-nav{padding:0 6px}
+  #app-screen .erp-workspace-tab{padding:12px 10px;font-size:.75rem}
+  #tab-ponto .kpi-grid,#tab-viagem_motorista .erp-workspace-panel>.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #tab-viagem_motorista .erp-trip-expenses-fields{grid-template-columns:1fr}
+  #tab-ponto .tcard-hdr{align-items:flex-start}
+}
+@media print{
+  #app-screen .erp-workspace-nav{display:none!important}
+  #app-screen .erp-workspace-panel[hidden]{display:block!important}
+}
