@@ -71,3 +71,9 @@
 .erp-statement-table .erp-statement-empty{text-align:center;color:#758278;padding:24px}
 @media(max-width:1000px){.erp-statement-entry-fields{grid-template-columns:repeat(3,minmax(0,1fr))}.erp-statement-entry-fields .erp-statement-wide{grid-column:span 2}}
 @media(max-width:640px){.erp-statement-totals{grid-template-columns:repeat(2,minmax(0,1fr))}.erp-statement-entry-fields{grid-template-columns:1fr 1fr}.erp-statement-entry-fields .erp-statement-wide{grid-column:span 2}.erp-statement-filters>label{width:calc(50% - 6px)}.erp-statement-filters>input{max-width:100%;flex:1 1 100%}#modal-body.erp-bank-statement{padding:14px}}
+
+/* Saldos de legado fora da escala: não sobrepor valores ou controles. */
+.erp-bank-statement .erp-statement-totals strong{font-size:clamp(.78rem,1vw,1.06rem);line-height:1.4;overflow-wrap:anywhere;word-break:break-word}
+.erp-bank-statement .erp-ledger-precision-warning{padding:10px 13px;margin:0 0 14px;border:1px solid #e1c57a;border-radius:7px;background:#fff9e9;color:#725312;font-size:.78rem;line-height:1.45}
+.erp-bank-statement .erp-statement-table td.erp-money{max-width:260px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.45;text-align:right}
+#tab-contas_banco .kpi-val{overflow-wrap:anywhere;word-break:break-word}

@@ -18680,7 +18680,9 @@ function renderBancos(){
     if(kpi) kpi.textContent='—';
     return;
   }
-  const fmt=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const ledger=window.erpBankLedger;
+  const fmt=v=>ledger?ledger.brl(v):Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const balanceByCode=new Map(BANCOS_DB.map(b=>[b.cod,ledger?ledger.statement({openingBalance:b.saldo||0,bankCode:b.cod,entries:LANC_BANCO_DB}):null]));
   const empCor={}; _cfgFinanceCompanies().forEach(function(n){ empCor[n]=_cfgFinanceCompanyColor(n); });
   if(BANCOS_DB.length===0){
     tbody.innerHTML='<tr><td colspan="11" style="color:var(--gray);text-align:center;padding:20px">Nenhuma conta cadastrada</td></tr>';
@@ -18691,9 +18693,10 @@ function renderBancos(){
   tbody.innerHTML=BANCOS_DB.map((b,i)=>{
     const _empresaVisual=b.empresa||_empresaPorTexto([b.banco,b.titular,b.pix,b.cpfcnpj].filter(Boolean).join(' '));
     const isTerceiro=b.tipo==='Conta Terceiro';
-    const movs=LANC_BANCO_DB.filter(l=>l.bancoCod===b.cod);
-    const saldoAtual=Number(b.saldo||0)+movs.reduce((s,l)=>s+(l.tipo==='Entrada'?1:-1)*Number(l.valor||0),0);
-    const saldoColor=saldoAtual<0?'color:#c0392b':saldoAtual===0?'color:#999':'color:#1a5e2a';
+    const summary=balanceByCode.get(b.cod);
+    const saldoAtual=summary?.closingBalance??Number(b.saldo||0);
+    const saldoSign=ledger?ledger.sign(saldoAtual):Math.sign(saldoAtual);
+    const saldoColor=saldoSign<0?'color:#c0392b':saldoSign===0?'color:#999':'color:#1a5e2a';
     return '<tr>'
       +'<td style="font-size:.78rem;color:var(--gray)">'+esc(b.cod)+'</td>'
       +'<td><b>'+esc(b.banco)+'</b>'+(b.agencia?' <small>Ag '+esc(b.agencia)+'</small>':'')+' – <small>'+esc(b.conta||'—')+'</small></td>'
@@ -18719,14 +18722,13 @@ function renderBancos(){
   if(kpiTotal) kpiTotal.textContent=BANCOS_DB.length;
   const kpiSaldo=document.querySelectorAll('#tab-contas_banco .kpi-val')[1];
   
-  const saldoTotalAtual=BANCOS_DB.reduce((s,b)=>{
-    const movs=LANC_BANCO_DB.filter(l=>l.bancoCod===b.cod);
-    const sa=Number(b.saldo||0)+movs.reduce((ms,l)=>ms+(l.tipo==='Entrada'?1:-1)*Number(l.valor||0),0);
-    return s+sa;
-  },0);
+  const saldoTotalAtual=ledger
+    ?ledger.addMoney(BANCOS_DB.map(b=>balanceByCode.get(b.cod).closingBalance))
+    :BANCOS_DB.reduce((s,b)=>s+Number(b.saldo||0),0);
   if(kpiSaldo) kpiSaldo.textContent='R$ '+fmt(saldoTotalAtual);
   const kpiSub=document.querySelector('#tab-contas_banco .kpi-sub');
-  if(kpiSub) kpiSub.textContent=BANCOS_DB.length>0?'Saldo consolidado atualizado':'Aguardando saldos';
+  if(kpiSub) kpiSub.textContent=[...balanceByCode.values()].some(value=>value?.hasUnsafeLegacyValues||value?.invalidValues)
+    ?'Revise lançamentos antigos fora da precisão ou inválidos':'Saldo consolidado atualizado';
 
   
   window._bancosDropdown=BANCOS_DB.map(b=>b.banco+(b.titular&&b.titular!==_empresaPrincipalRazao()?' ('+b.titular+')':''));
@@ -19017,7 +19019,9 @@ function verExtratoBanco(cod){
       '<div><small>Saldo inicial</small><strong>'+money(statement.openingBalance)+'</strong></div>'+
       '<div><small>Entradas</small><strong>'+money(statement.credits)+'</strong></div>'+
       '<div><small>Saídas</small><strong>'+money(statement.debits)+'</strong></div>'+
-      '<div><small>Saldo atual</small><strong>'+money(statement.closingBalance)+'</strong></div></div>'+
+      '<div><small>Saldo atual</small><strong>'+money(statement.closingBalance)+'</strong></div></div>'+ 
+    (statement.hasUnsafeLegacyValues?'<p class="erp-ledger-precision-warning" role="status">Existem valores antigos acima do limite de precisão do JavaScript. O extrato soma os valores armazenados sem perder novos centavos, mas os dígitos originais desses registros podem já ter sido arredondados. Revise esses lançamentos.</p>':'')+
+    (statement.invalidValues?'<p class="erp-ledger-precision-warning" role="status">Existem '+statement.invalidValues+' valores bancários inválidos. Foram desconsiderados no cálculo; revise os registros.</p>':'')+
     '<details class="erp-statement-entry"><summary>Novo lançamento</summary>'+
       '<div class="erp-statement-entry-fields">'+
       '<label>Data<input type="date" id="lb-data"></label>'+
