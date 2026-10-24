@@ -6011,6 +6011,10 @@ function salvarEditVale(idx){
   showToast('Vale atualizado.','success');
 }
 
+function _bancoValorMonetarioValido(valor){
+  return Number.isFinite(valor) && valor>0 && Number.isSafeInteger(Math.round(valor*100));
+}
+
 function editLancBanco(id, cod){
   const l=LANC_BANCO_DB.find(x=>x.id===id);
   if(!l){alert('Lançamento não encontrado.');return;}
@@ -6018,12 +6022,12 @@ function editLancBanco(id, cod){
   const body=document.getElementById('modal-body');
   if(!body) return;
   body.innerHTML=`<h3>✏️ Editar Lançamento Bancário</h3>
-    <div class="fg"><label>Data</label><input type="date" id="elb-data" value="${l.data||''}"></div>
-    <div class="fg"><label>Descrição</label><input id="elb-desc" value="${l.descricao||''}"></div>
+    <div class="fg"><label>Data</label><input type="date" id="elb-data" value="${window.erpBankLedger?.isoDate(l.data)||''}"></div>
+    <div class="fg"><label>Descrição</label><input id="elb-desc" value="${esc(l.descricao||'')}"></div>
     <div class="fg"><label>Tipo</label>
       <select id="elb-tipo">
-        <option ${l.tipo==='Crédito'?'selected':''}>Crédito</option>
-        <option ${l.tipo==='Débito'?'selected':''}>Débito</option>
+        <option value="Entrada" ${l.tipo==='Entrada'||l.tipo==='Crédito'?'selected':''}>Entrada</option>
+        <option value="Saída" ${l.tipo!=='Entrada'&&l.tipo!=='Crédito'?'selected':''}>Saída</option>
       </select>
     </div>
     <div class="fg"><label>Valor R$</label><input type="number" id="elb-valor" step="0.01" value="${Number(l.valor).toFixed(2)}"></div>
@@ -6036,11 +6040,20 @@ function editLancBanco(id, cod){
 function salvarEditLancBanco(id, cod){
   const l=LANC_BANCO_DB.find(x=>x.id===id);
   if(!l){alert('Não encontrado.');return;}
-  l.data=document.getElementById('elb-data').value;
-  l.descricao=document.getElementById('elb-desc').value.trim();
-  l.tipo=document.getElementById('elb-tipo').value;
-  l.valor=parseFloat(document.getElementById('elb-valor').value)||0;
+  const data=document.getElementById('elb-data').value;
+  const descricao=document.getElementById('elb-desc').value.trim();
+  const tipo=document.getElementById('elb-tipo').value;
+  const valor=Number(document.getElementById('elb-valor').value);
+  if(!data || !window.erpBankLedger?.isoDate(data) || !descricao || !['Entrada','Saída'].includes(tipo) || !_bancoValorMonetarioValido(valor)){
+    alert('Preencha data, descrição, tipo e valor válido. O valor deve caber com precisão em centavos.');
+    return;
+  }
+  l.data=data;
+  l.descricao=descricao;
+  l.tipo=tipo;
+  l.valor=valor;
   saveBancos();
+  renderBancos();
   cm();
   verExtratoBanco(cod);
   showToast('Lançamento atualizado.','success');
@@ -18987,7 +19000,7 @@ function verExtratoBanco(cod){
   const money=value=>'R$ '+ledger.brl(value);
   const rows=statement.rows.map(({entry,date,incoming,amount,balance})=>{
     return '<tr data-date="'+esc(date)+'" data-type="'+(incoming?'entrada':'saida')+'">'+
-      '<td>'+esc(entry.data||'—')+'</td>'+
+      '<td>'+esc(date?date.slice(8,10)+'/'+date.slice(5,7)+'/'+date.slice(0,4):entry.data||'—')+'</td>'+
       '<td class="erp-ledger-description">'+esc(entry.descricao||'—')+'</td>'+
       '<td><span class="erp-entry-kind '+(incoming?'is-income':'is-expense')+'">'+(incoming?'Entrada':'Saída')+'</span></td>'+
       '<td class="erp-money '+(incoming?'is-income':'is-expense')+'">'+(incoming?'+ ':'- ')+money(amount)+'</td>'+
@@ -19050,21 +19063,28 @@ function salvarLancBanco(cod){
   const data=document.getElementById('lb-data')?.value;
   const desc=document.getElementById('lb-desc')?.value.trim();
   const tipo=document.getElementById('lb-tipo')?.value;
-  const valor=parseFloat(document.getElementById('lb-valor')?.value)||0;
+  const valor=Number(document.getElementById('lb-valor')?.value);
   if(!data){alert('Informe a data!');return;}
   if(!desc){alert('Informe a descrição!');return;}
-  if(!valor){alert('Informe o valor!');return;}
-  const id='LB-'+Date.now();
+  if(!['Entrada','Saída'].includes(tipo)){alert('Selecione um tipo de movimentação válido.');return;}
+  if(!_bancoValorMonetarioValido(valor)){
+    alert('Informe um valor positivo e dentro do limite de precisão em centavos.');
+    return;
+  }
+  const id='LB-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
   LANC_BANCO_DB.push({id,bancoCod:cod,data,descricao:desc,tipo,valor});
   saveBancos();
+  renderBancos();
   verExtratoBanco(cod);
 }
 
 function excluirLancBanco(id,cod){
   if(!confirm('Excluir este lançamento?')) return;
   const i=LANC_BANCO_DB.findIndex(l=>l.id===id);
-  if(i>=0) _syncLancBanco.remover(i);
+  if(i<0)return;
+  _syncLancBanco.remover(i);
   saveBancos();
+  renderBancos();
   verExtratoBanco(cod);
 }
 
