@@ -77,6 +77,16 @@ for(const [node,access] of Object.entries(directNodes)){
   const grant=(perm)=>perm==='admin'?`${auth} && auth.token.admin == true`:`${auth} && auth.token.${perm} == true`;
   candidate.rules.erp[node]={'.read':grant(access.read),'.write':grant(access.write)};
 }
+// Categorias de documentos são acessadas diretamente pelo Phase1Store.
+// Restringir esta coleção ao domínio de documentos e validar cada cadastro;
+// não habilitar o acesso genérico do nó pai.
+candidate.rules.erp.documentCategories={
+  '.read':`${auth} && auth.token.canBusinessDocs == true`,
+  '$categoryId':{
+    '.write':`${auth} && auth.token.canBusinessDocs == true`,
+    '.validate':"newData.hasChildren(['id','name']) && newData.child('id').isString() && newData.child('id').val() == $categoryId && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 120 && (!newData.child('createdAt').exists() || (newData.child('createdAt').isString() && newData.child('createdAt').val().length <= 60))"
+  }
+};
 // Coleções de tombstones V2 são lidas pela função legada de sincronização.
 // A escrita V2 fica reservada ao administrador, exceto ticketsDeletedV2.
 const legacyCore=fs.readFileSync(path.join(root,'public/legacy/app-core.js'),'utf8');

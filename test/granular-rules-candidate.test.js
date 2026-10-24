@@ -71,3 +71,13 @@ test('arquivo ativo corresponde à política granular candidata e não contém w
   assert.deepEqual(policy.nodes.tickets.write,{mode:'claims',claims:['canPurchasing']});
   assert.equal(policy.nodes.users.write.mode,'none');
 });
+
+test('categorias de documentos usam permissões específicas sem liberar outras coleções',()=>{
+  const category=hardened.rules.erp.documentCategories;
+  assert.match(category['.read'],/canBusinessDocs == true/);
+  assert.match(category.$categoryId['.write'],/canBusinessDocs == true/);
+  assert.match(category.$categoryId['.validate'],/newData\.child\('id'\)\.val\(\) == \$categoryId/);
+  assert.equal(check(category['.read'],{canBusinessDocs:true}),true);
+  assert.equal(check(category['.read'],{canPurchasing:true}),false);
+  assert.equal(hardened.rules.erp.$node,undefined);
+});

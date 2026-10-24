@@ -27,7 +27,9 @@
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f erp",
-    "audit:access": "node scripts/access-inventory.mjs"
+    "audit:access": "node scripts/access-inventory.mjs",
+    "generate:rules:candidate": "node scripts/generate-granular-database-rules.mjs",
+    "audit:security:strict": "ERP_SECURITY_STRICT=1 node scripts/release-security-check.mjs"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",

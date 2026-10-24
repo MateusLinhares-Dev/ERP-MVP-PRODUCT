@@ -26,12 +26,12 @@
   }
 
   
-  window.saveUsers = saveUsers = function(){
+  window.saveUsers = function(){
     _salvarPerfisLocal();
     try{ fbSalvar(); }catch(e){}
   };
 
-  window.doLogin = doLogin = async function(){
+  window.doLogin = async function(){
     const inp=document.getElementById('inp-p');
     const err=document.getElementById('lerr');
     const password=(inp&&inp.value||'').trim();
@@ -63,35 +63,57 @@
   };
 
   
-  window.togglePwd = togglePwd = function(){ showToast('Por segurança, a senha não é recuperável. Use “🔑 Senha” para definir uma nova.','info',4500); };
+  window.togglePwd = function(){ showToast('Por segurança, a senha não é recuperável. Use “🔑 Senha” para definir uma nova.','info',4500); };
 
-  window.populateUsers = populateUsers = function(){
-    const grid=document.getElementById('users-grid'); if(!grid)return;
-    grid.innerHTML=Object.entries(USERS).map(([un,u])=>{
-      const isAdmin=u&&u.admin===true;
-      const granted=(u.tabs||[]).filter(t=>TABS_CFG[t]).map(t=>`<span class="tag">${TABS_CFG[t].icon} ${TABS_CFG[t].label}</span>`).join('');
-      return `<div class="ucard ${isAdmin?'admin':''}">
-        <div class="ucard-hdr"><div class="ucard-av ${isAdmin?'gold':''}">${(u.name||'?')[0]}</div>
-        <div style="flex:1"><div class="ucard-name">${u.name||un}</div><div class="ucard-role">${u.role||''} · <code>${un}</code></div></div>
-        <button class="btn-edit" onclick="editUsuario('${un}')" style="margin-left:8px">✏️ Editar</button>
-        <button onclick="mudarSenha('${un}')" title="Mudar senha" style="background:#1565c0;color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:.78rem;font-weight:700;cursor:pointer;margin-left:4px">🔑 Senha</button></div>
-        <p class="ucard-desc">${u.descricao||''}</p>
-        <div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px;padding:8px 10px;background:#f5f5f5;border-radius:7px;border:1px solid #e0e0e0">
-          <span style="font-size:.72rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px">Senha:</span>
-          <span style="font-family:monospace;font-size:.88rem;font-weight:700;color:#1a3a2a;letter-spacing:2px">••••••••</span>
-          <span style="font-size:.68rem;color:#777">protegida no servidor</span>
-        </div>
-        <div style="font-size:.7rem;font-weight:700;color:#888;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.5px">Abas com acesso (${(u.tabs||[]).filter(t=>TABS_CFG[t]).length})</div>
-        <div class="tags">${granted||'<span style="color:#aaa;font-size:.75rem">Nenhuma aba</span>'}</div></div>`;
-    }).join('')+`<div style="margin-top:16px"><button class="btn-add" onclick="novoUsuario()">➕ Novo Usuário</button></div>`;
+  // Dados de perfis vêm da nuvem: nunca interpolar texto de usuário em HTML/handlers.
+  function _safeText(value){
+    return String(value==null?'':value).replace(/[&<>"']/g,function(ch){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+    });
+  }
+  window.populateUsers = function(){
+    const grid=document.getElementById('users-grid');
+    if(!grid)return;
+    const entries=Object.entries(USERS).filter(function(entry){return entry[1] && typeof entry[1]==='object';});
+    grid.innerHTML=entries.map(function(entry,index){
+      const un=entry[0],u=entry[1];
+      const isAdmin=u.admin===true;
+      const validTabs=Array.isArray(u.tabs)?u.tabs.filter(function(t){return Object.prototype.hasOwnProperty.call(TABS_CFG,t);}):[];
+      const granted=validTabs.map(function(t){
+        const cfg=TABS_CFG[t];
+        return '<span class="tag">'+_safeText(cfg.label)+'</span>';
+      }).join('');
+      return '<article class="ucard'+(isAdmin?' admin':'')+'" data-erp-user-index="'+index+'">'+
+        '<div class="ucard-hdr">'+
+          '<div class="ucard-av'+(isAdmin?' gold':'')+'">'+_safeText((u.name||'?').slice(0,1))+'</div>'+
+          '<div class="erp-user-identity"><div class="ucard-name">'+_safeText(u.name||un)+'</div>'+
+          '<div class="ucard-role">'+_safeText(u.role||'Usuário')+' · <code>'+_safeText(un)+'</code></div></div>'+
+          '<div class="erp-user-actions"><button type="button" class="btn-edit" data-erp-user-action="edit">Editar</button>'+
+          '<button type="button" class="btn-edit" data-erp-user-action="password">Alterar senha</button></div></div>'+
+        (u.descricao?'<p class="ucard-desc">'+_safeText(u.descricao)+'</p>':'')+
+        '<details class="erp-user-permissions"><summary>Permissões ('+validTabs.length+')</summary>'+
+          '<div class="tags">'+(granted||'<span>Sem permissões de módulos</span>')+'</div></details></article>';
+    }).join('')+'<div class="erp-user-create"><button type="button" class="btn-add" data-erp-user-action="new">Novo usuário</button></div>';
+    grid.onclick=function(event){
+      const button=event.target.closest('[data-erp-user-action]');
+      if(!button||!grid.contains(button))return;
+      const action=button.dataset.erpUserAction;
+      if(action==='new'){window.novoUsuario();return;}
+      const card=button.closest('[data-erp-user-index]');
+      const idx=card?Number(card.dataset.erpUserIndex):-1;
+      if(!Number.isInteger(idx)||idx<0||idx>=entries.length)return;
+      const login=entries[idx][0];
+      if(action==='edit')window.editUsuario(login);
+      if(action==='password')window.mudarSenha(login);
+    };
   };
 
-  window.mudarSenha = mudarSenha = function(un){
+  window.mudarSenha = function(un){
     const u=USERS[un]; if(!u)return;
     const old=document.getElementById('modal-ov-confirm'); if(old)old.remove();
     const ov=document.createElement('div'); ov.className='modal-ov open'; ov.id='modal-ov-confirm';
     const box=document.createElement('div'); box.className='modal'; box.style.maxWidth='360px';
-    box.innerHTML='<h3 style="margin-bottom:12px">🔑 Mudar Senha — '+u.name+'</h3>'+ 
+    box.innerHTML='<h3 style="margin-bottom:12px">🔑 Alterar senha — '+_safeText(u.name||un)+'</h3>'+ 
       '<div class="fg"><label>Nova Senha</label><input id="_ms-nova" type="password" placeholder="Digite a nova senha" autocomplete="new-password"></div>'+ 
       '<div class="fg"><label>Confirmar Senha</label><input id="_ms-conf" type="password" placeholder="Repita a nova senha"></div>'+ 
       '<div id="_ms-err" style="color:#c62828;font-size:.82rem;margin-bottom:8px;display:none"></div>'+ 
@@ -114,14 +136,14 @@
 
   
   const _editUsuarioOriginal=window.editUsuario;
-  window.editUsuario = editUsuario = function(un){
+  window.editUsuario = function(un){
     _editUsuarioOriginal(un);
     const p=document.getElementById('eu-pass');
     if(p){ p.value=''; p.type='password'; p.placeholder='deixe em branco para manter'; }
     const lbl=p&&p.closest('.fg')?.querySelector('label'); if(lbl) lbl.textContent='Nova senha (opcional)';
   };
 
-  window.salvarEditUsuario = salvarEditUsuario = async function(un){
+  window.salvarEditUsuario = async function(un){
     const u=USERS[un]; if(!u)return;
     const profile={
       name:(document.getElementById('eu-nome').value||'').trim()||u.name,
@@ -144,7 +166,7 @@
     }catch(e){ alert(e.message||'Erro ao atualizar usuário.'); }
   };
 
-  window.salvarNovoUsuario = salvarNovoUsuario = async function(){
+  window.salvarNovoUsuario = async function(){
     const login=(document.getElementById('nu-login').value||'').trim().toLowerCase().replace(/\s+/g,'');
     const name=(document.getElementById('nu-nome').value||'').trim();
     const password=(document.getElementById('nu-pass').value||'').trim();
@@ -159,7 +181,7 @@
     }catch(e){ alert(e.message||'Erro ao criar usuário.'); }
   };
 
-  window.excluirUsuario = excluirUsuario = async function(un){
+  window.excluirUsuario = async function(un){
     if(USERS[un]&&USERS[un].admin===true){alert('Não é possível excluir a administradora.');return;}
     if(!confirm('Excluir usuário '+(USERS[un]?.name||un)+'?\n\nEle não poderá mais entrar no sistema.'))return;
     try{
@@ -168,7 +190,7 @@
     }catch(e){ alert(e.message||'Erro ao excluir usuário.'); }
   };
 
-  window.fiscalSalvarUsuario = fiscalSalvarUsuario = async function(){
+  window.fiscalSalvarUsuario = async function(){
     const login=(document.getElementById('fu-login').value||'').trim().toLowerCase().replace(/\s+/g,'');
     const name=(document.getElementById('fu-nome').value||'').trim();
     const password=(document.getElementById('fu-pass').value||'').trim();
@@ -182,7 +204,7 @@
     }catch(e){ showToast(e.message||'Erro ao criar usuário.','error'); }
   };
  
-  window._balConfirmarExclusao = _balConfirmarExclusao = async function(){
+  window._balConfirmarExclusao = async function(){
     const tid=window._balDelTid;
     const pwd=(document.getElementById('_del-pwd')?.value||'').trim();
     const err=document.getElementById('_del-err');

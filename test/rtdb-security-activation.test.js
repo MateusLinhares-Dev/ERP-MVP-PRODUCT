@@ -74,6 +74,15 @@ test('operações diretas continuam declaradas e separadas por domínio',()=>{
   assert.equal(serverPermit('advanceBackups','write',{erpAccess:true,admin:true}),true);
 });
 
+test('categorias de documentos possuem leitura e escrita limitadas a canBusinessDocs',()=>{
+  const category=rules.erp.documentCategories;
+  assert.equal(typeof category['.read'],'string');
+  assert.match(category['.read'],/canBusinessDocs == true/);
+  assert.match(category.$categoryId['.write'],/canBusinessDocs == true/);
+  assert.equal(serverPermit('documentCategories','read',{erpAccess:true,canBusinessDocs:true}),true);
+  assert.equal(serverPermit('documentCategories','read',{erpAccess:true,canSales:true}),false);
+});
+
 test('metadados impedem falsificação de autoria e backups sem administrador',()=>{
   assert.match(rules.erp._user['.validate'],/auth\.token\.erpUser/);
   assert.match(rules.erp._ts['.validate'],/newData\.isNumber/);

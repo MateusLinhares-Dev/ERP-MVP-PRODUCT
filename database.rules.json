@@ -546,6 +546,13 @@
         ".read": "auth != null && auth.token.erpAccess == true && auth.token.admin == true",
         ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
       },
+      "documentCategories": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.canBusinessDocs == true",
+        "$categoryId": {
+          ".write": "auth != null && auth.token.erpAccess == true && auth.token.canBusinessDocs == true",
+          ".validate": "newData.hasChildren(['id','name']) && newData.child('id').isString() && newData.child('id').val() == $categoryId && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 120 && (!newData.child('createdAt').exists() || (newData.child('createdAt').isString() && newData.child('createdAt').val().length <= 60))"
+        }
+      },
       "fornDespesaDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
         ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
