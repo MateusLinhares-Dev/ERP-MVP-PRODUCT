@@ -214,6 +214,8 @@ async function main() {
   // A folha visual deve ser a última para prevalecer sobre estilos de módulos legados.
   const uiStylesheet = document.querySelector('link[href="/legacy/professional-ui.css"]');
   if (uiStylesheet) document.head.appendChild(uiStylesheet);
+  loadStyle('/legacy/operations-polish.css');
+  await loadClassic('/legacy/operations-polish.js');
 
   document.dispatchEvent(new CustomEvent('erp:ready'));
 }

@@ -1945,35 +1945,28 @@ function populateAll(){
 function populateUsers(){
   const grid=document.getElementById('users-grid');
   if(!grid)return;
-  grid.innerHTML=Object.entries(USERS).map(([un,u])=>{
+  const users=Object.entries(USERS);
+  grid.innerHTML=users.map(([un,u])=>{
     const isAdmin=_usuarioEhAdmin(u);
-    const granted=u.tabs
-      .filter(t=>TABS_CFG[t])
-      .map(t=>`<span class="tag">${TABS_CFG[t].icon} ${TABS_CFG[t].label}</span>`)
-      .join('');
-    return `<div class="ucard ${isAdmin?'admin':''}">
+    const tabs=(Array.isArray(u.tabs)?u.tabs:[]).filter(t=>TABS_CFG[t]);
+    const granted=tabs.map(t=>`<span class="tag">${esc(TABS_CFG[t].label)}</span>`).join('');
+    const key=encodeURIComponent(un).replace(/'/g,'%27');
+    return `<article class="ucard ${isAdmin?'admin':''}">
       <div class="ucard-hdr">
-        <div class="ucard-av ${isAdmin?'gold':''}">${u.name[0]}</div>
-        <div style="flex:1">
-          <div class="ucard-name">${u.name}</div>
-          <div class="ucard-role">${u.role} · <code>${un}</code></div>
+        <div class="ucard-av ${isAdmin?'gold':''}">${esc(String(u.name||'?').charAt(0).toUpperCase())}</div>
+        <div class="erp-user-identity"><div class="ucard-name">${esc(u.name||un)}</div>
+          <div class="ucard-role">${esc(u.role||'Sem função')} · ${esc(un)}</div></div>
+        <div class="erp-user-actions">
+          <button class="btn-edit" onclick="editUsuario(decodeURIComponent('${key}'))">Editar</button>
+          <button class="btn-edit" onclick="mudarSenha(decodeURIComponent('${key}'))">Alterar senha</button>
         </div>
-        <button class="btn-edit" onclick="editUsuario('${un}')" style="margin-left:8px">✏️ Editar</button>
-        <button onclick="mudarSenha('${un}')" title="Mudar senha"
-          style="background:#1565c0;color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:.78rem;font-weight:700;cursor:pointer;margin-left:4px">🔑 Senha</button>
       </div>
-      <p class="ucard-desc">${u.descricao}</p>
-      <div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px;padding:8px 10px;background:#f5f5f5;border-radius:7px;border:1px solid #e0e0e0">
-        <span style="font-size:.72rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px">Senha:</span>
-        <span id="pwd-${un}" style="font-family:monospace;font-size:.88rem;font-weight:700;color:#1a3a2a;letter-spacing:2px">••••••••</span>
-        <button onclick="togglePwd('${un}')" title="Mostrar/ocultar senha"
-          style="background:none;border:none;cursor:pointer;font-size:.9rem;padding:0 2px;color:#555">👁️</button>
-        <span id="pwdval-${un}" style="display:none">${u.password}</span>
-      </div>
-      <div style="font-size:.7rem;font-weight:700;color:#888;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.5px">Abas com acesso (${u.tabs.filter(t=>TABS_CFG[t]).length})</div>
-      <div class="tags">${granted||'<span style="color:#aaa;font-size:.75rem">Nenhuma aba</span>'}</div>
-    </div>`;
-  }).join('')+`<div style="margin-top:16px"><button class="btn-add" onclick="novoUsuario()">➕ Novo Usuário</button></div>`;
+      ${u.descricao?`<p class="ucard-desc">${esc(u.descricao)}</p>`:''}
+      <div class="erp-user-permissions"><details><summary>${tabs.length} módulo(s) autorizado(s)</summary>
+        <div class="tags">${granted||'<span>Nenhum módulo</span>'}</div>
+      </details></div>
+    </article>`;
+  }).join('')+`<div class="erp-user-create"><button class="btn-add" onclick="novoUsuario()">Novo usuário</button></div>`;
 }
 
 function mudarSenha(un){
@@ -1985,10 +1978,10 @@ function mudarSenha(un){
   box.innerHTML=
     '<h3 style="margin-bottom:12px">🔑 Mudar Senha — '+u.name+'</h3>'+
     '<div class="fg"><label>Nova Senha</label>'+
-    '<input id="_ms-nova" type="text" placeholder="Digite a nova senha" autocomplete="off"'+
+    '<input id="_ms-nova" type="password" placeholder="Digite a nova senha" autocomplete="new-password"'+
     ' style="width:100%;padding:10px;border:2px solid #1565c0;border-radius:8px;font-size:.95rem;box-sizing:border-box"></div>'+
     '<div class="fg"><label>Confirmar Senha</label>'+
-    '<input id="_ms-conf" type="text" placeholder="Repita a nova senha"'+
+    '<input id="_ms-conf" type="password" placeholder="Repita a nova senha"'+
     ' style="width:100%;padding:10px;border:2px solid #ccc;border-radius:8px;font-size:.95rem;box-sizing:border-box"></div>'+
     '<div id="_ms-err" style="color:#c62828;font-size:.82rem;margin-bottom:8px;display:none">As senhas não coincidem.</div>'+
     '<div class="modal-ft">'+
@@ -2011,18 +2004,6 @@ function mudarSenha(un){
   setTimeout(()=>{ const el=document.getElementById('_ms-nova'); if(el) el.focus(); },80);
 }
 
-function togglePwd(un){
-  const dot = document.getElementById('pwd-'+un);
-  const val = document.getElementById('pwdval-'+un);
-  if(!dot||!val) return;
-  if(dot.textContent==='••••••••'){
-    dot.textContent = val.textContent;
-    dot.style.color = '#c62828';
-  } else {
-    dot.textContent = '••••••••';
-    dot.style.color = '#1a3a2a';
-  }
-}
 
 function editUsuario(un){
   const u=USERS[un];
@@ -2042,7 +2023,7 @@ function editUsuario(un){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
       <div class="fg"><label>Login (usuário p/ entrar)</label><input id="eu-login" value="${un}" ${_usuarioEhAdmin(u)?'disabled title="Não é possível mudar o login da administradora"':''} placeholder="ex: carlos"></div>
       <div class="fg"><label>Nome</label><input id="eu-nome" value="${u.name}"></div>
-      <div class="fg"><label>Senha</label><input id="eu-pass" type="text" value="${u.password}"></div>
+      <div class="fg"><label>Senha</label><input id="eu-pass" type="password" value="" autocomplete="new-password" placeholder="Deixe em branco para manter"></div>
       <div class="fg"><label>Cargo / Papel</label><input id="eu-role" value="${u.role}"></div>
       <div class="fg"><label>Descrição</label><input id="eu-desc" value="${u.descricao}"></div>
     </div>`+((!_usuarioEhAdmin(u))?`<div style="font-size:.78rem;color:#856404;background:#fff8e1;border:1px solid #f0c36d;border-radius:6px;padding:6px 10px;margin-bottom:12px">💡 Você pode trocar o <b>login</b> e a <b>senha</b> aqui.</div>`:``)+`
@@ -2115,7 +2096,7 @@ function novoUsuario(){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
       <div class="fg"><label>Login (sem espaço)</label><input id="nu-login" placeholder="ex: maria"></div>
       <div class="fg"><label>Nome</label><input id="nu-nome" placeholder="ex: Maria Silva"></div>
-      <div class="fg"><label>Senha</label><input id="nu-pass" placeholder="ex: Maria2024"></div>
+      <div class="fg"><label>Senha</label><input id="nu-pass" type="password" autocomplete="new-password" placeholder="Crie uma senha segura"></div>
       <div class="fg"><label>Cargo / Papel</label><input id="nu-role" placeholder="ex: Auxiliar"></div>
     </div>
     <div style="font-weight:700;font-size:.82rem;color:var(--primary);margin-bottom:8px;text-transform:uppercase">Abas com acesso:</div>
