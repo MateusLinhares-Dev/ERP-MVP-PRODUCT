@@ -144,6 +144,13 @@ async function main() {
   const publicResponse = await fetch('/api/public-config', { credentials: 'same-origin' });
   if (publicResponse.ok) applyPublicBranding(await publicResponse.json());
   installRestUrl(runtimeConfig);
+  const policyResponse = await fetch('/app/rtdb-collection-policy.json', { credentials: 'same-origin' });
+  if (!policyResponse.ok) throw new Error('Política de acesso ao Realtime Database indisponível.');
+  const collectionPolicy = await policyResponse.json();
+  if (collectionPolicy.version !== 1 || !collectionPolicy.nodes || !collectionPolicy.nodes.tickets) {
+    throw new Error('Política de acesso ao Realtime Database inválida.');
+  }
+  window.__ERP_RTD_COLLECTION_POLICY__ = collectionPolicy;
 
   const { auth, db, storage } = await loadFirebaseCompat(runtimeConfig);
   window.secureAuth = createSecureAuthClient(auth);

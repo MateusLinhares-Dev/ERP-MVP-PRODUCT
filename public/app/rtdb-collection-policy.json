@@ -1,0 +1,1375 @@
+{
+  "version": 1,
+  "nodes": {
+    "_ts": {
+      "read": {
+        "mode": "erp",
+        "claims": []
+      },
+      "write": {
+        "mode": "erp",
+        "claims": []
+      }
+    },
+    "_user": {
+      "read": {
+        "mode": "erp",
+        "claims": []
+      },
+      "write": {
+        "mode": "erp",
+        "claims": []
+      }
+    },
+    "_untomb": {
+      "read": {
+        "mode": "erp",
+        "claims": []
+      },
+      "write": {
+        "mode": "admin",
+        "claims": []
+      }
+    },
+    "config": {
+      "read": {
+        "mode": "erp",
+        "claims": []
+      },
+      "write": {
+        "mode": "none",
+        "claims": []
+      }
+    },
+    "metais": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canInventory"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canInventory"
+        ]
+      }
+    },
+    "custosCasa": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      }
+    },
+    "veicPess": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      }
+    },
+    "manutPess": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      }
+    },
+    "tanque": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      }
+    },
+    "tanqueDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      }
+    },
+    "tanqueDeletedV2": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      }
+    },
+    "precosForn": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canSuppliers"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canSuppliers"
+        ]
+      }
+    },
+    "precosCli": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCustomers"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCustomers"
+        ]
+      }
+    },
+    "saldoDevedor": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      }
+    },
+    "users": {
+      "read": {
+        "mode": "erp",
+        "claims": []
+      },
+      "write": {
+        "mode": "none",
+        "claims": []
+      }
+    },
+    "usersDeleted": {
+      "read": {
+        "mode": "erp",
+        "claims": []
+      },
+      "write": {
+        "mode": "none",
+        "claims": []
+      }
+    },
+    "funcEdit": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      }
+    },
+    "funcEditDel": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      }
+    },
+    "fornVeiculos": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canSuppliers"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canSuppliers"
+        ]
+      }
+    },
+    "viagemLimite": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      }
+    },
+    "fiscal": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFiscalRead"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFiscalWrite"
+        ]
+      }
+    },
+    "fiscalApur": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFiscalRead"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFiscalWrite"
+        ]
+      }
+    },
+    "bags": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canInventory"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canInventory"
+        ]
+      }
+    },
+    "ticketsDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      }
+    },
+    "adtPorFornDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      }
+    },
+    "chequesPorFornDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      }
+    },
+    "saldoDevedorDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      }
+    },
+    "estoqueDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canInventory"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canInventory"
+        ]
+      }
+    },
+    "fcSaldoIniDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      }
+    },
+    "adtItensDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      }
+    },
+    "chequeItensDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      }
+    },
+    "contasReceberDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      }
+    },
+    "afazeresDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination",
+          "canTasks"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination",
+          "canTasks"
+        ]
+      }
+    },
+    "vendasDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canSales"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canSales"
+        ]
+      }
+    },
+    "valesDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      }
+    },
+    "lancBancoDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canBanking"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canBanking"
+        ]
+      }
+    },
+    "viagemDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      }
+    },
+    "combustivelDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      }
+    },
+    "frotaDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      }
+    },
+    "manutencaoDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      }
+    },
+    "almoxaDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      }
+    },
+    "almoxaMovDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      }
+    },
+    "clientesDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCustomers"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCustomers"
+        ]
+      }
+    },
+    "fornecedoresDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canSuppliers"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canSuppliers"
+        ]
+      }
+    },
+    "bancosDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canBanking"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canBanking"
+        ]
+      }
+    },
+    "despGrupoDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      }
+    },
+    "coordNotasDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      }
+    },
+    "contratosDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canContracts"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canContracts"
+        ]
+      }
+    },
+    "docsEmpresasDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canBusinessDocs"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canBusinessDocs"
+        ]
+      }
+    },
+    "epiDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      }
+    },
+    "reunioesDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      }
+    },
+    "agendaEntregasDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination",
+          "canDeliveryAgenda"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination",
+          "canDeliveryAgenda"
+        ]
+      }
+    },
+    "advertenciasDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      }
+    },
+    "bagsMovDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canInventory"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canInventory"
+        ]
+      }
+    },
+    "historicoDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      }
+    },
+    "pontoDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      }
+    },
+    "pontoBatidasDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      }
+    },
+    "fornDespesaDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canSuppliers"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canSuppliers"
+        ]
+      }
+    },
+    "tickets": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      }
+    },
+    "historico": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canPurchasing"
+        ]
+      }
+    },
+    "ponto": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      }
+    },
+    "pontoBatidas": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      }
+    },
+    "folha": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canPayroll"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canPayroll"
+        ]
+      }
+    },
+    "fornDespesa": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canSuppliers"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canSuppliers"
+        ]
+      }
+    },
+    "contasPagar": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      }
+    },
+    "contasPagarDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      }
+    },
+    "contasReceber": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      }
+    },
+    "afazeres": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination",
+          "canTasks"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination",
+          "canTasks"
+        ]
+      }
+    },
+    "vendas": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canSales"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canSales"
+        ]
+      }
+    },
+    "vales": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      }
+    },
+    "lancBanco": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canBanking"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canBanking"
+        ]
+      }
+    },
+    "viagem": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      }
+    },
+    "combustivel": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      }
+    },
+    "frota": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      }
+    },
+    "manutencao": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFleet"
+        ]
+      }
+    },
+    "almoxa": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      }
+    },
+    "almoxaMov": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      }
+    },
+    "clientes": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCustomers"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCustomers"
+        ]
+      }
+    },
+    "fornecedores": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canSuppliers"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canSuppliers"
+        ]
+      }
+    },
+    "fornDeleted": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canSuppliers"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canSuppliers"
+        ]
+      }
+    },
+    "bancos": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canBanking"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canBanking"
+        ]
+      }
+    },
+    "despGrupo": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      }
+    },
+    "coordNotas": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      }
+    },
+    "contratos": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canContracts"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canContracts"
+        ]
+      }
+    },
+    "docsEmpresas": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canBusinessDocs"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canBusinessDocs"
+        ]
+      }
+    },
+    "epi": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      }
+    },
+    "reunioes": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      }
+    },
+    "agendaEntregas": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination",
+          "canDeliveryAgenda"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination",
+          "canDeliveryAgenda"
+        ]
+      }
+    },
+    "advertencias": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canHR"
+        ]
+      }
+    },
+    "bagsMov": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canInventory"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canInventory"
+        ]
+      }
+    },
+    "coordFuncObs": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canCoordination"
+        ]
+      }
+    },
+    "adiantamentos": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      }
+    },
+    "cheques": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      }
+    },
+    "saldos": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      }
+    },
+    "estoque": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canInventory"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canInventory"
+        ]
+      }
+    },
+    "fcSaldoIni": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      }
+    },
+    "adtCli": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      }
+    },
+    "chequesCli": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      }
+    },
+    "fcLanc": {
+      "read": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      },
+      "write": {
+        "mode": "claims",
+        "claims": [
+          "canFinance"
+        ]
+      }
+    }
+  }
+}

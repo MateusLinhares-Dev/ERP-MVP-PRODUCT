@@ -6126,7 +6126,10 @@ function excluirAdiantamentoLista(btn){
 
 
 
-function zerarTodosAdiantamentos(){
+async function zerarTodosAdiantamentos(){
+  if(typeof _usuarioAtualEhAdmin==='function' && !_usuarioAtualEhAdmin()){
+    alert('Somente administradores podem zerar adiantamentos.');return;
+  }
   var qt=0; Object.keys(ADT_POR_FORN||{}).forEach(function(fc){ qt+=(ADT_POR_FORN[fc]||[]).length; });
   if(!qt){ alert('Não há adiantamentos pra apagar. Já está zerado.'); return; }
   if(!confirm('APAGAR TODOS os '+qt+' adiantamento(s) pra você começar do zero?\n\nFaço backup antes. Depois você lança os certos de novo — e eles NÃO vão mais voltar nem sumir.')) return;
@@ -6134,9 +6137,10 @@ function zerarTodosAdiantamentos(){
   try{
     var ts=Date.now();
     var copia=JSON.parse(JSON.stringify(ADT_POR_FORN));
-    if(window._fbDB){ window._fbDB.ref('erp/_bkp_zerar_adt_'+ts).set({quando:new Date().toISOString(), adiantamentos:copia}); }
+    if(!window._fbDB)throw new Error('Banco indisponível para o backup.');
+    await window._fbDB.ref('erp/advanceBackups/'+ts).set({quando:new Date().toISOString(), adiantamentos:copia});
     localStorage.setItem('mm_bkp_zerar_adt', JSON.stringify({ts:ts, adiantamentos:copia}));
-  }catch(e){}
+  }catch(e){alert('Falha ao criar o backup no Firebase. Nenhum adiantamento foi apagado.');return;}
   
   Object.keys(ADT_POR_FORN).forEach(function(fc){ delete ADT_POR_FORN[fc]; });
   try{ window._ADT_PENDENTES={}; }catch(e){}

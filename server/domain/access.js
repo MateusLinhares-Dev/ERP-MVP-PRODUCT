@@ -105,6 +105,9 @@ export function buildSecurityClaims(
     canHR: isAdmin || hasAny(tabs, ['funcionarios','ponto','folha_pagamento','vales']),
     canFleet: isAdmin || hasAny(tabs, ['caminhoes','frota','viagem_motorista','combustivel_rudnick']),
     canContracts: isAdmin || tabs.has('contratos'),
+    canShoppingList: isAdmin || tabs.has('lista_compras'),
+    canTasks: isAdmin || tabs.has('afazeres'),
+    canDeliveryAgenda: isAdmin || tabs.has('agenda_entregas'),
     canCoordination: isAdmin || hasAny(tabs, ['almoxarifado','coordenacao']),
   };
 }

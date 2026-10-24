@@ -53,29 +53,11 @@ test('usuário somente chat não recebe claims financeiros/fiscais', () => {
   assert.equal(claims.canFiscalWrite, false);
 });
 
-test('database rules excluem novos nós sensíveis do wildcard legado', () => {
-  const rules = JSON.parse(
-    fs.readFileSync(
-      new URL('../database.rules.json', import.meta.url),
-      'utf8',
-    ),
-  );
-
-  const readRule =
-    rules.rules.erp.$node['.read'];
-
-  for (const node of [
-    'partyBanks',
-    'calendarEvents',
-    'ownerBills',
-    'fixedPayables',
-    'fiscalParties',
-    'fiscalLinks',
-  ]) {
-    assert.match(
-      readRule,
-      new RegExp(`\\$node != '${node}'`),
-    );
+test('database rules usam regras explícitas e negam wildcard legado', () => {
+  const rules=JSON.parse(fs.readFileSync(new URL('../database.rules.json',import.meta.url),'utf8'));
+  assert.equal(rules.rules.erp.$node,undefined);
+  for(const node of ['partyBanks','calendarEvents','ownerBills','fixedPayables','fiscalParties','fiscalLinks']){
+    assert.equal(typeof rules.rules.erp[node], 'object',node);
   }
 });
 

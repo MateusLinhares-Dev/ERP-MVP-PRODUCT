@@ -12,6 +12,16 @@ const core=read('public/legacy/app-core.js');
 
 if(db.rules?.['.read']!==false || db.rules?.['.write']!==false) errors.push('RTDB root precisa continuar deny-by-default');
 if(db.rules?.erpAuth?.['.read']!==false || db.rules?.erpAuth?.['.write']!==false) errors.push('erpAuth precisa ser server-only');
+const syncPolicy=JSON.parse(read('public/app/rtdb-collection-policy.json'));
+const candidate=JSON.parse(read('docs/database.rules.candidate.json'));
+if(JSON.stringify(db)!==JSON.stringify(candidate)) errors.push('RTDB: rules ativas diferentes da geração homologada. Regere a partir do baseline.');
+if(syncPolicy.version!==1 || Object.keys(syncPolicy.nodes||{}).length!==99) errors.push('RTDB: catálogo de acesso sincronizado inválido.');
+for(const [node,entry] of Object.entries(syncPolicy.nodes||{})){
+  if(!db.rules?.erp?.[node] || !entry.read || !entry.write) errors.push(`RTDB: nó não mapeado corretamente: ${node}`);
+}
+for(const node of ['listaCompras','chequesControle','chequesControle_del','ticketsDeletedV2','advanceBackups']){
+  if(!db.rules?.erp?.[node]) errors.push(`RTDB: coleção legada sem regra explícita: ${node}`);
+}
 const genericRead=String(db.rules?.erp?.['$node']?.['.read']||'');
 const genericWrite=String(db.rules?.erp?.['$node']?.['.write']||'');
 if(genericRead.includes('erpAccess == true') || genericWrite.includes('erpAccess == true')) {

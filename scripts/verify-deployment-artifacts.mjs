@@ -7,6 +7,7 @@ const warnings = [];
 const mustExist = [
   'dist/index.html',
   'dist/app/bootstrap.js',
+  'dist/app/rtdb-collection-policy.json',
   'dist/app/firebase-loader.js',
   'dist/legacy/app-core.js',
   'api/config.js',

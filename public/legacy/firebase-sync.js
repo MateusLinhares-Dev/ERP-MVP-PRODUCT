@@ -19,9 +19,12 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     _versaoChecagemAtiva=true;
     try{
       const ref = window._fbDB.ref('erp/_appBuild');
-      ref.transaction(function(atual){
-        if(!atual || String(_APP_BUILD) > String(atual)) return _APP_BUILD;
-        return;
+      _rtdbClaimsAtuais().then(function(claims){
+        if(claims.admin!==true)return;
+        return ref.transaction(function(atual){
+          if(!atual || String(_APP_BUILD) > String(atual)) return _APP_BUILD;
+          return;
+        });
       }).catch(function(){});
       ref.on('value', function(snap){
         const v = snap && snap.val ? snap.val() : null;
@@ -37,6 +40,43 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     b.innerHTML='⚠️ Essa aba está com uma versão desatualizada do sistema e pode reverter dados salvos por outra pessoa. '
       +'<button onclick="location.reload()" style="margin-left:8px;background:#fff;color:#c0392b;border:none;border-radius:5px;padding:4px 14px;font-weight:800;cursor:pointer">🔄 Atualizar agora</button>';
     document.body.appendChild(b);
+  }
+
+  function _rtdbPodeAcessar(no, acao, claims){
+    const policy=window.__ERP_RTD_COLLECTION_POLICY__;
+    if(!policy || policy.version!==1 || !policy.nodes) throw new Error('Política RTDB ausente ou inválida.');
+    const regra=policy.nodes[no] && policy.nodes[no][acao];
+    if(!regra || !claims || claims.erpAccess!==true) return false;
+    if(regra.mode==='none')return false;
+    if(regra.mode==='admin')return claims.admin===true;
+    if(regra.mode==='erp')return true;
+    if(regra.mode==='claims')return Array.isArray(regra.claims) && regra.claims.some(function(claim){return claims[claim]===true;});
+    return false;
+  }
+  async function _rtdbClaimsAtuais(){
+    const current=firebase.auth && firebase.auth().currentUser;
+    if(!current)throw new Error('Sessão Firebase ausente.');
+    const token=await current.getIdTokenResult();
+    const claims=(token && token.claims)||{};
+    if(claims.erpAccess!==true)throw new Error('Sessão não autorizada para RTDB.');
+    return claims;
+  }
+  async function _rtdbFiltrarGravacao(dados){
+    const claims=await _rtdbClaimsAtuais();
+    const aceitos={};
+    let gravaveis=0;
+    Object.keys(dados||{}).forEach(function(k){
+      const no=String(k).split('/')[0];
+      if(no==='_ts'||no==='_user')return;
+      if(!_rtdbPodeAcessar(no,'write',claims))return;
+      aceitos[k]=dados[k];
+      gravaveis++;
+    });
+    if(gravaveis){
+      if(dados._ts!==undefined)aceitos._ts=dados._ts;
+      aceitos._user=String(claims.erpUser||'');
+    }
+    return aceitos;
   }
 
   function _fbTentarInit(){
@@ -560,7 +600,8 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
 
   async function _enviarDadosEmLotes(dados, limiteBytes){
     dados = _fbFiltrarJaEnviado(dados);
-    dados = _fbLimparUndefined(dados);
+    dados = _fbLimparUndefined(await _rtdbFiltrarGravacao(dados));
+    if(Object.keys(dados).length===0)return;
     let tamanhoTotal;
     try{ tamanhoTotal=JSON.stringify(dados).length; }catch(e){ tamanhoTotal=0; }
     if(tamanhoTotal<=limiteBytes && Object.keys(dados).length<=MAX_ITENS_POR_LOTE){
@@ -1125,7 +1166,10 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         var tokenResult=await u.getIdTokenResult();
         var claims=(tokenResult&&tokenResult.claims)||{};
         if(claims.erpAccess!==true) throw new Error('Sessão sem acesso ao ERP.');
-        var keys=_ERP_NOS_SINCRONIZADOS.slice();
+        window.__ERP_RTD_CLAIMS__=claims;
+        var keys=_ERP_NOS_SINCRONIZADOS.filter(function(no){
+          return _rtdbPodeAcessar(no,'read',claims);
+        });
         var partes=await Promise.all(keys.map(async function(k){
           try{
             var snap=await window._fbDB.ref('erp/'+k).once('value');
@@ -1506,6 +1550,13 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       _fbRestaurarAuthEExecutar(fbIniciarListener,1500);
       return;
     }
+    if(!window.__ERP_RTD_CLAIMS__){
+      _rtdbClaimsAtuais().then(function(claims){
+        window.__ERP_RTD_CLAIMS__=claims;
+        fbIniciarListener();
+      }).catch(function(error){console.warn('RTDB: permissão dos listeners indisponível',error);});
+      return;
+    }
     _fbListenerAtivo = true;
 
     
@@ -1848,7 +1899,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     
     
     let _ticketsListenerAtivo = false;
-    if(!_ticketsListenerAtivo){
+    if(!_ticketsListenerAtivo && _rtdbPodeAcessar('tickets','read',window.__ERP_RTD_CLAIMS__)){
       _ticketsListenerAtivo = true;
       const ticketsRef=window._fbDB.ref('erp/tickets');
       let ticketsUiTimer=null;
@@ -1893,7 +1944,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       });
     }
 
-    if(!window.__ERP_TANK_LISTENER_STARTED__){
+    if(!window.__ERP_TANK_LISTENER_STARTED__ && _rtdbPodeAcessar('tanque','read',window.__ERP_RTD_CLAIMS__)){
       window.__ERP_TANK_LISTENER_STARTED__=true;
       const tanqueRef=window._fbDB.ref('erp/tanque');
       const tanqueDelRef=window._fbDB.ref('erp/tanqueDeleted');
@@ -1916,7 +1967,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
 
     let _fiscalListenerAtivo = false;
-    if(!_fiscalListenerAtivo){
+    if(!_fiscalListenerAtivo && _rtdbPodeAcessar('fiscal','read',window.__ERP_RTD_CLAIMS__)){
       _fiscalListenerAtivo = true;
       const fiscalRef=window._fbDB.ref('erp/fiscal');
       let fiscalUiTimer=null;

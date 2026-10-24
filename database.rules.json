@@ -11,10 +11,6 @@
       ".write": false
     },
     "erp": {
-      "$node": {
-        ".read": "auth != null && auth.token.erpAccess == true && $node != 'users' && $node != 'usersDeleted' && $node != 'config' && $node != 'chat' && $node != 'chatRead' && $node != 'alertState' && $node != 'funcDocs' && $node != 'empresaDocs' && $node != 'frotaDocs' && $node != 'senhasCofre' && $node != 'senhasCofreEnc' && $node != 'senhasCofreMeta' && $node != 'suporte_patches' && $node != '_reset' && $node != 'partyBanks' && $node != 'calendarEvents' && $node != 'ownerBills' && $node != 'fixedPayables' && $node != 'fiscalParties' && $node != 'fiscalLinks'",
-        ".write": "auth != null && auth.token.erpAccess == true && $node != 'users' && $node != 'usersDeleted' && $node != 'config' && $node != 'chat' && $node != 'chatRead' && $node != 'alertState' && $node != 'funcDocs' && $node != 'empresaDocs' && $node != 'frotaDocs' && $node != 'senhasCofre' && $node != 'senhasCofreEnc' && $node != 'senhasCofreMeta' && $node != 'suporte_patches' && $node != '_reset' && $node != 'partyBanks' && $node != 'calendarEvents' && $node != 'ownerBills' && $node != 'fixedPayables' && $node != 'fiscalParties' && $node != 'fiscalLinks'"
-      },
       "users": {
         ".read": "auth != null && auth.token.erpAccess == true",
         ".write": false
@@ -143,6 +139,532 @@
       "_reset": {
         ".read": "auth != null && auth.token.erpAccess == true",
         ".write": false
+      },
+      "_ts": {
+        ".read": "auth != null && auth.token.erpAccess == true",
+        ".write": "auth != null && auth.token.erpAccess == true",
+        ".validate": "newData.isNumber() && newData.val() >= now - 600000 && newData.val() <= now + 600000"
+      },
+      "_user": {
+        ".read": "auth != null && auth.token.erpAccess == true",
+        ".write": "auth != null && auth.token.erpAccess == true",
+        ".validate": "newData.isString() && newData.val() == auth.token.erpUser"
+      },
+      "_untomb": {
+        ".read": "auth != null && auth.token.erpAccess == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "metais": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)"
+      },
+      "custosCasa": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "veicPess": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
+      },
+      "manutPess": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
+      },
+      "tanque": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
+      },
+      "tanqueDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
+      },
+      "tanqueDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
+      },
+      "precosForn": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)"
+      },
+      "precosCli": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCustomers == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCustomers == true)"
+      },
+      "saldoDevedor": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
+      },
+      "funcEdit": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
+      },
+      "funcEditDel": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
+      },
+      "fornVeiculos": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)"
+      },
+      "viagemLimite": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
+      },
+      "fiscal": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFiscalRead == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFiscalWrite == true)"
+      },
+      "fiscalApur": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFiscalRead == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFiscalWrite == true)"
+      },
+      "bags": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)"
+      },
+      "ticketsDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
+      },
+      "adtPorFornDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
+      },
+      "chequesPorFornDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
+      },
+      "saldoDevedorDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
+      },
+      "estoqueDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)"
+      },
+      "fcSaldoIniDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "adtItensDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
+      },
+      "chequeItensDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
+      },
+      "contasReceberDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "afazeresDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canTasks == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canTasks == true)"
+      },
+      "vendasDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSales == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSales == true)"
+      },
+      "valesDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
+      },
+      "lancBancoDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)"
+      },
+      "viagemDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
+      },
+      "combustivelDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
+      },
+      "frotaDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
+      },
+      "manutencaoDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
+      },
+      "almoxaDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
+      },
+      "almoxaMovDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
+      },
+      "clientesDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCustomers == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCustomers == true)"
+      },
+      "fornecedoresDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)"
+      },
+      "bancosDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)"
+      },
+      "despGrupoDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "coordNotasDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
+      },
+      "contratosDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canContracts == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canContracts == true)"
+      },
+      "docsEmpresasDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBusinessDocs == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canBusinessDocs == true)"
+      },
+      "epiDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
+      },
+      "reunioesDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
+      },
+      "agendaEntregasDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canDeliveryAgenda == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canDeliveryAgenda == true)"
+      },
+      "advertenciasDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
+      },
+      "bagsMovDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)"
+      },
+      "historicoDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
+      },
+      "pontoDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
+      },
+      "pontoBatidasDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
+      },
+      "fornDespesaDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)"
+      },
+      "tickets": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
+      },
+      "historico": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
+      },
+      "ponto": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
+      },
+      "pontoBatidas": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
+      },
+      "folha": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPayroll == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPayroll == true)"
+      },
+      "fornDespesa": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)"
+      },
+      "contasPagar": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "contasPagarDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "contasReceber": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "afazeres": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canTasks == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canTasks == true)"
+      },
+      "vendas": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSales == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSales == true)"
+      },
+      "vales": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
+      },
+      "lancBanco": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)"
+      },
+      "viagem": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
+      },
+      "combustivel": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
+      },
+      "frota": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
+      },
+      "manutencao": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
+      },
+      "almoxa": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
+      },
+      "almoxaMov": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
+      },
+      "clientes": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCustomers == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCustomers == true)"
+      },
+      "fornecedores": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)"
+      },
+      "fornDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)"
+      },
+      "bancos": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)"
+      },
+      "despGrupo": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "coordNotas": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
+      },
+      "contratos": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canContracts == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canContracts == true)"
+      },
+      "docsEmpresas": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBusinessDocs == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canBusinessDocs == true)"
+      },
+      "epi": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
+      },
+      "reunioes": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
+      },
+      "agendaEntregas": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canDeliveryAgenda == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canDeliveryAgenda == true)"
+      },
+      "advertencias": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
+      },
+      "bagsMov": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)"
+      },
+      "coordFuncObs": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
+      },
+      "adiantamentos": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "cheques": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "saldos": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "estoque": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)"
+      },
+      "fcSaldoIni": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "adtCli": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "chequesCli": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "fcLanc": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "listaCompras": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.canShoppingList == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.canShoppingList == true"
+      },
+      "chequesControle": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.canFinance == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.canFinance == true"
+      },
+      "chequesControle_del": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.canFinance == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.canFinance == true"
+      },
+      "ticketsDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.canPurchasing == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.canPurchasing == true"
+      },
+      "advanceBackups": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.admin == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "fornDespesaDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "docsEmpresasDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBusinessDocs == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "fornecedoresDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "historicoDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "viagemDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "combustivelDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "clientesDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCustomers == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "frotaDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "manutencaoDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "epiDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "agendaEntregasDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canDeliveryAgenda == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "reunioesDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "advertenciasDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "bagsMovDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "pontoDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "pontoBatidasDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "valesDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "contasReceberDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "afazeresDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canTasks == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "contratosDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canContracts == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "almoxaDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "almoxaMovDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "alxNotasDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "alxNotasDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "alxNotas": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
+      },
+      "bancosDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "lancBancoDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "vendasDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSales == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "despGrupoDeletedV2": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "_appBuild": {
+        ".read": "auth != null && auth.token.erpAccess == true",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
       }
     },
     "erpUserProfiles": {
