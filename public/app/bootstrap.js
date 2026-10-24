@@ -154,6 +154,7 @@ async function main() {
   await loadClassic('/legacy/audit-trail.js');
   await loadClassic('/legacy/firebase-sync.js');
   await loadClassic('/legacy/whatsapp-format.js');
+  await loadClassic('/modules/banking/bank-ledger.js');
   await loadClassic('/legacy/app-core.js');
   await loadClassic('/legacy/module-access-guard.js');
   await loadClassic('/legacy/app-agenda.js');
@@ -216,6 +217,8 @@ async function main() {
   if (uiStylesheet) document.head.appendChild(uiStylesheet);
   loadStyle('/legacy/operations-polish.css');
   await loadClassic('/legacy/operations-polish.js');
+  loadStyle('/legacy/design-system-v2.css');
+  await loadClassic('/legacy/workspace-navigation.js');
 
   document.dispatchEvent(new CustomEvent('erp:ready'));
 }

@@ -91,6 +91,21 @@ export function buildSecurityClaims(
         isAdmin &&
         tabs.has('suporte_tecnico')
       ),
+
+    // Claims para migração de regras por coleção. Nenhuma regra de produção é
+    // alterada automaticamente: o sincronizador legado ainda grava em lote.
+    canPurchasing: isAdmin || hasAny(tabs, ['compra_sucata','canhoto_compra','rod_balanca','balanceiro']),
+    canSales: isAdmin || tabs.has('vendas'),
+    canInventory: isAdmin || hasAny(tabs, ['estoque','compra_sucata','vendas']),
+    canCustomers: isAdmin || hasAny(tabs, ['clientes','fin_clientes','precos_clientes']),
+    canSuppliers: isAdmin || hasAny(tabs, ['fornecedores','precos_fornecedores','compra_sucata']),
+    canFinance: isAdmin || hasAny(tabs, ['contas_pagar','contas_receber','fluxo_caixa','adiantamentos','cheques','cheques_compensar','contas_banco']),
+    canBanking: isAdmin || hasAny(tabs, ['contas_banco','bancos']),
+    canPayroll: isAdmin || tabs.has('folha_pagamento'),
+    canHR: isAdmin || hasAny(tabs, ['funcionarios','ponto','folha_pagamento','vales']),
+    canFleet: isAdmin || hasAny(tabs, ['caminhoes','frota','viagem_motorista','combustivel_rudnick']),
+    canContracts: isAdmin || tabs.has('contratos'),
+    canCoordination: isAdmin || hasAny(tabs, ['almoxarifado','coordenacao']),
   };
 }
 

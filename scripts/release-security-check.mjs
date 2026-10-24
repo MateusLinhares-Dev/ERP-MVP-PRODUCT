@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const errors=[];
+const warnings=[];
 function read(p){ return fs.readFileSync(path.resolve(p),'utf8'); }
 const db=JSON.parse(read('database.rules.json'));
 const storage=read('storage.rules');
@@ -11,6 +12,13 @@ const core=read('public/legacy/app-core.js');
 
 if(db.rules?.['.read']!==false || db.rules?.['.write']!==false) errors.push('RTDB root precisa continuar deny-by-default');
 if(db.rules?.erpAuth?.['.read']!==false || db.rules?.erpAuth?.['.write']!==false) errors.push('erpAuth precisa ser server-only');
+const genericRead=String(db.rules?.erp?.['$node']?.['.read']||'');
+const genericWrite=String(db.rules?.erp?.['$node']?.['.write']||'');
+if(genericRead.includes('erpAccess == true') || genericWrite.includes('erpAccess == true')) {
+  const message='RTDB: acesso genérico em erp/$node ainda permite operações sem segregação por módulo. Testar migração das Rules e do sincronizador no Emulator antes do deploy.';
+  if(process.env.ERP_SECURITY_STRICT==='1') errors.push(message);
+  else warnings.push(message);
+}
 if(!String(db.rules?.erp?.chat?.['$messageId']?.['.write']||'').includes('canChat')) errors.push('chat write sem claim canChat');
 if(!String(db.rules?.erp?.chatRead?.['$uid']?.['.write']||'').includes('auth.uid == $uid')) errors.push('chatRead não está isolado por UID');
 if(!String(db.rules?.erp?.alertState?.['$uid']?.['.write']||'').includes('auth.uid == $uid')) errors.push('alertState não está isolado por UID');
@@ -27,4 +35,5 @@ if(!headerText.includes("form-action 'self'")) errors.push('CSP sem form-action 
 if(!headerText.includes('no-referrer')) errors.push('Referrer-Policy precisa ser no-referrer');
 
 if(errors.length){ console.error('[RELEASE SECURITY] REPROVADO'); errors.forEach(e=>console.error(' - '+e)); process.exit(1); }
-console.log('[RELEASE SECURITY] OK — regras/claims/headers essenciais presentes.');
+warnings.forEach(w=>console.warn('[RELEASE SECURITY] PENDÊNCIA — '+w));
+console.log('[RELEASE SECURITY] Checagens básicas concluídas; verifique as pendências antes de produção.');

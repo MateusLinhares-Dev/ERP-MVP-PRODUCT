@@ -26,7 +26,8 @@
     "encode:service-account": "node scripts/service-account-to-base64.mjs",
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f erp"
+    "docker:logs": "docker compose logs -f erp",
+    "audit:access": "node scripts/access-inventory.mjs"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",

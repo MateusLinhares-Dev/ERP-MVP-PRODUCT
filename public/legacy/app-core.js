@@ -18976,41 +18976,69 @@ function zerarSaldosBancos(){
 }
 
 function verExtratoBanco(cod){
-  const b=BANCOS_DB.find(x=>x.cod===cod); if(!b) return;
-  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const lancs=LANC_BANCO_DB.filter(l=>l.bancoCod===cod).sort((a,z)=>a.data.localeCompare(z.data));
-  let saldo=Number(b.saldo||0);
-  const rows=lancs.map((l,i)=>{
-    saldo+=(l.tipo==='Entrada'?1:-1)*Number(l.valor);
-    return '<tr>'+
-      '<td>'+l.data+'</td>'+
-      '<td>'+esc(l.descricao)+'</td>'+
-      '<td><span style="color:'+(l.tipo==='Entrada'?'#27ae60':'#e74c3c')+';font-weight:700">'+(l.tipo==='Entrada'?'▲ Entrada':'▼ Saída')+'</span></td>'+
-      '<td style="color:'+(l.tipo==='Entrada'?'#27ae60':'#e74c3c')+';font-weight:700;text-align:right">'+(l.tipo==='Entrada'?'+':'-')+'R$ '+fmt(l.valor)+'</td>'+
-      '<td style="text-align:right;font-weight:600">R$ '+fmt(saldo)+'</td>'+
-      '<td style="white-space:nowrap">'+
-      '<button class="btn-edit" style="font-size:.72rem;margin-right:3px" onclick="editLancBanco(&#39;'+l.id+'&#39;,&#39;'+cod+'&#39;)" title="Editar">✏️</button>'+
-      '<button class="btn-edit-danger" style="font-size:.72rem" onclick="excluirLancBanco(&#39;'+l.id+'&#39;,&#39;'+cod+'&#39;)" title="Excluir">🗑️</button></td>'+
-    '</tr>';
+  const banco=BANCOS_DB.find(b=>b.cod===cod);if(!banco)return;
+  const ledger=window.erpBankLedger;
+  if(!ledger){console.error('Extrato bancário indisponível.');return;}
+  const statement=ledger.statement({openingBalance:banco.saldo,bankCode:cod,entries:LANC_BANCO_DB});
+  const money=value=>'R$ '+ledger.brl(value);
+  const rows=statement.rows.map(({entry,date,incoming,amount,balance})=>{
+    return '<tr data-date="'+esc(date)+'" data-type="'+(incoming?'entrada':'saida')+'">'+
+      '<td>'+esc(entry.data||'—')+'</td>'+
+      '<td class="erp-ledger-description">'+esc(entry.descricao||'—')+'</td>'+
+      '<td><span class="erp-entry-kind '+(incoming?'is-income':'is-expense')+'">'+(incoming?'Entrada':'Saída')+'</span></td>'+
+      '<td class="erp-money '+(incoming?'is-income':'is-expense')+'">'+(incoming?'+ ':'- ')+money(amount)+'</td>'+
+      '<td class="erp-money">'+money(balance)+'</td>'+
+      '<td class="erp-row-actions"><button type="button" class="btn-edit" data-bank-action="edit" data-id="'+esc(entry.id||'')+'" aria-label="Editar lançamento" title="Editar lançamento">Editar</button>'+ 
+      '<button type="button" class="btn-edit-danger" data-bank-action="delete" data-id="'+esc(entry.id||'')+'" aria-label="Excluir lançamento" title="Excluir lançamento">Excluir</button></td></tr>';
   }).join('');
   const body=document.getElementById('modal-body');
-  body.className='modal';
-  body.style.maxWidth='720px';
+  body.className='modal erp-bank-statement';
+  body.style.maxWidth='min(1080px,calc(100vw - 32px))';
   body.innerHTML=
-    '<h3>📊 Extrato — '+esc(b.banco)+'</h3>'+
-    '<p style="color:var(--gray);font-size:.85rem">Saldo Inicial: <b>R$ '+fmt(b.saldo||0)+'</b> &nbsp;|&nbsp; Saldo Atual: <b style="color:'+(saldo>=0?'#27ae60':'#e74c3c')+'">R$ '+fmt(saldo)+'</b></p>'+
-    '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">'+
-      '<input type="date" id="lb-data" style="padding:6px;border:1px solid #ddd;border-radius:6px">'+
-      '<input type="text" id="lb-desc" placeholder="Descrição" style="flex:1;min-width:140px;padding:6px;border:1px solid #ddd;border-radius:6px">'+
-      '<select id="lb-tipo" style="padding:6px;border:1px solid #ddd;border-radius:6px"><option value="Entrada">▲ Entrada</option><option value="Saída">▼ Saída</option></select>'+
-      '<input type="number" id="lb-valor" placeholder="Valor R$" min="0" step="0.01" style="width:110px;padding:6px;border:1px solid #ddd;border-radius:6px">'+
-      '<button class="btn-save" style="padding:6px 14px" onclick="salvarLancBanco(&#39;'+cod+'&#39;)">+ Lançar</button>'+
-    '</div>'+
-    '<div style="overflow-x:auto"><table>'+
-      '<thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th style="text-align:right">Valor</th><th style="text-align:right">Saldo</th><th></th></tr></thead>'+
-      '<tbody>'+(rows||'<tr><td colspan="6" style="color:var(--gray);text-align:center;padding:20px">Nenhum lançamento</td></tr>')+'</tbody>'+
-    '</table></div>'+
+    '<header class="erp-statement-header"><div><h3>Extrato bancário</h3><p>'+esc(banco.banco||'Conta bancária')+'</p></div></header>'+
+    '<div class="erp-statement-totals">'+
+      '<div><small>Saldo inicial</small><strong>'+money(statement.openingBalance)+'</strong></div>'+
+      '<div><small>Entradas</small><strong>'+money(statement.credits)+'</strong></div>'+
+      '<div><small>Saídas</small><strong>'+money(statement.debits)+'</strong></div>'+
+      '<div><small>Saldo atual</small><strong>'+money(statement.closingBalance)+'</strong></div></div>'+
+    '<details class="erp-statement-entry"><summary>Novo lançamento</summary>'+
+      '<div class="erp-statement-entry-fields">'+
+      '<label>Data<input type="date" id="lb-data"></label>'+
+      '<label class="erp-statement-wide">Descrição<input type="text" id="lb-desc" maxlength="240" placeholder="Descrição da movimentação"></label>'+
+      '<label>Tipo<select id="lb-tipo"><option value="Entrada">Entrada</option><option value="Saída">Saída</option></select></label>'+
+      '<label>Valor (R$)<input type="number" id="lb-valor" placeholder="0,00" min="0.01" step="0.01"></label>'+
+      '<button type="button" class="btn-save" id="erp-bank-add">Registrar</button></div></details>'+
+    '<div class="erp-statement-filters">'+
+      '<input type="search" id="erp-bank-search" aria-label="Buscar movimentações" placeholder="Buscar descrição ou data">'+
+      '<select id="erp-bank-kind" aria-label="Tipo de movimentação"><option value="">Todas</option><option value="entrada">Entradas</option><option value="saida">Saídas</option></select>'+
+      '<label>De<input type="date" id="erp-bank-from"></label><label>Até<input type="date" id="erp-bank-to"></label>'+ 
+      '<span id="erp-bank-result-count" aria-live="polite"></span></div>'+
+    '<div class="erp-statement-table-wrap"><table class="erp-statement-table">'+
+      '<thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Saldo acumulado</th><th>Ações</th></tr></thead>'+
+      '<tbody id="erp-bank-rows">'+(rows||'<tr><td colspan="6" class="erp-statement-empty">Nenhum lançamento para esta conta.</td></tr>')+'</tbody></table></div>'+
     '<div class="modal-ft"><button class="btn-cancel" onclick="cm()">Fechar</button></div>';
+  const search=body.querySelector('#erp-bank-search'),kind=body.querySelector('#erp-bank-kind');
+  const from=body.querySelector('#erp-bank-from'),to=body.querySelector('#erp-bank-to'),count=body.querySelector('#erp-bank-result-count');
+  const filter=()=>{
+    const query=String(search.value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+    let shown=0;
+    body.querySelectorAll('#erp-bank-rows tr[data-date]').forEach(row=>{
+      const date=row.dataset.date||'';
+      const text=row.textContent.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+      const visible=(!query||text.includes(query))&&(!kind.value||row.dataset.type===kind.value)&&
+        (!from.value||date>=from.value)&&(!to.value||date<=to.value);
+      row.hidden=!visible;if(visible)shown++;
+    });
+    count.textContent=shown+' de '+statement.rows.length+' lançamentos';
+  };
+  [search,kind,from,to].forEach(element=>element.addEventListener('input',filter));
+  body.querySelector('#erp-bank-add').addEventListener('click',()=>salvarLancBanco(cod));
+  body.querySelector('#erp-bank-rows').addEventListener('click',event=>{
+    const button=event.target.closest('button[data-bank-action]');if(!button)return;
+    if(button.dataset.bankAction==='edit')editLancBanco(button.dataset.id,cod);
+    else if(button.dataset.bankAction==='delete')excluirLancBanco(button.dataset.id,cod);
+  });
+  filter();
   document.getElementById('modal-ov').classList.add('open');
 }
 
