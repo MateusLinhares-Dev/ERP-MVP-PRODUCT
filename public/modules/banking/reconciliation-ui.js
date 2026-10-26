@@ -38,8 +38,10 @@ async function api(body){
 }
 function imported(){return Object.values(workspace.imports||{}).filter(r=>r&&r.id);}
 function decisions(){
-  const old=ofx.lastDecisions(workspace.events||{});
-  const map=new Map(old);
+  // Antes do primeiro snapshot usamos o histórico local. Depois, a fonte é a
+  // mesma da API: eventos legados como fallback, decisões transacionais acima.
+  const previous=workspace.legacyDecisions||Object.fromEntries(ofx.lastDecisions(workspace.events||{}));
+  const map=new Map(Object.entries(previous));
   Object.entries(workspace.state?.decisions||{}).forEach(([id,value])=>map.set(id,value));
   return map;
 }
@@ -107,7 +109,11 @@ function itemStatus(entry){const d=decisions().get(entry.id);return d?.status||'
 function statusLabel(value){return ({reconciled:'Conciliado',classified:'Classificado',archived:'Arquivado',partial:'Parcial',reversed:'Reaberto',pending:'Pendente'})[value]||'Pendente';}
 function totals(){
   const entries=imported(),stats={total:entries.length,pending:0,partial:0,reconciled:0,classified:0,archived:0};
-  entries.forEach(e=>{const st=itemStatus(e);if(st==='reconciled'||st==='classified'||st==='partial')stats[st]++;else stats.pending++;});
+  entries.forEach(e=>{
+    const st=itemStatus(e);
+    if(['reconciled','classified','partial','archived'].includes(st))stats[st]++;
+    else stats.pending++;
+  });
   return stats;
 }
 function renderList(){
@@ -121,8 +127,10 @@ function renderList(){
   }).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(a.id).localeCompare(String(b.id)));
   el.querySelector('[data-list]').innerHTML=entries.map(e=>{
     const st=itemStatus(e),val=cents(e.amountCents),checked=state.bulk.has(e.id)?'checked':'';
+    const hasLink=isDone(decisions().get(e.id));
     return '<div class="erp-rec-line '+(state.selected===e.id?'active':'')+'"><label class="erp-rec-bulk"><input type="checkbox" data-bulk="'+esc(e.id)+'" '+checked+' aria-label="Selecionar movimento"></label>'+ 
-      '<button type="button" class="erp-rec-entry" data-open="'+esc(e.id)+'"><span><time>'+esc(dateBR(e.date))+'</time><em class="erp-rec-status '+esc(st)+'">'+statusLabel(st)+'</em></span><strong class="'+(val<0n?'expense':'income')+'">'+(val<0n?'− ': '+ ')+fmt(val)+'</strong><small>'+esc(e.description)+'</small></button></div>';
+      '<button type="button" class="erp-rec-entry" data-open="'+esc(e.id)+'"><span><time>'+esc(dateBR(e.date))+'</time><em class="erp-rec-status '+esc(st)+'">'+statusLabel(st)+'</em></span><strong class="'+(val<0n?'expense':'income')+'">'+(val<0n?'− ': '+ ')+fmt(val)+'</strong><small>'+esc(e.description)+'</small></button>'+ 
+      (hasLink?'<button type="button" class="erp-rec-quick-undo" data-quick-undo="'+esc(e.id)+'" title="Desfazer o estado atual preservando o histórico">'+(st==='archived'?'Reabrir':'Desfazer')+'</button>':'')+'</div>';
   }).join('')||'<div class="erp-rec-empty">Nenhum movimento encontrado.</div>';
   el.querySelector('[data-bulk-count]').textContent=state.bulk.size+' selecionado(s)';
   el.querySelector('[data-batch]').disabled=!state.bulk.size||state.busy;
@@ -145,7 +153,7 @@ function renderDetail(){
     const allocs=Array.isArray(d.allocations)?d.allocations:(d.targetId?[{kind:d.targetKind,id:d.targetId,amountCents:abs(entry.amountCents).toString()}]:[]);
     pane.innerHTML=head+'<div class="erp-rec-complete"><h4>'+statusLabel(d.status)+'</h4>'+allocs.map(a=>'<p>'+esc(a.kind)+' · '+esc(a.id)+' — '+fmt(a.amountCents)+'</p>').join('')+
       '<p>Categoria: '+esc(d.category||'—')+'</p><p>Centro de custo: '+esc(d.costCenter||'—')+'</p><p>Responsável: '+esc(d.actor||'—')+'</p></div>'+audit+
-      '<div class="erp-rec-actions"><button type="button" data-undo class="erp-reconcile-secondary">Desfazer conciliação</button></div>';
+      '<div class="erp-rec-actions"><button type="button" data-undo class="erp-reconcile-secondary">'+(d.status==='archived'?'Reabrir movimentação':d.status==='classified'?'Desfazer classificação':'Desfazer conciliação')+'</button></div>';
     pane.querySelector('[data-undo]').addEventListener('click',()=>runAction({action:'undo',importId:entry.id},true));return;
   }
   if(partial&&!state.initializedDraft){
@@ -158,6 +166,7 @@ function renderDetail(){
   const groupOptions=proposalCombos(entry);
   const typeLabel={bankEntry:'Movimento no ERP',payable:'Conta a pagar',receivable:'Conta a receber'};
   pane.innerHTML=head+
+    (d?.status==='reversed'?'<p class="erp-rec-reopened">Conciliação anterior desfeita. A movimentação está disponível para uma nova conciliação.</p>':'')+
     '<div class="erp-rec-form-header"><h4>Relacionar lançamentos</h4><span>'+candidates.length+' opções disponíveis</span></div>'+ 
     '<label class="erp-rec-search-label">Pesquisar títulos<input type="search" data-target-search placeholder="Fornecedor, cliente, documento ou ID" value="'+esc(state.targetQuery)+'"></label>'+ 
     (groupOptions.length?'<div class="erp-rec-group-row"><span>Combinações encontradas</span>'+groupOptions.map((group,i)=>'<button type="button" data-group="'+i+'">'+group.length+' lançamentos · '+fmt(entry.amountCents)+'</button>').join('')+'</div>':'')+
@@ -205,23 +214,44 @@ function renderDetail(){
   pane.querySelector('[data-create]').addEventListener('click',()=>createBankEntry(entry));
   pane.querySelector('[data-title]').addEventListener('click',()=>titleForm(entry));
 }
-async function refreshTargets(){const result=await api({action:'snapshot'});if(workspace)workspace.targets=result.targets||[];}
+async function refreshTargets(){
+  const state=workspace;
+  const result=await api({action:'snapshot'});
+  if(workspace===state){
+    state.targets=result.targets||[];
+    // Snapshot do servidor tem precedência sobre eventos antigos do browser.
+    state.state=result.state||{decisions:{},audit:{}};
+    state.legacyDecisions=result.legacyDecisions||{};
+  }
+}
 async function runAction(body,confirm=false){
   if(!workspace||workspace.busy)return;
   if(confirm&&!root.confirm(body.action==='archive'?'Arquivar a movimentação sem conciliá-la? O registro ficará no histórico.':'Desfazer o vínculo? O histórico ficará preservado.'))return;
   const state=workspace;state.busy=true;try{
+    // Confere a decisão transacional mais recente antes de enviar a alteração.
+    // Impede que uma interface desatualizada tente substituir um vínculo ativo.
+    await refreshTargets();
+    if(workspace!==state)return;
+    if(body.importId){
+      const status=decisions().get(body.importId)?.status;
+      if(body.action!=='undo'&&['reconciled','classified','archived'].includes(status)){
+        throw Object.assign(new Error('Esta movimentação está '+statusLabel(status).toLowerCase()+'. Use Desfazer/Reabrir para alterar.'),{status:409});
+      }
+      if(body.action==='undo'&&(!status||status==='reversed'||status==='pending')){
+        throw Object.assign(new Error('Esta movimentação já está reaberta e pode ser conciliada novamente.'),{status:409});
+      }
+    }
     await api(body);if(workspace!==state)return;
+    await refreshTargets();if(workspace!==state)return;
     state.allocation={};state.meta={category:'',costCenter:'',notes:'',adjustment:'0'};state.initializedDraft=false;
     notify(body.action==='undo'?'Conciliação reaberta.':body.action==='classify'?'Movimento classificado.':body.action==='archive'?'Movimentação arquivada.':'Conciliação gravada no servidor.','ok');
   }catch(e){
     if(e.status===409&&workspace===state){
-      // Outra sessão pode ter alterado a reserva. Use a verdade do Firebase.
+      // Reconsulta a API (inclusive o fallback legado) em vez de aceitar
+      // um listener ainda atrasado como fonte final da decisão financeira.
       try {
-        const snapshot=await root._fbRawDB.ref('erp/bankReconciliationState/'+state.code).once('value');
-        if(workspace===state){
-          state.state=snapshot.val()||{decisions:{},audit:{}};
-          state.allocation={};state.initializedDraft=false;
-        }
+        await refreshTargets();
+        if(workspace===state){state.allocation={};state.initializedDraft=false;}
       } catch(_) { /* O listener mantém a atualização usual da tela. */ }
     }
     const warning=e.status>=500?' Confira o histórico antes de tentar novamente.':'';
@@ -305,13 +335,13 @@ root.erpReconciliationOpen=async function(bankCode){
     close();const el=document.createElement('div');el.className='erp-reconcile-overlay';
     el.innerHTML='<section class="erp-reconcile-dialog" role="dialog" aria-modal="true" aria-label="Conciliação bancária">'+
       '<header class="erp-reconcile-heading"><div><h2>Conciliação bancária</h2><p>'+esc(account.name)+' · '+esc(code)+'</p></div><div class="erp-reconcile-heading-actions"><button type="button" class="erp-reconcile-secondary" data-refresh>Atualizar</button><label class="erp-reconcile-upload">Importar OFX<input type="file" accept=".ofx,.OFX" hidden data-import></label><button type="button" class="erp-reconcile-close" data-close>Fechar</button></div></header>'+ 
-      '<div class="erp-reconcile-metrics"><div><small>Movimentações</small><strong data-stat="total">0</strong></div><div><small>Pendentes</small><strong data-stat="pending">0</strong></div><div><small>Parciais</small><strong data-stat="partial">0</strong></div><div><small>Conciliadas</small><strong data-stat="reconciled">0</strong></div><div><small>Classificadas</small><strong data-stat="classified">0</strong></div></div>'+ 
+      '<div class="erp-reconcile-metrics"><div><small>Movimentações</small><strong data-stat="total">0</strong></div><div><small>Pendentes</small><strong data-stat="pending">0</strong></div><div><small>Parciais</small><strong data-stat="partial">0</strong></div><div><small>Conciliadas</small><strong data-stat="reconciled">0</strong></div><div><small>Classificadas</small><strong data-stat="classified">0</strong></div><div><small>Arquivadas</small><strong data-stat="archived">0</strong></div></div>'+ 
       '<p class="erp-reconcile-notice" data-notice role="status" aria-live="polite">Selecione movimentos e confira os lançamentos financeiros.</p>'+ 
       '<div class="erp-rec-toolbar"><span data-bulk-count>0 selecionado(s)</span><button data-batch type="button" class="erp-reconcile-secondary" disabled>Conciliar correspondências exatas em lote</button></div>'+ 
       '<div class="erp-reconcile-columns"><div class="erp-reconcile-left"><div class="erp-reconcile-pane-head"><h3>Extrato bancário</h3><div class="erp-reconcile-filters"><input name="search" type="search" placeholder="Descrição, data ou ID" aria-label="Buscar movimentos"><select name="direction" aria-label="Movimentação"><option value="">Entradas e saídas</option><option value="income">Recebimentos</option><option value="expense">Pagamentos</option></select><select name="filter" aria-label="Situação"><option value="all">Todos</option><option value="pending">Pendentes</option><option value="partial">Parciais</option><option value="reconciled">Conciliados</option><option value="classified">Classificados</option><option value="archived">Arquivados</option></select></div></div><div class="erp-reconcile-list" data-list></div></div>'+ 
       '<div class="erp-reconcile-right"><div class="erp-reconcile-pane-head"><h3>Lançamentos do ERP</h3><p>Selecione os títulos, ajuste valores e confirme.</p></div><div class="erp-reconcile-detail" data-detail></div></div></div></section>';
     document.body.appendChild(el);
-    const state={el,code,claims:session.claims,imports:{},events:{},state:{decisions:{},audit:{}},targets:[],selected:'',allocation:{},bulk:new Set(),meta:{category:'',costCenter:'',notes:'',adjustment:'0'},targetQuery:'',initializedDraft:false,unsubscribe:[],busy:false,escape:e=>{if(e.key==='Escape')close();}};
+    const state={el,code,claims:session.claims,imports:{},events:{},state:{decisions:{},audit:{}},legacyDecisions:null,targets:[],selected:'',allocation:{},bulk:new Set(),meta:{category:'',costCenter:'',notes:'',adjustment:'0'},targetQuery:'',initializedDraft:false,unsubscribe:[],busy:false,escape:e=>{if(e.key==='Escape')close();}};
     workspace=state;document.addEventListener('keydown',state.escape);
     el.querySelector('[data-close]').addEventListener('click',close);
     el.addEventListener('click',e=>{if(e.target===el)close();});
@@ -319,6 +349,14 @@ root.erpReconciliationOpen=async function(bankCode){
     el.querySelector('[data-batch]').addEventListener('click',runBatch);
     el.querySelector('[data-refresh]').addEventListener('click',async()=>{try{await refreshTargets();renderList();notify('Títulos atualizados.','ok');}catch(e){notify(e.message,'error');}});
     el.querySelector('[data-list]').addEventListener('click',event=>{
+      const undo=event.target.closest('[data-quick-undo]');
+      if(undo){
+        state.selected=undo.dataset.quickUndo;
+        state.allocation={};state.initializedDraft=false;
+        renderList();
+        runAction({action:'undo',importId:state.selected},true);
+        return;
+      }
       const check=event.target.closest('[data-bulk]');
       if(check){if(check.checked)state.bulk.add(check.dataset.bulk);else state.bulk.delete(check.dataset.bulk);renderList();return;}
       const open=event.target.closest('[data-open]');if(open){state.selected=open.dataset.open;state.allocation={};state.targetQuery='';state.initializedDraft=false;state.meta={category:'',costCenter:'',notes:'',adjustment:'0'};renderList();}

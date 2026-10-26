@@ -85,7 +85,12 @@ export async function executeReconciliation(identity,input,{db:injectedDatabase}
   const globalStateRef=db.ref('erp/bankReconciliationState');
   const action=String(input.action||'');
   if(action==='snapshot'){
-    const snap=await stateRef.get();return {state:snap.val()||{decisions:{},audit:{}},targets};
+    const snap=await stateRef.get();
+    const state=snap.val()||{decisions:{},audit:{}};
+    // A mesma precedência é usada aqui e nas transações: o estado confirmado
+    // pela API prevalece sobre eventos legados. Assim o navegador não oferece
+    // uma operação que o servidor ainda considera bloqueada.
+    return {state,legacyDecisions:legacy,targets};
   }
   if(action==='create-title'){
     const incoming=String(input.importId||''),imported=imports[incoming];

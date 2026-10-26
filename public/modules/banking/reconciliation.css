@@ -73,3 +73,13 @@
 @media(max-width:500px){.erp-reconcile-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.erp-rec-fields{grid-template-columns:1fr}.erp-rec-target{flex-wrap:wrap}.erp-rec-target>input{margin-left:25px;width:calc(100% - 25px)}}
 .erp-rec-title-form{border:1px solid #c9dccc;background:#f7faf8;padding:13px;border-radius:8px;margin-top:14px}
 .erp-rec-title-form[hidden]{display:none}.erp-rec-title-form h4{font-size:.86rem;margin:0 0 10px}
+
+/* Ações rápidas para reabrir vínculos e estados de conciliação. */
+.erp-reconcile-metrics{grid-template-columns:repeat(6,minmax(0,1fr))}
+.erp-rec-quick-undo{align-self:center;margin:0 10px 0 0;padding:7px 10px;border:1px solid #b9d3c2;border-radius:5px;background:#fff;color:#20583b;font-size:.72rem;font-weight:650;cursor:pointer;white-space:nowrap}
+.erp-rec-quick-undo:hover{background:#e8f3eb;border-color:#4d9869}
+.erp-rec-reopened{margin:10px 0;padding:10px 12px;border:1px solid #cfe4d3;border-radius:6px;background:#f2f9f4;color:#245d3c;font-size:.8rem}
+.erp-rec-status.archived{background:#f3efe7;color:#755d34}
+.erp-rec-status.reversed{background:#e9f5ed;color:#21643d}
+@media(max-width:950px){.erp-reconcile-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:500px){.erp-reconcile-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
