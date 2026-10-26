@@ -127,3 +127,44 @@ test('criação de título é explícita, idempotente e não baixa o financeiro'
   assert.equal(db.store.erp.lancBanco&&Object.keys(db.store.erp.lancBanco).length,0);
   await assert.rejects(()=>executeReconciliation({...identity,canFinance:false},input,{db}),/Sem permissão/);
 });
+
+test('validação de plano inválido retorna 400 e não grava estado financeiro',async()=>{
+  const db=mockDb();
+  await assert.rejects(
+    ()=>executeReconciliation(identity,{bankCode:'B1',action:'reconcile',importId:'i1',status:'reconciled',allocations:[]},{db}),
+    err=>err.status===400&&err.code==='INVALID_RECONCILIATION'&&/vínculo financeiro/.test(err.message)
+  );
+  assert.deepEqual(db.store.erp.bankReconciliationState,{});
+});
+
+test('saldo já comprometido retorna 409 e não confirma uma segunda reserva',async()=>{
+  const db=mockDb();
+  await executeReconciliation(identity,{bankCode:'B1',action:'reconcile',importId:'i2',allocations:[allocation('p1',5000)]},{db});
+  await assert.rejects(
+    ()=>executeReconciliation(identity,{bankCode:'B1',action:'reconcile',importId:'i1',allocations:[allocation('p1',6000)]},{db}),
+    err=>err.status===409&&err.code==='RECONCILIATION_CONFLICT'
+  );
+  assert.equal(Object.keys(db.store.erp.bankReconciliationState.B1.audit).length,1);
+});
+
+test('dados monetários inválidos retornam 400 sem criar títulos ou movimentações',async()=>{
+  const db=mockDb();
+  await assert.rejects(
+    ()=>executeReconciliation(identity,{bankCode:'B1',action:'create-title',importId:'i1',amountCents:'1e999',confirm:true},{db}),
+    err=>err.status===400
+  );
+  db.store.erp.bankReconciliationImports.B1.i1.amountCents='1e999';
+  await assert.rejects(
+    ()=>executeReconciliation(identity,{bankCode:'B1',action:'create-bank-entry',importId:'i1',confirm:true},{db}),
+    err=>err.status===400
+  );
+  assert.equal(Object.keys(db.store.erp.contasPagar).length,3);
+  assert.equal(Object.keys(db.store.erp.lancBanco).length,0);
+});
+
+test('cliente identifica status e ID da requisição sem expor erros internos',()=>{
+  const ui=readFileSync(new URL('../public/modules/banking/reconciliation-ui.js',import.meta.url),'utf8');
+  assert.match(ui,/X-Request-Id/);
+  assert.match(ui,/e\.status===409/);
+  assert.match(ui,/Confira o histórico antes de tentar novamente/);
+});

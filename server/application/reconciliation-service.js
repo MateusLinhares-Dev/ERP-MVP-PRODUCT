@@ -40,7 +40,17 @@ export function validateReconciliationAction({input,imports,targets,current={},l
     if(!['reconciled','partial','classified'].includes(status))throw forbidden('Situação inválida');
     const allocations=Array.isArray(input.allocations)?input.allocations:[];
     if(allocations.some(a=>a.kind==='payable'&&identity.canFinance!==true||a.kind==='receivable'&&identity.canFinance!==true&&identity.canReceivables!==true))throw forbidden('Sem permissão para o título selecionado',403);
-    return validatePlan({imported,allocations,adjustmentCents:input.adjustmentCents||'0',category:input.category||'',targets,decisions:merged,status});
+    try {
+      return validatePlan({imported,allocations,adjustmentCents:input.adjustmentCents||'0',category:input.category||'',targets,decisions:merged,status});
+    } catch (error) {
+      // A seleção e os valores vêm da interface. Validação rejeitada não é erro 500.
+      // O cliente recebe uma mensagem acionável, enquanto falhas de infraestrutura
+      // continuam sendo reportadas como erros internos reais.
+      const conflict=/saldo disponível|já conciliad|movimentaç[aã]o alterada|em uso/i.test(String(error?.message||''));
+      const invalid=forbidden(error?.message||'Dados de conciliação inválidos',conflict?409:400);
+      invalid.code=conflict?'RECONCILIATION_CONFLICT':'INVALID_RECONCILIATION';
+      throw invalid;
+    }
   }
   throw forbidden('Ação de conciliação não reconhecida');
 }
@@ -84,7 +94,9 @@ export async function executeReconciliation(identity,input,{db:injectedDatabase}
     if(kind==='payable'&&identity.canFinance!==true||kind==='receivable'&&identity.canFinance!==true&&identity.canReceivables!==true)
       throw forbidden('Sem permissão para cadastrar títulos financeiros',403);
     if(input.confirm!==true)throw forbidden('Confirme a criação do título financeiro');
-    const amount=cents(input.amountCents||ABS(cents(imported.amountCents)).toString());
+    let amount;
+    try { amount=cents(input.amountCents||ABS(cents(imported.amountCents)).toString()); }
+    catch { throw forbidden('Valor do título inválido'); }
     if(amount<=0n||amount>1000000000000n||amount>ABS(cents(imported.amountCents)))throw forbidden('Valor do título fora dos limites');
     const party=safeText(input.party,120),category=safeText(input.category,90),description=safeText(input.description||imported.description,240);
     const company=safeText(account.empresa||input.company,120);
@@ -108,7 +120,9 @@ export async function executeReconciliation(identity,input,{db:injectedDatabase}
   if(action==='create-bank-entry'){
     const importId=safeText(input.importId,100),imported=imports[importId];
     if(!imported)throw forbidden('Movimentação importada não encontrada');
-    const raw=cents(imported.amountCents);
+    let raw;
+    try { raw=cents(imported.amountCents); }
+    catch { throw forbidden('Valor da movimentação bancária inválido'); }
     if(ABS(raw)>1000000000000n)throw forbidden('Valor incompatível com módulo bancário legado');
     if(input.confirm!==true)throw forbidden('Confirme a criação da movimentação bancária');
     const id='LBR-'+createHash('sha256').update(code+'|'+importId).digest('hex').slice(0,26);
@@ -124,7 +138,7 @@ export async function executeReconciliation(identity,input,{db:injectedDatabase}
     return {created:result.committed,id,record:entry};
   }
   if(!['reconcile','classify','archive','undo','batch'].includes(action))throw forbidden('Ação não suportada');
-  if(action==='batch'&&(!Array.isArray(input.items)||input.items.length>30))throw forbidden('Lote limitado a 30 movimentações');
+  if(action==='batch'&&(!Array.isArray(input.items)||!input.items.length||input.items.length>30))throw forbidden('Lote deve conter entre 1 e 30 movimentações');
   let failure,records=[];
   // Serialização GLOBAL entre contas: o mesmo título não pode ser consumido por dois bancos.
   // O nó da conta continua disponível por listener para a interface, sem acesso de escrita do browser.
@@ -143,6 +157,7 @@ export async function executeReconciliation(identity,input,{db:injectedDatabase}
     try{
       if(Object.keys(state.audit).length+inputs.length>10000)throw forbidden('Limite de auditoria da conta atingido; arquive mediante procedimento administrativo');
       for(const item of inputs){
+        if(!item||typeof item!=='object'||Array.isArray(item))throw forbidden('Item de conciliação inválido');
         const importId=safeText(item.importId,100);
         const plan=validateReconciliationAction({input:item,imports,targets,current:allDecisions,legacy,identity});
         const existing=state.decisions[importId]||legacy[importId];

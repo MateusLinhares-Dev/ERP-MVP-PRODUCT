@@ -24,7 +24,16 @@ async function api(body){
   const {user}=await identity();
   const response=await fetch('/api/banking/reconcile',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await user.getIdToken()},body:JSON.stringify({...body,bankCode:workspace.code})});
   const payload=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(payload.error||payload.message||`Falha no servidor (${response.status})`);
+  if(!response.ok){
+    const requestId=response.headers?.get('X-Request-Id')||'';
+    const text=payload.error||payload.message||`Falha no servidor (${response.status})`;
+    const suffix=response.status>=500&&requestId?` · Referência: ${requestId}`:'';
+    const error=new Error(text+suffix);
+    error.status=response.status;
+    error.code=payload.code||'';
+    error.requestId=requestId;
+    throw error;
+  }
   return payload;
 }
 function imported(){return Object.values(workspace.imports||{}).filter(r=>r&&r.id);}
@@ -204,7 +213,20 @@ async function runAction(body,confirm=false){
     await api(body);if(workspace!==state)return;
     state.allocation={};state.meta={category:'',costCenter:'',notes:'',adjustment:'0'};state.initializedDraft=false;
     notify(body.action==='undo'?'Conciliação reaberta.':body.action==='classify'?'Movimento classificado.':body.action==='archive'?'Movimentação arquivada.':'Conciliação gravada no servidor.','ok');
-  }catch(e){notify(e.message,'error');}finally{state.busy=false;renderList();}
+  }catch(e){
+    if(e.status===409&&workspace===state){
+      // Outra sessão pode ter alterado a reserva. Use a verdade do Firebase.
+      try {
+        const snapshot=await root._fbRawDB.ref('erp/bankReconciliationState/'+state.code).once('value');
+        if(workspace===state){
+          state.state=snapshot.val()||{decisions:{},audit:{}};
+          state.allocation={};state.initializedDraft=false;
+        }
+      } catch(_) { /* O listener mantém a atualização usual da tela. */ }
+    }
+    const warning=e.status>=500?' Confira o histórico antes de tentar novamente.':'';
+    notify(e.message+warning,'error');
+  }finally{state.busy=false;if(workspace===state)renderList();}
 }
 function titleForm(entry){
   const wrap=workspace.el.querySelector('[data-title-form]');
