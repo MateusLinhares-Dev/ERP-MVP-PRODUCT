@@ -18711,13 +18711,20 @@ function renderBancos(){
       +'<td style="white-space:nowrap">'
         +'<button class="btn-edit" onclick="editBanco('+i+')" title="Editar">✏️</button> '
         +'<button class="btn-edit-danger" onclick="excluirBanco('+i+')" title="Excluir">🗑️</button> '
-        +'<button class="btn-add" style="padding:3px 8px;font-size:.72rem;background:#27ae60" onclick="verExtratoBanco(&#39;'+b.cod+'&#39;)" title="Ver extrato">📊 Extrato</button> '
+        +'<button class="btn-add" style="padding:3px 8px;font-size:.72rem;background:#27ae60" onclick="verExtratoBanco(&#39;'+b.cod+'&#39;)" title="Ver extrato">📊 Extrato</button> '+ '<button type="button" class="btn-add" style="padding:3px 8px;font-size:.72rem" data-bank-reconcile="'+esc(b.cod)+'" title="Conciliar extrato bancário">Conciliar</button> '
         +'<button class="btn-add" style="padding:3px 8px;font-size:.72rem" onclick="compartilharBanco('+i+')" title="Compartilhar dados para pagamento">📤 Compartilhar</button>'
         +'</td>'
     +'</tr>';
   }).join('');
 
   
+  if(typeof tbody.addEventListener==='function' && !tbody.dataset?.reconcileBound){
+    tbody.addEventListener('click',function(event){
+      const button=event.target.closest('button[data-bank-reconcile]');
+      if(button&&tbody.contains(button))window.erpReconciliationOpen(button.dataset.bankReconcile);
+    });
+    if(tbody.dataset)tbody.dataset.reconcileBound='true';
+  }
   const kpiTotal=document.querySelector('#tab-contas_banco .kpi-val');
   if(kpiTotal) kpiTotal.textContent=BANCOS_DB.length;
   const kpiSaldo=document.querySelectorAll('#tab-contas_banco .kpi-val')[1];
@@ -18994,6 +19001,15 @@ function zerarSaldosBancos(){
   alert('✅ Pronto! '+BANCOS_DB.length+' contas zeradas, '+arquivadosQtd+' lançamento(s) antigo(s) arquivado(s) (backup baixado). Agora edite cada conta e digite o saldo real de ontem no campo Saldo Inicial.');
 }
 
+// Apenas leitura para conciliação. Não altera baixa de títulos, saldo nem histórico.
+window.erpReconciliationSources=function(){
+  return {
+    banks:BANCOS_DB.filter(Boolean).map(b=>({cod:String(b.cod||''),name:String(b.banco||'Conta'),account:String(b.conta||'')})),
+    bankEntries:LANC_BANCO_DB.filter(Boolean).map(l=>({id:String(l.id||''),bankCode:String(l.bancoCod||''),date:String(l.data||''),description:String(l.descricao||''),type:String(l.tipo||''),amount:l.valor})),
+    payables:CONTAS_PAGAR.filter(Boolean).map(c=>({id:String(c.id||''),date:String(c.venc||c.lancto||''),description:String(c.desc||c.cred||''),amount:c.valor,status:String(c.status||''),party:String(c.cred||'')})),
+    receivables:CONTAS_RECEBER.filter(Boolean).map(c=>({id:String(c.id||''),date:String(c.venc||c.data||''),description:String(c.desc||c.cli||''),amount:c.valor,status:String(c.status||''),party:String(c.cli||'')}))
+  };
+};
 function verExtratoBanco(cod){
   const banco=BANCOS_DB.find(b=>b.cod===cod);if(!banco)return;
   const ledger=window.erpBankLedger;

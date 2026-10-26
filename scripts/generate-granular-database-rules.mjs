@@ -87,6 +87,31 @@ candidate.rules.erp.documentCategories={
     '.validate':"newData.hasChildren(['id','name']) && newData.child('id').isString() && newData.child('id').val() == $categoryId && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 120 && (!newData.child('createdAt').exists() || (newData.child('createdAt').isString() && newData.child('createdAt').val().length <= 60))"
   }
 };
+// Conciliação bancária: importações e eventos imutáveis e vinculados ao ator.
+// Nenhuma permissão de escrita no nó pai: a criação só ocorre sob $entryId/$eventId.
+const banking=`${auth} && auth.token.canBanking == true`;
+const actor=`newData.child('uid').val() == auth.uid && newData.child('importedBy').val() == auth.token.erpUser`;
+const eventActor=`newData.child('uid').val() == auth.uid && newData.child('actor').val() == auth.token.erpUser`;
+const timeWindow=(field)=>`newData.child('${field}').isNumber() && newData.child('${field}').val() >= now - 600000 && newData.child('${field}').val() <= now + 600000`;
+candidate.rules.erp.bankReconciliationImports={
+  '.read':banking,
+  '$bankCode':{
+    '$entryId':{
+      '.write':`${banking} && !data.exists() && newData.exists()`,
+      '.validate':`newData.hasChildren(['id','bankCode','date','amountCents','description','fitid','importedBy','uid','importedAt']) && newData.child('id').val() == $entryId && newData.child('bankCode').val() == $bankCode && newData.child('date').isString() && newData.child('date').val().matches(/^\\d{4}-\\d{2}-\\d{2}$/) && newData.child('amountCents').isString() && newData.child('amountCents').val().matches(/^-?[0-9]{1,15}$/) && newData.child('description').isString() && newData.child('description').val().length > 0 && newData.child('description').val().length <= 240 && newData.child('fitid').isString() && newData.child('fitid').val().length <= 128 && newData.child('importedBy').isString() && newData.child('uid').isString() && ${actor} && ${timeWindow('importedAt')}`
+    }
+  }
+};
+candidate.rules.erp.bankReconciliationEvents={
+  '.read':banking,
+  '$bankCode':{
+    '$eventId':{
+      '.write':`${banking} && !data.exists() && newData.exists()`,
+      '.validate':`newData.hasChildren(['id','importId','status','targetKind','targetId','label','category','costCenter','notes','actor','uid','createdAt']) && newData.child('id').val() == $eventId && root.child('erp/bankReconciliationImports/'+$bankCode+'/'+newData.child('importId').val()).exists() && (newData.child('status').val() == 'reconciled' || newData.child('status').val() == 'classified' || newData.child('status').val() == 'reversed') && (newData.child('targetKind').val() == 'bankEntry' || newData.child('targetKind').val() == 'payable' || newData.child('targetKind').val() == 'receivable' || newData.child('targetKind').val() == 'manual' || newData.child('targetKind').val() == 'none') && newData.child('targetId').isString() && newData.child('targetId').val().length <= 120 && newData.child('label').isString() && newData.child('label').val().length <= 240 && newData.child('category').isString() && newData.child('category').val().length <= 90 && newData.child('costCenter').isString() && newData.child('costCenter').val().length <= 90 && newData.child('notes').isString() && newData.child('notes').val().length <= 500 && newData.child('actor').isString() && newData.child('uid').isString() && ${eventActor} && ${timeWindow('createdAt')} && (newData.child('status').val() != 'classified' || newData.child('targetKind').val() != 'manual' || newData.child('category').val().length > 0)`
+    }
+  }
+};
+
 // Coleções de tombstones V2 são lidas pela função legada de sincronização.
 // A escrita V2 fica reservada ao administrador, exceto ticketsDeletedV2.
 const legacyCore=fs.readFileSync(path.join(root,'public/legacy/app-core.js'),'utf8');
