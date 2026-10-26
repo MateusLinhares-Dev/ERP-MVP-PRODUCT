@@ -83,3 +83,6 @@
 .erp-rec-status.reversed{background:#e9f5ed;color:#21643d}
 @media(max-width:950px){.erp-reconcile-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:500px){.erp-reconcile-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Oculta alertas antigos quando o status é atualizado pelo servidor. */
+.erp-reconcile-notice:empty{display:none}

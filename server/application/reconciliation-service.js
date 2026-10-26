@@ -90,7 +90,10 @@ export async function executeReconciliation(identity,input,{db:injectedDatabase}
     // A mesma precedência é usada aqui e nas transações: o estado confirmado
     // pela API prevalece sobre eventos legados. Assim o navegador não oferece
     // uma operação que o servidor ainda considera bloqueada.
-    return {state,legacyDecisions:legacy,targets};
+    // A interface usa exatamente a mesma precedência da transação: uma decisão
+    // transacional (inclusive 'reversed') substitui o evento legado.
+    const effectiveDecisions=Object.fromEntries(mergeDecisions(state.decisions||{},legacy));
+    return {state,legacyDecisions:legacy,effectiveDecisions,targets};
   }
   if(action==='create-title'){
     const incoming=String(input.importId||''),imported=imports[incoming];

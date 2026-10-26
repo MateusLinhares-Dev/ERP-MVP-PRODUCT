@@ -11,7 +11,10 @@ const fmt=value=>{const n=abs(value).toString().padStart(3,'0');return 'R$ '+n.s
 const dateBR=s=>{const iso=money.isoDate(s);return iso?iso.slice(8)+'/'+iso.slice(5,7)+'/'+iso.slice(0,4):s||'—';};
 function notify(msg,type='info'){
   if(!workspace)return;
-  const el=workspace.el.querySelector('[data-notice]');el.textContent=msg;el.dataset.type=type;
+  const el=workspace.el.querySelector('[data-notice]');
+  if(!el)return;
+  el.textContent=msg;
+  el.dataset.type=msg?type:'info';
 }
 function origin(){const sources=typeof root.erpReconciliationSources==='function'?root.erpReconciliationSources():{banks:[]};return sources;}
 async function identity(){
@@ -38,14 +41,12 @@ async function api(body){
 }
 function imported(){return Object.values(workspace.imports||{}).filter(r=>r&&r.id);}
 function decisions(){
-  // Antes do primeiro snapshot usamos o histórico local. Depois, a fonte é a
-  // mesma da API: eventos legados como fallback, decisões transacionais acima.
-  const previous=workspace.legacyDecisions||Object.fromEntries(ofx.lastDecisions(workspace.events||{}));
-  const map=new Map(Object.entries(previous));
-  Object.entries(workspace.state?.decisions||{}).forEach(([id,value])=>map.set(id,value));
-  return map;
+  // Nunca misturar listener/cache local com autorização transacional. O estado
+  // exibido vem exclusivamente do snapshot calculado pela mesma API que grava.
+  return new Map(Object.entries(workspace?.effectiveDecisions||{}));
 }
 function isDone(d){return ['reconciled','classified','archived'].includes(d?.status);}
+function canUndo(d){return ['reconciled','classified','archived','partial'].includes(d?.status);}
 function targetKey(t){return t.kind+':'+t.id;}
 function consumed(exceptId){
   const amounts=new Map();
@@ -127,7 +128,7 @@ function renderList(){
   }).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(a.id).localeCompare(String(b.id)));
   el.querySelector('[data-list]').innerHTML=entries.map(e=>{
     const st=itemStatus(e),val=cents(e.amountCents),checked=state.bulk.has(e.id)?'checked':'';
-    const hasLink=isDone(decisions().get(e.id));
+    const hasLink=canUndo(decisions().get(e.id));
     return '<div class="erp-rec-line '+(state.selected===e.id?'active':'')+'"><label class="erp-rec-bulk"><input type="checkbox" data-bulk="'+esc(e.id)+'" '+checked+' aria-label="Selecionar movimento"></label>'+ 
       '<button type="button" class="erp-rec-entry" data-open="'+esc(e.id)+'"><span><time>'+esc(dateBR(e.date))+'</time><em class="erp-rec-status '+esc(st)+'">'+statusLabel(st)+'</em></span><strong class="'+(val<0n?'expense':'income')+'">'+(val<0n?'− ': '+ ')+fmt(val)+'</strong><small>'+esc(e.description)+'</small></button>'+ 
       (hasLink?'<button type="button" class="erp-rec-quick-undo" data-quick-undo="'+esc(e.id)+'" title="Desfazer o estado atual preservando o histórico">'+(st==='archived'?'Reabrir':'Desfazer')+'</button>':'')+'</div>';
@@ -166,7 +167,7 @@ function renderDetail(){
   const groupOptions=proposalCombos(entry);
   const typeLabel={bankEntry:'Movimento no ERP',payable:'Conta a pagar',receivable:'Conta a receber'};
   pane.innerHTML=head+
-    (d?.status==='reversed'?'<p class="erp-rec-reopened">Conciliação anterior desfeita. A movimentação está disponível para uma nova conciliação.</p>':'')+
+    (d?.status==='reversed'?'<p class="erp-rec-reopened">Conciliação anterior já desfeita. Selecione um ou mais lançamentos abaixo e confirme a nova conciliação.</p>':'')+
     '<div class="erp-rec-form-header"><h4>Relacionar lançamentos</h4><span>'+candidates.length+' opções disponíveis</span></div>'+ 
     '<label class="erp-rec-search-label">Pesquisar títulos<input type="search" data-target-search placeholder="Fornecedor, cliente, documento ou ID" value="'+esc(state.targetQuery)+'"></label>'+ 
     (groupOptions.length?'<div class="erp-rec-group-row"><span>Combinações encontradas</span>'+groupOptions.map((group,i)=>'<button type="button" data-group="'+i+'">'+group.length+' lançamentos · '+fmt(entry.amountCents)+'</button>').join('')+'</div>':'')+
@@ -183,7 +184,9 @@ function renderDetail(){
     '<div data-balance>'+sumFields()+'</div>'+ 
     '<div class="erp-rec-title-form" data-title-form hidden></div>'+
     '<div class="erp-rec-actions"><button type="button" class="erp-reconcile-secondary" data-create>Registrar movimento no ERP</button><button type="button" class="erp-reconcile-secondary" data-title>Criar título financeiro</button><button type="button" class="erp-reconcile-secondary" data-archive>Arquivar</button><button type="button" class="erp-reconcile-secondary" data-classify>Classificar</button>'+ 
+    (partial?'<button type="button" class="erp-reconcile-secondary" data-undo-partial>Desfazer parcial</button>':'')+
     '<button type="button" class="erp-reconcile-primary" data-confirm>Conciliar seleção</button></div>'+audit;
+  pane.querySelector('[data-undo-partial]')?.addEventListener('click',()=>runAction({action:'undo',importId:entry.id},true));
   pane.querySelector('[data-target-search]').addEventListener('input',e=>{draft();state.targetQuery=e.target.value;const start=e.target.selectionStart;renderDetail();const field=pane.querySelector('[data-target-search]');field.focus();field.setSelectionRange(start,start);});
   pane.querySelectorAll('[data-target]').forEach(input=>input.addEventListener('change',()=>{
     draft();const t=candidates.find(t=>targetKey(t)===input.dataset.target);if(!t)return;
@@ -216,13 +219,19 @@ function renderDetail(){
 }
 async function refreshTargets(){
   const state=workspace;
+  if(!state)return;
+  const request=++state.snapshotSequence;
   const result=await api({action:'snapshot'});
-  if(workspace===state){
+  if(workspace===state&&request===state.snapshotSequence){
     state.targets=result.targets||[];
-    // Snapshot do servidor tem precedência sobre eventos antigos do browser.
     state.state=result.state||{decisions:{},audit:{}};
     state.legacyDecisions=result.legacyDecisions||{};
+    // Fonte única de verdade: o mesmo mapa efetivo verificado na transação.
+    state.effectiveDecisions=result.effectiveDecisions||Object.assign({},state.legacyDecisions,state.state.decisions||{});
+    state.snapshotLoaded=true;
+    return true;
   }
+  return false;
 }
 async function runAction(body,confirm=false){
   if(!workspace||workspace.busy)return;
@@ -230,8 +239,12 @@ async function runAction(body,confirm=false){
   const state=workspace;state.busy=true;try{
     // Confere a decisão transacional mais recente antes de enviar a alteração.
     // Impede que uma interface desatualizada tente substituir um vínculo ativo.
-    await refreshTargets();
+    // Não autoriza a ação com snapshot descartado por uma leitura mais recente.
+    // Em caso de listener concorrente, repete a consulta ao servidor.
+    let fresh=false;
+    for(let attempt=0;attempt<3&&!fresh;attempt++)fresh=await refreshTargets();
     if(workspace!==state)return;
+    if(!fresh)throw new Error('O estado da movimentação mudou. Atualize antes de confirmar.');
     if(body.importId){
       const status=decisions().get(body.importId)?.status;
       if(body.action!=='undo'&&['reconciled','classified','archived'].includes(status)){
@@ -255,7 +268,9 @@ async function runAction(body,confirm=false){
       } catch(_) { /* O listener mantém a atualização usual da tela. */ }
     }
     const warning=e.status>=500?' Confira o histórico antes de tentar novamente.':'';
-    notify(e.message+warning,'error');
+    const current=body.importId?decisions().get(body.importId)?.status:'';
+    const informative=e.status===409&&current==='reversed';
+    notify(informative?'Esta movimentação já foi reaberta. Selecione um título e confirme a nova conciliação.':e.message+warning,informative?'info':'error');
   }finally{state.busy=false;if(workspace===state)renderList();}
 }
 function titleForm(entry){
@@ -326,7 +341,7 @@ async function importOfx(file){
   }
   notify(`${created} importado(s); ${duplicate} duplicado(s) ignorado(s).`,'ok');
 }
-function close(){if(!workspace)return;const s=workspace;workspace=null;s.unsubscribe.forEach(fn=>fn());document.removeEventListener('keydown',s.escape);s.el.remove();}
+function close(){if(!workspace)return;const s=workspace;workspace=null;s.snapshotSequence++;if(s.snapshotTimer)clearTimeout(s.snapshotTimer);s.unsubscribe.forEach(fn=>fn());document.removeEventListener('keydown',s.escape);s.el.remove();}
 root.erpReconciliationOpen=async function(bankCode){
   try{
     const code=String(bankCode||'');if(!/^[A-Za-z0-9_-]{1,40}$/.test(code))throw Error('Código de banco inválido');
@@ -341,7 +356,7 @@ root.erpReconciliationOpen=async function(bankCode){
       '<div class="erp-reconcile-columns"><div class="erp-reconcile-left"><div class="erp-reconcile-pane-head"><h3>Extrato bancário</h3><div class="erp-reconcile-filters"><input name="search" type="search" placeholder="Descrição, data ou ID" aria-label="Buscar movimentos"><select name="direction" aria-label="Movimentação"><option value="">Entradas e saídas</option><option value="income">Recebimentos</option><option value="expense">Pagamentos</option></select><select name="filter" aria-label="Situação"><option value="all">Todos</option><option value="pending">Pendentes</option><option value="partial">Parciais</option><option value="reconciled">Conciliados</option><option value="classified">Classificados</option><option value="archived">Arquivados</option></select></div></div><div class="erp-reconcile-list" data-list></div></div>'+ 
       '<div class="erp-reconcile-right"><div class="erp-reconcile-pane-head"><h3>Lançamentos do ERP</h3><p>Selecione os títulos, ajuste valores e confirme.</p></div><div class="erp-reconcile-detail" data-detail></div></div></div></section>';
     document.body.appendChild(el);
-    const state={el,code,claims:session.claims,imports:{},events:{},state:{decisions:{},audit:{}},legacyDecisions:null,targets:[],selected:'',allocation:{},bulk:new Set(),meta:{category:'',costCenter:'',notes:'',adjustment:'0'},targetQuery:'',initializedDraft:false,unsubscribe:[],busy:false,escape:e=>{if(e.key==='Escape')close();}};
+    const state={el,code,claims:session.claims,imports:{},events:{},state:{decisions:{},audit:{}},legacyDecisions:null,effectiveDecisions:{},snapshotLoaded:false,snapshotSequence:0,snapshotTimer:null,targets:[],selected:'',allocation:{},bulk:new Set(),meta:{category:'',costCenter:'',notes:'',adjustment:'0'},targetQuery:'',initializedDraft:false,unsubscribe:[],busy:false,escape:e=>{if(e.key==='Escape')close();}};
     workspace=state;document.addEventListener('keydown',state.escape);
     el.querySelector('[data-close]').addEventListener('click',close);
     el.addEventListener('click',e=>{if(e.target===el)close();});
@@ -351,6 +366,7 @@ root.erpReconciliationOpen=async function(bankCode){
     el.querySelector('[data-list]').addEventListener('click',event=>{
       const undo=event.target.closest('[data-quick-undo]');
       if(undo){
+        notify('');
         state.selected=undo.dataset.quickUndo;
         state.allocation={};state.initializedDraft=false;
         renderList();
@@ -359,12 +375,36 @@ root.erpReconciliationOpen=async function(bankCode){
       }
       const check=event.target.closest('[data-bulk]');
       if(check){if(check.checked)state.bulk.add(check.dataset.bulk);else state.bulk.delete(check.dataset.bulk);renderList();return;}
-      const open=event.target.closest('[data-open]');if(open){state.selected=open.dataset.open;state.allocation={};state.targetQuery='';state.initializedDraft=false;state.meta={category:'',costCenter:'',notes:'',adjustment:'0'};renderList();}
+      const open=event.target.closest('[data-open]');if(open){notify('');state.selected=open.dataset.open;state.allocation={};state.targetQuery='';state.initializedDraft=false;state.meta={category:'',costCenter:'',notes:'',adjustment:'0'};renderList();}
     });
     el.querySelector('[data-import]').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;e.target.disabled=true;try{await importOfx(file);}catch(error){notify(error.message,'error');}finally{e.target.disabled=false;e.target.value='';}});
+    const scheduleSnapshotRefresh=()=>{
+      if(workspace!==state||state.snapshotTimer)return;
+      state.snapshotTimer=setTimeout(async()=>{
+        state.snapshotTimer=null;
+        if(workspace!==state)return;
+        try{
+          const before=JSON.stringify(state.effectiveDecisions);
+          if(await refreshTargets()&&workspace===state){
+            if(before!==JSON.stringify(state.effectiveDecisions))notify('');
+            renderList();
+          }
+        }catch(error){if(workspace===state)notify('Não foi possível atualizar o estado da conciliação: '+error.message,'error');}
+      },120);
+    };
     for(const [key,path] of [['imports','bankReconciliationImports'],['events','bankReconciliationEvents'],['state','bankReconciliationState']]){
       const ref=root._fbRawDB.ref('erp/'+path+'/'+code);
-      const callback=snap=>{if(workspace!==state)return;state[key]=snap.val()||{};if(!state.imports[state.selected])state.selected=Object.keys(state.imports)[0]||'';renderList();};
+      const callback=snap=>{
+        if(workspace!==state)return;
+        if(key!=='state'){
+          state[key]=snap.val()||{};
+          if(!state.imports[state.selected])state.selected=Object.keys(state.imports)[0]||'';
+        }
+        // O listener serve somente para detectar mudanças. Somente a API
+        // pode definir o status, evitando exibir 'Reaberto' com vínculo ativo.
+        scheduleSnapshotRefresh();
+        renderList();
+      };
       ref.on('value',callback,e=>notify('Erro de leitura Firebase: '+e.message,'error'));
       state.unsubscribe.push(()=>ref.off('value',callback));
     }
