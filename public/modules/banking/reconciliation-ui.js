@@ -185,9 +185,9 @@ function renderDetail(){
     '<label class="wide">Observações<textarea name="notes" maxlength="500" rows="2">'+esc(state.meta.notes||'')+'</textarea></label></div></details>'+ 
     '<div data-balance>'+sumFields()+'</div>'+ 
     '<div class="erp-rec-title-form" data-title-form hidden></div>'+
-    '<div class="erp-rec-actions"><details class="erp-rec-more-actions"><summary>Mais ações</summary><div class="erp-rec-secondary-actions"><button type="button" class="erp-reconcile-secondary" data-create>Registrar movimento no ERP</button><button type="button" class="erp-reconcile-secondary" data-title>Criar título financeiro</button><button type="button" class="erp-reconcile-secondary" data-archive>Arquivar</button><button type="button" class="erp-reconcile-secondary" data-classify>Classificar</button>'+ 
+    '<div class="erp-rec-actions"><details class="erp-rec-more-actions"><summary>Mais ações</summary><div class="erp-rec-secondary-actions"><button type="button" class="erp-reconcile-secondary" data-create>Registrar movimento no ERP</button><button type="button" class="erp-reconcile-secondary" data-title>Criar título financeiro</button><button type="button" class="erp-reconcile-secondary" data-archive>Arquivar sem conciliar</button><button type="button" class="erp-reconcile-secondary" data-classify>Classificar sem vínculo</button>'+ 
     (partial?'<button type="button" class="erp-reconcile-secondary" data-undo-partial>Desfazer parcial</button>':'')+
-    '</div></details><button type="button" class="erp-reconcile-primary" data-confirm>Conciliar seleção</button></div>'+audit;
+    '</div></details><div class="erp-rec-primary-cta"><span>'+ (due()===0n?'Marque ao menos um lançamento no ERP para conciliar.':'Confira a diferença antes de confirmar.') +'</span><button type="button" class="erp-reconcile-primary" data-confirm '+(due()===0n?'disabled':'')+'>Conciliar seleção</button></div></div>'+audit;
   pane.querySelector('[data-show-targets]')?.addEventListener('click',()=>{draft();state.showAllTargets=!state.showAllTargets;renderDetail();});
   pane.querySelector('.erp-rec-advanced')?.addEventListener('toggle',event=>{state.advancedOpen=event.target.open;});
   pane.querySelector('[data-undo-partial]')?.addEventListener('click',()=>runAction({action:'undo',importId:entry.id},true));
@@ -240,7 +240,7 @@ async function refreshTargets(){
 async function runAction(body,confirm=false){
   if(!workspace||workspace.busy)return;
   if(confirm&&!root.confirm(body.action==='archive'?'Arquivar a movimentação sem conciliá-la? O registro ficará no histórico.':'Desfazer o vínculo? O histórico ficará preservado.'))return;
-  const state=workspace;state.busy=true;try{
+  const state=workspace;state.busy=true;notify('');try{
     // Confere a decisão transacional mais recente antes de enviar a alteração.
     // Impede que uma interface desatualizada tente substituir um vínculo ativo.
     // Não autoriza a ação com snapshot descartado por uma leitura mais recente.
@@ -268,13 +268,17 @@ async function runAction(body,confirm=false){
       // um listener ainda atrasado como fonte final da decisão financeira.
       try {
         await refreshTargets();
-        if(workspace===state){state.allocation={};state.initializedDraft=false;}
+        if(workspace===state){state.initializedDraft=false;}
       } catch(_) { /* O listener mantém a atualização usual da tela. */ }
     }
     const warning=e.status>=500?' Confira o histórico antes de tentar novamente.':'';
     const current=body.importId?decisions().get(body.importId)?.status:'';
-    const informative=e.status===409&&current==='reversed';
-    notify(informative?'Esta movimentação já foi reaberta. Selecione um título e confirme a nova conciliação.':e.message+warning,informative?'info':'error');
+    // Nunca mascarar um 409 de arquivamento/classificação com aviso verde de reabertura.
+    // Se a API continuar negando, preservar o erro real e orientar a consulta do estado.
+    const informative=e.status===409&&body.action==='undo'&&current==='reversed';
+    const message=informative?'Movimentação já reaberta. Selecione um título e concilie novamente.':e.message+warning+
+      (e.status===409?' Confira o estado atualizado; se existir vínculo ativo, utilize Desfazer.':'');
+    notify(message,informative?'info':'error');
   }finally{state.busy=false;if(workspace===state)renderList();}
 }
 function titleForm(entry){

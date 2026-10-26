@@ -18668,7 +18668,59 @@ function _bancoDataCriacao(b){
   return maisAntigo ? new Date(maisAntigo.ts).toLocaleDateString('pt-BR') : null;
 }
 
+// Menu fora da tabela: o container de rolagem não pode recortar as ações.
+let _erpBankMorePopover=null;
+let _erpBankMoreAnchor=null;
+function _erpBankMoreClose(){
+  if(_erpBankMoreAnchor)_erpBankMoreAnchor.setAttribute('aria-expanded','false');
+  if(_erpBankMorePopover)_erpBankMorePopover.remove();
+  _erpBankMorePopover=null;_erpBankMoreAnchor=null;
+}
+function _erpBankMoreOpen(button){
+  if(_erpBankMoreAnchor===button){_erpBankMoreClose();return;}
+  _erpBankMoreClose();
+  const bankCode=button.dataset.bankMore;
+  if(!BANCOS_DB.some(bank=>bank.cod===bankCode))return;
+  const popover=document.createElement('div');
+  popover.className='erp-bank-more-popover';
+  popover.setAttribute('role','menu');
+  popover.setAttribute('aria-label','Ações adicionais da conta bancária');
+  const actions=[['Editar conta','editBanco'],['Compartilhar','compartilharBanco'],['Excluir conta','excluirBanco']];
+  actions.forEach(([label,fnName])=>{
+    const option=document.createElement('button');
+    option.type='button';option.setAttribute('role','menuitem');option.textContent=label;
+    if(fnName==='excluirBanco')option.className='danger';
+    option.addEventListener('click',()=>{
+      const index=BANCOS_DB.findIndex(bank=>bank.cod===bankCode);
+      _erpBankMoreClose();
+      if(index<0)return;
+      const action=window[fnName];
+      if(typeof action==='function')action(index);
+    });
+    popover.appendChild(option);
+  });
+  document.body.appendChild(popover);
+  _erpBankMorePopover=popover;_erpBankMoreAnchor=button;
+  button.setAttribute('aria-expanded','true');
+  const box=button.getBoundingClientRect();
+  const menuHeight=popover.getBoundingClientRect().height||145;
+  const top=box.bottom+menuHeight+6>window.innerHeight?box.top-menuHeight-6:box.bottom+6;
+  popover.style.top=Math.max(8,top)+'px';
+  popover.style.left=Math.max(8,Math.min(box.right-popover.offsetWidth,window.innerWidth-popover.offsetWidth-8))+'px';
+  popover.querySelector('button')?.focus();
+}
+if(typeof document!=='undefined'&&!window.__ERP_BANK_MORE_EVENTS__){
+  window.__ERP_BANK_MORE_EVENTS__=true;
+  document.addEventListener('pointerdown',event=>{
+    if(_erpBankMorePopover&&!_erpBankMorePopover.contains(event.target)&&!_erpBankMoreAnchor?.contains(event.target))_erpBankMoreClose();
+  });
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&_erpBankMorePopover){_erpBankMoreClose();}});
+  window.addEventListener('resize',_erpBankMoreClose);
+  window.addEventListener('scroll',_erpBankMoreClose,true);
+}
+
 function renderBancos(){
+  _erpBankMoreClose();
   const tbody=document.getElementById('tb-bancos');
   if(!tbody) return;
   
@@ -18713,11 +18765,7 @@ function renderBancos(){
         +'<button type="button" class="erp-bank-action-primary" data-bank-reconcile="'+esc(b.cod)+'" title="Abrir conciliação bancária">Conciliar</button>'
         +'<button type="button" class="erp-bank-action" onclick="verExtratoBanco(&#39;'+b.cod+'&#39;)" title="Ver extrato">Extrato</button>'
         +'<button type="button" class="erp-bank-action" data-bank-integration="'+esc(b.cod)+'" title="Configurar bancos e Open Finance">Integrações</button>'
-        +'<details class="erp-bank-row-more"><summary>Mais</summary><div>'
-        +'<button type="button" onclick="editBanco('+i+')">Editar conta</button>'
-        +'<button type="button" onclick="compartilharBanco('+i+')">Compartilhar</button>'
-        +'<button type="button" class="danger" onclick="excluirBanco('+i+')">Excluir conta</button>'
-        +'</div></details></div></td>'
+        +'<button type="button" class="erp-bank-more-trigger" data-bank-more="'+esc(b.cod)+'" aria-haspopup="menu" aria-expanded="false" title="Outras ações da conta">Mais ▾</button></div></td>'
 
     +'</tr>';
   }).join('');
@@ -18729,6 +18777,8 @@ function renderBancos(){
       if(button&&tbody.contains(button))window.erpReconciliationOpen(button.dataset.bankReconcile);
       const integrate=event.target.closest('button[data-bank-integration]');
       if(integrate&&tbody.contains(integrate))window.erpBankIntegrationsOpen(integrate.dataset.bankIntegration);
+      const more=event.target.closest('button[data-bank-more]');
+      if(more&&tbody.contains(more))_erpBankMoreOpen(more);
     });
     if(tbody.dataset)tbody.dataset.reconcileBound='true';
   }

@@ -106,3 +106,14 @@
 .erp-rec-quick-undo{font-size:.76rem}
 @media(max-width:790px){.erp-reconcile-metrics{grid-template-columns:repeat(3,minmax(0,1fr));padding:9px}.erp-rec-actions{gap:10px}}
 @media(max-width:500px){.erp-reconcile-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Ações secundárias visíveis em fluxo normal, sem recorte pelo painel rolável. */
+.erp-rec-more-actions:not([open])>.erp-rec-secondary-actions{display:none}
+.erp-rec-more-actions[open]>.erp-rec-secondary-actions{position:static;width:min(260px,100%);margin-top:7px;box-shadow:none;border:1px solid #d9e4da;display:flex;flex-direction:column;z-index:auto}
+.erp-rec-more-actions>summary:focus-visible{outline:2px solid #2a7049;outline-offset:2px}
+.erp-rec-more-actions[open]{max-width:100%;min-width:210px}
+
+.erp-rec-primary-cta{display:flex;gap:7px;align-items:flex-end;flex-direction:column;max-width:260px;margin-left:auto}
+.erp-rec-primary-cta>span{font-size:.7rem;color:#66786b;text-align:right;line-height:1.4}
+.erp-rec-primary-cta>button:disabled{opacity:.55;cursor:not-allowed}
+@media(max-width:560px){.erp-rec-primary-cta{width:100%;max-width:none}.erp-rec-primary-cta>button{width:100%}}

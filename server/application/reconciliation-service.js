@@ -169,7 +169,10 @@ export async function executeReconciliation(identity,input,{db:injectedDatabase}
         const importId=safeText(item.importId,100);
         const plan=validateReconciliationAction({input:item,imports,targets,current:allDecisions,legacy,identity});
         const existing=state.decisions[importId]||legacy[importId];
-        if(item.action!=='undo'&&existing&&['reconciled','classified','archived'].includes(existing.status))throw forbidden('Movimentação já conciliada; desfaça antes de substituir',409);
+        if(item.action!=='undo'&&existing&&['reconciled','classified','archived'].includes(existing.status)){
+          const labels={reconciled:'conciliada',classified:'classificada',archived:'arquivada'};
+          throw forbidden('Movimentação já conciliada; estado atual: '+(labels[existing.status]||'processada')+'. Utilize Desfazer/Reabrir antes de alterar o estado.',409);
+        }
         if(item.action==='undo'&&(!existing||existing.status==='reversed'))throw forbidden('Não há conciliação para desfazer',409);
         const record=recordDecision({input:item,plan,importId,identity});
         state.decisions[importId]=record;state.audit[record.id]=record;
