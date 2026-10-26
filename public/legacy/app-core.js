@@ -18720,7 +18720,7 @@ if(typeof document!=='undefined'&&!window.__ERP_BANK_MORE_EVENTS__){
 }
 
 function renderBancos(){
-  _erpBankMoreClose();
+  if(typeof _erpBankMoreClose === 'function') _erpBankMoreClose();
   const tbody=document.getElementById('tb-bancos');
   if(!tbody) return;
   
