@@ -571,6 +571,10 @@
           }
         }
       },
+      "bankReconciliationState": {
+        ".read": "auth != null && auth.token.erpAccess == true && auth.token.canBanking == true",
+        ".write": false
+      },
       "fornDespesaDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
         ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"

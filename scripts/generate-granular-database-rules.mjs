@@ -112,6 +112,13 @@ candidate.rules.erp.bankReconciliationEvents={
   }
 };
 
+// Ledger de decisões avançadas. Apenas a API com credencial de serviço pode escrever.
+// Frontend possui leitura específica à área bancária, não escrita.
+candidate.rules.erp.bankReconciliationState={
+  '.read':banking,
+  '.write':false
+};
+
 // Coleções de tombstones V2 são lidas pela função legada de sincronização.
 // A escrita V2 fica reservada ao administrador, exceto ticketsDeletedV2.
 const legacyCore=fs.readFileSync(path.join(root,'public/legacy/app-core.js'),'utf8');
