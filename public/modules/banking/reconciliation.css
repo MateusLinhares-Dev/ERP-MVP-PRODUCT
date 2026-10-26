@@ -86,3 +86,23 @@
 
 /* Oculta alertas antigos quando o status é atualizado pelo servidor. */
 .erp-reconcile-notice:empty{display:none}
+/* Navegação bancária clara: sugestões primeiro, operações especiais recolhidas. */
+.erp-reconcile-dialog{width:min(1200px,100%)}
+.erp-reconcile-metrics{grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;background:#fafbf9;padding:11px 22px}
+.erp-reconcile-metrics>div{box-shadow:none;border:1px solid #dce6df;background:#fff;border-radius:7px;min-width:0}
+.erp-rec-toolbar{padding:10px 22px}.erp-rec-toolbar [data-batch]:disabled{visibility:hidden}
+.erp-rec-selected{background:#f7faf8}.erp-rec-form-header{margin:15px 0 8px}
+.erp-rec-targets{max-height:290px}.erp-rec-target{min-height:57px}.erp-rec-target input[type=text]{min-width:95px}
+.erp-rec-advanced{border-top:1px solid #dce6de;padding:11px 0 2px;margin-top:14px}
+.erp-rec-advanced>summary{cursor:pointer;font-weight:650;font-size:.8rem;color:#31533d;list-style-position:inside}
+.erp-rec-advanced .erp-rec-fields{margin-top:12px}
+.erp-rec-show-more{display:block;width:100%;border:1px solid #dce7df;background:#fff;color:#286543;border-radius:0 0 6px 6px;padding:9px;font-size:.79rem;cursor:pointer}
+.erp-rec-actions{justify-content:space-between;align-items:flex-start;padding-top:9px}
+.erp-rec-more-actions{position:relative;font-size:.79rem}
+.erp-rec-more-actions>summary{padding:10px 14px;border:1px solid #c8d9cc;border-radius:6px;cursor:pointer;list-style:none;color:#335740}
+.erp-rec-more-actions>summary::after{content:' ▾'}
+.erp-rec-secondary-actions{position:absolute;left:0;bottom:calc(100% + 5px);z-index:4;width:215px;display:flex;flex-direction:column;padding:7px;border:1px solid #cadbce;background:#fff;box-shadow:0 8px 30px #263e2e22;border-radius:8px;gap:5px}
+.erp-rec-secondary-actions button{text-align:left;width:100%}
+.erp-rec-quick-undo{font-size:.76rem}
+@media(max-width:790px){.erp-reconcile-metrics{grid-template-columns:repeat(3,minmax(0,1fr));padding:9px}.erp-rec-actions{gap:10px}}
+@media(max-width:500px){.erp-reconcile-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}

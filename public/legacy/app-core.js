@@ -18708,12 +18708,17 @@ function renderBancos(){
       +'<td style="text-align:right;font-weight:700;'+saldoColor+'">R$ '+fmt(saldoAtual)+'</td>'
       +'<td style="font-size:.78rem">'+esc(b.pix||'—')+'</td>'
       +'<td style="font-size:.78rem">'+esc(b.obs||'—')+'</td>'
-      +'<td style="white-space:nowrap">'
-        +'<button class="btn-edit" onclick="editBanco('+i+')" title="Editar">✏️</button> '
-        +'<button class="btn-edit-danger" onclick="excluirBanco('+i+')" title="Excluir">🗑️</button> '
-        +'<button class="btn-add" style="padding:3px 8px;font-size:.72rem;background:#27ae60" onclick="verExtratoBanco(&#39;'+b.cod+'&#39;)" title="Ver extrato">📊 Extrato</button> '+ '<button type="button" class="btn-add" style="padding:3px 8px;font-size:.72rem" data-bank-reconcile="'+esc(b.cod)+'" title="Conciliar extrato bancário">Conciliar</button> '
-        +'<button class="btn-add" style="padding:3px 8px;font-size:.72rem" onclick="compartilharBanco('+i+')" title="Compartilhar dados para pagamento">📤 Compartilhar</button>'
-        +'</td>'
+      +'<td class="erp-bank-table-actions">'
+        +'<div class="erp-bank-actionbar">'
+        +'<button type="button" class="erp-bank-action-primary" data-bank-reconcile="'+esc(b.cod)+'" title="Abrir conciliação bancária">Conciliar</button>'
+        +'<button type="button" class="erp-bank-action" onclick="verExtratoBanco(&#39;'+b.cod+'&#39;)" title="Ver extrato">Extrato</button>'
+        +'<button type="button" class="erp-bank-action" data-bank-integration="'+esc(b.cod)+'" title="Configurar bancos e Open Finance">Integrações</button>'
+        +'<details class="erp-bank-row-more"><summary>Mais</summary><div>'
+        +'<button type="button" onclick="editBanco('+i+')">Editar conta</button>'
+        +'<button type="button" onclick="compartilharBanco('+i+')">Compartilhar</button>'
+        +'<button type="button" class="danger" onclick="excluirBanco('+i+')">Excluir conta</button>'
+        +'</div></details></div></td>'
+
     +'</tr>';
   }).join('');
 
@@ -18722,6 +18727,8 @@ function renderBancos(){
     tbody.addEventListener('click',function(event){
       const button=event.target.closest('button[data-bank-reconcile]');
       if(button&&tbody.contains(button))window.erpReconciliationOpen(button.dataset.bankReconcile);
+      const integrate=event.target.closest('button[data-bank-integration]');
+      if(integrate&&tbody.contains(integrate))window.erpBankIntegrationsOpen(integrate.dataset.bankIntegration);
     });
     if(tbody.dataset)tbody.dataset.reconcileBound='true';
   }

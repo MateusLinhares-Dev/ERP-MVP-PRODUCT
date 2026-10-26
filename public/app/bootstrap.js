@@ -164,8 +164,10 @@ async function main() {
   await loadClassic('/modules/banking/bank-ledger.js');
   await loadClassic('/modules/banking/reconciliation-domain.js');
   loadStyle('/modules/banking/reconciliation.css');
+  loadStyle('/modules/banking/bank-integrations.css');
   await loadClassic('/legacy/app-core.js');
   await loadClassic('/modules/banking/reconciliation-ui.js');
+  await loadClassic('/modules/banking/bank-integrations-ui.js');
   await loadClassic('/legacy/module-access-guard.js');
   await loadClassic('/legacy/app-agenda.js');
   await loadClassic('/legacy/app-avisos.js');

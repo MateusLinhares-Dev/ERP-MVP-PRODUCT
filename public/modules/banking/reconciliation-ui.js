@@ -165,27 +165,31 @@ function renderDetail(){
   const suggestionsAll=suggestions(entry),q=state.targetQuery.toLowerCase().trim();
   const candidates=suggestionsAll.filter(t=>!q||(t.description+' '+t.id+' '+t.kind).toLowerCase().includes(q));
   const groupOptions=proposalCombos(entry);
+  const visibleTargets=state.showAllTargets?candidates.slice(0,60):[...candidates.slice(0,5),...candidates.slice(5).filter(t=>state.allocation[targetKey(t)])].filter((t,i,arr)=>arr.findIndex(x=>targetKey(x)===targetKey(t))===i);
   const typeLabel={bankEntry:'Movimento no ERP',payable:'Conta a pagar',receivable:'Conta a receber'};
   pane.innerHTML=head+
     (d?.status==='reversed'?'<p class="erp-rec-reopened">Conciliação anterior já desfeita. Selecione um ou mais lançamentos abaixo e confirme a nova conciliação.</p>':'')+
-    '<div class="erp-rec-form-header"><h4>Relacionar lançamentos</h4><span>'+candidates.length+' opções disponíveis</span></div>'+ 
+    '<div class="erp-rec-form-header"><h4>Correspondências sugeridas</h4><span>'+candidates.length+' lançamentos disponíveis</span></div>'+ 
     '<label class="erp-rec-search-label">Pesquisar títulos<input type="search" data-target-search placeholder="Fornecedor, cliente, documento ou ID" value="'+esc(state.targetQuery)+'"></label>'+ 
     (groupOptions.length?'<div class="erp-rec-group-row"><span>Combinações encontradas</span>'+groupOptions.map((group,i)=>'<button type="button" data-group="'+i+'">'+group.length+' lançamentos · '+fmt(entry.amountCents)+'</button>').join('')+'</div>':'')+
-    '<div class="erp-rec-targets">'+candidates.slice(0,60).map(t=>{
+    '<div class="erp-rec-targets">'+visibleTargets.map(t=>{
       const key=targetKey(t),selected=state.allocation[key],value=selected?selected.amountCents:'0';
       const amountShown=selected?fmt(value):fmt(t.remainingCents);
       return '<div class="erp-rec-target '+(selected?'selected':'')+'"><label><input type="checkbox" data-target="'+esc(key)+'" '+(selected?'checked':'')+'><span><strong>'+esc(t.description||t.id)+'</strong><small>'+esc(typeLabel[t.kind])+' · '+esc(dateBR(t.date))+' · Disponível '+fmt(t.remainingCents)+'</small></span></label>'+ 
         '<input type="text" data-amount="'+esc(key)+'" inputmode="decimal" aria-label="Valor a conciliar" value="'+esc(amountShown)+'" '+(!selected?'disabled':'')+'></div>';
     }).join('')+'</div>'+ 
-    '<div class="erp-rec-fields"><label>Ajuste (+ tarifa / − desconto)<input name="adjustment" inputmode="decimal" placeholder="0,00" value="'+esc(state.meta.adjustment||'0')+'"></label>'+ 
+    (candidates.length>5?'<button type="button" class="erp-rec-show-more" data-show-targets>'+ (state.showAllTargets?'Mostrar menos':'Mostrar todos os lançamentos') + '</button>':'')+
+    '<details class="erp-rec-advanced" '+(state.advancedOpen?'open':'')+'><summary>Categoria, tarifas e informações adicionais</summary><div class="erp-rec-fields"><label>Ajuste (+ tarifa / − desconto)<input name="adjustment" inputmode="decimal" placeholder="0,00" value="'+esc(state.meta.adjustment||'0')+'"></label>'+ 
     '<label>Categoria<input name="category" maxlength="90" placeholder="Categoria" value="'+esc(state.meta.category||'')+'"></label>'+ 
     '<label>Centro de custo<input name="costCenter" maxlength="90" placeholder="Centro de custo" value="'+esc(state.meta.costCenter||'')+'"></label>'+ 
-    '<label class="wide">Observações<textarea name="notes" maxlength="500" rows="2">'+esc(state.meta.notes||'')+'</textarea></label></div>'+ 
+    '<label class="wide">Observações<textarea name="notes" maxlength="500" rows="2">'+esc(state.meta.notes||'')+'</textarea></label></div></details>'+ 
     '<div data-balance>'+sumFields()+'</div>'+ 
     '<div class="erp-rec-title-form" data-title-form hidden></div>'+
-    '<div class="erp-rec-actions"><button type="button" class="erp-reconcile-secondary" data-create>Registrar movimento no ERP</button><button type="button" class="erp-reconcile-secondary" data-title>Criar título financeiro</button><button type="button" class="erp-reconcile-secondary" data-archive>Arquivar</button><button type="button" class="erp-reconcile-secondary" data-classify>Classificar</button>'+ 
+    '<div class="erp-rec-actions"><details class="erp-rec-more-actions"><summary>Mais ações</summary><div class="erp-rec-secondary-actions"><button type="button" class="erp-reconcile-secondary" data-create>Registrar movimento no ERP</button><button type="button" class="erp-reconcile-secondary" data-title>Criar título financeiro</button><button type="button" class="erp-reconcile-secondary" data-archive>Arquivar</button><button type="button" class="erp-reconcile-secondary" data-classify>Classificar</button>'+ 
     (partial?'<button type="button" class="erp-reconcile-secondary" data-undo-partial>Desfazer parcial</button>':'')+
-    '<button type="button" class="erp-reconcile-primary" data-confirm>Conciliar seleção</button></div>'+audit;
+    '</div></details><button type="button" class="erp-reconcile-primary" data-confirm>Conciliar seleção</button></div>'+audit;
+  pane.querySelector('[data-show-targets]')?.addEventListener('click',()=>{draft();state.showAllTargets=!state.showAllTargets;renderDetail();});
+  pane.querySelector('.erp-rec-advanced')?.addEventListener('toggle',event=>{state.advancedOpen=event.target.open;});
   pane.querySelector('[data-undo-partial]')?.addEventListener('click',()=>runAction({action:'undo',importId:entry.id},true));
   pane.querySelector('[data-target-search]').addEventListener('input',e=>{draft();state.targetQuery=e.target.value;const start=e.target.selectionStart;renderDetail();const field=pane.querySelector('[data-target-search]');field.focus();field.setSelectionRange(start,start);});
   pane.querySelectorAll('[data-target]').forEach(input=>input.addEventListener('change',()=>{
@@ -205,7 +209,7 @@ function renderDetail(){
     state.meta.adjustment=field.value;pane.querySelector('[data-balance]').innerHTML=sumFields();
   }));
   pane.querySelector('[data-archive]').addEventListener('click',()=>runAction({action:'archive',importId:entry.id},true));
-  pane.querySelector('[data-classify]').addEventListener('click',()=>{draft();runAction({action:'classify',importId:entry.id,category:state.meta.category,costCenter:state.meta.costCenter,notes:state.meta.notes,allocations:[]});});
+  pane.querySelector('[data-classify]').addEventListener('click',()=>{draft();if(!state.meta.category){state.advancedOpen=true;renderDetail();notify('Informe a categoria antes de classificar.','error');return;}runAction({action:'classify',importId:entry.id,category:state.meta.category,costCenter:state.meta.costCenter,notes:state.meta.notes,allocations:[]});});
   pane.querySelector('[data-confirm]').addEventListener('click',()=>{
     draft();try{
       const remaining=abs(entry.amountCents)-due()-adjustCents();
@@ -349,16 +353,17 @@ root.erpReconciliationOpen=async function(bankCode){
     if(!account)throw Error('Conta bancária não encontrada');
     close();const el=document.createElement('div');el.className='erp-reconcile-overlay';
     el.innerHTML='<section class="erp-reconcile-dialog" role="dialog" aria-modal="true" aria-label="Conciliação bancária">'+
-      '<header class="erp-reconcile-heading"><div><h2>Conciliação bancária</h2><p>'+esc(account.name)+' · '+esc(code)+'</p></div><div class="erp-reconcile-heading-actions"><button type="button" class="erp-reconcile-secondary" data-refresh>Atualizar</button><label class="erp-reconcile-upload">Importar OFX<input type="file" accept=".ofx,.OFX" hidden data-import></label><button type="button" class="erp-reconcile-close" data-close>Fechar</button></div></header>'+ 
+      '<header class="erp-reconcile-heading"><div><h2>Conciliação bancária</h2><p>'+esc(account.name)+' · '+esc(code)+'</p></div><div class="erp-reconcile-heading-actions"><button type="button" class="erp-reconcile-secondary" data-refresh>Atualizar</button><label class="erp-reconcile-upload">Importar OFX<input type="file" accept=".ofx,.OFX" hidden data-import></label><button type="button" class="erp-reconcile-secondary" data-integration-open>Integrações</button><button type="button" class="erp-reconcile-close" data-close>Fechar</button></div></header>'+ 
       '<div class="erp-reconcile-metrics"><div><small>Movimentações</small><strong data-stat="total">0</strong></div><div><small>Pendentes</small><strong data-stat="pending">0</strong></div><div><small>Parciais</small><strong data-stat="partial">0</strong></div><div><small>Conciliadas</small><strong data-stat="reconciled">0</strong></div><div><small>Classificadas</small><strong data-stat="classified">0</strong></div><div><small>Arquivadas</small><strong data-stat="archived">0</strong></div></div>'+ 
       '<p class="erp-reconcile-notice" data-notice role="status" aria-live="polite">Selecione movimentos e confira os lançamentos financeiros.</p>'+ 
       '<div class="erp-rec-toolbar"><span data-bulk-count>0 selecionado(s)</span><button data-batch type="button" class="erp-reconcile-secondary" disabled>Conciliar correspondências exatas em lote</button></div>'+ 
       '<div class="erp-reconcile-columns"><div class="erp-reconcile-left"><div class="erp-reconcile-pane-head"><h3>Extrato bancário</h3><div class="erp-reconcile-filters"><input name="search" type="search" placeholder="Descrição, data ou ID" aria-label="Buscar movimentos"><select name="direction" aria-label="Movimentação"><option value="">Entradas e saídas</option><option value="income">Recebimentos</option><option value="expense">Pagamentos</option></select><select name="filter" aria-label="Situação"><option value="all">Todos</option><option value="pending">Pendentes</option><option value="partial">Parciais</option><option value="reconciled">Conciliados</option><option value="classified">Classificados</option><option value="archived">Arquivados</option></select></div></div><div class="erp-reconcile-list" data-list></div></div>'+ 
       '<div class="erp-reconcile-right"><div class="erp-reconcile-pane-head"><h3>Lançamentos do ERP</h3><p>Selecione os títulos, ajuste valores e confirme.</p></div><div class="erp-reconcile-detail" data-detail></div></div></div></section>';
     document.body.appendChild(el);
-    const state={el,code,claims:session.claims,imports:{},events:{},state:{decisions:{},audit:{}},legacyDecisions:null,effectiveDecisions:{},snapshotLoaded:false,snapshotSequence:0,snapshotTimer:null,targets:[],selected:'',allocation:{},bulk:new Set(),meta:{category:'',costCenter:'',notes:'',adjustment:'0'},targetQuery:'',initializedDraft:false,unsubscribe:[],busy:false,escape:e=>{if(e.key==='Escape')close();}};
+    const state={el,code,advancedOpen:false,showAllTargets:false,claims:session.claims,imports:{},events:{},state:{decisions:{},audit:{}},legacyDecisions:null,effectiveDecisions:{},snapshotLoaded:false,snapshotSequence:0,snapshotTimer:null,targets:[],selected:'',allocation:{},bulk:new Set(),meta:{category:'',costCenter:'',notes:'',adjustment:'0'},targetQuery:'',initializedDraft:false,unsubscribe:[],busy:false,escape:e=>{if(e.key==='Escape')close();}};
     workspace=state;document.addEventListener('keydown',state.escape);
     el.querySelector('[data-close]').addEventListener('click',close);
+    el.querySelector('[data-integration-open]').addEventListener('click',()=>{const selected=state.code;close();root.erpBankIntegrationsOpen?.(selected);});
     el.addEventListener('click',e=>{if(e.target===el)close();});
     el.querySelectorAll('[name=search],[name=filter],[name=direction]').forEach(field=>field.addEventListener('input',renderList));
     el.querySelector('[data-batch]').addEventListener('click',runBatch);
@@ -375,7 +380,7 @@ root.erpReconciliationOpen=async function(bankCode){
       }
       const check=event.target.closest('[data-bulk]');
       if(check){if(check.checked)state.bulk.add(check.dataset.bulk);else state.bulk.delete(check.dataset.bulk);renderList();return;}
-      const open=event.target.closest('[data-open]');if(open){notify('');state.selected=open.dataset.open;state.allocation={};state.targetQuery='';state.initializedDraft=false;state.meta={category:'',costCenter:'',notes:'',adjustment:'0'};renderList();}
+      const open=event.target.closest('[data-open]');if(open){notify('');state.selected=open.dataset.open;state.allocation={};state.targetQuery='';state.initializedDraft=false;state.showAllTargets=false;state.advancedOpen=false;state.meta={category:'',costCenter:'',notes:'',adjustment:'0'};renderList();}
     });
     el.querySelector('[data-import]').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;e.target.disabled=true;try{await importOfx(file);}catch(error){notify(error.message,'error');}finally{e.target.disabled=false;e.target.value='';}});
     const scheduleSnapshotRefresh=()=>{
