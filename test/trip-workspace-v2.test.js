@@ -19,8 +19,10 @@ test('aba Por motorista e abertura de detalhe estão conectadas à área de viag
  const history=extract('function renderTripHistoryCards(){','\/\* ---------- Viagens: acesso');
  assert.match(history,/data-trip-open/);
  assert.match(history,/Abrir detalhes/);
- assert.match(code,/phase2TripOpenDetails\(button\.dataset\.tripOpen\)/);
- assert.match(code,/global\.editViagem\(v\.id\)/);
+ assert.match(code,/phase2TripOpenDetails\(button\.dataset\.tripOpen,button\)/);
+ assert.match(code,/document\.addEventListener\('click'/);
+ assert.match(code,/phase2-trip-detail-inline/);
+ assert.match(code,/global\.editViagem\(trip\.id\)/);
 });
 
 test('custo mensal por motorista não duplica adiantamento e separa despesas',()=>{
@@ -49,13 +51,15 @@ test('totais históricos ignoram valores inválidos e preservam diária total se
  assert.equal(monthly([{data:'2026-13-04',motorista:'A',totalDiarias:5}], 'A','2026').reduce((s,r)=>s+r.total,0),0);
 });
 
-test('campos de diária continuam existentes, apenas recolhidos em opções adicionais',()=>{
+test('diária e pernoite não aparecem no cadastro, mas campos legados seguem no DOM para cálculos',()=>{
  const snippet=extract('function phase2TripCompactRates(register){','function phase2TripHistoryActions(){');
- assert.match(snippet,/phase2-trip-rates/);
- assert.match(snippet,/details\.appendChild\(rateRow\)/);
- assert.match(snippet,/dailyTitle\.remove\(\)/);
- assert.match(css,/\.phase2-trip-rates/);
- assert.match(css,/\.phase2-trip-driver-tabs/);
+ assert.match(snippet,/phase2-trip-hidden-rates/);
+ assert.match(snippet,/row\.hidden=true/);
+ assert.match(snippet,/aria-hidden/);
+ assert.match(css,/\.phase2-trip-hidden-rates\{display:none!important\}/);
+ assert.match(css,/#vg-edit-diaria/);
+ assert.match(css,/#vg-edit-pernoite/);
+ assert.doesNotMatch(snippet,/summary\.textContent='Valores de diária/);
 });
 
 test('após uma viagem salva com sucesso, a interface volta ao histórico',()=>{
@@ -64,4 +68,21 @@ test('após uma viagem salva com sucesso, a interface volta ao histórico',()=>{
  assert.match(snippet,/!previous\.has\(String\(v\.id\)\)/);
  assert.match(snippet,/history\?\.click\(\)/);
  assert.match(snippet,/renderTripHistoryCards\(\)/);
+});
+
+test('detalhes são abertos na própria linha e a delegação sobrevive ao rerender',()=>{
+ const func=extract('function phase2TripOpenDetails(id,source){','const originalSaveTripPhase2=global.salvarViagem;');
+ assert.match(func,/card\.appendChild\(detail\)/);
+ assert.match(func,/\[data-trip-open\],\[data-trip-edit\]/);
+ assert.match(func,/global\.__phase2TripHistoryClickReady/);
+ assert.match(func,/data-trip-edit/);
+ assert.doesNotMatch(func,/showModal/);
+ const card=extract('function renderTripHistoryCards(){','\/\* ---------- Viagens: acesso');
+ assert.match(card,/data-trip-index/);
+});
+
+test('observador de DOM não recria cartões se o histórico permanece igual',()=>{
+ const history=extract('function renderTripHistoryCards(){','/* ---------- Viagens: acesso');
+ assert.match(history,/__phase2TripHistorySignature===signature/);
+ assert.match(history,/phase2TripHistoryActions\(\);return/);
 });

@@ -159,3 +159,40 @@ input[data-phase2-fiscal-only="1"]{border-color:#9bc9ab!important;background:#fb
  #tab-viagem_motorista .phase2-trip-driver-kpis{grid-template-columns:1fr}
  .phase2-trip-detail-grid{grid-template-columns:1fr 1fr}
 }
+
+/* Histórico de viagens: detalhes diretamente na linha; sem modal dependente de overlays. */
+#tab-viagem_motorista .phase2-trip-history-item .phase2-trip-detail-inline{
+  grid-column:1 / -1;
+  min-width:0;
+  width:100%;
+  background:#f8fbf9;
+  border-top:1px solid #dce6df;
+  padding:13px 2px 2px;
+}
+#tab-viagem_motorista .phase2-trip-detail-inline .phase2-trip-detail-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(145px,1fr));
+  gap:10px;
+  margin:0;
+}
+#tab-viagem_motorista .phase2-trip-detail-inline .phase2-trip-detail-grid>div{
+  min-width:0;
+  padding:9px 11px;
+  background:white;
+  border:1px solid #e0e8e2;
+  border-radius:7px;
+}
+#tab-viagem_motorista .phase2-trip-detail-inline .phase2-trip-detail-grid small{
+  display:block;color:#63786b;font-size:.69rem;margin-bottom:4px;
+}
+#tab-viagem_motorista .phase2-trip-detail-inline .phase2-trip-detail-grid strong{
+  color:#153e2a;font-size:.85rem;overflow-wrap:anywhere;
+}
+#tab-viagem_motorista .phase2-trip-detail-observation{white-space:pre-wrap;overflow-wrap:anywhere;margin:12px 0;font-size:.83rem}
+#tab-viagem_motorista .phase2-trip-detail-inline .phase2-trip-detail-actions{margin:12px 0 0;display:flex;justify-content:flex-end}
+#tab-viagem_motorista .phase2-trip-detail-inline .phase2-trip-detail-actions button{cursor:pointer}
+/* Inputs legados preservados apenas para compatibilidade dos cálculos; sem seção de diária/pernoite na tela. */
+#tab-viagem_motorista .phase2-trip-hidden-rates{display:none!important}
+/* Edição de viagem: preservar valores antigos sem exibir controles de diária/pernoite. */
+#modal-edit-viagem div:has(> #vg-edit-diaria),
+#modal-edit-viagem div:has(> #vg-edit-pernoite){display:none!important}

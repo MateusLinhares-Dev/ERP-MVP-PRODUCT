@@ -382,7 +382,16 @@ function redesignTrip(){
 }
 function refreshTripSummary(){const tab=$('#tab-viagem_motorista');if(!tab)return;let box=$('#phase2-trip-summary');if(!box){box=document.createElement('div');box.id='phase2-trip-summary';box.className='phase2-trip-summary';const obs=$('#vg-obs')?.closest('.fg');obs?.insertAdjacentElement('beforebegin',box);}const meals=parseMoney($('#vg-alim-dia-show')?.textContent),advance=Number($('#vg-dinheiro-alim')?.value)||0,extra=Number($('#vg-gastos-extras')?.value)||0,fuel=Number($('#vg-comb')?.value)||0,daily=parseMoney($('#vg-total-show')?.textContent),settlement=advance-(meals+extra);if(box)box.innerHTML=`<div><small>Diárias</small><b>R$ ${money(daily)}</b></div><div><small>Refeições controladas</small><b>R$ ${money(meals)}</b></div><div><small>Combustível registrado</small><b>R$ ${money(fuel)}</b></div><div><small>Outras despesas</small><b>R$ ${money(extra)}</b></div><div class="${settlement<0?'warn':'ok'}"><small>${settlement>=0?'Motorista devolve':'Empresa reembolsa'}</small><b>R$ ${money(Math.abs(settlement))}</b></div>`;}
 const originalRenderTripsPhase2=global.renderViagens;if(typeof originalRenderTripsPhase2==='function')global.renderViagens=function(){const r=originalRenderTripsPhase2.apply(this,arguments);setTimeout(()=>{renderTripHistoryCards();renderTripDriverCosts();},0);return r;};
-function renderTripHistoryCards(){const tb=$('#tb-viagens');if(!tb)return;const card=tb.closest('.tcard');if(!card)return;let host=$('#phase2-trip-history-cards');if(!host){host=document.createElement('div');host.id='phase2-trip-history-cards';host.className='phase2-trip-history-list';const wrap=tb.closest('div[style*="overflow"]')||tb.closest('table');wrap?.insertAdjacentElement('beforebegin',host);if(wrap&&!wrap.closest('details.phase2-trip-details')){const det=document.createElement('details');det.className='phase2-trip-details';det.innerHTML='<summary>Ver tabela detalhada</summary>';wrap.parentElement.insertBefore(det,wrap);det.appendChild(wrap);}}let list=[];try{const mot=$('#vg-fil-mot')?.value||'',mes=$('#vg-fil-mes')?.value||'';list=(VIAGEM_DB||[]).filter(v=>(!mot||v.motorista===mot)&&(!mes||String(v.data||'').startsWith(mes))).slice().sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')));}catch(e){}host.innerHTML=list.length?list.map(v=>{const d1=String(v.data||'').split('-').reverse().join('/'),d2=String(v.volta||'').split('-').reverse().join('/'),alim=Number(v.totalRefeicoes||0),extra=Number(v.gastosExtras||0),adv=Number(v.dinheiroAlim||0),diarias=Number(v.totalDiarias!=null?v.totalDiarias:v.total||0),acerto=Number(v.acertoDevolucao!=null?v.acertoDevolucao:(adv-(alim+extra)));return `<article class="phase2-trip-history-item" data-trip-id="${esc(v.id||'')}"><div><b>${esc(v.motorista||'Motorista')}</b><small>${esc(d1)} → ${esc(d2||'—')} · ${esc(v.destino||'Sem destino')}</small><button type="button" class="phase2-trip-open" data-trip-open="${esc(v.id||'')}">Abrir detalhes</button></div><span><small>Dias</small><b>${Number(v.numDiarias||1)}</b></span><span><small>Diárias</small><b>R$ ${money(diarias)}</b></span><span><small>Alimentação</small><b>R$ ${money(alim)}</b></span><span><small>Extras</small><b>R$ ${money(extra)}</b></span><span class="settle ${acerto<0?'warn':'ok'}"><small>${acerto>=0?'Devolver':'Reembolsar'}</small><b>R$ ${money(Math.abs(acerto))}</b></span></article>`;}).join(''):'<div class="phase2-empty">Nenhuma viagem registrada.</div>';phase2TripHistoryActions();}
+function renderTripHistoryCards(){const tb=$('#tb-viagens');if(!tb)return;const card=tb.closest('.tcard');if(!card)return;let host=$('#phase2-trip-history-cards');if(!host){host=document.createElement('div');host.id='phase2-trip-history-cards';host.className='phase2-trip-history-list';const wrap=tb.closest('div[style*="overflow"]')||tb.closest('table');wrap?.insertAdjacentElement('beforebegin',host);if(wrap&&!wrap.closest('details.phase2-trip-details')){const det=document.createElement('details');det.className='phase2-trip-details';det.innerHTML='<summary>Ver tabela detalhada</summary>';wrap.parentElement.insertBefore(det,wrap);det.appendChild(wrap);}}let list=[];try{const mot=$('#vg-fil-mot')?.value||'',mes=$('#vg-fil-mes')?.value||'';list=(VIAGEM_DB||[]).filter(v=>(!mot||v.motorista===mot)&&(!mes||String(v.data||'').startsWith(mes))).slice().sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')));}catch(e){}
+// O Phase1Dom observa mudanças no DOM e chama apply novamente. Não recriar cartões
+// sem alteração de dados: isso remove o conteúdo aberto e inutiliza o clique.
+const signature=JSON.stringify(list.map(v=>[
+  v.id,v.motorista,v.data,v.volta,v.destino,v.numDiarias,v.totalDiarias,v.total,
+  v.totalRefeicoes,v.gastosExtras,v.dinheiroAlim,v.acertoDevolucao,v.combustivel,v.obs
+]));
+if(host.__phase2TripHistorySignature===signature){phase2TripHistoryActions();return;}
+host.__phase2TripHistorySignature=signature;
+host.innerHTML=list.length?list.map(v=>{const d1=String(v.data||'').split('-').reverse().join('/'),d2=String(v.volta||'').split('-').reverse().join('/'),alim=Number(v.totalRefeicoes||0),extra=Number(v.gastosExtras||0),adv=Number(v.dinheiroAlim||0),diarias=Number(v.totalDiarias!=null?v.totalDiarias:v.total||0),acerto=Number(v.acertoDevolucao!=null?v.acertoDevolucao:(adv-(alim+extra)));return `<article class="phase2-trip-history-item" data-trip-id="${esc(v.id||'')}"><div><b>${esc(v.motorista||'Motorista')}</b><small>${esc(d1)} → ${esc(d2||'—')} · ${esc(v.destino||'Sem destino')}</small><button type="button" class="phase2-trip-open" data-trip-open="${esc(v.id||'')}" data-trip-index="${phase2TripData().indexOf(v)}" aria-expanded="false">Abrir detalhes</button></div><span><small>Dias</small><b>${Number(v.numDiarias||1)}</b></span><span><small>Diárias</small><b>R$ ${money(diarias)}</b></span><span><small>Alimentação</small><b>R$ ${money(alim)}</b></span><span><small>Extras</small><b>R$ ${money(extra)}</b></span><span class="settle ${acerto<0?'warn':'ok'}"><small>${acerto>=0?'Devolver':'Reembolsar'}</small><b>R$ ${money(Math.abs(acerto))}</b></span></article>`;}).join(''):'<div class="phase2-empty">Nenhuma viagem registrada.</div>';phase2TripHistoryActions();}
 
 /* ---------- Viagens: acesso ao registro e análise mensal por motorista ---------- */
 const phase2TripCostValue=v=>{const n=Number(v);return Number.isFinite(n)&&n>0?n:0;};
@@ -428,31 +437,82 @@ function renderTripDriverCosts(){
   host.querySelector('#phase2-trip-month')?.addEventListener('change',e=>phase2SelectTripMonth(e.target.value));
   host.querySelectorAll('[data-driver-index]').forEach(btn=>btn.addEventListener('click',()=>phase2SelectDriver(drivers[Number(btn.dataset.driverIndex)])));
 }
-function phase2TripOpenDetails(id){
-  const v=phase2TripData().find(t=>String(t.id)===String(id));if(!v)return;
-  const totals=phase2TripCostParts(v),adiantamento=phase2TripCostValue(v.dinheiroAlim),despesasAcerto=totals.alimentacao+totals.extras,acerto=Number.isFinite(Number(v.acertoDevolucao))?Number(v.acertoDevolucao):adiantamento-despesasAcerto;
-  let modal=$('#phase2-trip-detail-dialog');
-  if(!modal){modal=document.createElement('dialog');modal.id='phase2-trip-detail-dialog';modal.className='phase2-trip-detail-dialog';document.body.appendChild(modal);modal.addEventListener('click',e=>{if(e.target===modal)modal.close();});}
-  modal.innerHTML=`<div class="phase2-trip-detail-head"><div><small>Viagem registrada</small><h3>${esc(v.motorista||'Motorista')}</h3><p>${esc(phase2TripDate(v.data))} a ${esc(phase2TripDate(v.volta))} · ${esc(v.destino||'Sem destino')}</p></div><button type="button" data-trip-close aria-label="Fechar">Fechar</button></div><div class="phase2-trip-detail-grid"><div><small>Período</small><strong>${Number(v.numDiarias||1)} dia(s)</strong></div><div><small>Diárias</small><strong>R$ ${money(totals.diarias)}</strong></div><div><small>Refeições</small><strong>R$ ${money(totals.alimentacao)}</strong></div><div><small>Combustível</small><strong>R$ ${money(totals.combustivel)}</strong></div><div><small>Extras</small><strong>R$ ${money(totals.extras)}</strong></div><div class="total"><small>Gasto total</small><strong>R$ ${money(totals.total)}</strong></div></div><div class="phase2-trip-detail-settlement"><div><span>Adiantamento entregue</span><strong>R$ ${money(adiantamento)}</strong></div><div><span>${acerto>=0?'Motorista deve devolver':'Empresa deve reembolsar'}</span><strong>R$ ${money(Math.abs(acerto))}</strong></div></div>${v.obs?`<div class="phase2-trip-detail-obs"><small>Observações</small><p>${esc(v.obs)}</p></div>`:''}<div class="phase2-trip-detail-actions"><button type="button" data-trip-close>Fechar</button><button type="button" class="primary" data-trip-edit>Editar viagem</button></div>`;
-  modal.querySelectorAll('[data-trip-close]').forEach(b=>b.addEventListener('click',()=>modal.close()));
-  modal.querySelector('[data-trip-edit]')?.addEventListener('click',()=>{modal.close();if(typeof global.editViagem==='function')global.editViagem(v.id);});
-  if(typeof modal.showModal==='function')modal.showModal();else modal.setAttribute('open','');
+function phase2TripOpenDetails(id,source){
+  const card=source?.closest('.phase2-trip-history-item');
+  if(!card)return false;
+  const trips=phase2TripData();
+  const index=Number(source.dataset.tripIndex);
+  let v=id?trips.find(t=>String(t?.id||'')===String(id)):null;
+  if(!v&&Number.isInteger(index)&&index>=0&&index<trips.length)v=trips[index];
+  if(!v)return false;
+  const wasOpen=!!card.querySelector('.phase2-trip-detail-inline');
+  const host=$('#phase2-trip-history-cards');
+  $$('.phase2-trip-detail-inline',host||document).forEach(el=>el.remove());
+  $$('.phase2-trip-open[aria-expanded="true"]',host||document).forEach(btn=>{
+    btn.setAttribute('aria-expanded','false');btn.textContent='Abrir detalhes';
+  });
+  if(wasOpen)return true;
+  const totals=phase2TripCostParts(v);
+  const advance=phase2TripCostValue(v.dinheiroAlim);
+  const settlement=Number.isFinite(Number(v.acertoDevolucao))&&v.acertoDevolucao!=null&&v.acertoDevolucao!==''
+    ?Number(v.acertoDevolucao):advance-(totals.alimentacao+totals.extras);
+  const detail=document.createElement('section');
+  detail.className='phase2-trip-detail-inline';
+  detail.setAttribute('aria-label','Detalhes da viagem');
+  const box=(label,value)=>`<div><small>${label}</small><strong>${value}</strong></div>`;
+  detail.innerHTML=`<div class="phase2-trip-detail-grid">
+    ${box('Período',`${esc(phase2TripDate(v.data))} a ${esc(phase2TripDate(v.volta))}`)}
+    ${box('Destino',esc(v.destino||'Não informado'))}
+    ${box('Dias',String(Number(v.numDiarias)||1))}
+    ${box('Diárias',`R$ ${money(totals.diarias)}`)}
+    ${box('Alimentação',`R$ ${money(totals.alimentacao)}`)}
+    ${box('Combustível',`R$ ${money(totals.combustivel)}`)}
+    ${box('Extras',`R$ ${money(totals.extras)}`)}
+    ${box('Gasto total',`R$ ${money(totals.total)}`)}
+    ${box('Adiantamento',`R$ ${money(advance)}`)}
+    ${box(settlement>=0?'A devolver':'A reembolsar',`R$ ${money(Math.abs(settlement))}`)}
+  </div>${v.obs?`<p class="phase2-trip-detail-observation"><b>Observações:</b> ${esc(v.obs)}</p>`:''}
+  <div class="phase2-trip-detail-actions"><button type="button" data-trip-edit="${esc(v.id||'')}" data-trip-index="${index}">Editar viagem</button></div>`;
+  card.appendChild(detail);
+  source.textContent='Ocultar detalhes';
+  source.setAttribute('aria-expanded','true');
+  return true;
 }
 function phase2TripCompactRates(register){
-  if(!register||register.querySelector('.phase2-trip-rates'))return;
+  if(!register)return;
   const diaria=$('#vg-diaria'),pernoite=$('#vg-pernoite');
   if(!diaria||!pernoite)return;
-  const rateRow=diaria.closest('div[style*="grid"]');
-  if(!rateRow||!rateRow.contains(pernoite))return;
-  const details=document.createElement('details');details.className='phase2-trip-rates';
-  const summary=document.createElement('summary');summary.textContent='Valores de diária (opcional)';details.appendChild(summary);
-  rateRow.parentElement.insertBefore(details,rateRow);details.appendChild(rateRow);
-  const dailyTitle=Array.from(register.querySelectorAll('.phase2-step')).find(x=>/Diária e pernoite/i.test(x.textContent||''));
-  if(dailyTitle)dailyTitle.remove();
+  const row=diaria.closest('div[style*="grid"]');
+  if(row&&row.contains(pernoite)){
+    const previousDetails=row.closest('details.phase2-trip-rates');
+    if(previousDetails){previousDetails.parentElement.insertBefore(row,previousDetails);previousDetails.remove();}
+    row.classList.add('phase2-trip-hidden-rates');
+    row.hidden=true;row.setAttribute('aria-hidden','true');
+    [diaria,pernoite].forEach(el=>{if(!el.value)el.value='0';el.tabIndex=-1;});
+  }
+  Array.from(register.querySelectorAll('.phase2-step'))
+    .filter(el=>/Diária e pernoite/i.test(el.textContent||''))
+    .forEach(el=>el.remove());
 }
 function phase2TripHistoryActions(){
-  const host=$('#phase2-trip-history-cards');if(!host||host.dataset.tripActions==='1')return;
-  host.dataset.tripActions='1';host.addEventListener('click',e=>{const button=e.target.closest('[data-trip-open]');if(button&&host.contains(button))phase2TripOpenDetails(button.dataset.tripOpen);});
+  if(global.__phase2TripHistoryClickReady)return;
+  global.__phase2TripHistoryClickReady=true;
+  // Delegação no documento: continua funcional após renderizações do legado e do Firebase.
+  document.addEventListener('click',event=>{
+    const button=event.target?.closest?.('[data-trip-open],[data-trip-edit]');
+    if(!button||!button.closest('#phase2-trip-history-cards'))return;
+    event.preventDefault();
+    event.stopPropagation();
+    if(button.hasAttribute('data-trip-open')){
+      phase2TripOpenDetails(button.dataset.tripOpen,button);
+    }else if(button.hasAttribute('data-trip-edit')){
+      const trips=phase2TripData();
+      const index=Number(button.dataset.tripIndex);
+      const trip=(button.dataset.tripEdit&&trips.find(v=>String(v?.id||'')===button.dataset.tripEdit))
+        ||(Number.isInteger(index)&&index>=0?trips[index]:null);
+      if(trip?.id&&typeof global.editViagem==='function')global.editViagem(trip.id);
+    }
+  },true);
 }
 const originalSaveTripPhase2=global.salvarViagem;
 if(typeof originalSaveTripPhase2==='function')global.salvarViagem=function(){
