@@ -101,3 +101,61 @@ input[data-phase2-fiscal-only="1"]{border-color:#9bc9ab!important;background:#fb
 .phase2-contract-download{background:#f0f7f3;color:#1b5739;border:1px solid #c3d8cb;border-radius:5px;padding:4px 7px;margin-right:4px;font-size:.68rem;cursor:pointer}
 .phase2-contract-filename{display:block;color:#667b70;font-size:.7rem;font-weight:400;margin-top:3px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .phase2-contract-rename:disabled{opacity:.55;cursor:wait}
+
+/* Viagens: histórico acessível e relatório mensal por motorista. */
+#tab-viagem_motorista .phase2-trip-history-item .phase2-trip-open{
+  justify-self:start;margin-top:7px;padding:5px 9px;border:1px solid #bfd5c7;border-radius:6px;
+  background:#fff;color:#194e33;font-size:.73rem;font-weight:750;cursor:pointer;
+}
+#tab-viagem_motorista .phase2-trip-history-item .phase2-trip-open:hover{background:#eef6f0}
+#tab-viagem_motorista .phase2-trip-rates{border:1px solid #dee8e1;border-radius:8px;margin:10px 0;background:#fafcfb}
+#tab-viagem_motorista .phase2-trip-rates summary{cursor:pointer;padding:12px 14px;color:#244c38;font-size:.79rem;font-weight:750;list-style-position:inside}
+#tab-viagem_motorista .phase2-trip-rates>div{padding:8px 12px 12px;margin:0!important;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+#tab-viagem_motorista .phase2-trip-driver-report{background:#fff;border:1px solid #dce6df;border-radius:9px;padding:18px;min-width:0}
+#tab-viagem_motorista .phase2-trip-report-header{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;margin-bottom:14px}
+#tab-viagem_motorista .phase2-trip-report-header h3{font-size:1rem;margin:0;color:#233e2c}
+#tab-viagem_motorista .phase2-trip-report-filters{display:flex;gap:10px;flex-wrap:wrap}
+#tab-viagem_motorista .phase2-trip-report-filters label{display:flex;flex-direction:column;gap:5px;font-size:.69rem;font-weight:700;color:#728378}
+#tab-viagem_motorista .phase2-trip-report-filters select{border:1px solid #d7e2da;border-radius:6px;padding:8px;min-width:125px;background:white;color:#233e2c}
+#tab-viagem_motorista .phase2-trip-driver-tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid #dae5dd;padding:0 0 10px;margin-bottom:14px}
+#tab-viagem_motorista .phase2-trip-driver-tabs button{border:1px solid #d5e1d8;border-radius:7px;padding:9px 12px;background:#fff;color:#405b48;font-weight:700;cursor:pointer}
+#tab-viagem_motorista .phase2-trip-driver-tabs button.active{color:#fff;background:#1c4c35;border-color:#1c4c35}
+#tab-viagem_motorista .phase2-trip-driver-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
+#tab-viagem_motorista .phase2-trip-driver-kpis>div{padding:14px;border:1px solid #dce5de;border-radius:8px;background:#f8faf8;min-width:0}
+#tab-viagem_motorista .phase2-trip-driver-kpis small,#tab-viagem_motorista .phase2-trip-detail-grid small{display:block;color:#718376;font-size:.69rem;margin-bottom:5px}
+#tab-viagem_motorista .phase2-trip-driver-kpis strong{color:#173e29;font-size:1.17rem;overflow-wrap:anywhere}
+#tab-viagem_motorista .phase2-trip-cost-breakdown{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0 18px}
+#tab-viagem_motorista .phase2-trip-cost-breakdown>div{display:flex;flex-direction:column;gap:4px;border-bottom:2px solid #dce6df;padding:8px 5px;color:#556d5a;font-size:.75rem}
+#tab-viagem_motorista .phase2-trip-cost-breakdown strong{font-size:.9rem;color:#234a33}
+#tab-viagem_motorista .phase2-trip-report-scroll{max-width:100%;overflow:auto}
+#tab-viagem_motorista .phase2-trip-report-scroll table{width:100%;border-collapse:collapse;font-size:.78rem;min-width:690px}
+#tab-viagem_motorista .phase2-trip-report-scroll th{font-size:.67rem;color:#526757;background:#f2f6f3;text-align:left}
+#tab-viagem_motorista .phase2-trip-report-scroll td,#tab-viagem_motorista .phase2-trip-report-scroll th{padding:12px 8px;border-bottom:1px solid #e3ebe5;white-space:nowrap}
+#tab-viagem_motorista .phase2-trip-report-scroll tr.is-current{background:#edf6ef}
+#tab-viagem_motorista .phase2-trip-report-note{color:#728176;font-size:.72rem;margin:12px 0 0}
+.phase2-trip-detail-dialog{border:0;border-radius:12px;box-shadow:0 25px 70px #07150b55;width:min(650px,calc(100vw - 30px));max-height:85vh;overflow:auto;padding:22px;background:#fff;color:#243f2d}
+.phase2-trip-detail-dialog::backdrop{background:rgba(3,20,11,.62)}
+.phase2-trip-detail-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;border-bottom:1px solid #e1e9e3;padding-bottom:12px}
+.phase2-trip-detail-head h3{font-size:1.25rem;margin:3px 0}
+.phase2-trip-detail-head p{font-size:.82rem;color:#75867a;margin:4px 0}
+.phase2-trip-detail-head button,.phase2-trip-detail-actions button{background:#fff;border:1px solid #d4e0d7;border-radius:7px;padding:9px 13px;cursor:pointer;color:#27543b;font-weight:750}
+.phase2-trip-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:16px 0}
+.phase2-trip-detail-grid>div{background:#f6faf7;border:1px solid #e1eae3;border-radius:8px;padding:12px;min-width:0}
+.phase2-trip-detail-grid strong{font-size:.94rem;overflow-wrap:anywhere}
+.phase2-trip-detail-grid .total{background:#e7f3ea}
+.phase2-trip-detail-settlement{display:flex;flex-direction:column;gap:7px;margin:14px 0}
+.phase2-trip-detail-settlement>div{display:flex;justify-content:space-between;gap:12px;font-size:.85rem}
+.phase2-trip-detail-obs{border-top:1px solid #e2e9e4;padding:9px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.phase2-trip-detail-obs small{color:#677d6e}
+.phase2-trip-detail-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+.phase2-trip-detail-actions button.primary{background:#1c4c35;color:#fff;border-color:#1c4c35}
+@media(max-width:800px){
+ #tab-viagem_motorista .phase2-trip-rates>div{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #tab-viagem_motorista .phase2-trip-driver-kpis{grid-template-columns:1fr 1fr}
+ #tab-viagem_motorista .phase2-trip-cost-breakdown{grid-template-columns:1fr 1fr}
+ .phase2-trip-detail-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:520px){
+ #tab-viagem_motorista .phase2-trip-driver-kpis{grid-template-columns:1fr}
+ .phase2-trip-detail-grid{grid-template-columns:1fr 1fr}
+}
