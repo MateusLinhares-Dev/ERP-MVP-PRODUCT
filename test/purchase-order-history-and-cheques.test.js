@@ -19,7 +19,48 @@ test('cheque oferece clientes e fornecedores ativos com destino identificável',
   assert.ok(found.some(x=>x.nome==='JOAO ELIAS'&&x.tipo==='Fornecedor'&&x.cod==='F3'));
   assert.ok(found.some(x=>x.nome==='CLIENTE TESTE'&&x.tipo==='Cliente'));
   assert.ok(!found.some(x=>x.nome==='FORN INATIVO'));
-  assert.match(core,/fornecedorCod=_fornObj\.cod/);
+  assert.match(core,/obj\.fornecedorCod=_selected\.cod/);
+  assert.doesNotMatch(core,/id=\"chqm-clientes-list\"/);
+  assert.match(core,/id=\"chqm-destino-opcoes\"/);
+});
+
+test('cheque usa fornecedores ativos da mesma fonte da aba Fornecedores, mesmo com lista inicial vazia',()=>{
+  const code=extract(core,'function _chqCadastroDestinos(){','function _chqBindDestinoAutocomplete(ov){');
+  const ctx={CLIENTES:[{cod:'C1',nome:'CLIENTE TESTE'}],FORNECEDORES:[],FORNECEDORES_DESPESA:[],
+    getFornAtivos(){return [{cod:'F003',nome:'JOAO ELIAS'},
+      {cod:'F002',nome:'TESTANDO MINHA PACIENCIA KKK'},
+      {cod:'F004',nome:'INATIVO',inativo:true}];}};
+  const result=runInNewContext(code+'\n_chqCadastroDestinos()',ctx);
+  assert.deepEqual(Array.from(result.filter(x=>x.tipo==='Fornecedor'),x=>x.nome),
+    ['JOAO ELIAS','TESTANDO MINHA PACIENCIA KKK']);
+  assert.equal(result[0].cod,'F003');
+});
+
+test('cheque salva o código do fornecedor escolhido, não o código de cliente com nome parecido',async()=>{
+  const code=extract(core,'function _chqCadastroDestinos(){','function _chqBindDestinoAutocomplete(ov){')+'\n'+
+    extract(core,'function chqSalvarModal(){','var _CHQ_FIX_GS=[];');
+  const form={
+    'chqm-id':'','chqm-b':'as','chqm-n':'200','chqm-c':'JOAO ELIAS',
+    'chqm-v':'1500,00','chqm-s':'A','chqm-d':'27/10/2026',
+    'chqm-venc':'28/10/2026','chqm-cd':'',
+    'chqm-destino-cod':'F003','chqm-destino-tipo':'Fornecedor'
+  };
+  let saved;
+  const ctx={
+    CLIENTES:[{cod:'C1',nome:'JOAO ELIAS'}],
+    FORNECEDORES:[{cod:'F003',nome:'JOAO ELIAS'}],FORNECEDORES_DESPESA:[],
+    getFornAtivos(){return ctx.FORNECEDORES;},
+    document:{getElementById(id){return form[id]===undefined?null:{value:form[id]};}},
+    _chqParseVal(s){return Number(String(s).replace(',','.'));},
+    _chqRef(){return {child(){return {set(obj){saved=obj;return Promise.resolve();}}}};},
+    _cfgChequeBankSlug(){return 'AS';},
+    CHQ_CTRL:{},renderChequesCompensar(){},chqFecharModal(){},showToast(){}
+  };
+  runInNewContext(code+'\nchqSalvarModal()',ctx);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(saved.fornecedorCod,'F003');
+  assert.equal(saved.fornecedorNome,'JOAO ELIAS');
+  assert.equal(saved.clienteCod,undefined);
 });
 
 test('adiantamentos recém-cadastrados prevalecem sobre dataset financeiro vazio',()=>{

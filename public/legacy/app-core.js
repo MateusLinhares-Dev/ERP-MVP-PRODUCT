@@ -15121,17 +15121,87 @@ function chqExcluir(id){
 
 
 function _chqCadastroDestinos(){
-  var destinos=[];
-  var usados=new Set();
-  [{lista:CLIENTES||[],tipo:'Cliente'},{lista:FORNECEDORES||[],tipo:'Fornecedor'}].forEach(function(grupo){
+  // Use the same canonical purchase-supplier source as the Fornecedores module.
+  // Never rely on a stale datalist populated before Firebase finishes loading.
+  var grupos=[
+    {lista:Array.isArray(CLIENTES)?CLIENTES:[],tipo:'Cliente'},
+    {lista:typeof getFornAtivos==='function'?getFornAtivos():(Array.isArray(FORNECEDORES)?FORNECEDORES:[]),tipo:'Fornecedor'},
+    {lista:typeof FORNECEDORES_DESPESA!=='undefined'&&Array.isArray(FORNECEDORES_DESPESA)?FORNECEDORES_DESPESA:[],tipo:'Fornecedor de despesa'}
+  ];
+  var destinos=[],vistos=new Set();
+  grupos.forEach(function(grupo){
     (grupo.lista||[]).forEach(function(c){
-      if(!c||c.inativo||c._deleted)return;
-      var nome=String(c.nome||'').trim(),key=nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
-      if(!key||usados.has(key))return;
-      usados.add(key);destinos.push({nome:nome,cod:c.cod||'',tipo:grupo.tipo});
+      if(!c||c.inativo||c.ativo===false||c._deleted)return;
+      if(grupo.tipo==='Fornecedor'&&typeof FORN_DELETED!=='undefined'&&FORN_DELETED.has(c.cod))return;
+      var nome=String(c.nome||c.razaoSocial||c.razao||'').trim();
+      if(!nome)return;
+      var cod=String(c.cod||c.codigo||c.id||'').trim();
+      var chave=grupo.tipo+'|'+(cod||nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase());
+      if(vistos.has(chave))return;
+      vistos.add(chave);destinos.push({nome:nome,cod:cod,tipo:grupo.tipo});
     });
   });
-  return destinos.sort(function(a,b){return a.nome.localeCompare(b.nome,'pt-BR');});
+  return destinos.sort(function(a,b){
+    var tp={'Fornecedor':0,'Fornecedor de despesa':1,'Cliente':2};
+    return (tp[a.tipo]??3)-(tp[b.tipo]??3)||a.nome.localeCompare(b.nome,'pt-BR');
+  });
+}
+function _chqBindDestinoAutocomplete(ov){
+  var inp=ov.querySelector('#chqm-c'),pop=ov.querySelector('#chqm-destino-opcoes');
+  var toggle=ov.querySelector('#chqm-destino-toggle');
+  var code=ov.querySelector('#chqm-destino-cod'),type=ov.querySelector('#chqm-destino-tipo');
+  var hint=ov.querySelector('#chqm-destino-info');
+  if(!inp||!pop||!toggle||!code||!type)return;
+  var visible=[],pos=-1;
+  var norm=function(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();};
+  function close(){pop.hidden=true;inp.setAttribute('aria-expanded','false');pos=-1;}
+  function mark(){
+    Array.from(pop.querySelectorAll('button[data-destino-index]')).forEach(function(el){
+      var selected=Number(el.dataset.destinoIndex)===pos;
+      el.style.background=selected?'#eaf3ed':'#fff';
+      el.setAttribute('aria-selected',selected?'true':'false');
+      if(selected&&el.scrollIntoView)el.scrollIntoView({block:'nearest'});
+    });
+  }
+  function choose(item){
+    if(!item)return;
+    inp.value=item.nome;code.value=item.cod;type.value=item.tipo;
+    if(hint)hint.textContent=item.tipo+(item.cod?' · '+item.cod:'');
+    close();inp.focus();
+  }
+  function open(){
+    var q=norm(inp.value);
+    // Only filter if the user is typing, not if the input contains a
+    // previously selected person whose list should still show everyone.
+    var isChosen=!!type.value;
+    visible=_chqCadastroDestinos().filter(function(item){
+      return !q||isChosen||norm(item.nome).includes(q)||norm(item.cod).includes(q)||norm(item.tipo).includes(q);
+    });
+    var html='',last='';
+    visible.slice(0,200).forEach(function(item,i){
+      if(item.tipo!==last){last=item.tipo;html+='<div style="padding:7px 10px;background:#f0f4f1;color:#345446;font-size:.73rem;font-weight:800">'+esc(last)+'</div>';}
+      html+='<button type="button" role="option" data-destino-index="'+i+'" style="display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;text-align:left;padding:9px 11px;background:#fff;border:0;border-bottom:1px solid #eef0ee;cursor:pointer;color:#1e342b;font-size:.84rem"><span>'+esc(item.nome)+'</span><small style="color:#687970;white-space:nowrap">'+esc(item.cod)+'</small></button>';
+    });
+    if(!html)html='<div style="padding:14px;color:#65746c;font-size:.82rem">Nenhum cadastro encontrado. É possível informar um destino manualmente.</div>';
+    pop.innerHTML=html;pop.hidden=false;inp.setAttribute('aria-expanded','true');pos=-1;
+  }
+  inp.addEventListener('focus',open);
+  inp.addEventListener('input',function(){code.value='';type.value='';if(hint)hint.textContent='';open();});
+  inp.addEventListener('keydown',function(e){
+    if(e.key==='Escape'){close();return;}
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+      e.preventDefault();if(pop.hidden)open();
+      pos=Math.max(0,Math.min(visible.length-1,pos+(e.key==='ArrowDown'?1:-1)));mark();return;
+    }
+    if(e.key==='Enter'&&!pop.hidden&&visible.length){e.preventDefault();choose(visible[pos<0?0:pos]);}
+  });
+  toggle.addEventListener('click',function(){if(pop.hidden){inp.focus();open();}else close();});
+  pop.addEventListener('mousedown',function(e){if(e.target.closest('button[data-destino-index]'))e.preventDefault();});
+  pop.addEventListener('click',function(e){
+    var btn=e.target.closest('button[data-destino-index]');
+    if(btn)choose(visible[Number(btn.dataset.destinoIndex)]);
+  });
+  ov.onclick=function(e){if(!e.target.closest('#chqm-destino-group'))close();};
 }
 function _chqModal(id){
   var c = id ? CHQ_CTRL[id] : null;
@@ -15150,7 +15220,15 @@ function _chqModal(id){
       '<label style="font-size:.78rem;color:#666">Banco<select id="chqm-b" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem">'+
         bancos.map(function(b){ return '<option'+(v.b===b?' selected':'')+'>'+esc(b)+'</option>'; }).join('')+'</select></label>'+
       '<label style="font-size:.78rem;color:#666">Nº do Cheque<input id="chqm-n" value="'+esc(String(v.n||''))+'" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem"></label>'+
-      '<label style="font-size:.78rem;color:#666;grid-column:1/3">Cliente / Fornecedor / Destino<input id="chqm-c" list="chqm-clientes-list" value="'+esc(v.c||'')+'" placeholder="Selecione cliente ou fornecedor cadastrado" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem"><datalist id="chqm-clientes-list">'+_chqCadastroDestinos().map(function(c){return '<option value="'+esc(c.nome||'')+'" label="'+esc(c.tipo||'')+'"></option>';}).join('')+'</datalist></label>'+
+      '<div id="chqm-destino-group" style="grid-column:1/3;position:relative;min-width:0">'+
+        '<label for="chqm-c" style="display:block;font-size:.78rem;color:#666;margin-bottom:4px">Cliente / Fornecedor / Destino</label>'+
+        '<div style="display:flex;align-items:stretch;border:1px solid #a6bdb0;border-radius:7px;overflow:hidden">'+
+          '<input id="chqm-c" role="combobox" aria-autocomplete="list" aria-controls="chqm-destino-opcoes" aria-expanded="false" autocomplete="off" value="'+esc(v.c||'')+'" placeholder="Buscar cliente ou fornecedor" style="flex:1;min-width:0;padding:8px;border:0;outline:none;font-size:.85rem">'+
+          '<button id="chqm-destino-toggle" type="button" aria-label="Mostrar clientes e fornecedores" style="width:36px;border:0;border-left:1px solid #d7e0da;background:#f3f7f4;cursor:pointer">▾</button></div>'+
+        '<input type="hidden" id="chqm-destino-cod" value="'+esc(c?(c.fornecedorCod||c.clienteCod||''):'')+'">'+
+        '<input type="hidden" id="chqm-destino-tipo" value="'+esc(c?(c.fornecedorCod?'Fornecedor':c.clienteCod?'Cliente':''):'')+'">'+
+        '<div id="chqm-destino-info" style="font-size:.73rem;color:#42614e;margin-top:3px"></div>'+
+        '<div id="chqm-destino-opcoes" role="listbox" hidden style="position:absolute;top:calc(100% + 2px);left:0;right:0;max-height:240px;overflow-y:auto;background:#fff;border:1px solid #aec3b4;border-radius:7px;box-shadow:0 12px 28px #0003;z-index:100"></div></div>'+
       '<label style="font-size:.78rem;color:#666">Valor (R$)<input id="chqm-v" value="'+esc(String(v.v||''))+'" placeholder="4990,00" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem"></label>'+
       '<label style="font-size:.78rem;color:#666">Situação<select id="chqm-s" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem">'+
         '<option value="A"'+(v.s==='A'?' selected':'')+'>A Compensar</option>'+
@@ -15165,6 +15243,7 @@ function _chqModal(id){
       '<button onclick="chqSalvarModal()" style="border:none;background:#1a3a2a;color:#fff;border-radius:8px;padding:8px 18px;font-size:.85rem;font-weight:700;cursor:pointer">Salvar</button>'+
     '</div></div>';
   ov.style.display='flex';
+  _chqBindDestinoAutocomplete(ov);
 }
 
 
@@ -15288,14 +15367,25 @@ function chqSalvarModal(){
     while(CHQ_CTRL[id]){ k++; id=base+'_'+k; }
   }
   var nomeNorm=function(v){return String(v||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();};
-  var _cliObj=(CLIENTES||[]).find(function(x){ return x&&nomeNorm(x.nome)===nomeNorm(cli); });
-  var _fornObj=(FORNECEDORES||[]).find(function(x){return x&&!x.inativo&&!x._deleted&&nomeNorm(x.nome)===nomeNorm(cli);});
+  var chosenCode=(document.getElementById('chqm-destino-cod')?.value||'').trim();
+  var chosenType=(document.getElementById('chqm-destino-tipo')?.value||'').trim();
+  var destinos=_chqCadastroDestinos();
+  var _selected=destinos.find(function(x){return x.cod===chosenCode&&x.tipo===chosenType&&nomeNorm(x.nome)===nomeNorm(cli);});
+  // When the user typed the full name, infer only unambiguous matches.
+  // Same-name client and supplier must never be linked to the wrong person.
+  if(!_selected){var _matches=destinos.filter(function(x){return nomeNorm(x.nome)===nomeNorm(cli);});if(_matches.length===1)_selected=_matches[0];}
   var obj={id:id,b:b,n:n,c:cli,v:val,d:d,venc:venc,cd:cd,s:s};
-  if(_cliObj){ obj.clienteNome=_cliObj.nome||cli; obj.clienteCod=_cliObj.cod||''; }
-  if(_fornObj){obj.fornecedorNome=_fornObj.nome||cli;obj.fornecedorCod=_fornObj.cod||'';obj.dest=cli;}
+  if(_selected && _selected.tipo==='Cliente'){
+    obj.clienteNome=_selected.nome;obj.clienteCod=_selected.cod;
+  }
+  if(_selected && _selected.tipo.indexOf('Fornecedor')===0){
+    obj.fornecedorNome=_selected.nome;obj.fornecedorCod=_selected.cod;obj.dest=cli;
+  }
   // Preserve the destination metadata when editing an existing cheque without changing it.
   if(CHQ_CTRL[id] && nomeNorm(CHQ_CTRL[id].c)===nomeNorm(cli)){
-    ['dc','movBancoId','origem'].forEach(function(field){if(CHQ_CTRL[id][field]!=null)obj[field]=CHQ_CTRL[id][field];});
+    ['dc','movBancoId','origem','fornecedorCod','fornecedorNome','clienteCod','clienteNome','dest'].forEach(function(field){
+      if(obj[field]==null&&CHQ_CTRL[id][field]!=null)obj[field]=CHQ_CTRL[id][field];
+    });
   }
   
   if(CHQ_CTRL[id]&&CHQ_CTRL[id].dc) obj.dc=CHQ_CTRL[id].dc;
