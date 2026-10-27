@@ -1863,24 +1863,10 @@ function populateAll(){
   
   
   
-  const tbF=document.getElementById('tb-funcionarios');
-  if(tbF) tbF.innerHTML=FUNCIONARIOS.map(f=>
-    `<tr style="${f.status==='Inativo'?'opacity:.55':''}">
-      <td>${f.mat}</td><td><b>${f.nome}</b></td>
-      <td><span class="b b-${f.status.toLowerCase()}">${f.status}</span></td>
-      <td>${f.cargo}</td>
-      <td>R$ ${Number(f.sal).toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
-      <td>${f.empresa||'—'}</td>
-      <td style="font-size:.78rem">${f.cpf||'—'}</td>
-      <td style="white-space:nowrap">
-        <button class="btn-edit" onclick="editFuncionario('${f.mat}')">✏️</button>
-        <button class="btn-edit" onclick="funcDocsModal('${f.mat}')" title="Documentos" style="background:#0277bd;color:#fff">📄 Docs</button>
-        <button class="btn-edit" onclick="toggleInativarFunc('${f.mat}')" title="${f.status==='Inativo'?'Reativar':'Inativar'}" style="background:${f.status==='Inativo'?'#27ae60':'#e67e22'}">${f.status==='Inativo'?'▶️ Reativar':'⏸️ Inativar'}</button>
-        <button class="btn-edit-danger" onclick="excluirFuncionario('${f.mat}')" title="Excluir">🗑️</button>
-      </td>
-    </tr>`).join('');
+  // The active and inactive lists must share the same renderer on first load
+  // and after cloud synchronization; do not put inactive rows into the active table.
+  try{ renderTbFuncionarios(); }catch(e){ console.warn('Falha ao atualizar funcionários',e); }
 
-  
   const tbP=document.getElementById('tb-ponto');
   if(tbP) tbP.innerHTML=FUNCIONARIOS.map(f=>
     `<tr><td>${f.mat}</td><td>${f.nome}</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>—</td></tr>`).join('');

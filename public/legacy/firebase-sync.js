@@ -1387,6 +1387,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
               FUNCIONARIOS.length=0; _mrgFE.forEach(f=>FUNCIONARIOS.push(f));
               try{ localStorage.setItem('mm_funcionarios_edit', JSON.stringify(_mrgFE)); }catch(e){ console.warn('funcEdit localStorage cheio'); }
               try{ document.dispatchEvent(new CustomEvent('erp:alert-source-changed',{detail:{source:'funcionarios'}})); }catch(e){}
+              try{ if(typeof renderTbFuncionarios==='function')renderTbFuncionarios(); }catch(e){console.warn('Falha ao atualizar RH',e);}
               var _remLen = Array.isArray(d.funcEdit)?d.funcEdit.length:0;
               if(_mrgFE.length > _remLen){
                 
@@ -1786,6 +1787,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
               FUNCIONARIOS.length=0; _mrgFE2.forEach(f=>FUNCIONARIOS.push(f));
               try{ localStorage.setItem('mm_funcionarios_edit', JSON.stringify(_mrgFE2)); }catch(e){}
               try{ document.dispatchEvent(new CustomEvent('erp:alert-source-changed',{detail:{source:'funcionarios'}})); }catch(e){}
+              try{ if(typeof renderTbFuncionarios==='function')renderTbFuncionarios(); }catch(e){console.warn('Falha ao atualizar RH',e);}
               var _remLen2 = Array.isArray(d.funcEdit)?d.funcEdit.length:0;
               if(_mrgFE2.length > _remLen2){
                 try{ _funcEditSnapJSON=null; }catch(e){}

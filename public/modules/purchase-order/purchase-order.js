@@ -1075,6 +1075,48 @@ function companyLogoSrc(){
     return 'assets/branding/manuela-metais-logo.webp';
   }
 }
+// Financial receipt is a live view of the linked payable. Never mutate the
+// ticket or create a second payment while printing.
+function printPaymentSnapshot(key,ticket,total){
+  const safe=function(value){const n=Number(value);return Number.isFinite(n)?Math.max(0,n):0;};
+  const ticketNo=String(ticket.ticket||key||'').trim();
+  const priorDebt=safe(ticket.saldoAnterior);
+  const amountDue=safe(total)+priorDebt;
+  const advance=Math.min(amountDue,safe(ticket.adiantamento));
+  const recordedBalance=ticket.saldoPagar!=null?safe(ticket.saldoPagar):Math.max(0,amountDue-advance);
+  let linked=[];
+  try{
+    if(Array.isArray(CONTAS_PAGAR))linked=CONTAS_PAGAR.filter(function(cp){
+      return cp&&String(cp.ticket||'').trim()===ticketNo;
+    });
+  }catch(e){}
+  const payments=[];
+  for(const account of linked){
+    if(!Array.isArray(account.pagamentos))continue;
+    for(const payment of account.pagamentos){
+      if(!payment)continue;
+      const cash=safe(payment.valor),applied=safe(payment.adt);
+      if(cash+applied<=0)continue;
+      payments.push({date:String(payment.data||''),amount:cash+applied,
+        description:applied>0&&cash>0?'Pagamento e adiantamento':(applied>0?'Compensação de adiantamento':'Pagamento'),
+        details:String(payment.banco||payment.obs||'').trim()});
+    }
+  }
+  // A payable that has been settled or partially paid is more recent than
+  // the ticket's initial balance in some legacy synchronization paths.
+  const hasPayableChanges=linked.some(function(cp){
+    return String(cp.status||'').toLowerCase()==='pago'||
+      (Array.isArray(cp.pagamentos)&&cp.pagamentos.length>0)||safe(cp.valorPago)>0||safe(cp.adtCompensado)>0;
+  });
+  const outstanding=hasPayableChanges
+    ?linked.filter(function(cp){return String(cp.status||'').toLowerCase()!=='pago';})
+      .reduce(function(sum,cp){return sum+safe(cp.valor);},0)
+    :recordedBalance;
+  const balance=Math.max(0,Math.min(amountDue,outstanding));
+  const settled=Math.max(0,Math.min(amountDue,amountDue-balance));
+  return {priorDebt,amountDue,advance,balance,settled,
+    sincePurchase:Math.max(0,settled-advance),payments};
+}
 function printHtml(key,ticket){
   const info=companyInfo();
   const supplier=supplierInfo(ticket);
@@ -1091,8 +1133,9 @@ function printHtml(key,ticket){
   const discount=Number(ticket.descontoCompra||po.desconto||0);
   const freight=Number(ticket.freteCompra||po.frete||0);
   const total=Number(ticket.totalGeral!=null?ticket.totalGeral:(po.totalPedido!=null?po.totalPedido:Math.max(0,productTotal-discount+freight)));
-  const advance=Number(ticket.adiantamento||0);
-  const balance=Math.max(0,Number(ticket.saldoPagar!=null?ticket.saldoPagar:total-advance));
+  const finance=printPaymentSnapshot(key,ticket,total);
+  const advance=finance.advance;
+  const balance=finance.balance;
   const sumQty=items.reduce(function(sum,item){return sum+Number(item.quantidade||item.pesoLiq||0);},0);
   const orderNotes=String(ticket.observacoesPedido||po.observacoes||'').trim();
   const supplierAddress=[supplier.rua||supplier.logradouro||'',supplier.num||supplier.numero||'',supplier.bairro||'',supplier.cidade||'',supplier.uf||''].filter(Boolean).join(', ');
@@ -1121,6 +1164,21 @@ function printHtml(key,ticket){
     (discount>0?totalRow('Desconto','- R$ '+money(discount)):'')+
     (freight>0?totalRow('Frete','R$ '+money(freight)):'')+
     totalRow('Total do pedido','R$ '+money(total),'grand');
+  const paymentSummary='<section class="print-section payment-summary"><h2>Situação financeira do pedido</h2>'+
+    '<table class="payment-totals"><tbody>'+
+    '<tr><th>Total do pedido</th><td>R$ '+money(total)+'</td></tr>'+
+    (finance.priorDebt>0?'<tr><th>Saldo anterior incorporado</th><td>R$ '+money(finance.priorDebt)+'</td></tr>':'')+
+    '<tr><th>Adiantamentos / abatimentos no fechamento</th><td>R$ '+money(advance)+'</td></tr>'+
+    '<tr><th>Pagamentos e abatimentos posteriores</th><td>R$ '+money(finance.sincePurchase)+'</td></tr>'+
+    '<tr class="paid"><th>Total pago / abatido</th><td>R$ '+money(finance.settled)+'</td></tr>'+
+    '<tr class="due"><th>Saldo a pagar</th><td>R$ '+money(balance)+'</td></tr>'+
+    '</tbody></table></section>';
+  const laterPayments=finance.payments.length
+    ?'<section class="print-section payment-history"><h2>Pagamentos registrados após o pedido</h2><table class="installments">'+
+      '<thead><tr><th>Data</th><th>Operação</th><th>Valor</th></tr></thead><tbody>'+
+      finance.payments.map(function(p){return '<tr><td>'+esc(dateBR(p.date))+'</td><td>'+esc(p.description)+
+        (p.details?' · '+esc(p.details):'')+'</td><td class="numeric">R$ '+money(p.amount)+'</td></tr>';}).join('')+
+      '</tbody></table></section>':'';
   const installments=balance>0
     ?'<tr><td class="center">'+daysBetween(purchaseDate,dueDate)+'</td><td>'+esc(dateBR(dueDate))+'</td><td class="numeric">R$ '+money(balance)+'</td><td>'+esc(advance>0?'Abatimentos/adiantamentos aplicados: R$ '+money(advance):'Saldo do pedido')+'</td></tr>'
     :'<tr><td class="center">0</td><td>'+esc(dateBR(purchaseDate))+'</td><td class="numeric">R$ 0,00</td><td>Pedido quitado por abatimentos/adiantamentos</td></tr>';
@@ -1149,7 +1207,7 @@ function printHtml(key,ticket){
     '<section class="print-section"><h2>Itens do pedido de compra</h2>'+
       '<table class="items"><colgroup><col class="col-description"><col class="col-unit"><col class="col-quantity"><col class="col-unit-price"><col class="col-total"></colgroup>'+
       '<thead><tr><th>Descrição do material</th><th>Un</th><th>Qtde</th><th>Valor unitário</th><th>Valor total</th></tr></thead><tbody>'+itemRows+'</tbody></table>'+
-      '<table class="print-totals" aria-label="Totais da compra"><tbody>'+totals+'</tbody></table></section>'+
+      '<table class="print-totals" aria-label="Totais da compra"><tbody>'+totals+'</tbody></table></section>'+paymentSummary+laterPayments+
     '<section class="print-section"><h2>Parcelas</h2><table class="installments"><thead><tr><th>Dias</th><th>Data Vencimento</th><th>Valor</th><th>Observações</th></tr></thead><tbody>'+installments+'</tbody></table></section>'+
     '<section class="print-section order-notes"><h2>Observações</h2><div class="notes">'+esc(orderNotes)+'</div></section>'+
   '</main>';
@@ -1200,6 +1258,18 @@ function printCss(){
     .print-totals td{min-width:75px}
     .print-totals .grand th,.print-totals .grand td{border-top:1px solid #555;font-weight:800}
     .installments th:nth-child(1){width:12%}.installments th:nth-child(2){width:28%}.installments th:nth-child(3){width:22%}
+    .payment-totals{width:57%;margin-left:auto;border-collapse:collapse;font-size:9px}
+    .payment-totals th,.payment-totals td{border-bottom:1px solid #dedede;padding:4px 6px}
+    .payment-totals th{text-align:left;font-weight:500}
+    .payment-totals td{text-align:right;white-space:nowrap}
+    .payment-totals .paid{font-weight:700;background:#f4f8f5}
+    .payment-totals .paid th{font-weight:700}
+    .payment-totals .due{border-top:1px solid #555;font-weight:800}
+    .payment-totals .due th{font-weight:800}
+    .payment-history{margin-top:14px}
+    .payment-history .installments th:first-child{width:24%}
+    .payment-history .installments th:last-child{width:24%}
+    .payment-history .installments td:nth-child(2){overflow-wrap:anywhere}
     .notes{min-height:42px;border:1px solid #555;padding:7px;white-space:pre-wrap;overflow-wrap:anywhere}
     .print-actions{text-align:center;margin:18px 0 25px}
     .print-actions button{padding:11px 25px;border:0;border-radius:7px;background:#1a3a2a;color:#fff;font-size:13px;font-weight:700;cursor:pointer}

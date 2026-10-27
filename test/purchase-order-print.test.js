@@ -5,7 +5,7 @@ import test from 'node:test';
 
 const source=readFileSync(new URL('../public/modules/purchase-order/purchase-order.js',import.meta.url),'utf8');
 
-function makePrint(ticket){
+function makePrint(ticket,payables=[]){
   let html='';
   const printedTicket=structuredClone(ticket);
   const context={
@@ -15,6 +15,7 @@ function makePrint(ticket){
     getFornAtivos(){return [];},
     FORNECEDORES:[{cod:'F1',nome:'Fornecedor de teste',cnpj:'12.345.678/0001-90'}],
     TICKETS_DB:{TK01:printedTicket},
+    CONTAS_PAGAR:structuredClone(payables),
     _empresaPrincipalLabel(){return 'Manuela Metais';},
     _empresaPrincipalRazao(){return 'Manuela Metais LTDA';},
     _empresaPrincipalInfo(){return {cnpj:'28.071.250/0001-31',endereco:'Endereço comercial'};},
@@ -104,4 +105,40 @@ test('observações gerais podem ser apagadas do formulário sem ressurgir ao sa
   input.value='Entrega no pátio <seguro>';
   context.window.phase4PurchaseSyncMeta();
   assert.equal(JSON.parse(body.dataset.phase4Order).notes,'Entrega no pátio <seguro>');
+});
+
+
+test('canhoto reflete pagamento registrado após o fechamento sem dar baixa novamente',()=>{
+  const ticket={...base,totalProdutos:39000,totalGeral:39000,adiantamento:15000,saldoPagar:24000};
+  const accounts=[{id:'CP-1',ticket:'T827763',status:'Pendente',valor:14000,
+    valorPago:10000,pagamentos:[{data:'27/10/2026',valor:10000,adt:0,banco:'Itaú'}]}];
+  const {html,printedTicket}=makePrint(ticket,accounts);
+  assert.match(html,/Situação financeira do pedido/);
+  assert.match(html,/Total do pedido<\/th><td>R\$ 39\.000,00/);
+  assert.match(html,/Adiantamentos \/ abatimentos no fechamento<\/th><td>R\$ 15\.000,00/);
+  assert.match(html,/Pagamentos e abatimentos posteriores<\/th><td>R\$ 10\.000,00/);
+  assert.match(html,/Total pago \/ abatido<\/th><td>R\$ 25\.000,00/);
+  assert.match(html,/Saldo a pagar<\/th><td>R\$ 14\.000,00/);
+  assert.match(html,/27\/10\/2026/);
+  assert.match(html,/Itaú/);
+  assert.equal(printedTicket.saldoPagar,24000); // print cannot mutate the order
+});
+
+test('quitado via contas a pagar aparece no canhoto mesmo se ticket estiver atrasado',()=>{
+  const ticket={...base,totalGeral:39000,adiantamento:15000,saldoPagar:24000};
+  const accounts=[{id:'CP-1',ticket:'T827763',status:'Pago',valor:24000,
+    valorPago:24000,pagamentos:[{data:'28/10/2026',valor:24000,banco:'Sicredi'}]}];
+  const {html}=makePrint(ticket,accounts);
+  assert.match(html,/Total pago \/ abatido<\/th><td>R\$ 39\.000,00/);
+  assert.match(html,/Saldo a pagar<\/th><td>R\$ 0,00/);
+});
+
+test('não mistura pagamentos de outros pedidos ou duplica adiantamentos de origem',()=>{
+  const ticket={...base,totalGeral:39000,adiantamento:15000,saldoPagar:24000};
+  const accounts=[{ticket:'OUTRO-TICKET',status:'Pago',valor:10000,
+    pagamentos:[{data:'28/10/2026',valor:10000}]}];
+  const {html}=makePrint(ticket,accounts);
+  assert.match(html,/Total pago \/ abatido<\/th><td>R\$ 15\.000,00/);
+  assert.match(html,/Saldo a pagar<\/th><td>R\$ 24\.000,00/);
+  assert.doesNotMatch(html,/Pagamentos registrados após o pedido/);
 });
