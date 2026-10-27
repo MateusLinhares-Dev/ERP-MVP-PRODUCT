@@ -573,7 +573,9 @@ function patchCreatedTicket(key,state,legacyItems,totals){
       total:amount*price
     });
   });
-  ticket.numeroPedido=state.orderNumber||ticket.ticket||key;
+  // O identificador do pedido deve ser o mesmo ticket definitivo criado pelo legado.
+  // state.orderNumber pode ter sido calculado antes da criação e ficar um número atrás.
+  ticket.numeroPedido=String(ticket.ticket||key);
   ticket.ordemCompra=state.purchaseOrder||'';
   ticket.dataCompra=state.purchaseDate||today();
   ticket.data=ticket.dataCompra;
@@ -752,7 +754,7 @@ function stateForExistingTicket(key){
     items:items.length?items:[newItem()],
     discount:Number(ticket.descontoCompra??po.desconto??0)||0,
     freight:Number(ticket.freteCompra??po.frete??0)||0,
-    orderNumber:String(ticket.numeroPedido||po.numero||ticket.ticket||key),
+    orderNumber:String(ticket.ticket||key||ticket.numeroPedido||po.numero),
     purchaseOrder:String(ticket.ordemCompra||po.ordemCompra||''),
     purchaseDate:isoDate(ticket.dataCompra||po.dataCompra||ticket.data),
     dueDate:isoDate(ticket.vencimentoSaldo||po.vencimentoSaldo||ticket.data),
@@ -818,7 +820,7 @@ function saveEditedTicket(state,totals){
   ticket.totalKg=items.reduce(function(sum,item){return sum+Number(item.quantidade||0);},0);
   ticket.descontoCompra=state.discount;
   ticket.freteCompra=state.freight;
-  ticket.numeroPedido=state.orderNumber;
+  ticket.numeroPedido=String(ticket.ticket||state.editKey);
   ticket.ordemCompra=state.purchaseOrder;
   ticket.dataCompra=state.purchaseDate;
   ticket.vencimentoSaldo=state.dueDate;
@@ -827,7 +829,7 @@ function saveEditedTicket(state,totals){
   if(totals.balance>0.005)ticket.status='Pendente';
   else ticket.status='Pago';
   ticket.pedidoCompra=Object.assign({},ticket.pedidoCompra||{}, {
-    numero:state.orderNumber,ordemCompra:state.purchaseOrder,dataCompra:state.purchaseDate,
+    numero:ticket.numeroPedido,ordemCompra:state.purchaseOrder,dataCompra:state.purchaseDate,
     vencimentoSaldo:state.dueDate,observacoes:ticket.observacoesPedido,
     desconto:state.discount,frete:state.freight,totalProdutos:totals.productTotal,totalPedido:totals.total
   });
@@ -1075,6 +1077,65 @@ function companyLogoSrc(){
     return 'assets/branding/manuela-metais-logo.webp';
   }
 }
+// Detalhamento documental de abatimentos efetivamente vinculados à compra.
+// Não considera adiantamentos pendentes de outras compras do mesmo fornecedor.
+// Preserve o valor original do ticket; o canhoto é somente leitura.
+function printAppliedAdvances(key,ticket,advance){
+  const ticketNo=String(ticket.ticket||key||'').trim();
+  const supplierCode=String(ticket.fornecedorCod||ticket.fornCod||'').trim();
+  const appliedLimit=Math.max(0,Math.round(Number(advance||0)*100));
+  const candidates=[];
+  const unique=new Set();
+  function take(kind,ref,date,method,amount,identity){
+    const cents=Math.round(Number(amount||0)*100);
+    if(!Number.isSafeInteger(cents)||cents<=0)return;
+    const id=identity||kind+':'+String(ref||'')+':'+String(date||'');
+    if(unique.has(id))return;
+    unique.add(id);
+    candidates.push({kind,ref:String(ref||''),date:String(date||''),method:String(method||''),cents});
+  }
+  const snap=ticket.reciboFinanceiro;
+  if(snap&&typeof snap==='object'){
+    for(const a of (Array.isArray(snap.adiantamentos)?snap.adiantamentos:[])){
+      if(!a)continue;
+      take('Adiantamento',a.cod,a.data,[a.forma,a.bancoNome].filter(Boolean).join(' · '),a.valorAplicado,
+        a.cod?'ADT:'+String(a.cod):'SNAP-ADT:'+candidates.length);
+    }
+    for(const c of (Array.isArray(snap.cheques)?snap.cheques:[])){
+      if(!c)continue;
+      take('Cheque',c.num||c.id,c.bomPara,c.banco||'',c.valorAplicado,
+        c.id?'CHQ:'+String(c.id):'SNAP-CHQ:'+candidates.length);
+    }
+  }
+  try{
+    const rows=typeof ADT_POR_FORN!=='undefined'&&supplierCode?(ADT_POR_FORN[supplierCode]||[]):[];
+    for(const a of rows){
+      if(!a||String(a.ticket||'').trim()!==ticketNo||String(a.status||'').trim().toLowerCase()!=='quitado')continue;
+      take('Adiantamento',a.cod,a.data,[a.forma,a.bancoNome].filter(Boolean).join(' · '),a.valor,
+        a.cod?'ADT:'+String(a.cod):'LIVE-ADT:'+candidates.length);
+    }
+  }catch(e){}
+  try{
+    const rows=typeof CHEQUES_POR_FORN!=='undefined'&&supplierCode?(CHEQUES_POR_FORN[supplierCode]||[]):[];
+    for(const c of rows){
+      if(!c||![c._aplicadoTicket,c.vinculo,c.ticket].some(function(value){return String(value||'').trim()===ticketNo;}))continue;
+      take('Cheque',c.num||c.numero||c.id,c.bomPara||c.data,c.banco||'',c.valor,
+        c.id?'CHQ:'+String(c.id):'LIVE-CHQ:'+candidates.length);
+    }
+  }catch(e){}
+  let remaining=appliedLimit;
+  const rows=[];
+  for(const c of candidates){
+    if(remaining<=0)break;
+    const used=Math.min(remaining,c.cents);
+    if(used>0)rows.push({...c,amount:used/100});
+    remaining-=used;
+  }
+  if(remaining>0){
+    rows.push({kind:'Outros abatimentos aplicados',ref:'',date:'',method:'',amount:remaining/100});
+  }
+  return rows;
+}
 // Financial receipt is a live view of the linked payable. Never mutate the
 // ticket or create a second payment while printing.
 function printPaymentSnapshot(key,ticket,total){
@@ -1121,7 +1182,9 @@ function printHtml(key,ticket){
   const info=companyInfo();
   const supplier=supplierInfo(ticket);
   const po=ticket.pedidoCompra||{};
-  const orderNo=ticket.numeroPedido||po.numero||ticket.ticket||key;
+  // O canhoto deve identificar o ticket da linha selecionada, não o número
+  // sugerido no formulário antes do ticket definitivo ser criado.
+  const orderNo=String(ticket.ticket||key||ticket.numeroPedido||po.numero||'');
   const purchaseDate=ticket.dataCompra||po.dataCompra||ticket.data||'';
   // Vencimento financeiro não é a data prevista da entrega do material.
   const expectedDate=ticket.dataPrevista||po.dataPrevista||'';
@@ -1173,6 +1236,15 @@ function printHtml(key,ticket){
     '<tr class="paid"><th>Total pago / abatido</th><td>R$ '+money(finance.settled)+'</td></tr>'+
     '<tr class="due"><th>Saldo a pagar</th><td>R$ '+money(balance)+'</td></tr>'+
     '</tbody></table></section>';
+  const advanceRows=printAppliedAdvances(key,ticket,advance);
+  const advanceDetails=advance>0
+    ?'<section class="print-section applied-advances"><h2>Adiantamentos e abatimentos desta compra</h2>'+
+      '<table class="installments"><thead><tr><th>Data</th><th>Origem</th><th>Referência / forma</th><th>Valor aplicado</th></tr></thead><tbody>'+
+      advanceRows.map(function(row){return '<tr><td>'+esc(row.date?dateBR(row.date):'—')+'</td>'+
+        '<td>'+esc(row.kind)+'</td><td>'+esc([row.ref,row.method].filter(Boolean).join(' · ')||'—')+'</td>'+
+        '<td class="numeric">R$ '+money(row.amount)+'</td></tr>';}).join('')+
+      '<tr class="advance-total"><th colspan="3">Total abatido no fechamento</th><td class="numeric">R$ '+money(advance)+'</td></tr>'+
+      '</tbody></table></section>':'';
   const laterPayments=finance.payments.length
     ?'<section class="print-section payment-history"><h2>Pagamentos registrados após o pedido</h2><table class="installments">'+
       '<thead><tr><th>Data</th><th>Operação</th><th>Valor</th></tr></thead><tbody>'+
@@ -1207,7 +1279,7 @@ function printHtml(key,ticket){
     '<section class="print-section"><h2>Itens do pedido de compra</h2>'+
       '<table class="items"><colgroup><col class="col-description"><col class="col-unit"><col class="col-quantity"><col class="col-unit-price"><col class="col-total"></colgroup>'+
       '<thead><tr><th>Descrição do material</th><th>Un</th><th>Qtde</th><th>Valor unitário</th><th>Valor total</th></tr></thead><tbody>'+itemRows+'</tbody></table>'+
-      '<table class="print-totals" aria-label="Totais da compra"><tbody>'+totals+'</tbody></table></section>'+paymentSummary+laterPayments+
+      '<table class="print-totals" aria-label="Totais da compra"><tbody>'+totals+'</tbody></table></section>'+paymentSummary+advanceDetails+laterPayments+
     '<section class="print-section"><h2>Parcelas</h2><table class="installments"><thead><tr><th>Dias</th><th>Data Vencimento</th><th>Valor</th><th>Observações</th></tr></thead><tbody>'+installments+'</tbody></table></section>'+
     '<section class="print-section order-notes"><h2>Observações</h2><div class="notes">'+esc(orderNotes)+'</div></section>'+
   '</main>';
@@ -1266,6 +1338,13 @@ function printCss(){
     .payment-totals .paid th{font-weight:700}
     .payment-totals .due{border-top:1px solid #555;font-weight:800}
     .payment-totals .due th{font-weight:800}
+    .applied-advances{margin-top:14px}
+    .applied-advances .installments th:first-child{width:19%}
+    .applied-advances .installments th:nth-child(2){width:21%}
+    .applied-advances .installments th:nth-child(3){width:40%}
+    .applied-advances .installments th:last-child{width:20%}
+    .applied-advances .advance-total{background:#f4f8f5;font-weight:700}
+    .applied-advances .advance-total th{text-align:right}
     .payment-history{margin-top:14px}
     .payment-history .installments th:first-child{width:24%}
     .payment-history .installments th:last-child{width:24%}
@@ -1292,7 +1371,7 @@ global.phase4PurchasePrint=function(ticketRef){
   if(!ticket){try{showToast('Compra não encontrada.','error');}catch(e){}return;}
   const win=window.open('','_blank','width=900,height=950');
   if(!win)return;
-  win.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Pedido '+esc(ticket.numeroPedido||ticket.ticket||key)+'</title><style>'+printCss()+'</style></head><body>'+printHtml(key,ticket)+'<div class="print-actions"><button onclick="window.print()">Imprimir / Salvar PDF</button></div></body></html>');
+  win.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Pedido '+esc(ticket.ticket||key)+'</title><style>'+printCss()+'</style></head><body>'+printHtml(key,ticket)+'<div class="print-actions"><button onclick="window.print()">Imprimir / Salvar PDF</button></div></body></html>');
   win.document.close();
 };
 global.phase1PurchasePrint=global.phase4PurchasePrint;

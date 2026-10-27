@@ -5,7 +5,7 @@ import test from 'node:test';
 
 const source=readFileSync(new URL('../public/modules/purchase-order/purchase-order.js',import.meta.url),'utf8');
 
-function makePrint(ticket,payables=[]){
+function makePrint(ticket,payables=[],advances={},cheques={}){
   let html='';
   const printedTicket=structuredClone(ticket);
   const context={
@@ -16,6 +16,8 @@ function makePrint(ticket,payables=[]){
     FORNECEDORES:[{cod:'F1',nome:'Fornecedor de teste',cnpj:'12.345.678/0001-90'}],
     TICKETS_DB:{TK01:printedTicket},
     CONTAS_PAGAR:structuredClone(payables),
+    ADT_POR_FORN:structuredClone(advances),
+    CHEQUES_POR_FORN:structuredClone(cheques),
     _empresaPrincipalLabel(){return 'Manuela Metais';},
     _empresaPrincipalRazao(){return 'Manuela Metais LTDA';},
     _empresaPrincipalInfo(){return {cnpj:'28.071.250/0001-31',endereco:'Endereço comercial'};},
@@ -141,4 +143,75 @@ test('não mistura pagamentos de outros pedidos ou duplica adiantamentos de orig
   assert.match(html,/Total pago \/ abatido<\/th><td>R\$ 15\.000,00/);
   assert.match(html,/Saldo a pagar<\/th><td>R\$ 24\.000,00/);
   assert.doesNotMatch(html,/Pagamentos registrados após o pedido/);
+});
+
+
+test('canhoto usa número do ticket definitivo mesmo quando numeroPedido estava defasado',()=>{
+  const {html,printedTicket}=makePrint({...base,ticket:'T827797',numeroPedido:'T827796',pedidoCompra:{numero:'T827796'}});
+  assert.match(html,/<h1>Pedido de compra Nº T827797<\/h1>/);
+  assert.match(html,/<th>Número do pedido<\/th><td>T827797<\/td>/);
+  assert.match(html,/<title>Pedido T827797<\/title>/);
+  assert.doesNotMatch(html,/T827796/);
+  assert.equal(printedTicket.numeroPedido,'T827796'); // impressão não migra documentos antigos
+});
+
+test('canhoto discrimina 3 adiantamentos vinculados ao ticket e mantém o total original',()=>{
+  const purchase={...base,ticket:'T827797',numeroPedido:'T827796',totalGeral:215000,
+    adiantamento:80000,saldoPagar:135000};
+  const advances={F1:[
+    {cod:'ADT-01',data:'2026-10-20',valor:20000,forma:'PIX',status:'Quitado',ticket:'T827797'},
+    {cod:'ADT-02',data:'2026-10-22',valor:30000,forma:'TED',status:'Quitado',ticket:'T827797'},
+    {cod:'ADT-03',data:'2026-10-25',valor:30000,forma:'PIX',status:'Quitado',ticket:'T827797'},
+    {cod:'ADT-OUTRA',data:'2026-10-24',valor:45000,forma:'PIX',status:'Quitado',ticket:'T827798'},
+    {cod:'ADT-PEND',data:'2026-10-26',valor:200000,forma:'PIX',status:'Pendente',ticket:''}
+  ]};
+  const {html,printedTicket}=makePrint(purchase,[],advances);
+  assert.match(html,/Adiantamentos e abatimentos desta compra/);
+  for(const [code,value] of [['ADT-01','20.000,00'],['ADT-02','30.000,00'],['ADT-03','30.000,00']]){
+    assert.match(html,new RegExp(code)); assert.match(html,new RegExp(value));
+  }
+  assert.doesNotMatch(html,/ADT-OUTRA|ADT-PEND/);
+  assert.match(html,/Total abatido no fechamento<\/th><td class="numeric">R\$ 80\.000,00/);
+  assert.match(html,/Saldo a pagar<\/th><td>R\$ 135\.000,00/);
+  assert.deepEqual(printedTicket,purchase);
+});
+
+test('snapshot financeiro tem precedência e não duplica adiantamento quitado no cadastro',()=>{
+  const purchase={...base,totalGeral:50000,adiantamento:20000,saldoPagar:30000,
+    reciboFinanceiro:{versao:1,adiantamentos:[
+      {cod:'ADT-01',data:'2026-10-20',forma:'PIX',valorAplicado:12000},
+      {cod:'ADT-02',data:'2026-10-22',forma:'TED',valorAplicado:8000}
+    ],cheques:[]}};
+  const advances={F1:[
+    {cod:'ADT-01',data:'2026-10-20',forma:'PIX',ticket:'T827763',status:'Quitado',valor:12000},
+    {cod:'ADT-02',data:'2026-10-22',forma:'TED',ticket:'T827763',status:'Quitado',valor:8000}
+  ]};
+  const {html}=makePrint(purchase,[],advances);
+  assert.equal((html.match(/ADT-01/g)||[]).length,1);
+  assert.equal((html.match(/ADT-02/g)||[]).length,1);
+  assert.match(html,/R\$ 20\.000,00/);
+});
+
+test('detalhe parcial do legado não inventa pagamento não vinculado',()=>{
+  const purchase={...base,totalGeral:39000,adiantamento:15000,saldoPagar:24000};
+  const advances={F1:[
+    {cod:'ADT-01',ticket:'T827763',status:'Quitado',valor:10000,data:'26/10/2026'},
+    {cod:'ADT-INDEVIDO',ticket:'',status:'Pendente',valor:5000}
+  ]};
+  const {html}=makePrint(purchase,[],advances);
+  assert.match(html,/ADT-01/);
+  assert.doesNotMatch(html,/ADT-INDEVIDO/);
+  assert.match(html,/Outros abatimentos aplicados/);
+  assert.match(html,/R\$ 5\.000,00/);
+});
+
+test('código de criação vincula numeroPedido ao ticket definitivo',()=>{
+  assert.match(source,/ticket\.numeroPedido=String\(ticket\.ticket\|\|key\)/);
+});
+
+
+test('edição de ticket anterior prioriza identificador definitivo',()=>{
+  assert.match(source,/orderNumber:String\(ticket\.ticket\|\|key\|\|ticket\.numeroPedido/);
+  assert.match(source,/ticket\.numeroPedido=String\(ticket\.ticket\|\|state\.editKey\)/);
+  assert.match(source,/numero:ticket\.numeroPedido,ordemCompra:state\.purchaseOrder/);
 });
