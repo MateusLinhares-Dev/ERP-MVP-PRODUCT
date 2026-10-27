@@ -86,30 +86,32 @@ function sourceItems(body){
   });
 }
 function financialData(body,supplierCode){
-  let adts=jsonDataset(body,'adtsData',null);
-  let cheques=jsonDataset(body,'cheqsData',null);
-  let balance=Number(body?.dataset?.saldoAnterior||0)||0;
-  if(!Array.isArray(adts)){
-    try{
-      adts=(ADT_POR_FORN[supplierCode]||[]).filter(function(a){
-        return a&&a.status!=='Quitado'&&a.forma!=='Cheque';
-      });
-    }catch(e){adts=[];}
-  }
-  if(!Array.isArray(cheques)){
-    try{
-      const bySupplier=(CHEQUES_POR_FORN[supplierCode]||[]).filter(function(c){return c&&!c._aplicadoTicket;});
-      const chequeAdvances=(ADT_POR_FORN[supplierCode]||[]).filter(function(a){return a&&a.status!=='Quitado'&&a.forma==='Cheque';});
-      cheques=bySupplier.concat(chequeAdvances);
-    }catch(e){cheques=[];}
-  }
+  // The legacy purchase form caches financial arrays in dataset. Those arrays may
+  // be stale/empty after a new advance is created. The authoritative source is
+  // ADT_POR_FORN, keyed by supplier code, not the visible supplier name.
+  const code=String(supplierCode||'').trim();
+  const bodyCode=String(body?.dataset?.fornCod||'').trim();
+  const sameSupplier=code&&bodyCode===code;
+  let adts=sameSupplier?jsonDataset(body,'adtsData',null):null;
+  let cheques=sameSupplier?jsonDataset(body,'cheqsData',null):null;
+  let balance=sameSupplier?Number(body?.dataset?.saldoAnterior||0)||0:0;
+  try{
+    const live=(ADT_POR_FORN[code]||[]).filter(function(a){
+      return a&&String(a.status||'Pendente').trim().toLowerCase()!=='quitado';
+    });
+    const advances=live.filter(function(a){return !String(a.forma||'').toLowerCase().includes('cheque');});
+    const advanceCheques=live.filter(function(a){return String(a.forma||'').toLowerCase().includes('cheque');});
+    const supplierCheques=(CHEQUES_POR_FORN[code]||[]).filter(function(c){return c&&!c._aplicadoTicket&&c.status!=='Quitado';});
+    adts=advances;
+    cheques=supplierCheques.concat(advanceCheques);
+  }catch(e){/* Data may still be loading; preserve matching cached values only. */}
   if(!(balance>0)){
     try{
-      const raw=SALDO_DEVEDOR_FORN&&SALDO_DEVEDOR_FORN[supplierCode];
+      const raw=SALDO_DEVEDOR_FORN&&SALDO_DEVEDOR_FORN[code];
       balance=raw?(typeof raw==='object'?Number(raw.valor||0):Number(raw||0)):0;
     }catch(e){balance=0;}
   }
-  return {adts:adts||[],cheques:cheques||[],balance:Math.max(0,balance||0)};
+  return {adts:Array.isArray(adts)?adts:[],cheques:Array.isArray(cheques)?cheques:[],balance:Math.max(0,balance||0)};
 }
 function currentState(body){
   const stored=jsonDataset(body,'phase4Order',null);
@@ -235,9 +237,9 @@ function render(body){
   storeState(body,state);
 
   body.innerHTML='<div class="phase4-po">'+
-    '<div class="phase4-po-title"><div><h2>Pedido de compra</h2><p>Compra de sucata</p></div><div class="phase4-po-title-actions"><button type="button" class="phase4-po-outline" onclick="phase4PurchaseCancel()">Cancelar</button><button type="button" class="phase4-po-save" onclick="phase4PurchaseSave()">Salvar</button></div></div>'+
+    '<div class="phase4-po-title"><div><h2>'+(state.editKey?'Editar pedido de compra':'Pedido de compra')+'</h2><p>Compra de sucata</p></div><div class="phase4-po-title-actions"><button type="button" class="phase4-po-outline" onclick="phase4PurchaseCancel()">Cancelar</button><button type="button" class="phase4-po-save" onclick="phase4PurchaseSave()">Salvar</button></div></div>'+
     '<section class="phase4-po-card"><h3>Fornecedor</h3><label class="phase4-po-field full"><span>Fornecedor *</span><input id="phase4-po-supplier" list="phase4-po-suppliers" autocomplete="off" value="'+esc(selected)+'" placeholder="Digite ou selecione o fornecedor" onchange="phase4PurchaseSupplierChanged()"><datalist id="phase4-po-suppliers">'+supplierOptions()+'</datalist></label>'+sourceTicketsHtml(state)+'</section>'+
-    '<section class="phase4-po-card"><h3>Itens do pedido de compra</h3><div class="phase4-po-table-wrap"><table class="phase4-po-table"><thead><tr><th>#</th><th>Item / Material</th><th>Observação</th><th>Un.</th><th>Quantidade</th><th>Preço unitário</th><th>Preço total</th><th></th></tr></thead><tbody id="phase4-po-items"></tbody></table></div><datalist id="phase4-po-materials">'+materialOptions()+'</datalist><button type="button" class="phase4-po-add-item" onclick="phase4PurchaseAddItem()">＋ Adicionar outro item</button></section>'+
+    '<section class="phase4-po-card"><h3>Itens do pedido de compra</h3><div class="phase4-po-table-wrap"><table class="phase4-po-table"><thead><tr><th>#</th><th>Item / Material</th><th>Observação</th><th>Un.</th><th>Quantidade</th><th>Preço unitário</th><th>Preço total</th><th></th></tr></thead><tbody id="phase4-po-items"></tbody></table></div><datalist id="phase4-po-materials">'+materialOptions()+'</datalist><button type="button" class="phase4-po-add-item" onclick="phase4PurchaseAddItem()" title="Adicionar material (Alt+Z)" aria-keyshortcuts="Alt+Z">＋ Adicionar outro item</button></section>'+
     '<section class="phase4-po-card phase4-po-notes-card" aria-labelledby="phase4-po-notes-title"><h3 id="phase4-po-notes-title">Observações</h3><label class="phase4-po-field phase4-po-order-notes" for="phase4-po-notes"><span>Observações do pedido</span><textarea id="phase4-po-notes" name="observacoesPedido" rows="4" placeholder="Digite as observações" oninput="phase4PurchaseSyncMeta()">'+esc(state.notes||'')+'</textarea></label></section>'+
     '<div class="phase4-po-columns">'+
       '<section class="phase4-po-card"><h3>Totais da compra</h3><div class="phase4-po-summary"><div><span>Nº de itens</span><b id="phase4-po-item-count">0</b></div><div><span>Soma das quantidades</span><b id="phase4-po-qty-total">0 kg</b></div><div><span>Total dos produtos</span><b id="phase4-po-products-total">R$ 0,00</b></div><div class="grand"><span>Total do pedido</span><b id="phase4-po-grand-total">R$ 0,00</b></div></div><div class="phase4-po-form-grid two"><label class="phase4-po-field"><span>Desconto R$</span><input id="phase4-po-discount" inputmode="decimal" value="'+esc(state.discount?money(state.discount):'0,00')+'" oninput="phase4PurchaseRecalc()"></label><label class="phase4-po-field"><span>Frete R$</span><input id="phase4-po-freight" inputmode="decimal" value="'+esc(state.freight?money(state.freight):'0,00')+'" oninput="phase4PurchaseRecalc()"></label></div></section>'+
@@ -259,10 +261,10 @@ function renderItems(body,state){
       '<td><input list="phase4-po-materials" value="'+esc(item.mat)+'" placeholder="Material" oninput="phase4PurchaseItem('+index+',\'mat\',this.value)"></td>'+
       '<td class="description"><button type="button" class="phase4-po-detail-button '+(String(item.descricao||'').trim()?'active':'')+'" onclick="phase4PurchaseOpenDescription('+index+')" title="'+(String(item.descricao||'').trim()?'Descrição detalhada preenchida':'Adicionar descrição detalhada')+'"><span class="phase4-po-detail-icon">📄</span><span class="phase4-po-detail-label">'+(String(item.descricao||'').trim()?'Preenchida':'Adicionar')+'</span></button></td>'+
       '<td><span class="phase4-po-unit">'+esc(item.unidade||'kg')+'</span></td>'+
-      '<td><input inputmode="decimal" value="'+esc(item.quantidade?String(item.quantidade).replace('.',','):'')+'" placeholder="0" '+(item.source?'readonly title="Quantidade originada da pesagem"':'')+' oninput="phase4PurchaseItem('+index+',\'quantidade\',this.value)"></td>'+
+      '<td><input inputmode="decimal" value="'+esc(item.quantidade?String(item.quantidade).replace('.',','):'')+'" placeholder="0" '+(item.source&&!state.editKey?'readonly title="Quantidade originada da pesagem"':'')+' oninput="phase4PurchaseItem('+index+',\'quantidade\',this.value)"></td>'+
       '<td><input inputmode="decimal" value="'+esc(item.preco?money(item.preco):'')+'" placeholder="0,00" oninput="phase4PurchaseItem('+index+',\'preco\',this.value)"></td>'+
       '<td class="total"><input class="phase4-po-row-total" id="phase4-po-row-total-'+index+'" type="text" readonly tabindex="-1" aria-label="Preço total do item '+(index+1)+'" value="R$ '+money(total)+'"></td>'+
-      '<td class="action">'+(item.source?'<span class="phase4-po-locked" title="Item vindo da pesagem">🔒</span>':'<button type="button" title="Remover item" onclick="phase4PurchaseRemoveItem('+index+')">✕</button>')+'</td>'+
+      '<td class="action">'+(item.source&&!state.editKey?'<span class="phase4-po-locked" title="Item vindo da pesagem">🔒</span>':'<button type="button" title="Remover item" onclick="phase4PurchaseRemoveItem('+index+')">✕</button>')+'</td>'+
     '</tr>';
   }).join('');
 }
@@ -291,9 +293,18 @@ global.phase4PurchaseAddItem=function(){
     if(row)row.focus();
   },0);
 };
+
+document.addEventListener('keydown',function(ev){
+  if(!ev.altKey || ev.ctrlKey || ev.metaKey || ev.shiftKey || String(ev.key||'').toLowerCase()!=='z')return;
+  const panel=document.getElementById('cst-lancamento');
+  if(!panel || panel.style.display==='none' || !panel.querySelector('.phase4-po'))return;
+  ev.preventDefault();
+  global.phase4PurchaseAddItem();
+});
+
 global.phase4PurchaseRemoveItem=function(index){
   const tuple=getState(),body=tuple[0],state=tuple[1];
-  if(state.items?.[index]?.source)return;
+  if(state.items?.[index]?.source&&!state.editKey)return;
   state.items.splice(index,1);
   if(!state.items.length)state.items.push(newItem());
   storeState(body,state);
@@ -350,7 +361,7 @@ global.phase4PurchaseRecalc=function(){
   const productTotal=(state.items||[]).reduce(function(sum,item){
     return sum+Number(item.quantidade||0)*Number(item.preco||0);
   },0);
-  const total=Math.max(0,productTotal-state.discount+state.freight);
+  const total=Math.max(0,Math.round((productTotal-state.discount+state.freight+Number(state.legacyExtra||0))*100)/100);
   let advances=0;
   (state.adts||[]).forEach(function(_,index){
     const checkbox=document.getElementById('csadt-'+index);
@@ -362,7 +373,14 @@ global.phase4PurchaseRecalc=function(){
   });
   const credit=document.getElementById('cssdv');
   if(credit?.checked)advances+=Number(credit.value||0);
-  const balance=total-advances;
+  if(state.editKey){
+    // All historic prepayments and paid installments have already been applied.
+    // Editing only changes the outstanding amount by the difference in gross total.
+    advances=Math.max(0,Number(state.appliedAdvance||0));
+  }
+  const balance=state.editKey
+    ? Math.round((Number(state.originalBalance||0)+(total-Number(state.originalTotal||0)))*100)/100
+    : Math.round((total-advances)*100)/100;
 
   const set=function(id,text){const el=document.getElementById(id);if(el)el.textContent=text;};
   set('phase4-po-item-count',String((state.items||[]).filter(function(i){return i.mat||Number(i.quantidade)>0;}).length));
@@ -389,6 +407,7 @@ global.phase4PurchaseSupplierChanged=function(){
   }
   const body=document.getElementById('cs-lanc-body');
   const state=body?currentState(body):null;
+  if(state?.editKey){try{showToast('O fornecedor não pode ser alterado na edição deste pedido.','info');}catch(e){}if(input)input.value=state.supplierName;return;}
   if(state&&String(state.supplierCode||'')===String(supplier.cod||'')&&state.supplierName===supplier.nome)return;
   supplierChangeTimer=setTimeout(function(){
     supplierChangeTimer=null;
@@ -646,6 +665,19 @@ global.phase4PurchaseSave=function(){
   state.purchaseDate=document.getElementById('phase4-po-date')?.value||state.purchaseDate||today();
   state.dueDate=document.getElementById('cs-lanc-venc')?.value||state.dueDate||today();
   state.notes=readOrderNotes(state);
+  if(state.editKey){
+    setSaving(true);
+    try{
+      const totals=global.phase4PurchaseRecalc();
+      const ticket=saveEditedTicket(state,totals);
+      resetOrderState(body);
+      manualMode=false;
+      if(typeof global.csTab==='function')global.csTab('historico');
+      try{showToast('Pedido '+String(ticket.ticket||state.editKey)+' atualizado.','success');}catch(e){}
+    }catch(error){try{showToast(error.message||'Erro ao atualizar pedido.','error',7000);}catch(e){}}
+    finally{setSaving(false);}
+    return;
+  }
   let prepared;
   try{
     validateSourceTickets(state);
@@ -695,6 +727,134 @@ function ticketItemsForOrder(ticket){
       preco:Number(item.preco||0)||0
     };
   }).filter(function(item){return item.mat||item.quantidade>0;});
+}
+
+function isoDate(value){
+  const date=String(value||'').trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(date))return date;
+  const match=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(date);
+  return match?match[3]+'-'+match[2]+'-'+match[1]:today();
+}
+function stateForExistingTicket(key){
+  const ticket=tickets()[key];if(!ticket)return null;
+  const supplierName=String(ticket.fornecedor||ticket.fornecedorNome||ticket.forn||'').trim();
+  const supplier=supplierByName(supplierName);
+  if(!supplier)throw new Error('Fornecedor do pedido não está mais ativo no cadastro.');
+  const po=ticket.pedidoCompra||{};
+  const items=ticketItemsForOrder(ticket);
+  items.forEach(function(item,index){
+    item.source=false;item.originalIndex=index;
+    item.ident=String(ticket.itens?.[index]?.ident||'');
+    item.codigo=String(ticket.itens?.[index]?.codigo||'');
+  });
+  return {
+    editKey:key,supplierName:supplier.nome,supplierCode:supplier.cod||'',
+    items:items.length?items:[newItem()],
+    discount:Number(ticket.descontoCompra??po.desconto??0)||0,
+    freight:Number(ticket.freteCompra??po.frete??0)||0,
+    orderNumber:String(ticket.numeroPedido||po.numero||ticket.ticket||key),
+    purchaseOrder:String(ticket.ordemCompra||po.ordemCompra||''),
+    purchaseDate:isoDate(ticket.dataCompra||po.dataCompra||ticket.data),
+    dueDate:isoDate(ticket.vencimentoSaldo||po.vencimentoSaldo||ticket.data),
+    sourceTicketKeys:[],adts:[],cheques:[],previousCredit:0,
+    appliedAdvance:Number(ticket.adiantamento||0)||0,
+    originalBalance:Math.max(0,Number(ticket.saldoPagar||0)),
+    originalTotal:Number(ticket.totalGeral||0)||0,
+    // Preserve legacy extras/taxes outside the product grid (e.g. extra services).
+    legacyExtra:Math.round(((Number(ticket.totalGeral||0)||0)-
+      ((ticket.itens||[]).reduce(function(sum,i){return sum+itemNet(i)*Number(i.preco||0);},0)-
+      (Number(ticket.descontoCompra??po.desconto??0)||0)+(Number(ticket.freteCompra??po.frete??0)||0)))*100)/100,
+    notes:String(ticket.observacoesPedido||po.observacoes||'')
+  };
+}
+global.phase4PurchaseEditTicket=function(ticketRef){
+  const ref=String(ticketRef||'').trim();
+  const entry=tickets()[ref]?[ref,tickets()[ref]]:Object.entries(tickets()).find(function(e){return String(e[1]?.ticket||'')===ref;});
+  if(!entry){try{showToast('Pedido não encontrado.','error');}catch(e){}return;}
+  if(entry[1].status==='Aguard. Preço'||entry[1]._balSessao||entry[1]._rodEntrada){
+    try{showToast('Finalize primeiro a pesagem antes de editar o pedido.','error');}catch(e){}return;
+  }
+  let state;try{state=stateForExistingTicket(entry[0]);}catch(e){try{showToast(e.message,'error');}catch(_){}return;}
+  manualMode=false;
+  if(typeof global.csTab==='function')global.csTab('lancamento');
+  setTimeout(function(){
+    const body=document.getElementById('cs-lanc-body');if(!body)return;
+    const select=document.getElementById('cs-lanc-forn');if(select)select.value=state.supplierName;
+    body.dataset.fornCod=state.supplierCode;
+    body.dataset.itensData=JSON.stringify([]);
+    body.dataset.ticketKeys='[]';body.dataset.adtsData='[]';body.dataset.cheqsData='[]';
+    body.dataset.saldoAnterior='0';
+    storeState(body,state);
+    render(body);
+    const sup=document.getElementById('phase4-po-supplier');if(sup){sup.readOnly=true;sup.title='Fornecedor do pedido existente';}
+    try{document.getElementById('cst-lancamento')?.scrollIntoView({block:'start',behavior:'smooth'});}catch(e){}
+  },0);
+};
+function saveEditedTicket(state,totals){
+  const ticket=tickets()[state.editKey];
+  if(!ticket)throw new Error('O pedido não existe mais. Atualize o histórico.');
+  const oldTotal=Number(ticket.totalGeral||0);
+  if(Math.abs(oldTotal-Number(state.originalTotal||0))>0.01 || Math.abs(Number(ticket.saldoPagar||0)-Number(state.originalBalance||0))>0.01)
+    throw new Error('O pedido foi alterado por outra operação. Reabra-o para editar os valores atuais.');
+  if(totals.balance< -0.005)throw new Error('O total editado ficou abaixo do que já foi pago/abatido. Ajuste o pedido e os pagamentos antes de salvar.');
+  const supplier=supplierByName(state.supplierName);
+  if(!supplier||String(supplier.cod||'')!==String(state.supplierCode||''))throw new Error('Fornecedor do pedido divergente.');
+  const items=(state.items||[]).filter(function(item){return String(item.mat||'').trim()&&Number(item.quantidade||0)>0;});
+  if(!items.length)throw new Error('Inclua pelo menos um material com quantidade.');
+  const oldItems=(ticket.itens||[]).slice();
+  ticket.itens=items.map(function(item){
+    const original=Number.isInteger(item.originalIndex)?(oldItems[item.originalIndex]||{}):{};
+    const quantity=Number(item.quantidade),price=Number(item.preco);
+    return Object.assign({},original,{
+      mat:String(item.mat).trim().toUpperCase(),matBase:String(item.mat).trim().toUpperCase(),
+      ident:String(item.ident||original.ident||''),
+      descricaoDetalhada:String(item.descricao||'').trim(),obs:String(item.descricao||'').trim(),
+      unidade:'kg',quantidade:quantity,pesoBruto:Number(item.pesoBruto||quantity),pesoLiq:quantity,
+      preco:price,subtotal:quantity*price,total:quantity*price
+    });
+  });
+  ticket.totalProdutos=totals.productTotal;
+  ticket.totalGeral=totals.total;
+  ticket.totalKg=items.reduce(function(sum,item){return sum+Number(item.quantidade||0);},0);
+  ticket.descontoCompra=state.discount;
+  ticket.freteCompra=state.freight;
+  ticket.numeroPedido=state.orderNumber;
+  ticket.ordemCompra=state.purchaseOrder;
+  ticket.dataCompra=state.purchaseDate;
+  ticket.vencimentoSaldo=state.dueDate;
+  ticket.observacoesPedido=String(state.notes||'').trim();
+  ticket.saldoPagar=Math.max(0,totals.balance);
+  if(totals.balance>0.005)ticket.status='Pendente';
+  else ticket.status='Pago';
+  ticket.pedidoCompra=Object.assign({},ticket.pedidoCompra||{}, {
+    numero:state.orderNumber,ordemCompra:state.purchaseOrder,dataCompra:state.purchaseDate,
+    vencimentoSaldo:state.dueDate,observacoes:ticket.observacoesPedido,
+    desconto:state.discount,frete:state.freight,totalProdutos:totals.productTotal,totalPedido:totals.total
+  });
+  // Do not touch ADT_POR_FORN, CHEQUES_POR_FORN or reciboFinanceiro: they were
+  // settled during creation. Only update the residual payable for this ticket.
+  try{
+    let cp=(CONTAS_PAGAR||[]).find(function(c){return String(c.ticket||'')===String(ticket.ticket||state.editKey)&&c.status!=='Pago';});
+    if(totals.balance>0.005){
+      if(cp){cp.valor=totals.balance;cp.venc=state.dueDate.split('-').reverse().join('/');}
+      else if(typeof _novoIdCP==='function'){
+        CONTAS_PAGAR.push({id:_novoIdCP(),lancto:state.purchaseDate.split('-').reverse().join('/'),
+          desc:'Compra de Sucata — '+state.supplierName+' — '+String(ticket.ticket||state.editKey),
+          cred:state.supplierName,cat:'Compra de Sucata',tipoForn:'compra',
+          bancoCod:'',bancoNome:'',venc:state.dueDate.split('-').reverse().join('/'),
+          valor:totals.balance,status:'Pendente',dataPgto:'',obs:'Ajuste do pedido existente',
+          ticket:ticket.ticket||state.editKey,fornCod:state.supplierCode});
+      }
+    }else if(cp && !cp.valorPago && !(cp.pagamentos||[]).length){
+      const index=CONTAS_PAGAR.indexOf(cp);if(index>=0)CONTAS_PAGAR.splice(index,1);
+    }
+    if(typeof saveContasPagar==='function')saveContasPagar();
+  }catch(e){console.warn('[purchase-order] conta vinculada',e);throw new Error('Não foi possível atualizar a conta a pagar do pedido.');}
+  try{saveDB();}catch(e){throw new Error('Não foi possível persistir a edição.');}
+  try{if(typeof fbSalvarImediato==='function')fbSalvarImediato();}catch(e){}
+  try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Pedido editado',String(ticket.ticket||state.editKey),ticket,{ticket:ticket.ticket||state.editKey});}catch(e){}
+  ['renderTickets','renderContasPagar','renderEstoque','renderDashboard','renderFluxo'].forEach(function(name){try{if(typeof global[name]==='function')global[name]();}catch(e){}});
+  return ticket;
 }
 function stateForSourceTicket(ticketKey){
   const t=tickets()[ticketKey];if(!t)return null;
@@ -825,6 +985,23 @@ if(typeof legacy.tab==='function'){
             storeState(body,state);
           }
           render(body);
+        }else{
+          // Reopening the tab must reflect advances registered in another module
+          // without discarding the material/items already typed on this form.
+          const state=currentState(body);
+          if(!state.editKey&&state.supplierCode){
+            const fresh=financialData(body,state.supplierCode);
+            const signature=function(items){return JSON.stringify((items||[]).map(function(i){return [i.cod||i.id||i.num,i.valor,i.status];}));};
+            if(signature(fresh.adts)!==signature(state.adts)||signature(fresh.cheques)!==signature(state.cheques)){
+              global.phase4PurchaseRecalc();
+              global.phase4PurchaseSyncMeta();
+              state.adts=fresh.adts;
+              state.cheques=fresh.cheques;
+              state.previousCredit=fresh.balance;
+              storeState(body,state);
+              render(body);
+            }
+          }
         }
       },0);
     }
@@ -930,7 +1107,6 @@ function printHtml(key,ticket){
     const description=String(item.descricaoDetalhada||item.descricao||item.obs||'').trim();
     return '<tr><td class="item-description"><strong>'+esc(item.mat||item.matBase||'—')+'</strong>'+
       (description?'<span>'+esc(description)+'</span>':'')+'</td>'+
-      '<td>'+esc(item.codigo||'—')+'</td><td>'+esc(item.codigoFornecedor||'—')+'</td>'+
       '<td class="center">'+esc(item.unidade||'kg')+'</td>'+
       '<td class="numeric">'+qty(quantity)+'</td>'+
       '<td class="numeric">'+money(price)+'</td>'+
@@ -971,8 +1147,8 @@ function printHtml(key,ticket){
       '<tr><th>Data</th><td>'+esc(dateBR(purchaseDate))+'</td></tr>'+
       '<tr><th>Data prevista</th><td>'+esc(expectedDate?dateBR(expectedDate):'')+'</td></tr></tbody></table></div>'+
     '<section class="print-section"><h2>Itens do pedido de compra</h2>'+
-      '<table class="items"><colgroup><col class="col-description"><col class="col-code"><col class="col-supplier-code"><col class="col-unit"><col class="col-quantity"><col class="col-unit-price"><col class="col-total"></colgroup>'+
-      '<thead><tr><th>Descrição do produto/serviço</th><th>Código</th><th>Código do fornecedor</th><th>Un</th><th>Qtde</th><th>Valor unitário</th><th>Valor total</th></tr></thead><tbody>'+itemRows+'</tbody></table>'+
+      '<table class="items"><colgroup><col class="col-description"><col class="col-unit"><col class="col-quantity"><col class="col-unit-price"><col class="col-total"></colgroup>'+
+      '<thead><tr><th>Descrição do material</th><th>Un</th><th>Qtde</th><th>Valor unitário</th><th>Valor total</th></tr></thead><tbody>'+itemRows+'</tbody></table>'+
       '<table class="print-totals" aria-label="Totais da compra"><tbody>'+totals+'</tbody></table></section>'+
     '<section class="print-section"><h2>Parcelas</h2><table class="installments"><thead><tr><th>Dias</th><th>Data Vencimento</th><th>Valor</th><th>Observações</th></tr></thead><tbody>'+installments+'</tbody></table></section>'+
     '<section class="print-section order-notes"><h2>Observações</h2><div class="notes">'+esc(orderNotes)+'</div></section>'+
@@ -1005,11 +1181,9 @@ function printCss(){
     .print-section{margin-top:24px;break-inside:avoid-page}
     .print-section h2{font-size:10px;margin:0 0 5px;font-weight:700}
     .items,.installments{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px}
-    .items .col-description{width:30%}
-    .items .col-code{width:9%}
-    .items .col-supplier-code{width:16%}
-    .items .col-unit{width:5%}
-    .items .col-quantity{width:10%}
+    .items .col-description{width:48%}
+    .items .col-unit{width:8%}
+    .items .col-quantity{width:14%}
     .items .col-unit-price{width:15%}
     .items .col-total{width:15%}
     .items th,.items td,.installments th,.installments td{border:1px solid #555;padding:4px 5px;vertical-align:top;overflow-wrap:anywhere}

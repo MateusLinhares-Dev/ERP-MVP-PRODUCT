@@ -9793,9 +9793,9 @@ function renderTickets(){
     return `<tr style="${bgRow}">
       <td><b>${tk.ticket}</b></td>
       <td>${fmtDate(tk.data)||'—'}</td>
-      <td style="cursor:pointer;color:#1565c0;text-decoration:underline" onclick="abrirDetalheCompra('${tk._dbKey}')" title="Ver todos os itens desta compra">${tk.fornecedor}</td>
+      <td style="cursor:pointer;color:#1565c0;text-decoration:underline" onclick="phase4PurchaseEditTicket('${tk._dbKey}')" title="Editar pedido na aba Lançamento">${tk.fornecedor}</td>
       <td>${(tk.itens||[]).reduce((s,i)=>s+Number(i.pesoLiq||0),0).toFixed(1)} kg</td>
-      <td style="cursor:pointer;color:#1565c0;text-decoration:underline" onclick="abrirDetalheCompra('${tk._dbKey}')" title="Ver todos os itens desta compra">${totalCell}</td>
+      <td style="cursor:pointer;color:#1565c0;text-decoration:underline" onclick="phase4PurchaseEditTicket('${tk._dbKey}')" title="Editar pedido na aba Lançamento">${totalCell}</td>
       <td>${adtCell}</td>
       <td style="font-weight:800">${saldoCell}</td>
       <td>${statusBadge}</td>
@@ -9803,7 +9803,7 @@ function renderTickets(){
         ${isPago
           ? '<button onclick="desmarcarCompraPaga(\''+tk._dbKey+'\')" title="Desmarcar pago (volta a pendente)" style="background:#e0e7ef;color:#556;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem;font-weight:700">↩️</button>'
           : '<button onclick="marcarCompraPaga(\''+tk._dbKey+'\')" title="Marcar como paga (quando o pagamento já está lançado na Ficha) — não cria adiantamento nem duplica" style="background:#1a7f4b;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem;font-weight:700">✅ Pago</button>'}
-        <button onclick="csAbrirImpureza('${tk._dbKey}')" title="Editar / Desconto de Impureza" style="background:#1a3a2a;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem">✏️</button>
+        <button onclick="phase4PurchaseEditTicket('${tk._dbKey}')" title="Editar pedido completo na aba Lançamento" style="background:#1a3a2a;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem">✏️</button>
         <button class="btn-edit-danger" onclick="excluirEntradaCompra('${tk._dbKey}')" title="Excluir entrada" style="font-size:.75rem">🗑️</button>
       </td>
     </tr>`;
@@ -15120,6 +15120,19 @@ function chqExcluir(id){
 }
 
 
+function _chqCadastroDestinos(){
+  var destinos=[];
+  var usados=new Set();
+  [{lista:CLIENTES||[],tipo:'Cliente'},{lista:FORNECEDORES||[],tipo:'Fornecedor'}].forEach(function(grupo){
+    (grupo.lista||[]).forEach(function(c){
+      if(!c||c.inativo||c._deleted)return;
+      var nome=String(c.nome||'').trim(),key=nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+      if(!key||usados.has(key))return;
+      usados.add(key);destinos.push({nome:nome,cod:c.cod||'',tipo:grupo.tipo});
+    });
+  });
+  return destinos.sort(function(a,b){return a.nome.localeCompare(b.nome,'pt-BR');});
+}
 function _chqModal(id){
   var c = id ? CHQ_CTRL[id] : null;
   var bancos=_cfgChequeBankNames();
@@ -15137,7 +15150,7 @@ function _chqModal(id){
       '<label style="font-size:.78rem;color:#666">Banco<select id="chqm-b" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem">'+
         bancos.map(function(b){ return '<option'+(v.b===b?' selected':'')+'>'+esc(b)+'</option>'; }).join('')+'</select></label>'+
       '<label style="font-size:.78rem;color:#666">Nº do Cheque<input id="chqm-n" value="'+esc(String(v.n||''))+'" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem"></label>'+
-      '<label style="font-size:.78rem;color:#666;grid-column:1/3">Cliente / Destino<input id="chqm-c" list="chqm-clientes-list" value="'+esc(v.c||'')+'" placeholder="Digite ou selecione um cliente" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem"><datalist id="chqm-clientes-list">'+(CLIENTES||[]).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR')).map(function(c){return '<option value="'+esc(c.nome||'')+'">';}).join('')+'</datalist></label>'+
+      '<label style="font-size:.78rem;color:#666;grid-column:1/3">Cliente / Fornecedor / Destino<input id="chqm-c" list="chqm-clientes-list" value="'+esc(v.c||'')+'" placeholder="Selecione cliente ou fornecedor cadastrado" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem"><datalist id="chqm-clientes-list">'+_chqCadastroDestinos().map(function(c){return '<option value="'+esc(c.nome||'')+'" label="'+esc(c.tipo||'')+'"></option>';}).join('')+'</datalist></label>'+
       '<label style="font-size:.78rem;color:#666">Valor (R$)<input id="chqm-v" value="'+esc(String(v.v||''))+'" placeholder="4990,00" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem"></label>'+
       '<label style="font-size:.78rem;color:#666">Situação<select id="chqm-s" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem">'+
         '<option value="A"'+(v.s==='A'?' selected':'')+'>A Compensar</option>'+
@@ -15274,9 +15287,16 @@ function chqSalvarModal(){
     id='CC'+slug+n; var base=id, k=1;
     while(CHQ_CTRL[id]){ k++; id=base+'_'+k; }
   }
-  var _cliObj=(CLIENTES||[]).find(function(x){ return x&&String(x.nome||'').trim().toLowerCase()===cli.toLowerCase(); });
+  var nomeNorm=function(v){return String(v||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();};
+  var _cliObj=(CLIENTES||[]).find(function(x){ return x&&nomeNorm(x.nome)===nomeNorm(cli); });
+  var _fornObj=(FORNECEDORES||[]).find(function(x){return x&&!x.inativo&&!x._deleted&&nomeNorm(x.nome)===nomeNorm(cli);});
   var obj={id:id,b:b,n:n,c:cli,v:val,d:d,venc:venc,cd:cd,s:s};
   if(_cliObj){ obj.clienteNome=_cliObj.nome||cli; obj.clienteCod=_cliObj.cod||''; }
+  if(_fornObj){obj.fornecedorNome=_fornObj.nome||cli;obj.fornecedorCod=_fornObj.cod||'';obj.dest=cli;}
+  // Preserve the destination metadata when editing an existing cheque without changing it.
+  if(CHQ_CTRL[id] && nomeNorm(CHQ_CTRL[id].c)===nomeNorm(cli)){
+    ['dc','movBancoId','origem'].forEach(function(field){if(CHQ_CTRL[id][field]!=null)obj[field]=CHQ_CTRL[id][field];});
+  }
   
   if(CHQ_CTRL[id]&&CHQ_CTRL[id].dc) obj.dc=CHQ_CTRL[id].dc;
   CHQ_CTRL[id]=obj; try{ renderChequesCompensar(); }catch(e){}

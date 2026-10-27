@@ -32,7 +32,7 @@ test('salvamento continua passando pelo fluxo legado e depois sincroniza integra
 test('impressão usa modelo de pedido de compra com fornecedor itens e totais',()=>{
   assert.match(js,/Pedido de compra Nº/);
   assert.match(js,/Itens do pedido de compra/);
-  assert.match(js,/Descrição do produto\/serviço/);
+  assert.match(js,/Descrição do material/);
   assert.match(js,/Número do pedido/);
   assert.match(js,/Ordem de compra/);
   assert.match(js,/Total do pedido/);
@@ -78,7 +78,7 @@ test('salvar pedido limpa lançamento e termina no histórico sem permitir dupli
 });
 
 test('pedido impresso segue estrutura operacional inspirada no documento de referência',()=>{
-  for(const label of ['Data prevista','Código do fornecedor','Parcelas','Data Vencimento','Observações']){
+  for(const label of ['Data prevista','Descrição do material','Parcelas','Data Vencimento','Observações']){
     assert.ok(js.includes(label),`faltando na impressão: ${label}`);
   }
 });
