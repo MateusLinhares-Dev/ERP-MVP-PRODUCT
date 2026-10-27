@@ -97,3 +97,7 @@ input[data-phase2-fiscal-only="1"]{border-color:#9bc9ab!important;background:#fb
 @media(max-width:900px){.phase2-cp-sidefilters{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.phase2-cp-sidefilters{grid-template-columns:1fr}}
 .phase2-trip-history-item .settle.warn b{color:#b83232}.phase2-trip-history-item .settle.ok b{color:#1f7540}
+
+.phase2-contract-download{background:#f0f7f3;color:#1b5739;border:1px solid #c3d8cb;border-radius:5px;padding:4px 7px;margin-right:4px;font-size:.68rem;cursor:pointer}
+.phase2-contract-filename{display:block;color:#667b70;font-size:.7rem;font-weight:400;margin-top:3px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.phase2-contract-rename:disabled{opacity:.55;cursor:wait}

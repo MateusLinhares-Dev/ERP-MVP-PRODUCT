@@ -411,8 +411,117 @@ global.fiscalPopularPessoas=function(){const result=typeof legacyFiscalPopularPe
 function simplifyExpensesGroup(){const tab=$('#tab-despesas_grupo');if(!tab)return;tab.classList.add('phase2-expenses-group');const title=tab.querySelector('.sec-title');if(title)title.textContent='🏢 Despesas do Grupo';const tabs=$$('.desp-tab-btn',tab);tabs.forEach(b=>{const t=String(b.textContent||'');if(/Lançar/.test(t))b.textContent='＋ Nova despesa';if(/Extrato/.test(t))b.textContent='Despesas do mês';if(/Histórico/.test(t))b.textContent='Histórico';if(/Resumo/.test(t))b.textContent='Por fornecedor';});const search=$('#phase1-desp-search');if(search){search.placeholder='🔍 Buscar despesa...';title?.insertAdjacentElement('afterend',search);}if(tab.dataset.phase2Default!=='1'){tab.dataset.phase2Default='1';try{if(typeof switchDespTab==='function')switchDespTab('extrato');}catch(e){}}}
 const originalRenderContracts=global.renderContratos;
 if(typeof originalRenderContracts==='function')global.renderContratos=function(){const r=originalRenderContracts.apply(this,arguments);setTimeout(addContractRenameButtons,0);return r;};
-function addContractRenameButtons(){const body=$('#tb-contratos');if(!body)return;Array.from(body.rows).forEach((row,i)=>{let c=null;try{c=CONTRATOS_DB?.[i];}catch(e){}if(!c?.arquivoBase64||row.querySelector('.phase2-contract-rename'))return;const cell=row.cells[row.cells.length-1];const b=document.createElement('button');b.className='phase2-contract-rename';b.textContent='✏️ Nome arquivo';b.title='Renomear o arquivo anexado';b.onclick=()=>phase2ContractRename(i);cell?.prepend(b);});}
-global.phase2ContractRename=function(i){let c=null;try{c=CONTRATOS_DB?.[i];}catch(e){}if(!c)return;const current=c.arquivoNome||'documento',dot=current.lastIndexOf('.'),base=dot>0?current.slice(0,dot):current,ext=dot>0?current.slice(dot):'',name=String(prompt('Novo nome do arquivo:',base)||'').trim();if(!name)return;c.arquivoNome=name+(name.toLowerCase().endsWith(ext.toLowerCase())?'':ext);try{saveContratos();renderContratos();notify('Nome do arquivo atualizado.','success');}catch(e){}};
+function phase2ContractAt(index){
+  if(typeof CONTRATOS_DB==='undefined'||!Array.isArray(CONTRATOS_DB))return null;
+  return Number.isInteger(index)?CONTRATOS_DB[index]||null:null;
+}
+function phase2ContractName(c){
+  const original=String(c?.arquivoNome||'').trim();
+  if(original)return original;
+  const ext=String(c?.arquivoMime||'').includes('pdf')?'.pdf':String(c?.arquivoMime||'').startsWith('image/jpeg')?'.jpg':String(c?.arquivoMime||'').startsWith('image/png')?'.png':'';
+  return 'documento'+ext;
+}
+function phase2ContractCleanName(input, original){
+  let name=String(input||'').trim();
+  if(!name||name==='.'||name==='..'||/[\\/:*?"<>|\x00-\x1f]/.test(name)||/[. ]$/.test(name))return null;
+  const extMatch=String(original||'').match(/(\.[a-z\d]{1,12})$/i);
+  const ext=extMatch?extMatch[1]:'';
+  if(ext){
+    if(name.toLowerCase().endsWith(ext.toLowerCase()))name=name.slice(0,-ext.length);
+    else if(/\.[a-z\d]{1,12}$/i.test(name))return null; // Não disfarçar a extensão real.
+  }
+  name=name.trim();
+  if(!name||name.length>120||name==='.'||name==='..')return null;
+  return name+ext;
+}
+function addContractRenameButtons(){
+  const body=$('#tb-contratos');if(!body)return;
+  Array.from(body.rows).forEach((row,i)=>{
+    const c=phase2ContractAt(i);
+    if(!c?.arquivoBase64)return;
+    const cell=row.cells[row.cells.length-1];if(!cell)return;
+    if(!row.querySelector('.phase2-contract-rename')){
+      const b=document.createElement('button');
+      b.type='button';b.className='phase2-contract-rename';b.textContent='Nome arquivo';
+      b.onclick=()=>global.phase2ContractRename(i,b);
+      cell.prepend(b);
+    }
+    if(!row.querySelector('.phase2-contract-download')){
+      const b=document.createElement('button');
+      b.type='button';b.className='phase2-contract-download';b.textContent='Baixar';
+      b.onclick=()=>global.phase2ContractDownload(i);
+      cell.prepend(b);
+    }
+    const description=row.cells[1];
+    if(description){
+      let label=description.querySelector('.phase2-contract-filename');
+      if(!label){label=document.createElement('small');label.className='phase2-contract-filename';description.appendChild(label);}
+      label.textContent=phase2ContractName(c);
+      label.title=phase2ContractName(c);
+    }
+    const rename=row.querySelector('.phase2-contract-rename');
+    if(rename)rename.title='Renomear '+phase2ContractName(c);
+  });
+}
+global.phase2ContractRename=async function(i,button){
+  const c=phase2ContractAt(i);
+  if(!c?.arquivoBase64){notify('Este contrato não possui anexo.','error');return false;}
+  const oldName=phase2ContractName(c);
+  const dot=oldName.lastIndexOf('.');
+  const base=dot>0?oldName.slice(0,dot):oldName;
+  const answer=global.prompt('Novo nome do arquivo:',base);
+  if(answer==null)return false;
+  const newName=phase2ContractCleanName(answer,oldName);
+  if(!newName){notify('Nome inválido. Mantenha a extensão original e não utilize caracteres especiais de caminho.','error');return false;}
+  if(newName===c.arquivoNome){return true;}
+  if(!c.id&&typeof _syncContratos!=='undefined'&&typeof _syncContratos.paraObjeto==='function')_syncContratos.paraObjeto();
+  const id=String(c.id||'');
+  if(!id||/[.#$\[\]\/]/.test(id)){
+    notify('Contrato sem identificador válido. Atualize a tela e tente novamente.','error');return false;
+  }
+  const db=global._fbDB;
+  if(!db||typeof db.ref!=='function'){
+    notify('Sem conexão com o Firebase. Não foi possível renomear o arquivo.','error');return false;
+  }
+  if(button)button.disabled=true;
+  try{
+    // Não cria registro incompleto se o contrato já tiver sido removido ou ainda não tiver migrado.
+    const exists=await db.ref('erp/contratos/'+id+'/id').once('value');
+    if(String(exists.val()||'')!==id)throw new Error('Contrato não encontrado na base remota');
+    // O anexo é um data URL salvo no RTDB; alterar apenas o nome não reenvia os bytes.
+    await db.ref('erp/contratos/'+id).update({arquivoNome:newName});
+    c.arquivoNome=newName;
+    try{localStorage.setItem('mm_contratos',JSON.stringify(CONTRATOS_DB));}catch(e){console.warn('Cache local de contratos indisponível, nome salvo no Firebase.',e);}
+    try{
+      if(typeof renderContratos==='function')renderContratos();
+      addContractRenameButtons();
+    }catch(e){console.warn('Anexo renomeado, mas a tabela não pôde ser atualizada.',e);}
+    notify('Nome do anexo atualizado. Use Baixar para obter o arquivo com o novo nome.','success');
+    return true;
+  }catch(e){
+    console.error('Falha ao renomear anexo do contrato.',e);
+    notify('Não foi possível salvar o nome no Firebase. Nenhuma alteração foi aplicada.','error');
+    return false;
+  }finally{if(button)button.disabled=false;}
+};
+global.phase2ContractDownload=function(i){
+  const c=phase2ContractAt(i);
+  if(!c?.arquivoBase64){notify('Arquivo não encontrado.','error');return false;}
+  try{
+    const data=String(c.arquivoBase64);
+    if(!data.startsWith('data:')||!data.includes(','))throw new Error('Formato do anexo inválido');
+    const encoded=data.slice(data.indexOf(',')+1);
+    const decoded=atob(encoded);
+    const bytes=new Uint8Array(decoded.length);
+    for(let j=0;j<decoded.length;j++)bytes[j]=decoded.charCodeAt(j);
+    const mime=String(c.arquivoMime||data.slice(5,data.indexOf(';'))||'application/octet-stream');
+    const url=URL.createObjectURL(new Blob([bytes],{type:mime}));
+    const a=document.createElement('a');a.href=url;a.download=phase2ContractName(c);
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+    return true;
+  }catch(e){console.error('Falha ao baixar anexo do contrato.',e);notify('Não foi possível baixar o arquivo anexado.','error');return false;}
+};
 function mergeCasaGloria(){
   let changed=false;try{Object.keys(CUSTO_CASA||{}).forEach(m=>{(CUSTO_CASA[m]||[]).forEach(x=>{if(norm(x.area)==='casa gloria'){x.area='Casa';changed=true;}});});if(changed&&typeof saveCustoCasa==='function')saveCustoCasa();}catch(e){}
   $('#cc-aba-Casa Glória')?.remove();$$('[data-cc-area]').forEach(b=>{if(norm(b.getAttribute('data-cc-area'))==='casa gloria')b.remove();});const note=$('#phase1-house-history-note');if(note)note.textContent='Histórico preservado por período. Casa e Casa Glória foram consolidadas em Casa; Sítio e Veículos Pessoais permanecem separados.';
