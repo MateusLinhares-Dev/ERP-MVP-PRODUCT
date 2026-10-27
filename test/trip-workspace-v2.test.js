@@ -18,10 +18,11 @@ test('aba Por motorista e abertura de detalhe estão conectadas à área de viag
  assert.match(workspace,/phase2TripCompactRates\(register\)/);
  const history=extract('function renderTripHistoryCards(){','\/\* ---------- Viagens: acesso');
  assert.match(history,/data-trip-open/);
- assert.match(history,/Abrir detalhes/);
+ assert.match(history,/Visualizar/);
+ assert.match(history,/Viagens registradas/);
  assert.match(code,/phase2TripOpenDetails\(button\.dataset\.tripOpen,button\)/);
  assert.match(code,/document\.addEventListener\('click'/);
- assert.match(code,/phase2-trip-detail-inline/);
+ assert.match(code,/phase2-trip-record/);
  assert.match(code,/global\.editViagem\(trip\.id\)/);
 });
 
@@ -70,19 +71,33 @@ test('após uma viagem salva com sucesso, a interface volta ao histórico',()=>{
  assert.match(snippet,/renderTripHistoryCards\(\)/);
 });
 
-test('detalhes são abertos na própria linha e a delegação sobrevive ao rerender',()=>{
+test('detalhes são apresentados em tela dedicada e navegação mantém edição legada',()=>{
  const func=extract('function phase2TripOpenDetails(id,source){','const originalSaveTripPhase2=global.salvarViagem;');
- assert.match(func,/card\.appendChild\(detail\)/);
- assert.match(func,/\[data-trip-open\],\[data-trip-edit\]/);
- assert.match(func,/global\.__phase2TripHistoryClickReady/);
- assert.match(func,/data-trip-edit/);
- assert.doesNotMatch(func,/showModal/);
- const card=extract('function renderTripHistoryCards(){','\/\* ---------- Viagens: acesso');
- assert.match(card,/data-trip-index/);
+ assert.match(func,/phase2TripSelectedRef=phase2TripRef/);
+ assert.match(func,/\[data-trip-open\],\[data-trip-edit\],\[data-trip-back\],\[data-trip-new\]/);
+ assert.match(func,/phase2TripShowList\(\)/);
+ assert.match(func,/global\.editViagem\(trip\.id\)/);
+ assert.doesNotMatch(func,/card\.appendChild\(detail\)/);
+ const history=extract('function renderTripHistoryCards(){','/* ---------- Viagens: acesso');
+ assert.match(history,/phase2-trip-archive-results/);
+ assert.match(history,/phase2-trip-record/);
+ assert.match(history,/data-trip-index/);
+ assert.match(history,/Buscar motorista ou destino/);
+ assert.match(history,/record\.hidden=!selected/);
 });
 
 test('observador de DOM não recria cartões se o histórico permanece igual',()=>{
  const history=extract('function renderTripHistoryCards(){','/* ---------- Viagens: acesso');
- assert.match(history,/__phase2TripHistorySignature===signature/);
- assert.match(history,/phase2TripHistoryActions\(\);return/);
+ assert.match(history,/__phase2TripArchiveSignature!==signature/);
+ assert.match(history,/count&&count.textContent!==countText/);
+});
+
+test('a ficha mantém custo e acerto separados e escapa campos de texto',()=>{
+ const content=extract('function phase2TripShowSelected(host){','function phase2TripShowList(){');
+ assert.match(content,/Despesas registradas/);
+ assert.match(content,/Acerto do motorista/);
+ assert.match(content,/Alimentação e extras considerados no acerto/);
+ assert.match(content,/esc\(detail\.obs\)/);
+ assert.match(content,/esc\(detail\.motorista/);
+ assert.match(content,/phase2TripCostParts\(detail\)/);
 });
