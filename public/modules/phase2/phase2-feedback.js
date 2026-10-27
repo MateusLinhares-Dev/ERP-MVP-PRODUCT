@@ -392,6 +392,33 @@ function phase2TripResolve(ref){
   if(ref.startsWith('index:')){const index=Number(ref.slice(6));return Number.isInteger(index)&&index>=0?records[index]||null:null;}
   return null;
 }
+// Mantém os selects legados, mas concentra os filtros apenas na listagem.
+function phase2TripPrepareHistory(host,tb,card){
+  const controls=host.querySelector('.phase2-trip-archive-controls');
+  const legacy=card.querySelector('#phase2-trip-legacy-table')||document.createElement('div');
+  if(!legacy.id){legacy.id='phase2-trip-legacy-table';legacy.hidden=true;legacy.setAttribute('aria-hidden','true');card.appendChild(legacy);}
+  const wrap=tb.closest('div[style*="overflow"]')||tb.closest('table');
+  const prior=wrap?.closest('details.phase2-trip-details');
+  if(wrap&&!legacy.contains(wrap))legacy.appendChild(wrap);
+  if(prior)prior.remove();
+  legacy.hidden=true;
+  const mot=$('#vg-fil-mot'),mes=$('#vg-fil-mes');
+  if(controls){
+    if(mot&&!host.querySelector('#phase2-trip-filter-driver')){
+      const label=document.createElement('label');label.id='phase2-trip-filter-driver';label.className='phase2-trip-filter-field';
+      const title=document.createElement('span');title.textContent='Motorista';label.appendChild(title);label.appendChild(mot);
+      controls.insertBefore(label,controls.firstChild);
+    }
+    if(mes&&!host.querySelector('#phase2-trip-filter-month')){
+      const label=document.createElement('label');label.id='phase2-trip-filter-month';label.className='phase2-trip-filter-field';
+      const title=document.createElement('span');title.textContent='Mês';label.appendChild(title);label.appendChild(mes);
+      const driver=host.querySelector('#phase2-trip-filter-driver');
+      if(driver)driver.insertAdjacentElement('afterend',label);else controls.insertBefore(label,controls.firstChild);
+    }
+  }
+  const legacyHeader=card.querySelector('.tcard-hdr');
+  if(legacyHeader)legacyHeader.classList.add('phase2-trip-legacy-header');
+}
 function renderTripHistoryCards(){
   const tb=$('#tb-viagens');if(!tb)return;
   const card=tb.closest('.tcard');if(!card)return;
@@ -401,14 +428,10 @@ function renderTripHistoryCards(){
     host.innerHTML='<div class="phase2-trip-archive-list"><div class="phase2-trip-archive-toolbar"><div><h3>Viagens registradas</h3><small id="phase2-trip-archive-count"></small></div><div class="phase2-trip-archive-controls"><label class="phase2-trip-search-label"><span class="phase2-sr-only">Buscar viagens</span><input type="search" id="phase2-trip-archive-search" placeholder="Buscar motorista ou destino" autocomplete="off"></label><button type="button" class="phase2-trip-archive-new" data-trip-new>Nova viagem</button></div></div><div id="phase2-trip-archive-results" class="phase2-trip-archive-results"></div></div><section id="phase2-trip-record" class="phase2-trip-record" hidden aria-label="Consulta da viagem"></section>';
     const wrap=tb.closest('div[style*="overflow"]')||tb.closest('table');
     wrap?.insertAdjacentElement('beforebegin',host);
-    if(wrap&&!wrap.closest('details.phase2-trip-details')){
-      const details=document.createElement('details');details.className='phase2-trip-details';
-      details.innerHTML='<summary>Ver tabela detalhada</summary>';
-      wrap.parentElement.insertBefore(details,wrap);details.appendChild(wrap);
-    }
     const search=host.querySelector('#phase2-trip-archive-search');
     search?.addEventListener('input',e=>{phase2TripSearch=e.target.value;renderTripHistoryCards();});
   }
+  phase2TripPrepareHistory(host,tb,card);
   const mot=$('#vg-fil-mot')?.value||'',mes=$('#vg-fil-mes')?.value||'';
   const records=phase2TripData();
   const query=norm(phase2TripSearch);
@@ -418,15 +441,16 @@ function renderTripHistoryCards(){
   const results=host.querySelector('#phase2-trip-archive-results');
   if(results&&results.__phase2TripArchiveSignature!==signature){
     results.__phase2TripArchiveSignature=signature;
-    results.innerHTML=filtered.length?'<div class="phase2-trip-list-head" aria-hidden="true"><span>Motorista</span><span>Período</span><span>Destino</span><span>Despesas</span><span>Acerto</span><span></span></div>'+filtered.map(({trip,index})=>{
+    results.innerHTML=filtered.length?'<div class="phase2-trip-list-head" aria-hidden="true"><span>Motorista</span><span>Período</span><span>Destino</span><span>Despesas</span><span>Acerto</span><span>Ações</span></div>'+filtered.map(({trip,index})=>{
       const cost=phase2TripCostParts(trip), advance=phase2TripAdvance(trip),settlement=phase2TripSettlement(trip,cost,advance);
+      const deleteButton=trip.id?`<button type="button" class="phase2-trip-delete" data-trip-delete="${esc(trip.id)}" data-trip-index="${index}" aria-label="Excluir viagem de ${esc(trip.motorista||'motorista')}" title="Excluir viagem">Excluir</button>`:'';
       return `<article class="phase2-trip-list-row" data-trip-id="${esc(trip.id||'')}" data-trip-index="${index}">
         <div class="phase2-trip-list-person"><strong>${esc(trip.motorista||'Motorista não informado')}</strong><small>${esc(trip.id||'Registro '+(index+1))}</small></div>
         <div class="phase2-trip-list-dates"><span>${esc(phase2TripDate(trip.data))}</span><small>até ${esc(phase2TripDate(trip.volta))} · ${Number(trip.numDiarias)||1} dia(s)</small></div>
         <div class="phase2-trip-list-destination">${esc(trip.destino||'Não informado')}</div>
         <div class="phase2-trip-list-money"><strong>R$ ${money(cost.total)}</strong></div>
         <div class="phase2-trip-list-settlement ${settlement<0?'is-negative':'is-positive'}"><small>${settlement<0?'Reembolsar': 'Devolver'}</small><strong>R$ ${money(Math.abs(settlement))}</strong></div>
-        <div class="phase2-trip-list-action"><button type="button" data-trip-open="${esc(trip.id||'')}" data-trip-index="${index}" aria-label="Ver detalhes da viagem de ${esc(trip.motorista||'motorista')}">Visualizar</button></div>
+        <div class="phase2-trip-list-action"><button type="button" data-trip-open="${esc(trip.id||'')}" data-trip-index="${index}" aria-label="Ver detalhes da viagem de ${esc(trip.motorista||'motorista')}">Visualizar</button>${deleteButton}</div>
       </article>`;
     }).join(''):'<div class="phase2-trip-empty"><strong>Nenhuma viagem encontrada.</strong><span>Altere os filtros ou registre uma nova viagem.</span></div>';
   }
@@ -441,6 +465,39 @@ function phase2TripSettlement(v,cost,advance){
   if(v.acertoDevolucao!=null&&v.acertoDevolucao!==''&&Number.isFinite(Number(v.acertoDevolucao)))return Number(v.acertoDevolucao);
   return advance-(cost.alimentacao+cost.extras);
 }
+// Campos do relatório legado apresentados somente na ficha da viagem selecionada.
+function phase2TripFullFinancialDetail(v,parts,advance,settlement){
+  const days=Math.max(1,Number(v.numDiarias)||1);
+  const limit=phase2TripCostValue($('#vg-limite-alim')?.value);
+  const dailyMeal=parts.alimentacao/days;
+  const dailyLimitStatus=limit?dailyMeal<=limit?'Dentro do limite':`Excedeu R$ ${money((dailyMeal-limit)*days)}`:'Não configurado';
+  const field=(label,value)=>`<tr><th scope="row">${esc(label)}</th><td>${esc(value)}</td></tr>`;
+  const curr=value=>'R$ '+money(value);
+  const rate=Number(v.vlrDia)||(Number(v.diaria||0)+Number(v.pernoite||0));
+  const rateRows=[
+    ['Diária (valor/dia)',curr(v.diaria||0)],['Pernoite (valor/dia)',curr(v.pernoite||0)],
+    ['Valor total por dia',curr(rate)],['Total de diárias pagas',curr(parts.diarias)]
+  ];
+  const mealRows=[
+    ['Café da manhã',curr(v.cafeManha||0)],['Almoço',curr(v.almoco||0)],
+    ['Café da tarde',curr(v.cafeTarde||0)],['Janta',curr(v.janta||0)],
+    ['Total alimentação',curr(parts.alimentacao)],['Alimentação por dia',curr(dailyMeal)],
+    ['Status do limite de alimentação',dailyLimitStatus]
+  ];
+  const reconciliationRows=[
+    ['Combustível',curr(parts.combustivel)],['Gastos extras',curr(parts.extras)],
+    ['Adiantamento entregue',curr(advance)],
+    ['Troco de alimentação registrado',v.trocoAlim==null?'—':curr(v.trocoAlim)],
+    ['Acerto financeiro',`${settlement<0?'Reembolsar':'Devolver'} ${curr(Math.abs(settlement))}`]
+  ];
+  const section=(title,rows)=>`<div class="phase2-trip-financial-group"><h5>${esc(title)}</h5><table><tbody>${rows.map(([name,val])=>field(name,val)).join('')}</tbody></table></div>`;
+  const daily=Array.isArray(v.refeicoesPorDia)?v.refeicoesPorDia.filter(Boolean):[];
+  const daysHtml=daily.length?`<div class="phase2-trip-financial-daily"><h5>Refeições registradas por dia</h5><div class="phase2-trip-financial-scroll"><table><thead><tr><th>Data</th><th>Café manhã</th><th>Almoço</th><th>Café tarde</th><th>Janta</th><th>Total</th></tr></thead><tbody>${daily.map(r=>{
+    const vals=[r.cafeManha,r.almoco,r.cafeTarde,r.janta].map(phase2TripCostValue);
+    return `<tr><td>${esc(phase2TripDate(r.data))}</td>${vals.map(n=>`<td>${curr(n)}</td>`).join('')}<td><strong>${curr(vals.reduce((a,b)=>a+b,0))}</strong></td></tr>`;
+  }).join('')}</tbody></table></div></div>`:'';
+  return `<section class="phase2-trip-record-section phase2-trip-full-financial"><h4>Informações detalhadas da viagem</h4><div class="phase2-trip-financial-grid">${section('Diárias e pernoite registrados',rateRows)}${section('Alimentação',mealRows)}${section('Despesas e acerto',reconciliationRows)}</div>${daysHtml}</section>`;
+}
 function phase2TripShowSelected(host){
   const list=host.querySelector('.phase2-trip-archive-list');
   const record=host.querySelector('#phase2-trip-record');
@@ -449,13 +506,11 @@ function phase2TripShowSelected(host){
   const selected=!!detail;
   if(list)list.hidden=selected;
   if(record)record.hidden=!selected;
-  const table=host.parentElement?.querySelector('.phase2-trip-details');
-  if(table)table.hidden=selected;
   if(!selected||!record)return;
   const totals=phase2TripCostParts(detail);
   const advance=phase2TripAdvance(detail);
   const settlement=phase2TripSettlement(detail,totals,advance);
-  const signature=JSON.stringify([phase2TripSelectedRef,detail.motorista,detail.data,detail.volta,detail.destino,detail.numDiarias,totals,advance,settlement,detail.obs]);
+  const signature=JSON.stringify([phase2TripSelectedRef,detail.motorista,detail.data,detail.volta,detail.destino,detail.numDiarias,detail.diaria,detail.pernoite,detail.vlrDia,detail.cafeManha,detail.almoco,detail.cafeTarde,detail.janta,detail.refeicoesPorDia,totals,advance,settlement,detail.obs,$('#vg-limite-alim')?.value]);
   if(record.__phase2TripDetailSignature===signature)return;
   record.__phase2TripDetailSignature=signature;
   record.tabIndex=-1;
@@ -464,6 +519,7 @@ function phase2TripShowSelected(host){
     <div class="phase2-trip-record-summary"><div><small>Despesas registradas</small><strong>R$ ${money(totals.total)}</strong></div><div><small>Adiantamento ao motorista</small><strong>R$ ${money(advance)}</strong></div><div class="${settlement<0?'is-negative':'is-positive'}"><small>${settlement<0?'A reembolsar':'A devolver'}</small><strong>R$ ${money(Math.abs(settlement))}</strong></div></div>
     <div class="phase2-trip-record-columns"><section class="phase2-trip-record-section"><h4>Dados da viagem</h4><dl><div><dt>Motorista</dt><dd>${esc(detail.motorista||'—')}</dd></div><div><dt>Saída</dt><dd>${esc(phase2TripDate(detail.data))}</dd></div><div><dt>Volta</dt><dd>${esc(phase2TripDate(detail.volta))}</dd></div><div><dt>Destino</dt><dd>${esc(detail.destino||'Não informado')}</dd></div><div><dt>Duração</dt><dd>${Number(detail.numDiarias)||1} dia(s)</dd></div></dl></section><section class="phase2-trip-record-section"><h4>Despesas da viagem</h4>${costRow('Alimentação',totals.alimentacao)}${costRow('Combustível',totals.combustivel)}${costRow('Despesas extras',totals.extras)}${totals.diarias?costRow('Diárias registradas',totals.diarias):''}<div class="phase2-trip-cost-total"><span>Total de despesas</span><strong>R$ ${money(totals.total)}</strong></div></section></div>
     <section class="phase2-trip-record-section phase2-trip-settlement"><h4>Acerto do motorista</h4><div class="phase2-trip-cost-row"><span>Adiantamento entregue</span><strong>R$ ${money(advance)}</strong></div><div class="phase2-trip-cost-row"><span>Alimentação e extras considerados no acerto</span><strong>R$ ${money(totals.alimentacao+totals.extras)}</strong></div><div class="phase2-trip-cost-total ${settlement<0?'is-negative':'is-positive'}"><span>${settlement<0?'Empresa reembolsa':'Motorista devolve'}</span><strong>R$ ${money(Math.abs(settlement))}</strong></div></section>
+    ${phase2TripFullFinancialDetail(detail,totals,advance,settlement)}
     ${detail.obs?`<section class="phase2-trip-record-section phase2-trip-record-obs"><h4>Observações</h4><p>${esc(detail.obs)}</p></section>`:''}`;
 }
 function phase2TripShowList(){phase2TripSelectedRef='';renderTripHistoryCards();}
@@ -542,7 +598,7 @@ function phase2TripHistoryActions(){
   if(global.__phase2TripHistoryClickReady)return;
   global.__phase2TripHistoryClickReady=true;
   document.addEventListener('click',event=>{
-    const button=event.target?.closest?.('[data-trip-open],[data-trip-edit],[data-trip-back],[data-trip-new]');
+    const button=event.target?.closest?.('[data-trip-open],[data-trip-edit],[data-trip-delete],[data-trip-back],[data-trip-new]');
     if(!button||!button.closest('#phase2-trip-history-cards'))return;
     event.preventDefault();event.stopPropagation();
     if(button.hasAttribute('data-trip-back'))return phase2TripShowList();
@@ -550,6 +606,17 @@ function phase2TripHistoryActions(){
       $('#erp-tab-viagem_motorista-register-button')?.click();return;
     }
     if(button.hasAttribute('data-trip-open'))return phase2TripOpenDetails(button.dataset.tripOpen,button);
+    if(button.hasAttribute('data-trip-delete')){
+      const id=button.dataset.tripDelete;
+      if(!id||typeof global.excluirViagem!=='function')return notify('Não foi possível identificar esta viagem para exclusão.','error');
+      // A confirmação e a persistência são responsabilidade da função legada.
+      global.excluirViagem(id);
+      if(!phase2TripData().some(v=>String(v?.id||'')===id)){
+        if(phase2TripSelectedRef==='id:'+id)phase2TripSelectedRef='';
+        renderTripHistoryCards();renderTripDriverCosts();
+      }
+      return;
+    }
     if(button.hasAttribute('data-trip-edit')){
       const trips=phase2TripData(),index=Number(button.dataset.tripIndex);
       const trip=(button.dataset.tripEdit&&trips.find(v=>String(v?.id||'')===button.dataset.tripEdit))||

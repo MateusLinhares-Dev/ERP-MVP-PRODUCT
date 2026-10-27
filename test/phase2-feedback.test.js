@@ -68,7 +68,7 @@ test('EPI mostra somente histórico do funcionário selecionado e permite editar
 });
 
 test('Frota e viagens recebem visual orientado a histórico e etapas',()=>{
-  has('p2-frota-timeline','Todos os status','phase2DateKey','phase2-step','phase2-trip-history-cards','Ver tabela detalhada','v.totalRefeicoes','v.totalDiarias','v.acertoDevolucao');
+  has('p2-frota-timeline','Todos os status','phase2DateKey','phase2-step','phase2-trip-history-cards','phase2-trip-legacy-table','Informações detalhadas da viagem','data-trip-delete','v.totalRefeicoes','v.totalDiarias','v.acertoDevolucao');
 });
 
 test('Fiscal possui cadastro independente completo e lançamento usa somente cadastro fiscal',()=>{

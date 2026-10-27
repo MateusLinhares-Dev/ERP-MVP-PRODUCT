@@ -74,7 +74,7 @@ test('após uma viagem salva com sucesso, a interface volta ao histórico',()=>{
 test('detalhes são apresentados em tela dedicada e navegação mantém edição legada',()=>{
  const func=extract('function phase2TripOpenDetails(id,source){','const originalSaveTripPhase2=global.salvarViagem;');
  assert.match(func,/phase2TripSelectedRef=phase2TripRef/);
- assert.match(func,/\[data-trip-open\],\[data-trip-edit\],\[data-trip-back\],\[data-trip-new\]/);
+ assert.match(func,/\[data-trip-open\],\[data-trip-edit\],\[data-trip-delete\],\[data-trip-back\],\[data-trip-new\]/);
  assert.match(func,/phase2TripShowList\(\)/);
  assert.match(func,/global\.editViagem\(trip\.id\)/);
  assert.doesNotMatch(func,/card\.appendChild\(detail\)/);
@@ -100,4 +100,44 @@ test('a ficha mantém custo e acerto separados e escapa campos de texto',()=>{
  assert.match(content,/esc\(detail\.obs\)/);
  assert.match(content,/esc\(detail\.motorista/);
  assert.match(content,/phase2TripCostParts\(detail\)/);
+});
+
+
+test('tabela legada fica fora da listagem e informações completas ficam em Visualizar',()=>{
+ const history=extract('function phase2TripPrepareHistory(host,tb,card){','function phase2TripAdvance(v)');
+ assert.match(history,/phase2-trip-legacy-table/);
+ assert.match(history,/legacy\.hidden=true/);
+ assert.match(history,/legacy\.appendChild\(wrap\)/);
+ assert.doesNotMatch(history,/Ver tabela detalhada/);
+ const details=extract('function phase2TripFullFinancialDetail(v,parts,advance,settlement){','function phase2TripShowList(){');
+ assert.match(details,/Informações detalhadas da viagem/);
+ assert.match(details,/Total de diárias pagas/);
+ assert.match(details,/Alimentação por dia/);
+ assert.match(details,/Refeições registradas por dia/);
+ assert.match(details,/phase2TripFullFinancialDetail\(detail,totals,advance,settlement\)/);
+});
+
+test('filtros de motorista/mês mantêm os selects legados na listagem e não se repetem na ficha',()=>{
+ const history=extract('function phase2TripPrepareHistory(host,tb,card){','function renderTripHistoryCards(){');
+ assert.match(history,/phase2-trip-filter-driver/);
+ assert.match(history,/phase2-trip-filter-month/);
+ assert.match(history,/label\.appendChild\(mot\)/);
+ assert.match(history,/label\.appendChild\(mes\)/);
+ assert.match(history,/phase2-trip-legacy-header/);
+ const detail=extract('function phase2TripShowSelected(host){','function phase2TripShowList(){');
+ assert.match(detail,/list\.hidden=selected/);
+ assert.match(detail,/record\.hidden=!selected/);
+ assert.doesNotMatch(detail,/vg-fil-mot.*innerHTML/);
+ assert.match(code,/function phase2TripShowList\(\)\{phase2TripSelectedRef='';renderTripHistoryCards\(\);\}/);
+});
+
+test('exclusão usa a rotina persistente do ERP sem excluir diretamente o array',()=>{
+ const history=extract('function renderTripHistoryCards(){','function phase2TripAdvance(v)');
+ assert.match(history,/data-trip-delete/);
+ assert.match(history,/Visualizar/);
+ const handlers=extract('function phase2TripHistoryActions(){','const originalSaveTripPhase2=global.salvarViagem;');
+ assert.match(handlers,/global\.excluirViagem\(id\)/);
+ assert.match(handlers,/!phase2TripData\(\)\.some/);
+ assert.doesNotMatch(handlers,/\.splice\(/);
+ assert.doesNotMatch(handlers,/VIAGEM_DB\.filter/);
 });
