@@ -471,7 +471,9 @@ function phase2TripFullFinancialDetail(v,parts,advance,settlement){
   const limit=phase2TripCostValue($('#vg-limite-alim')?.value);
   const dailyMeal=parts.alimentacao/days;
   const dailyLimitStatus=limit?dailyMeal<=limit?'Dentro do limite':`Excedeu R$ ${money((dailyMeal-limit)*days)}`:'Não configurado';
-  const field=(label,value)=>`<tr><th scope="row">${esc(label)}</th><td>${esc(value)}</td></tr>`;
+  // Usar pares descrição/valor em vez de <table>: estilos globais da tabela de viagens
+  // alteravam a largura das células e espalhavam os números fora da ficha.
+  const field=(label,value)=>`<div class="phase2-trip-financial-row"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`;
   const curr=value=>'R$ '+money(value);
   const rate=Number(v.vlrDia)||(Number(v.diaria||0)+Number(v.pernoite||0));
   const rateRows=[
@@ -490,7 +492,7 @@ function phase2TripFullFinancialDetail(v,parts,advance,settlement){
     ['Troco de alimentação registrado',v.trocoAlim==null?'—':curr(v.trocoAlim)],
     ['Acerto financeiro',`${settlement<0?'Reembolsar':'Devolver'} ${curr(Math.abs(settlement))}`]
   ];
-  const section=(title,rows)=>`<div class="phase2-trip-financial-group"><h5>${esc(title)}</h5><table><tbody>${rows.map(([name,val])=>field(name,val)).join('')}</tbody></table></div>`;
+  const section=(title,rows)=>`<section class="phase2-trip-financial-group"><h5>${esc(title)}</h5><dl>${rows.map(([name,val])=>field(name,val)).join('')}</dl></section>`;
   const daily=Array.isArray(v.refeicoesPorDia)?v.refeicoesPorDia.filter(Boolean):[];
   const daysHtml=daily.length?`<div class="phase2-trip-financial-daily"><h5>Refeições registradas por dia</h5><div class="phase2-trip-financial-scroll"><table><thead><tr><th>Data</th><th>Café manhã</th><th>Almoço</th><th>Café tarde</th><th>Janta</th><th>Total</th></tr></thead><tbody>${daily.map(r=>{
     const vals=[r.cafeManha,r.almoco,r.cafeTarde,r.janta].map(phase2TripCostValue);

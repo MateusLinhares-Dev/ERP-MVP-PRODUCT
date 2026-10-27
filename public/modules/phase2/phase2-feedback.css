@@ -267,21 +267,27 @@ input[data-phase2-fiscal-only="1"]{border-color:#9bc9ab!important;background:#fb
 #tab-viagem_motorista .phase2-trip-list-action .phase2-trip-delete{border-color:#efd4d0;color:#a33f32;background:#fff}
 #tab-viagem_motorista .phase2-trip-list-action .phase2-trip-delete:hover{background:#fff2f0}
 #tab-viagem_motorista .phase2-trip-full-financial{background:#fff}
-#tab-viagem_motorista .phase2-trip-financial-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
-#tab-viagem_motorista .phase2-trip-financial-group{min-width:0}
+/* Detalhamento: linhas nome/valor independentes da tabela legada (que usa CSS global). */
+#tab-viagem_motorista .phase2-trip-full-financial{background:#fff;max-width:100%;min-width:0;box-sizing:border-box;overflow:hidden}
+#tab-viagem_motorista .phase2-trip-financial-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;min-width:0;width:100%;max-width:100%;box-sizing:border-box;align-items:start}
+#tab-viagem_motorista .phase2-trip-financial-group{display:block;min-width:0;max-width:100%;margin:0;padding:13px 14px;border:1px solid #e3ebe5;border-radius:9px;background:#fbfcfb;box-sizing:border-box}
 #tab-viagem_motorista .phase2-trip-financial-group h5,
-#tab-viagem_motorista .phase2-trip-financial-daily h5{font-size:.78rem;color:#425d4a;margin:0 0 10px}
-#tab-viagem_motorista .phase2-trip-financial-group table{width:100%;border-collapse:collapse;font-size:.74rem;table-layout:fixed}
-#tab-viagem_motorista .phase2-trip-financial-group th{font-weight:500;text-align:left;color:#607266;overflow-wrap:anywhere;width:60%}
-#tab-viagem_motorista .phase2-trip-financial-group td{text-align:right;font-weight:700;color:#264d35;overflow-wrap:anywhere}
-#tab-viagem_motorista .phase2-trip-financial-group td,
-#tab-viagem_motorista .phase2-trip-financial-group th{padding:9px 5px;border-bottom:1px solid #edf0ed}
-#tab-viagem_motorista .phase2-trip-financial-daily{margin-top:24px}
-#tab-viagem_motorista .phase2-trip-financial-scroll{width:100%;overflow-x:auto}
-#tab-viagem_motorista .phase2-trip-financial-scroll table{width:100%;min-width:650px;border-collapse:collapse;font-size:.75rem}
+#tab-viagem_motorista .phase2-trip-financial-daily h5{font-size:.8rem;color:#234a32;margin:0 0 10px;line-height:1.45;font-weight:800}
+#tab-viagem_motorista .phase2-trip-financial-group dl{display:block;margin:0;padding:0;min-width:0;width:100%}
+#tab-viagem_motorista .phase2-trip-financial-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(90px,auto);gap:8px;align-items:start;margin:0;padding:9px 0;border-bottom:1px solid #e8eee9;min-width:0;max-width:100%;box-sizing:border-box;font-size:.78rem;line-height:1.35}
+#tab-viagem_motorista .phase2-trip-financial-row:last-child{border-bottom:0}
+#tab-viagem_motorista .phase2-trip-financial-row dt{display:block;min-width:0;width:auto;margin:0;padding:0;color:#607366;font-weight:500;overflow-wrap:anywhere;white-space:normal}
+#tab-viagem_motorista .phase2-trip-financial-row dd{display:block;min-width:0;width:auto;margin:0;padding:0;text-align:right;font-weight:750;color:#234d34;overflow-wrap:anywhere;white-space:normal;font-variant-numeric:tabular-nums}
+#tab-viagem_motorista .phase2-trip-financial-daily{margin-top:18px;max-width:100%;min-width:0}
+#tab-viagem_motorista .phase2-trip-financial-scroll{width:100%;max-width:100%;min-width:0;overflow-x:auto;box-sizing:border-box;border:1px solid #e1eae3;border-radius:8px}
+#tab-viagem_motorista .phase2-trip-financial-scroll table{width:100%;min-width:650px;border-collapse:collapse;font-size:.75rem;margin:0}
 #tab-viagem_motorista .phase2-trip-financial-scroll th{background:#f5f8f5;color:#607366;text-align:left;font-weight:700}
 #tab-viagem_motorista .phase2-trip-financial-scroll td,
-#tab-viagem_motorista .phase2-trip-financial-scroll th{padding:9px 7px;border-bottom:1px solid #e6ece7;white-space:nowrap}
-@media(max-width:1120px){#tab-viagem_motorista .phase2-trip-financial-grid{grid-template-columns:1fr 1fr}}
+#tab-viagem_motorista .phase2-trip-financial-scroll th{padding:10px 9px;border-bottom:1px solid #e6ece7;white-space:nowrap}
+#tab-viagem_motorista .phase2-trip-financial-scroll tbody tr:last-child td{border-bottom:0}
+@media(max-width:1220px){#tab-viagem_motorista .phase2-trip-financial-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:840px){#tab-viagem_motorista .phase2-trip-financial-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:1050px){#tab-viagem_motorista .phase2-trip-list-head,#tab-viagem_motorista .phase2-trip-list-row{grid-template-columns:minmax(120px,1.4fr) minmax(115px,1fr) minmax(95px,1fr) minmax(90px,.8fr) minmax(155px,auto)}#tab-viagem_motorista .phase2-trip-list-head>span:nth-child(3),#tab-viagem_motorista .phase2-trip-list-destination{display:none}}
 @media(max-width:740px){#tab-viagem_motorista .phase2-trip-archive-controls{align-items:stretch}#tab-viagem_motorista .phase2-trip-filter-field{flex:1;min-width:125px}#tab-viagem_motorista .phase2-trip-list-head{display:none}#tab-viagem_motorista .phase2-trip-list-row{grid-template-columns:1fr 1fr}#tab-viagem_motorista .phase2-trip-list-action{justify-content:flex-start;flex-wrap:wrap}#tab-viagem_motorista .phase2-trip-financial-grid{grid-template-columns:1fr}}
+
+@media(max-width:420px){#tab-viagem_motorista .phase2-trip-financial-group{padding:11px}#tab-viagem_motorista .phase2-trip-financial-row{grid-template-columns:minmax(0,1fr) minmax(82px,auto);font-size:.74rem}}
