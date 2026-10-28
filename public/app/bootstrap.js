@@ -232,6 +232,8 @@ async function main() {
   loadStyle('/legacy/design-system-v2.css');
   await loadClassic('/legacy/workspace-navigation.js');
 
+  loadStyle('/modules/help-center/help-center.css');
+  await loadClassic('/modules/help-center/help-center.js');
   loadStyle('/modules/final-ops/final-ops.css');
   await loadClassic('/modules/final-ops/final-ops.js');
 
