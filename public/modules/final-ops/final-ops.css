@@ -24,3 +24,17 @@
 #tab-contratos #kpi-cont-status{font-variant-numeric:tabular-nums;}
 #tab-contratos #kpi-cont-status.ops-contract-has-overdue{color:#b44b35;}
 @media(max-width:780px){#tab-matriz_capacitacao .ops-training-fields{grid-template-columns:1fr;}#tab-matriz_capacitacao .ops-training-fields button{width:100%;}}
+
+/* Seleção de capacitação sem popup nativo: nomes completos, acessibilidade e rolagem. */
+#tab-matriz_capacitacao .ops-training-enroll-picker{min-width:0;margin:0 0 14px}
+#tab-matriz_capacitacao .ops-training-enroll-picker>label{display:block;font-weight:700;font-size:.8rem;margin-bottom:7px}
+#tab-matriz_capacitacao .ops-training-enroll-picker>input{display:block;width:100%;box-sizing:border-box;margin-bottom:9px}
+#tab-matriz_capacitacao .ops-training-enroll-list{border:1px solid #cdded2;border-radius:9px;max-height:220px;overflow-y:auto;overflow-x:hidden;background:#fff;padding:5px;display:grid;gap:3px;min-width:0}
+#tab-matriz_capacitacao .ops-training-enroll-list .ops-training-enroll-item{display:flex;align-items:center;gap:12px;min-width:0;cursor:pointer;padding:10px 12px;margin:0!important;border-radius:7px;font-size:.87rem}
+#tab-matriz_capacitacao .ops-training-enroll-list .ops-training-enroll-item:hover{background:#f2f7f3}
+#tab-matriz_capacitacao .ops-training-enroll-list .ops-training-enroll-item:has(input:checked){background:#eaf4ed;outline:1px solid #8dbb9b}
+#tab-matriz_capacitacao .ops-training-enroll-list .ops-training-enroll-item[hidden]{display:none!important}
+#tab-matriz_capacitacao .ops-training-enroll-list input[type="radio"]{appearance:auto;width:17px;height:17px;flex:0 0 17px;accent-color:#18543a;margin:0}
+#tab-matriz_capacitacao .ops-training-enroll-list span{display:grid;gap:3px;min-width:0;line-height:1.35;overflow-wrap:anywhere}
+#tab-matriz_capacitacao .ops-training-enroll-list strong{color:#193d2a}
+#tab-matriz_capacitacao .ops-training-enroll-list small{font-size:.8rem;color:#607669}

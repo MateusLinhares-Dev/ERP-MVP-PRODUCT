@@ -3,7 +3,13 @@
 const store=global.Phase1Store;let fiscalParties={},docCategories={};const defaults=['Contrato','NF / Nota Fiscal','Alvará','Certidão','Procuração','Foto','Outros'];defaults.forEach(name=>{const id=name.toUpperCase();docCategories[id]={id,name};});
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 let fiscalPartyLoadId=0;
+let fiscalPartyAccessDenied=false;
 async function initFiscalParties(){
+  if(fiscalPartyAccessDenied){
+    const host=document.getElementById('phase1-fiscal-party-list');
+    if(host)host.textContent='A conta atual não tem permissão de leitura fiscal. Peça ao administrador para conferir canFiscalRead no Firebase.';
+    return;
+  }
   const seq=++fiscalPartyLoadId;
   try{
     // Ao voltar à aba, consultar a fonte atual: Phase1Store mantém cache e a
@@ -14,12 +20,16 @@ async function initFiscalParties(){
     fiscalParties=value&&typeof value==='object'&&!Array.isArray(value)?value:{};
     renderFiscalParties();
   }catch(error){
-    console.warn('[Fiscal] Falha ao atualizar cadastros fiscais:',error);
+    if(/permission_denied|permission denied/i.test(String(error?.message||''))){
+      if(!fiscalPartyAccessDenied)console.warn('[Fiscal] Acesso negado a fiscalParties; confira as claims do usuário e as regras publicadas.');
+      fiscalPartyAccessDenied=true;
+    }else console.warn('[Fiscal] Falha ao atualizar cadastros fiscais:',error);
     const host=document.getElementById('phase1-fiscal-party-list');
-    if(host)host.textContent='Não foi possível consultar os cadastros fiscais. Tente novamente.';
+    if(host)host.textContent=fiscalPartyAccessDenied?'Sem permissão para consultar cadastros fiscais (canFiscalRead).':'Não foi possível consultar os cadastros fiscais. Tente novamente.';
   }
 }
 global.phase1FiscalPartiesReload=initFiscalParties;
+document.addEventListener?.('erp:user-started',()=>{fiscalPartyAccessDenied=false;});
 function ensureFiscalParties(){const tab=document.getElementById('tab-fiscal');if(!tab||document.getElementById('phase1-fiscal-parties'))return;const title=tab.querySelector('.sec-title');const card=document.createElement('details');card.id='phase1-fiscal-parties';card.className='phase1-admin-card';card.innerHTML=`<summary>🧾 Cadastros Fiscais independentes</summary><div class="phase1-fiscal-form"><select id="phase1-fiscal-party-type"><option>Cliente Fiscal</option><option>Fornecedor Fiscal</option></select><input id="phase1-fiscal-party-name" placeholder="Nome / Razão social"><button onclick="phase1FiscalPartySave()">＋ Cadastrar</button></div><div class="phase1-note">Os campos fiscais adicionais não foram inferidos: permanecem aguardando AD-02.</div><div id="phase1-fiscal-party-list"></div>`;title.insertAdjacentElement('afterend',card);initFiscalParties();}
 global.phase1FiscalPartySave=async function(){const type=document.getElementById('phase1-fiscal-party-type')?.value||'Cliente Fiscal',name=String(document.getElementById('phase1-fiscal-party-name')?.value||'').trim();if(!name)return;const id=store.id('FIS');const item={id,type,name,active:true,createdAt:new Date().toISOString()};fiscalParties[id]=item;await store.save('fiscalParties',id,item);document.getElementById('phase1-fiscal-party-name').value='';renderFiscalParties();};
 global.phase1FiscalPartyToggle=async function(id){const item=fiscalParties[id];if(!item)return;item.active=!item.active;await store.save('fiscalParties',id,item);renderFiscalParties();};
@@ -127,39 +137,17 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
     const origin = $('#fmtab-btn-entradas')?.parentElement;
     if (!origin || origin.classList.contains('fis-work-subtabs')) return;
     origin.classList.add('fis-work-subtabs');
-    const btnLabels = {entradas:'Entradas',saidas:'Saídas',despesas:'Despesas',resumo:'Resumo',importar:'Importar',estoque:'Estoque'};
-    Object.entries(btnLabels).forEach(([key, label]) => {
-      const btn = $('#fmtab-btn-' + key);
-      if (btn) btn.textContent = label;
-    });
-    const heading = node('div', 'fis-work-inline-label', 'Tipo de lançamento');
-    origin.prepend(heading);
-    const more = node('details', 'fis-work-more');
-    const summary = node('summary', '', 'Ferramentas fiscais');
-    more.appendChild(summary);
-    const content = node('div', 'fis-work-more-items');
-    more.appendChild(content);
-    ['importar', 'estoque'].forEach(name => {
-      const btn = $('#fmtab-btn-' + name);
-      if (btn) {
-        btn.addEventListener('click', () => {
-          more.open = false;
-          const indicator = $('#fis-work-current-tool');
-          if (indicator) indicator.textContent = name === 'importar' ? 'Importação' : 'Estoque fiscal';
-        });
-        content.appendChild(btn);
-      }
-    });
-    origin.appendChild(more);
-    const indicator = node('span', 'fis-work-tool-indicator');
-    indicator.id = 'fis-work-current-tool';
-    origin.appendChild(indicator);
-    ['entradas', 'saidas', 'despesas', 'resumo'].forEach(name => {
-      $('#fmtab-btn-' + name)?.addEventListener('click', () => {
-        indicator.textContent = '';
-        more.open = false;
-      });
-    });
+    const labels={entradas:'Entradas',saidas:'Saídas',despesas:'Despesas',resumo:'Resumo',estoque:'Estoque'};
+    for(const [name,label] of Object.entries(labels)){
+      const button=$('#fmtab-btn-'+name);
+      if(button)button.textContent=label;
+    }
+    origin.prepend(node('div','fis-work-inline-label','Tipo de lançamento'));
+    const estoque=$('#fmtab-btn-estoque');const resumo=$('#fmtab-btn-resumo');
+    if(estoque&&resumo)resumo.insertAdjacentElement('afterend',estoque);
+    // Preservar o controle legado (handlers antigos podem chamá-lo), mas
+    // a importação está disponível somente em Ferramentas > Importar XML.
+    const old=$('#fmtab-btn-importar');if(old){old.hidden=true;old.setAttribute('aria-hidden','true');old.tabIndex=-1;}
   }
 
   function install() {
@@ -419,9 +407,30 @@ function init(shell){
     button.addEventListener('click',()=>global.FiscalWorkspace?.setArea(id));nav.appendChild(button);
   });
   const xml=section('Importação de notas fiscais','Selecione arquivos XML ou um ZIP com vários XMLs de NF-e modelo 55. O ERP descompacta e apresenta as notas para revisão; nenhuma nota é salva automaticamente.',
-    `<div class="fis-v3-fields"><label>Arquivos XML ou ZIP<input id="fis-v3-xml-file" type="file" accept=".xml,.zip,text/xml,application/xml,application/zip" multiple><small>ZIP de até 32 MB · XML de até 2,5 MB · até 300 XMLs por ZIP.</small></label><label>Destino do lançamento<select id="fis-v3-xml-dest"><option value="entrada">Entrada (compra)</option><option value="saida">Saída (venda)</option></select></label><button id="fis-v3-xml-read" type="button">Ler arquivos</button></div><div id="fis-v3-xml-info" role="status" aria-live="polite"></div><div id="fis-v3-xml-preview" class="fis-v3-xml-batch"></div>`);
+    `<div class="fis-v3-fields fis-v3-xml-fields"><label>Arquivos XML ou ZIP<input id="fis-v3-xml-file" type="file" accept=".xml,.zip,text/xml,application/xml,application/zip" multiple><small>ZIP de até 32 MB · XML de até 2,5 MB · até 300 XMLs por ZIP.</small></label><label>Destino do lançamento<select id="fis-v3-xml-dest"><option value="entrada">Entrada (compra)</option><option value="saida">Saída (venda)</option></select></label><button id="fis-v3-xml-read" type="button">Ler arquivos</button></div><div id="fis-v3-xml-info" role="status" aria-live="polite"></div><div id="fis-v3-xml-preview" class="fis-v3-xml-batch"></div>`);
   xml.id='fis-v3-xml';xml.dataset.fiscalView='xml';shell.append(xml);
   $('#fis-v3-xml-read').onclick=readXML;
+  // Reaproveitar o importador de extratos Conta Azul. Seus IDs e eventos
+  // originais permanecem no DOM e somente a apresentação muda de lugar.
+  const legacyImport=$('#fmtab-importar');
+  if(legacyImport){
+    const details=node('details','fis-v3-legacy-import');
+    details.appendChild(node('summary','','Importar extrato do Conta Azul (CSV / Excel)'));
+    const host=node('div','fis-v3-legacy-import-body');
+    while(legacyImport.firstChild)host.appendChild(legacyImport.firstChild);
+    details.appendChild(host);xml.appendChild(details);
+    const legacyFile=$('#fiscal-file-input',host);
+    if(legacyFile)legacyFile.accept='.csv,.xlsx,.xls';
+    const drop=host.querySelector('#fiscal-drop-zone');
+    drop?.addEventListener('drop',event=>{
+      if(Array.from(event.dataTransfer?.files||[]).some(file=>!/\.(csv|xlsx|xls)$/i.test(file.name||''))){
+        event.preventDefault();event.stopImmediatePropagation();
+        message('#fis-v3-xml-info','Arquivos XML/ZIP devem ser lidos no primeiro formulário desta página.',true);
+      }
+    },true);
+    const description=host.querySelector('#fiscal-drop-zone div:last-child');
+    if(description)description.textContent='Extratos financeiros em CSV ou XLSX. Para NF-e XML/ZIP, use a seção acima.';
+  }
   const estoque=section('Estoque inicial da apuração','Defina o estoque inicial em R$ para janeiro do ano selecionado. Os meses seguintes são calculados a partir do estoque final anterior.',
     `<div class="fis-v3-fields"><label>Ano da apuração<input id="fis-v3-stock-year" type="number" min="2020" max="2100"></label><label>Estoque inicial de janeiro (R$)<input id="fis-v3-stock-value" inputmode="decimal" placeholder="0,00"></label><button id="fis-v3-stock-save" type="button">Salvar estoque inicial</button></div><div id="fis-v3-stock-info" role="status"></div>`);
   estoque.id='fis-v3-estoque-inicial';estoque.dataset.fiscalView='estoque-inicial';shell.append(estoque);

@@ -16834,9 +16834,28 @@ const _syncAlxNotas = _criarSincroniaPorChave('alxNotas', ALX_NOTAS, 'AN');
 let CHAT_MSGS      = [];
 function saveAlmoxa(){ fbSalvar(); localStorage.setItem('mm_almoxa',JSON.stringify(ALX_ITENS)); localStorage.setItem('mm_almoxaMov',JSON.stringify(ALX_MOV)); localStorage.setItem('mm_alxNotas',JSON.stringify(ALX_NOTAS)); }
 function loadAlmoxaLocal(){ if(window.__FB_DATA_READY__===true) return; try{ const a=localStorage.getItem('mm_almoxa');if(a){ ALX_ITENS.length=0; JSON.parse(a).forEach(x=>ALX_ITENS.push(x)); } const m=localStorage.getItem('mm_almoxaMov');if(m){ ALX_MOV.length=0; JSON.parse(m).forEach(x=>ALX_MOV.push(x)); } const n=localStorage.getItem('mm_alxNotas');if(n){ ALX_NOTAS.length=0; JSON.parse(n).forEach(x=>ALX_NOTAS.push(x)); } }catch(e){} }
-function saveContasPagar(){   fbSalvar(); localStorage.setItem('mm_cp', JSON.stringify(CONTAS_PAGAR)); }
+function saveContasPagar(){
+  try{const serialized=JSON.stringify(CONTAS_PAGAR);if(serialized.length<1024*1024)localStorage.setItem('mm_cp',serialized);else localStorage.removeItem('mm_cp');}
+  catch(e){console.warn('[Contas a pagar] Cache local indisponível.',e);}
+  if(typeof fbSalvar==='function')fbSalvar();
+}
 function saveContasReceber(){ localStorage.setItem('mm_cr', JSON.stringify(CONTAS_RECEBER)); try{fbSalvar();}catch(e){} }
-function saveContratos(){     fbSalvar(); localStorage.setItem('mm_contratos', JSON.stringify(CONTRATOS_DB)); }
+function saveContratos(){
+  // O Firebase é a fonte de verdade. O cache local é apenas uma otimização;
+  // anexos antigos (data URLs) nunca devem esgotar o armazenamento do navegador.
+  try {
+    const cache=CONTRATOS_DB.map(function(c){
+      if(!c || typeof c!=='object')return c;
+      const item={...c};delete item.arquivoBase64;return item;
+    });
+    const serialized=JSON.stringify(cache);
+    if(serialized.length<=1024*1024)localStorage.setItem('mm_contratos',serialized);
+    else localStorage.removeItem('mm_contratos');
+  }catch(error){
+    console.warn('[Contratos] Cache do navegador indisponível. A nuvem continua sendo a fonte de dados.',error);
+  }
+  if(typeof fbSalvar==='function')fbSalvar();
+}
 function loadContas(){
   try{
     const cp=localStorage.getItem('mm_cp'); if(cp) CONTAS_PAGAR=JSON.parse(cp);
@@ -17442,92 +17461,105 @@ function popularDatalistContrato(){
   const inp=document.getElementById('ct-forn'); if(inp) inp.setAttribute('list','ct-forn-list');
 }
 
-function salvarContrato(){
-  const desc=(document.getElementById('ct-desc')?.value||'').trim();
-  const valor=parseFloat(document.getElementById('ct-valor')?.value)||0;
-  if(!desc){alert('Informe a descrição do contrato!');return;}
-  const hoje=_hojeISO();
+let _contratoSalvamentoEmAndamento=false;
+async function salvarContrato(){
+  // Bloqueio síncrono: duplo clique / FileReader não podem criar contratos repetidos.
+  if(_contratoSalvamentoEmAndamento)return;
+  const button=document.querySelector('#modal-body .btn-save[onclick*="salvarContrato"]')||document.querySelector('#modal-body .btn-save');
+  const value=id=>String(document.getElementById(id)?.value||'').trim();
+  const desc=value('ct-desc'),forn=value('ct-forn'),ini=value('ct-ini'),fim=value('ct-fim');
+  const valor=Number(value('ct-valor')||0);
   const lancOpt=document.querySelector('input[name="ct-lanc"]:checked')?.value||'nao';
-  const fileEl=document.getElementById('ct-arquivo');
-  const file=fileEl&&fileEl.files&&fileEl.files[0]?fileEl.files[0]:null;
-  if(file&&file.size>20*1024*1024){alert('Arquivo muito grande. Máximo: 20 MB.');return;}
-
-  const _finalizarSalvar=(arquivoBase64,arquivoNome,arquivoMime)=>{
-    const contrato={
-      id: 'CT'+Date.now(),
-      desc, valor,
-      forn:    (document.getElementById('ct-forn')?.value||'').trim(),
-      ini:     document.getElementById('ct-ini')?.value||'',
-      fim:     document.getElementById('ct-fim')?.value||'',
-      debito:  document.getElementById('ct-debito')?.value||'Não',
-      banco:   document.getElementById('ct-banco')?.value||'',
-      obs:     (document.getElementById('ct-obs')?.value||'').trim(),
-      lanc:    lancOpt,
-      dataCad: hoje,
-      arquivoBase64: arquivoBase64||'',
-      arquivoNome:   arquivoNome||'',
-      arquivoMime:   arquivoMime||''
-    };
-    CONTRATOS_DB.push(contrato);
-
-    if(lancOpt==='avista'){
-      const venc=document.getElementById('ct-av-venc')?.value;
-      if(!venc){alert('Informe a data de vencimento!');return;}
-      const cat=(document.getElementById('ct-av-cat')?.value||'Outros').trim();
-      const bancoCod=contrato.banco;
-      const bancoNome=bancoCod?((BANCOS_DB&&BANCOS_DB.find(b=>b.cod===bancoCod)?.banco)||''):'';
-      const hojeFmt=hoje.split('-').reverse().join('/');
-      CONTAS_PAGAR.push({ id:_novoIdCP(),
-        lancto:hojeFmt, desc:desc, cred:contrato.forn, cat, bancoCod, bancoNome,
-        venc:venc.split('-').reverse().join('/'), valor,
-        status:'Pendente', dataPgto:'', obs:'Contrato: '+desc,
-        contratoId:contrato.id
-      });
-      saveContasPagar(); renderContasPagar();
-    } else if(lancOpt==='parcelado'){
-      const nparc=parseInt(document.getElementById('ct-nparc')?.value)||1;
-      const dia=parseInt(document.getElementById('ct-diaparc')?.value)||10;
-      const mesVal=document.getElementById('ct-mesparc')?.value;
-      if(!mesVal||nparc<1){alert('Preencha o mês da 1ª parcela e número de parcelas!');return;}
-      const cat=(document.getElementById('ct-parc-cat')?.value||'Outros').trim();
-      const bancoCod=contrato.banco;
-      const bancoNome=bancoCod?((BANCOS_DB&&BANCOS_DB.find(b=>b.cod===bancoCod)?.banco)||''):'';
-      const hojeFmt=hoje.split('-').reverse().join('/');
-      const [anoI,mesI]=mesVal.split('-').map(Number);
-      for(let i=0;i<nparc;i++){
-        let m=mesI+i; let a=anoI+Math.floor((m-1)/12); m=((m-1)%12)+1;
-        const dv=Math.min(dia,new Date(a,m,0).getDate());
-        const vencFmt=String(dv).padStart(2,'0')+'/'+String(m).padStart(2,'0')+'/'+a;
-        CONTAS_PAGAR.push({ id:_novoIdCP(),
-          lancto:hojeFmt, desc:desc+' ('+(i+1)+'/'+nparc+')',
-          cred:contrato.forn, cat, bancoCod, bancoNome,
-          venc:vencFmt, valor, status:'Pendente', dataPgto:'',
-          obs:'Contrato: '+desc, contratoId:contrato.id
-        });
-      }
-      saveContasPagar(); renderContasPagar();
+  const file=document.getElementById('ct-arquivo')?.files?.[0]||null;
+  const validDate=v=>!v||/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v+'T12:00:00Z'));
+  if(!desc||desc.length>240){showToast('Informe uma descrição de até 240 caracteres.','error');return;}
+  if(!Number.isFinite(valor)||valor<0||valor>1e12){showToast('Informe um valor válido para o contrato.','error');return;}
+  if(!validDate(ini)||!validDate(fim)||(ini&&fim&&fim<ini)){showToast('Confira as datas de início e fim do contrato.','error');return;}
+  if(!['nao','avista','parcelado'].includes(lancOpt)){showToast('Selecione um lançamento válido.','error');return;}
+  if(file&&(file.size<1||file.size>20*1024*1024||!['application/pdf','image/png','image/jpeg','image/webp'].includes(file.type))){showToast('Anexe somente PDF, JPG, PNG ou WebP de até 20 MB.','error');return;}
+  const venc=value('ct-av-venc'),month=value('ct-mesparc');
+  const installments=Number(value('ct-nparc')||0),day=Number(value('ct-diaparc')||0);
+  if(lancOpt==='avista'&&(!validDate(venc)||!venc)){showToast('Informe a data de vencimento para o lançamento à vista.','error');return;}
+  if(lancOpt==='parcelado'&&(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)||!Number.isInteger(installments)||installments<1||installments>120||!Number.isInteger(day)||day<1||day>31)){
+    showToast('Informe mês inicial, dia de vencimento e de 1 a 120 parcelas válidas.','error');return;
+  }
+  const db=window._fbDB;
+  if(!db||window.__FB_DATA_READY__!==true){showToast('A sincronização com o Firebase não terminou. Tente novamente quando estiver conectado.','error');return;}
+  // Um ID por tentativa, mesmo se a conexão cair após o servidor confirmar a gravação.
+  const isRetry=Boolean(button?.dataset.contractPendingId);
+  const id=button?.dataset.contractPendingId||'CT'+(window.crypto?.randomUUID?.().replace(/-/g,'')||Date.now().toString(36)+Math.random().toString(36).slice(2));
+  if(button)button.dataset.contractPendingId=id;
+  _contratoSalvamentoEmAndamento=true;
+  if(button){button.disabled=true;button.textContent='Salvando...';}
+  const status=document.getElementById('ct-arquivo-status');
+  let storageRef=null,storagePath='';
+  let uploadedNow=false,committed=false;
+  try{
+    const contrato={id,desc,valor,forn,ini,fim,debito:value('ct-debito')||'Não',banco:value('ct-banco'),obs:value('ct-obs'),lanc:lancOpt,
+      dataCad:_hojeISO(),arquivoBase64:'',arquivoNome:file?.name||'',arquivoMime:file?.type||'',arquivoStoragePath:''};
+    // Se a conexão caiu depois da gravação anterior, a repetição NÃO cria outro contrato.
+    if(isRetry){
+      const previous=await db.ref('erp/contratos/'+id).once('value');
+      if(previous.val()?.id===id)throw Error('Este contrato já consta no Firebase. Atualize a lista antes de cadastrar novamente.');
     }
-
-    saveContratos(); renderContratos();
-    try{renderFluxo();}catch(e){}
-    try{renderDashboard();}catch(e){}
-    cm();
-    const msg=lancOpt==='avista'?'Contrato cadastrado e lançado à vista em Contas a Pagar!'
-             :lancOpt==='parcelado'?'Contrato cadastrado e '+nparc+' parcela(s) gerada(s)!'
-             :'Contrato cadastrado'+(arquivoNome?' com arquivo anexado':'')+'!';
-    showToast('✅ '+msg,'success');
-  }; 
-
-  
-  if(file){
-    const statusEl=document.getElementById('ct-arquivo-status');
-    if(statusEl) statusEl.textContent='Carregando arquivo...';
-    const reader=new FileReader();
-    reader.onload=e=>_finalizarSalvar(e.target.result, file.name, file.type||'application/octet-stream');
-    reader.onerror=()=>{ alert('Erro ao ler o arquivo. Salve sem anexo ou tente novamente.'); };
-    reader.readAsDataURL(file);
-  } else {
-    _finalizarSalvar('','','');
+    if(file){
+      if(!window.__fbRaw?.storage)throw Error('Armazenamento de anexos indisponível. Nenhuma alteração foi gravada.');
+      const ext={'application/pdf':'pdf','image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[file.type];
+      storagePath='erp-files/contracts/'+id+'/document.'+ext;
+      storageRef=window.__fbRaw.storage.ref(storagePath);
+      if(status)status.textContent='Enviando documento com acesso restrito...';
+      // Em uma repetição após falha de rede, reaproveitar o mesmo objeto já enviado.
+      let existing=false;
+      if(typeof storageRef.getMetadata==='function'){
+        try{const meta=await storageRef.getMetadata();
+          if(Number(meta.size)!==file.size||meta.contentType!==file.type)throw Error('Outro anexo já utiliza esta tentativa. Feche e abra Novo Contrato novamente.');
+          existing=true;
+        }catch(error){if(error.code!=='storage/object-not-found')throw error;}
+      }
+      if(!existing){await storageRef.put(file,{contentType:file.type});uploadedNow=true;}
+      contrato.arquivoStoragePath=storagePath;
+    }
+    const contas=[];
+    const hojeFmt=contrato.dataCad.split('-').reverse().join('/');
+    const bankCode=contrato.banco;
+    const bankName=bankCode?((BANCOS_DB||[]).find(b=>b.cod===bankCode)?.banco||''):'';
+    const base={cred:forn,bancoCod:bankCode,bancoNome:bankName,valor,status:'Pendente',dataPgto:'',contratoId:id};
+    if(lancOpt==='avista'){
+      contas.push({...base,id:'CP'+id.slice(2)+'_1',lancto:hojeFmt,desc,cat:value('ct-av-cat')||'Outros',venc:venc.split('-').reverse().join('/'),obs:'Contrato: '+desc});
+    }
+    if(lancOpt==='parcelado'){
+      const [year,initialMonth]=month.split('-').map(Number);
+      for(let i=0;i<installments;i++){
+        const absolute=year*12+(initialMonth-1)+i;
+        const y=Math.floor(absolute/12),m=absolute%12+1;
+        const end=new Date(Date.UTC(y,m,0)).getUTCDate();
+        const due=String(Math.min(day,end)).padStart(2,'0')+'/'+String(m).padStart(2,'0')+'/'+y;
+        contas.push({...base,id:'CP'+id.slice(2)+'_'+(i+1),lancto:hojeFmt,desc:desc+' ('+(i+1)+'/'+installments+')',cat:value('ct-parc-cat')||'Outros',venc:due,obs:'Contrato: '+desc});
+      }
+    }
+    // Contrato e parcelas entram no RTDB num único update atômico.
+    // O sucesso visual depende da confirmação remota, não do localStorage.
+    const patch={['contratos/'+id]:contrato};
+    for(const cp of contas)patch['contasPagar/'+cp.id]=cp;
+    await db.ref('erp').update(patch);
+    committed=true;
+    if(!CONTRATOS_DB.some(c=>c?.id===id))CONTRATOS_DB.push(contrato);
+    for(const cp of contas)if(!CONTAS_PAGAR.some(c=>c?.id===cp.id))CONTAS_PAGAR.push(cp);
+    try{saveContratos();if(contas.length)saveContasPagar();}catch(e){console.warn('Registro remoto confirmado; falha de cache secundário.',e);}
+    try{renderContratos();if(contas.length)renderContasPagar();renderFluxo();renderDashboard();}catch(e){console.warn('Contrato gravado; falha ao atualizar tela.',e);}
+    if(status)status.textContent='Documento e contrato gravados com sucesso.';
+    try{cm();}catch(e){}
+    showToast(contas.length?'Contrato salvo e '+contas.length+' lançamento(s) criado(s) em Contas a Pagar.':'Contrato salvo no Firebase.','success');
+  }catch(error){
+    console.error('[Contratos] Falha no salvamento:',error);
+    // Falha de rede pode ocorrer DEPOIS de o Firebase aceitar o update. Não
+    // apagar o anexo: ele pode já estar vinculado a um contrato confirmado.
+    if(uploadedNow&&!committed)console.warn('[Contratos] Confira o registro remoto antes de remover eventual anexo pendente:',storagePath);
+    if(status)status.textContent='Falha: contrato não confirmado. Confira a lista antes de tentar novamente.';
+    showToast('Não foi possível confirmar o contrato no Firebase: '+String(error?.message||'erro desconhecido').slice(0,160),'error');
+  }finally{
+    _contratoSalvamentoEmAndamento=false;
+    if(button){button.disabled=false;button.textContent='💾 Salvar';if(committed)delete button.dataset.contractPendingId;}
   }
 }
 
@@ -17564,23 +17596,32 @@ function renderContratos(){
       '<td style="font-size:.78rem">'+esc(lancLabel[c.lanc]||'—')+'</td>'+
       '<td style="font-size:.75rem;max-width:160px">'+esc(c.obs||'—')+'</td>'+
       '<td style="white-space:nowrap">'+
-        (c.arquivoBase64?'<button class="btn-edit" onclick="ctVerArquivo('+i+')" title="Ver arquivo anexado" style="background:#0277bd;color:#fff;margin-right:4px">📄</button>':'') +
+        ((c.arquivoBase64||c.arquivoStoragePath)?'<button class="btn-edit" onclick="ctVerArquivo('+i+')" title="Ver arquivo anexado" style="background:#0277bd;color:#fff;margin-right:4px">📄</button>':'') +
         '<button class="btn-edit-danger" onclick="excluirContrato('+i+')" title="Excluir">🗑️</button>'+
       '</td>'+
     '</tr>';
   }).join('');
 }
 
-function excluirContrato(idx){
-  if(!confirm('Excluir contrato "'+esc(CONTRATOS_DB[idx]?.desc)+'"?\n\nAtenção: parcelas já lançadas em Contas a Pagar NÃO serão removidas automaticamente.')) return;
-  _syncContratos.remover(idx);
-  saveContratos(); renderContratos();
-  showToast('Contrato excluído.','success');
+async function excluirContrato(idx){
+  const c=CONTRATOS_DB[idx];if(!c?.id)return;
+  if(!confirm('Excluir contrato "'+esc(c.desc)+'"?\n\nAs parcelas já lançadas em Contas a Pagar NÃO serão removidas.'))return;
+  const db=window._fbDB;
+  if(!db||window.__FB_DATA_READY__!==true){showToast('Sem sincronização com o Firebase. Contrato não excluído.','error');return;}
+  try{
+    await db.ref('erp/contratos/'+c.id).remove();
+    const current=CONTRATOS_DB.findIndex(item=>item?.id===c.id);
+    if(current>=0)_syncContratos.remover(current);
+    saveContratos();renderContratos();
+    if(c.arquivoStoragePath){try{await window.__fbRaw?.storage?.ref(c.arquivoStoragePath).delete();}catch(error){console.warn('Contrato removido, mas o anexo precisa de limpeza autorizada.',error);}}
+    showToast('Contrato removido do Firebase. As parcelas financeiras permanecem intactas.','success');
+  }catch(error){console.error('[Contratos] Erro ao excluir:',error);showToast('A exclusão não foi confirmada no Firebase. Tente novamente.','error');}
 }
 
 function ctVerArquivo(idx){
   const c=CONTRATOS_DB[idx];
-  if(!c||!c.arquivoBase64){showToast('Nenhum arquivo anexado.','error');return;}
+  if(!c||(!c.arquivoBase64&&!c.arquivoStoragePath)){showToast('Nenhum arquivo anexado.','error');return;}
+  if(c.arquivoStoragePath){const popup=window.open('','_blank');if(!popup){showToast('Permita popups para visualizar o anexo.','error');return;}window.__fbRaw?.storage?.ref(c.arquivoStoragePath).getDownloadURL().then(url=>{popup.location.href=url;}).catch(error=>{popup.close();console.error(error);showToast('Você não tem acesso ao anexo ou ele não está disponível.','error');});return;}
   const win=window.open('','_blank');
   if(!win){showToast('Permita popups para visualizar o arquivo.','error',5000);return;}
   if(c.arquivoMime&&c.arquivoMime.startsWith('image/')){

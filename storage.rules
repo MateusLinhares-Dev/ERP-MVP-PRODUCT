@@ -80,6 +80,26 @@ service firebase.storage {
     }
 
     // Certificados da matriz: a gestão é exclusiva da administradora Elaine.
+    // Contratos novos: anexos permanecem no Storage e não ocupam localStorage/RTDB.
+    match /erp-files/contracts/{contractId}/{fileName} {
+      function contractScope() {
+        return authenticated()
+          && request.auth.token.canContracts == true
+          && contractId.matches('CT[A-Za-z0-9_-]{10,80}')
+          && fileName.matches('document[.](pdf|jpg|png|webp)');
+      }
+      allow read: if contractScope();
+      allow create: if contractScope()
+        && request.resource.size > 0
+        && request.resource.size <= 20 * 1024 * 1024
+        && ((fileName == 'document.pdf' && request.resource.contentType == 'application/pdf')
+          || (fileName == 'document.jpg' && request.resource.contentType == 'image/jpeg')
+          || (fileName == 'document.png' && request.resource.contentType == 'image/png')
+          || (fileName == 'document.webp' && request.resource.contentType == 'image/webp'));
+      allow update: if false;
+      allow delete: if contractScope();
+    }
+
     match /erp-files/training/{enrollmentId}/{fileName} {
       function trainingManager() {
         return authenticated()

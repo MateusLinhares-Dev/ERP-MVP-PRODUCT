@@ -134,3 +134,18 @@
 #fis-v3-xml-file {max-width:100%;}
 #fis-v3-xml-file + small {display:block;margin-top:5px;color:#698075;font-size:.73rem;line-height:1.5;}
 @media(max-width:850px){.fis-v3-xml-row{grid-template-columns:1fr auto;}.fis-v3-xml-row-main{grid-column:1/-1;}}
+
+/* Importadores unificados: XML/ZIP e Conta Azul em uma única área. */
+#tab-fiscal #fmtab-btn-importar[hidden]{display:none!important}
+#tab-fiscal .fis-v3-xml-fields{grid-template-columns:minmax(0,1.2fr) minmax(0,.9fr) auto;align-items:end;gap:14px}
+#tab-fiscal .fis-v3-xml-fields label{min-width:0;overflow-wrap:anywhere}
+#tab-fiscal .fis-v3-xml-fields label input[type="file"]{font-size:.79rem;padding:9px 10px;min-height:42px;overflow:hidden;text-overflow:ellipsis}
+#tab-fiscal .fis-v3-xml-fields label small{font-weight:400}
+#tab-fiscal .fis-v3-xml-fields button{min-width:130px;min-height:42px;align-self:end;white-space:nowrap}
+#tab-fiscal .fis-v3-legacy-import{border:1px solid #d9e7db;border-radius:10px;margin:20px 0 0;overflow:hidden}
+#tab-fiscal .fis-v3-legacy-import summary{cursor:pointer;padding:13px 16px;background:#f5f9f6;color:#24563d;font-size:.86rem;font-weight:750}
+#tab-fiscal .fis-v3-legacy-import-body{padding:14px;min-width:0}
+#tab-fiscal .fis-v3-legacy-import-body>div{box-shadow:none!important;padding:5px!important}
+#tab-fiscal .fis-v3-legacy-import-body #fiscal-drop-zone{padding:20px!important}
+@media(max-width:880px){#tab-fiscal .fis-v3-xml-fields{grid-template-columns:repeat(2,minmax(0,1fr))}#tab-fiscal .fis-v3-xml-fields button{grid-column:1/-1}}
+@media(max-width:560px){#tab-fiscal .fis-v3-xml-fields{grid-template-columns:1fr}}

@@ -640,8 +640,9 @@ if(typeof originalSaveTripPhase2==='function')global.salvarViagem=function(){
 
 /* ---------- Fiscal independente completo ---------- */
 let fiscalParties={};
-let fiscalLiveRef=null,fiscalLoadSeq=0;
+let fiscalLiveRef=null,fiscalLoadSeq=0,fiscalReadDenied=false;
 async function loadFiscalParties(){
+ if(fiscalReadDenied){const host=$('#p2fis-list');if(host)host.textContent='Sem permissão fiscal para consultar cadastros (canFiscalRead). Solicite revisão do acesso.';return;}
  const seq=++fiscalLoadSeq;
  const db=global._fbDB||global.__fbRaw?.db;
  if(db?.ref){
@@ -649,16 +650,21 @@ async function loadFiscalParties(){
    if(!fiscalLiveRef){
      fiscalLiveRef=ref;
      // Sincronizar a lista de clientes E fornecedores em tempo real, sem precisar de F5.
-     ref.on('value',snapshot=>{const value=snapshot.val();fiscalParties=value&&typeof value==='object'&&!Array.isArray(value)?value:{};renderFiscalRegistry();},error=>{
-       console.error('[Fiscal] Sincronização dos cadastros falhou:',error);
-       const host=$('#p2fis-list');if(host)host.textContent='Não foi possível sincronizar os cadastros fiscais. Verifique o acesso e tente atualizar.';
+     const onValue=snapshot=>{const value=snapshot.val();fiscalParties=value&&typeof value==='object'&&!Array.isArray(value)?value:{};renderFiscalRegistry();};
+     const onError=error=>{
+       const denied=/permission_denied|permission denied/i.test(String(error?.message||''));
+       if(denied){fiscalReadDenied=true;console.warn('[Fiscal] Acesso negado a fiscalParties; confira canFiscalRead.');}
+       else console.error('[Fiscal] Sincronização dos cadastros falhou:',error);
+       try{ref.off('value',onValue);}catch(_){}
+       const host=$('#p2fis-list');if(host)host.textContent=denied?'Sem permissão para ler cadastros fiscais (canFiscalRead).':'Não foi possível sincronizar os cadastros fiscais.';
        fiscalLiveRef=null;
-     });
+     };
+     ref.on('value',onValue,onError);
    }
    try{
      const snapshot=await ref.once('value');if(seq!==fiscalLoadSeq)return;
      const value=snapshot.val();fiscalParties=value&&typeof value==='object'&&!Array.isArray(value)?value:{};renderFiscalRegistry();
-   }catch(error){console.error('[Fiscal] Leitura dos cadastros:',error);const host=$('#p2fis-list');if(host)host.textContent='Falha ao carregar cadastros fiscais. Atualize a aba.';}
+   }catch(error){const denied=/permission_denied|permission denied/i.test(String(error?.message||''));if(denied){fiscalReadDenied=true;}else console.error('[Fiscal] Leitura dos cadastros:',error);const host=$('#p2fis-list');if(host)host.textContent=denied?'Sem permissão para ler cadastros fiscais (canFiscalRead).':'Falha ao carregar cadastros fiscais. Atualize a aba.';}
    return;
  }
  if(store){try{const value=await store.load('fiscalParties',{});if(seq!==fiscalLoadSeq)return;fiscalParties=value||{};renderFiscalRegistry();}catch(error){console.error('[Fiscal] Cache indisponível:',error);}}
@@ -773,7 +779,7 @@ function addContractRenameButtons(){
   const body=$('#tb-contratos');if(!body)return;
   Array.from(body.rows).forEach((row,i)=>{
     const c=phase2ContractAt(i);
-    if(!c?.arquivoBase64)return;
+    if(!c?.arquivoBase64&&!c?.arquivoStoragePath)return;
     const cell=row.cells[row.cells.length-1];if(!cell)return;
     if(!row.querySelector('.phase2-contract-rename')){
       const b=document.createElement('button');
@@ -800,7 +806,7 @@ function addContractRenameButtons(){
 }
 global.phase2ContractRename=async function(i,button){
   const c=phase2ContractAt(i);
-  if(!c?.arquivoBase64){notify('Este contrato não possui anexo.','error');return false;}
+  if(!c?.arquivoBase64&&!c?.arquivoStoragePath){notify('Este contrato não possui anexo.','error');return false;}
   const oldName=phase2ContractName(c);
   const dot=oldName.lastIndexOf('.');
   const base=dot>0?oldName.slice(0,dot):oldName;
@@ -826,7 +832,7 @@ global.phase2ContractRename=async function(i,button){
     // O anexo é um data URL salvo no RTDB; alterar apenas o nome não reenvia os bytes.
     await db.ref('erp/contratos/'+id).update({arquivoNome:newName});
     c.arquivoNome=newName;
-    try{localStorage.setItem('mm_contratos',JSON.stringify(CONTRATOS_DB));}catch(e){console.warn('Cache local de contratos indisponível, nome salvo no Firebase.',e);}
+    try{const cache=CONTRATOS_DB.map(item=>{const copy={...item};delete copy.arquivoBase64;return copy;});const serialized=JSON.stringify(cache);if(serialized.length<1024*1024)localStorage.setItem('mm_contratos',serialized);}catch(e){console.warn('Cache local de contratos indisponível, nome salvo no Firebase.',e);}
     try{
       if(typeof renderContratos==='function')renderContratos();
       addContractRenameButtons();
@@ -841,7 +847,17 @@ global.phase2ContractRename=async function(i,button){
 };
 global.phase2ContractDownload=function(i){
   const c=phase2ContractAt(i);
-  if(!c?.arquivoBase64){notify('Arquivo não encontrado.','error');return false;}
+  if(!c?.arquivoBase64&&!c?.arquivoStoragePath){notify('Arquivo não encontrado.','error');return false;}
+  if(c.arquivoStoragePath){
+    const ref=global.__fbRaw?.storage?.ref(c.arquivoStoragePath);
+    if(!ref){notify('Armazenamento indisponível.','error');return false;}
+    return ref.getDownloadURL().then(url=>fetch(url)).then(response=>{
+      if(!response.ok)throw Error('Falha ao baixar anexo.');return response.blob();
+    }).then(blob=>{
+      const link=URL.createObjectURL(blob),a=document.createElement('a');a.href=link;a.download=phase2ContractName(c);
+      document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(link),60000);return true;
+    }).catch(error=>{console.error(error);notify('Não foi possível baixar o anexo com as permissões atuais.','error');return false;});
+  }
   try{
     const data=String(c.arquivoBase64);
     if(!data.startsWith('data:')||!data.includes(','))throw new Error('Formato do anexo inválido');
@@ -1021,7 +1037,7 @@ function apply(){
 }
 if(global.Phase1Dom)global.Phase1Dom.register(apply);else setInterval(apply,1000);
 setTimeout(()=>{apply();ensureOwnerModule();loadFiscalParties();},350);
-document.addEventListener('erp:user-started',()=>setTimeout(()=>{apply();ensureOwnerModule();},700));
+document.addEventListener('erp:user-started',()=>{fiscalReadDenied=false;setTimeout(()=>{apply();ensureOwnerModule();},700);});
 
 global.Phase2Feedback=Object.freeze({apply,chequeSequenceByBank,isDiscreteItem,isEpiItem,tripCostParts:phase2TripCostParts,tripMonthlyReport:phase2TripMonthlyReport});
 })(window);
