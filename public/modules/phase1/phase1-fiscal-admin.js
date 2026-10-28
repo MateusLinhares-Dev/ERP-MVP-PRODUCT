@@ -49,7 +49,7 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
   function setArea(area, report) {
     const root = $('#fiscal-workspace');
     if (!root) return;
-    currentArea = ['lancamentos', 'apuracao', 'cadastros'].includes(area) ? area : 'lancamentos';
+    currentArea = ['lancamentos', 'apuracao', 'cadastros','xml','estoque-inicial','devolucoes','documentos','custos-rh'].includes(area) ? area : 'lancamentos';
     if (report && ['anual', 'impostos', 'apuracao'].includes(report)) currentReport = report;
     root.querySelectorAll('[data-fiscal-area]').forEach(btn => {
       const active = btn.dataset.fiscalArea === currentArea;
@@ -70,6 +70,7 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
       btn.classList.toggle('is-current', active);
       btn.setAttribute('aria-pressed', String(active));
     });
+    global.FiscalExtensions?.onAreaChange(currentArea);
     // Não alteramos empresa, competência ou estado das notas ao trocar de área.
   }
 
@@ -261,6 +262,7 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
       directory.appendChild(footer);
     }
     shell.appendChild(directory);
+    global.FiscalExtensions?.install(shell);
     if (title) {
       title.classList.add('fis-work-legacy-title');
       title.insertAdjacentElement('afterend', shell);
@@ -352,4 +354,287 @@ h2{font-size:14px;color:#174b32;margin:23px 0 9px;}table{border-collapse:collaps
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, {once:true});
   else install();
   document.addEventListener('erp:ready', install);
+})(window);
+
+(function(global){
+'use strict';
+// Extensões do Fiscal. Preservam os formulários, cálculos e persistência legados.
+const $=(s,r=document)=>r.querySelector(s);
+const money=n=>'R$ '+(Number(n)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const node=(tag,cls,text)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;};
+const company=()=>global.FiscalWorkspacePrint?.selectedFiscalCompany?.()||'manuela';
+const year=()=>Number($('#fiscal-sel-ano')?.value)||new Date().getFullYear();
+const month=()=>String($('#fiscal-sel-mes')?.value||new Date().getMonth()+1).padStart(2,'0');
+const fiscalPrefix=()=>typeof _fPfx==='function'?_fPfx():(company()==='gratus'?'gratus_':'');
+const fiscalKey=()=>fiscalPrefix()+year()+'-'+month();
+const apurKey=(y=year())=>fiscalPrefix()+y;
+const db=()=>global._fbDB;
+const storage=()=>global.__fbRaw?.storage;
+function message(host,text,bad=false){const e=$(host);if(e){e.textContent=text;e.classList.toggle('fis-v3-error',bad);}}
+function requireOnline(){if(!db())throw Error('Sem conexão autenticada ao Firebase. Não foi realizada nenhuma gravação.');}
+async function claims(){const auth=global.__fbRaw?.auth;if(!auth?.currentUser)throw Error('Sessão expirada. Entre novamente.');return (await auth.currentUser.getIdTokenResult()).claims||{};}
+async function allowWrite(){const c=await claims();if(c.erpAccess!==true||c.canFiscalWrite!==true)throw Error('Seu perfil não permite alterar dados fiscais.');}
+function readonly(v){return document.createTextNode(v==null?'':String(v));}
+function section(title,desc,html){const e=node('section','fis-v3-panel');e.innerHTML='<h3>'+esc(title)+'</h3><p>'+esc(desc)+'</p>'+html;return e;}
+function datePt(s){if(!s)return '';return /^\d{4}-\d{2}-\d{2}$/.test(s)?s.slice(8)+'/'+s.slice(5,7)+'/'+s.slice(0,4):s;}
+function numeric(s){const n=Number(String(s||'0').replace(',','.'));return Number.isFinite(n)?n:NaN;}
+function amt(s){const n=numeric(s);if(!Number.isFinite(n)||n<0||n>1e12)throw Error('Informe um valor monetário válido.');return Math.round(n*100)/100;}
+function moneyInput(raw){const s=String(raw||'').trim().replace(/\s|R\$/g,'');return s.includes(',')?s.replace(/\./g,'').replace(',','.'):s;}
+const uuid=()=>global.crypto?.randomUUID?.()||('id'+Date.now()+'_'+Math.random().toString(36).slice(2));
+function init(shell){
+  const areas=[
+    ['xml','Importar XML'],['estoque-inicial','Estoque inicial'],
+    ['devolucoes','NF de devolução'],['documentos','Documentos fiscais'],['custos-rh','Custos por funcionário']
+  ];
+  const nav=$('.fis-work-mainnav',shell);if(!nav||$('#fis-v3-xml'))return;
+  areas.forEach(([id,title])=>{
+    const button=node('button','fis-work-mainbutton',title);button.type='button';button.setAttribute('role','tab');button.dataset.fiscalArea=id;
+    button.addEventListener('click',()=>global.FiscalWorkspace?.setArea(id));nav.appendChild(button);
+  });
+  const xml=section('Importação de nota fiscal eletrônica','Importe NF-e modelo 55. Revise os dados antes de registrar: o arquivo não gera lançamento ou estoque automaticamente.',
+    `<div class="fis-v3-fields"><label>Arquivo XML da NF-e<input id="fis-v3-xml-file" type="file" accept=".xml,text/xml,application/xml"></label><label>Destino<select id="fis-v3-xml-dest"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></label><button id="fis-v3-xml-read" type="button">Ler XML</button></div><div id="fis-v3-xml-info" role="status"></div><div id="fis-v3-xml-preview"></div>`);
+  xml.id='fis-v3-xml';xml.dataset.fiscalView='xml';shell.append(xml);
+  $('#fis-v3-xml-read').onclick=readXML;
+  const estoque=section('Estoque inicial da apuração','Defina o estoque inicial em R$ para janeiro do ano selecionado. Os meses seguintes são calculados a partir do estoque final anterior.',
+    `<div class="fis-v3-fields"><label>Ano da apuração<input id="fis-v3-stock-year" type="number" min="2020" max="2100"></label><label>Estoque inicial de janeiro (R$)<input id="fis-v3-stock-value" inputmode="decimal" placeholder="0,00"></label><button id="fis-v3-stock-save" type="button">Salvar estoque inicial</button></div><div id="fis-v3-stock-info" role="status"></div>`);
+  estoque.id='fis-v3-estoque-inicial';estoque.dataset.fiscalView='estoque-inicial';shell.append(estoque);
+  $('#fis-v3-stock-save').onclick=saveOpeningStock;
+  const ret=section('Notas fiscais de devolução','Controle documental das devoluções por competência. O registro não emite uma NF-e na SEFAZ nem altera estoque ou contas automaticamente.',
+    `<div class="fis-v3-fields"><label>Data<input type="date" id="fis-v3-ret-date"></label><label>Número da NF<input id="fis-v3-ret-num" maxlength="40"></label><label>Tipo<select id="fis-v3-ret-kind"><option value="venda">Devolução de venda</option><option value="compra">Devolução de compra</option></select></label><label>Cliente ou fornecedor<input id="fis-v3-ret-party" maxlength="150"></label><label>NF original<input id="fis-v3-ret-origin" maxlength="40"></label><label>Valor (R$)<input id="fis-v3-ret-value" inputmode="decimal" placeholder="0,00"></label><label class="fis-v3-wide">Observação<input id="fis-v3-ret-note" maxlength="300"></label><button id="fis-v3-ret-save" type="button">Registrar devolução</button></div><div id="fis-v3-ret-info" role="status"></div><div id="fis-v3-ret-list"></div><button id="fis-v3-ret-apur" type="button" class="fis-v3-subtle">Atualizar devoluções da apuração (vendas)</button>`);
+  ret.id='fis-v3-devolucoes';ret.dataset.fiscalView='devolucoes';shell.append(ret);
+  $('#fis-v3-ret-date').value=new Date().toISOString().slice(0,10);
+  $('#fis-v3-ret-save').onclick=saveReturn;
+  $('#fis-v3-ret-apur').onclick=applyReturns;
+  const docs=section('Documentos fiscais','Anexe documentos da empresa ou de um cadastro fiscal. Arquivos no Storage com acesso restrito por perfil fiscal.',
+    `<div class="fis-v3-fields"><label>Vincular a<select id="fis-v3-doc-owner"></select></label><label>Documento<input type="file" id="fis-v3-doc-file" accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp"></label><button id="fis-v3-doc-send" type="button">Anexar documento</button></div><div id="fis-v3-doc-info" role="status"></div><div id="fis-v3-doc-list"></div>`);
+  docs.id='fis-v3-documentos';docs.dataset.fiscalView='documentos';shell.append(docs);
+  $('#fis-v3-doc-send').onclick=uploadFiscalDocument;
+  const costs=section('Custo por funcionário','Consulta de valores de folha por mês ou ano, com encargos patronais estimados. Requer acesso à Folha de Pagamento.',
+    `<div class="fis-v3-fields"><label>Funcionário<select id="fis-v3-cost-employee"></select></label><label>Ano<input id="fis-v3-cost-year" type="number" min="2020" max="2100"></label><label>Período<select id="fis-v3-cost-month"><option value="">Ano inteiro</option>${Array.from({length:12},(_,i)=>`<option value="${String(i+1).padStart(2,'0')}">${new Date(2020,i,1).toLocaleDateString('pt-BR',{month:'long'})}</option>`).join('')}</select></label><button id="fis-v3-cost-view" type="button">Consultar custos</button></div><div id="fis-v3-cost-info" role="status"></div><div id="fis-v3-cost-result"></div>`);
+  costs.id='fis-v3-custos-rh';costs.dataset.fiscalView='custos-rh';shell.append(costs);
+  $('#fis-v3-cost-year').value=year();$('#fis-v3-stock-year').value=year();
+  $('#fis-v3-cost-view').onclick=renderCosts;
+  $('#fis-v3-doc-owner').addEventListener('change',renderDocuments);
+  const refresh=()=>{const active=$('[data-fiscal-area].is-current',shell)?.dataset.fiscalArea;if(areas.some(([id])=>id===active))setTimeout(()=>onAreaChange(active),0);};
+  ['fiscal-sel-mes','fiscal-sel-ano'].forEach(id=>$('#'+id)?.addEventListener('change',refresh));
+  shell.querySelectorAll('[data-fiscal-company]').forEach(b=>b.addEventListener('click',refresh));
+}
+async function onAreaChange(area){
+  try{
+    if(area==='estoque-inicial')renderStock();
+    if(area==='devolucoes')await renderReturns();
+    if(area==='documentos')await renderDocuments();
+    if(area==='custos-rh')await renderCosts();
+  }catch(e){message('#fis-v3-'+area+'-info',e.message,true);}
+}
+// Parser limitado a NF-e modelo 55, sem DTD, com consulta explícita de campos.
+function parseNFeXML(xml){
+  if(!xml||xml.length>2500000||/<!\s*(?:DOCTYPE|ENTITY)\b/i.test(xml))throw Error('XML inválido ou muito grande (máximo 2,5 MB).');
+  const doc=new DOMParser().parseFromString(xml,'application/xml');
+  if(doc.querySelector('parsererror'))throw Error('XML malformado.');
+  const local=(parent,name)=>parent&&Array.from(parent.children||[]).find(el=>el.localName===name);
+  const value=(parent,name)=>local(parent,name)?.textContent?.trim()||'';
+  const root=doc.documentElement;const nfe=root?.localName==='NFe'?root:local(root,'NFe');
+  const inf=local(nfe,'infNFe');if(!inf)throw Error('Arquivo não é uma NF-e válida.');
+  const ide=local(inf,'ide');if(value(ide,'mod')!=='55')throw Error('Somente NF-e modelo 55 é suportada.');
+  const emit=local(inf,'emit');const dest=local(inf,'dest');const det=Array.from(inf.children).filter(x=>x.localName==='det');
+  const total=local(local(inf,'total'),'ICMSTot');
+  const items=det.map(row=>{const p=local(row,'prod');return{description:value(p,'xProd').slice(0,140),quantity:numeric(value(p,'qCom')),unit:value(p,'uCom'),value:numeric(value(p,'vProd'))};});
+  const date=value(ide,'dhEmi')||value(ide,'dEmi');
+  if(!/^\d{4}-\d{2}-\d{2}/.test(date)||!items.length||items.length>150||items.some(i=>!i.description||i.value<0||!Number.isFinite(i.value)||!Number.isFinite(i.quantity)))throw Error('Data ou itens da NF-e inválidos.');
+  const n=value(ide,'nNF');if(!n)throw Error('Número da NF-e ausente.');
+  return {number:n,date:date.slice(0,10),issuer:value(emit,'xNome'),recipient:value(dest,'xNome'),key:String(inf.getAttribute('Id')||'').replace(/^NFe/,''),items,amount:numeric(value(total,'vNF'))};
+}
+let imported=null;
+async function readXML(){
+  try{
+    const f=$('#fis-v3-xml-file')?.files?.[0];if(!f)throw Error('Selecione um XML.');
+    if(f.size>2500000)throw Error('Arquivo maior que 2,5 MB.');
+    const info=parseNFeXML(await f.text());
+    const k=fiscalKey();const list=Object.values((typeof FISCAL_DB!=='undefined'?FISCAL_DB[k]:{})||{});
+    const existing=list.flatMap(x=>Array.isArray(x)?x:[]).some(x=>String(x.num||'')===info.number&&String(x.fornecedor||x.cliente||'').toLowerCase()===info.issuer.toLowerCase());
+    imported=existing?null:info;
+    const msg=existing?'Possível nota já cadastrada: confira o histórico antes de importar.':'Dados lidos. Confira antes de abrir o formulário.';
+    message('#fis-v3-xml-info',msg,existing);
+    const holder=$('#fis-v3-xml-preview');holder.replaceChildren();
+    const table=node('div','fis-v3-import-summary');table.innerHTML=`<strong>NF ${esc(info.number)}</strong> · ${esc(datePt(info.date))} · ${esc(info.issuer)} · ${info.items.length} item(ns) · ${money(info.amount)}`;
+    holder.append(table);
+    const action=node('button','', 'Revisar no formulário de lançamento');action.disabled=existing;
+    action.addEventListener('click',()=>openImportedDraft());holder.append(action);
+  }catch(e){imported=null;$('#fis-v3-xml-preview')?.replaceChildren();message('#fis-v3-xml-info',e.message,true);}
+}
+function openImportedDraft(){
+  if(!imported)return;
+  const isEntry=$('#fis-v3-xml-dest').value==='entrada';const prefix=isEntry?'ne':'ns';
+  const opener=isEntry?global.fiscalNovaEntrada:global.fiscalNovaSaida;
+  if(typeof opener!=='function'){message('#fis-v3-xml-info','Formulário fiscal indisponível.');return;}
+  opener();
+  const date=$('#'+prefix+'-data');if(!date)return;
+  date.value=imported.date;
+  $('#'+prefix+'-num').value=imported.number;
+  $('#'+prefix+(isEntry?'-forn':'-cli')).value=isEntry?imported.issuer:imported.recipient;
+  const tbody=$('#'+prefix+'-itens-body');if(!tbody)return;
+  for(let i=1;i<imported.items.length;i++)global.fiscalAddItemModal?.(prefix);
+  const rows=Array.from(tbody.querySelectorAll('tr'));
+  imported.items.forEach((v,i)=>{
+    const row=rows[i];if(!row)return;
+    row.querySelector('.'+prefix+'-prod').value=v.description+(v.unit&&v.unit.toUpperCase()!=='KG'?' ('+v.unit+')':'');
+    row.querySelector('.'+prefix+'-kg').value=v.unit.toUpperCase()==='KG'?v.quantity:0;
+    row.querySelector('.'+prefix+'-val').value=v.value.toFixed(2);
+  });
+  global.fiscalCalcTotal?.(prefix);
+  message('#fis-v3-xml-info','Rascunho preenchido. Verifique os itens, unidades e o destinatário e clique em Salvar no formulário.');
+}
+function renderStock(){
+  const y=year();$('#fis-v3-stock-year').value=y;
+  const obj=typeof FISCAL_APUR!=='undefined'?FISCAL_APUR[apurKey(y)]:null;
+  $('#fis-v3-stock-value').value=(Number(obj?.estIni0)||0).toFixed(2).replace('.',',');
+  message('#fis-v3-stock-info','Empresa selecionada: '+company()+' · Ano: '+y+'. Estoque inicial é um valor financeiro (R$), não peso (kg).');
+}
+async function saveOpeningStock(){
+  try{
+    requireOnline();await allowWrite();
+    const y=Number($('#fis-v3-stock-year').value);if(!Number.isInteger(y)||y<2020||y>2100)throw Error('Ano inválido.');
+    const n=amt(moneyInput($('#fis-v3-stock-value').value));
+    const k=apurKey(y);const old=typeof FISCAL_APUR!=='undefined'?Number(FISCAL_APUR[k]?.estIni0)||0:0;
+    if(!confirm('Alterar o estoque inicial de '+company()+'/'+y+' de '+money(old)+' para '+money(n)+'? Isso recalcula o CMV da apuração.'))return;
+    await db().ref('erp/fiscalApur/'+k+'/estIni0').set(n);
+    if(!FISCAL_APUR[k])FISCAL_APUR[k]={estIni0:0,m:{}};FISCAL_APUR[k].estIni0=n;
+    if($('#apur-ano'))$('#apur-ano').value=String(y);
+    global.fiscalRenderApuracao?.();
+    message('#fis-v3-stock-info','Estoque inicial salvo no Firebase: '+money(n));
+  }catch(e){message('#fis-v3-stock-info',e.message,true);}
+}
+async function saveReturn(){
+  try{
+    requireOnline();await allowWrite();
+    const data=$('#fis-v3-ret-date').value,number=$('#fis-v3-ret-num').value.trim(),party=$('#fis-v3-ret-party').value.trim(),origin=$('#fis-v3-ret-origin').value.trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(data)||!number||!party)throw Error('Preencha data, número e cliente/fornecedor.');
+    if(!data.startsWith(year()+'-'+month()))throw Error('A devolução deve pertencer à competência selecionada.');
+    const record={id:uuid().replace(/[^a-zA-Z0-9_-]/g,''),date:data,number,party,origin,kind:$('#fis-v3-ret-kind').value,value:amt(moneyInput($('#fis-v3-ret-value').value)),notes:$('#fis-v3-ret-note').value.trim(),createdAt:new Date().toISOString()};
+    if(record.value<=0)throw Error('Informe um valor maior que zero.');
+    const key=fiscalKey(),ref=db().ref('erp/fiscal/'+key+'/devolucoes');
+    const snap=await ref.once('value');if(Object.values(snap.val()||{}).some(x=>x.number===number&&x.kind===record.kind))throw Error('Já existe uma devolução com este número e tipo nessa competência.');
+    await ref.child(record.id).set(record);
+    if(!FISCAL_DB[key])FISCAL_DB[key]={entradas:[],saidas:[],impostos:{}};
+    if(!FISCAL_DB[key].devolucoes)FISCAL_DB[key].devolucoes={};FISCAL_DB[key].devolucoes[record.id]=record;
+    message('#fis-v3-ret-info','Devolução registrada. Não houve baixa de estoque ou emissão de nota.');
+    await renderReturns();
+  }catch(e){message('#fis-v3-ret-info',e.message,true);}
+}
+let returnsCache=[];
+async function renderReturns(){
+  requireOnline();
+  const snap=await db().ref('erp/fiscal/'+fiscalKey()+'/devolucoes').once('value');
+  returnsCache=Object.values(snap.val()||{});
+  const host=$('#fis-v3-ret-list');host.replaceChildren();
+  const tbl=node('div','fis-v3-table-wrap');tbl.innerHTML='<table><thead><tr><th>Data</th><th>NF</th><th>Tipo</th><th>Cliente/Fornecedor</th><th>NF original</th><th>Valor</th></tr></thead><tbody></tbody></table>';
+  const tbody=$('tbody',tbl);
+  returnsCache.sort((a,b)=>a.date.localeCompare(b.date)).forEach(x=>{const row=node('tr');[datePt(x.date),x.number,x.kind==='venda'?'Venda':'Compra',x.party,x.origin||'—',money(x.value)].forEach(v=>{const td=node('td');td.append(readonly(v));row.append(td);});tbody.append(row);});
+  if(!returnsCache.length)host.append(node('p','fis-v3-empty','Nenhuma devolução nesta competência.'));
+  else host.append(tbl);
+}
+async function applyReturns(){
+  try{
+    requireOnline();await allowWrite();await renderReturns();
+    const total=returnsCache.filter(x=>x.kind==='venda').reduce((s,x)=>s+Number(x.value||0),0);
+    const k=apurKey(),mm=month();const old=Number(typeof FISCAL_APUR!=='undefined'?FISCAL_APUR[k]?.m?.[mm]?.devol:0)||0;
+    if(!confirm('Substituir o campo Devoluções da apuração ('+money(old)+') pelo total de devoluções de venda registradas ('+money(total)+')? Confira com o contador antes de confirmar.'))return;
+    await db().ref('erp/fiscalApur/'+k+'/m/'+mm+'/devol').set(total);
+    if(!FISCAL_APUR[k])FISCAL_APUR[k]={estIni0:0,m:{}};if(!FISCAL_APUR[k].m)FISCAL_APUR[k].m={};if(!FISCAL_APUR[k].m[mm])FISCAL_APUR[k].m[mm]={};FISCAL_APUR[k].m[mm].devol=total;
+    global.fiscalRenderApuracao?.();
+    message('#fis-v3-ret-info','Valor da apuração atualizado para '+money(total)+'.');
+  }catch(e){message('#fis-v3-ret-info',e.message,true);}
+}
+async function renderDocuments(){
+  requireOnline();await claims();
+  const owner=$('#fis-v3-doc-owner'),old=owner.value;
+  owner.replaceChildren();
+  owner.add(new Option('Empresa — '+(company()==='gratus'?'Gratus Metais':'Manuela Metais'),'empresa'));
+  const parties=await global.Phase1Store?.load?.('fiscalParties',{})||{};
+  Object.values(parties).filter(p=>p&&p.active!==false).sort((a,b)=>String(a.name).localeCompare(String(b.name))).forEach(p=>owner.add(new Option((p.type||'Cadastro')+' — '+p.name,'cad_'+String(p.id).replace(/[^a-zA-Z0-9_-]/g,''))));
+  if([...owner.options].some(o=>o.value===old))owner.value=old;
+  const snap=await db().ref('erp/fiscal/__documentsV3/'+company()).once('value');
+  if(typeof FISCAL_DB!=='undefined'){if(!FISCAL_DB.__documentsV3)FISCAL_DB.__documentsV3={};FISCAL_DB.__documentsV3[company()]=snap.val()||{};}
+  const arr=Object.values(snap.val()||{}).filter(x=>x.owner===owner.value).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  const host=$('#fis-v3-doc-list');host.replaceChildren();
+  if(!arr.length){host.append(node('p','fis-v3-empty','Nenhum documento para este cadastro ou empresa.'));return;}
+  const grid=node('div','fis-v3-doc-list');
+  arr.forEach(f=>{
+    const row=node('div','fis-v3-doc-row');row.append(node('span','',f.name+' · '+f.owner+' · '+datePt((f.createdAt||'').slice(0,10))));
+    const open=node('button','','Abrir');open.type='button';open.onclick=()=>openDocument(f);row.append(open);
+    const del=node('button','fis-v3-subtle','Excluir');del.type='button';del.onclick=()=>deleteDocument(f);row.append(del);
+    grid.append(row);
+  });host.append(grid);
+}
+async function uploadFiscalDocument(){
+  try{
+    requireOnline();await allowWrite();if(!storage())throw Error('Firebase Storage indisponível.');
+    const f=$('#fis-v3-doc-file')?.files?.[0];if(!f)throw Error('Selecione um arquivo.');
+    const types=['application/pdf','image/jpeg','image/png','image/webp'];
+    if(!types.includes(f.type)||f.size>10*1024*1024||!f.size)throw Error('Aceitos PDF, JPG, PNG ou WebP de até 10 MB.');
+    const owner=$('#fis-v3-doc-owner').value;if(!/^(empresa|cad_[a-zA-Z0-9_-]+)$/.test(owner))throw Error('Cadastro fiscal inválido.');
+    const id=uuid().replace(/[^a-zA-Z0-9_-]/g,''),ext={'application/pdf':'pdf','image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[f.type];
+    const path='erp-files/fiscalDocs/'+company()+'/'+owner+'/'+id+'.'+ext;
+    const ref=storage().ref(path);await ref.put(f,{contentType:f.type});
+    const meta={id,name:f.name.slice(0,180),owner,company:company(),path,type:f.type,size:f.size,createdAt:new Date().toISOString()};
+    try{await db().ref('erp/fiscal/__documentsV3/'+company()+'/'+id).set(meta);}catch(e){try{await ref.delete();}catch(_){}throw e;}
+    if(typeof FISCAL_DB!=='undefined'){if(!FISCAL_DB.__documentsV3)FISCAL_DB.__documentsV3={};if(!FISCAL_DB.__documentsV3[company()])FISCAL_DB.__documentsV3[company()]={};FISCAL_DB.__documentsV3[company()][id]=meta;}
+    message('#fis-v3-doc-info','Documento anexado e cadastrado.');$('#fis-v3-doc-file').value='';await renderDocuments();
+  }catch(e){message('#fis-v3-doc-info',e.message,true);}
+}
+async function openDocument(f){
+  try{if(!storage()||!String(f.path||'').startsWith('erp-files/fiscalDocs/'+company()+'/'))throw Error('Caminho de documento inválido.');
+    const url=await storage().ref(f.path).getDownloadURL();global.open(url,'_blank','noopener,noreferrer');
+  }catch(e){message('#fis-v3-doc-info',e.message,true);}
+}
+async function deleteDocument(f){
+  try{requireOnline();await allowWrite();if(!confirm('Excluir permanentemente o anexo '+f.name+'?'))return;
+    if(!String(f.path||'').startsWith('erp-files/fiscalDocs/'+company()+'/'))throw Error('Caminho inválido.');
+    await storage().ref(f.path).delete();await db().ref('erp/fiscal/__documentsV3/'+company()+'/'+f.id).remove();
+    if(typeof FISCAL_DB!=='undefined'&&FISCAL_DB.__documentsV3?.[company()])delete FISCAL_DB.__documentsV3[company()][f.id];
+    message('#fis-v3-doc-info','Documento excluído.');await renderDocuments();
+  }catch(e){message('#fis-v3-doc-info',e.message,true);}
+}
+async function renderCosts(){
+  try{
+    const c=await claims();if(!c.canPayroll||c.erpAccess!==true){$('#fis-v3-cost-result').replaceChildren();throw Error('Consulta restrita a usuários autorizados no módulo Folha de Pagamento.');}
+    const staff=typeof FUNCIONARIOS!=='undefined'?FUNCIONARIOS:[];
+    const sel=$('#fis-v3-cost-employee'),old=sel.value;
+    sel.replaceChildren();staff.forEach(f=>sel.add(new Option((f.nome||f.mat)+' ('+f.mat+')',f.mat)));
+    if(staff.some(f=>f.mat===old))sel.value=old;
+    const f=staff.find(x=>x.mat===sel.value),y=Number($('#fis-v3-cost-year').value)||year(),m=$('#fis-v3-cost-month').value;
+    const host=$('#fis-v3-cost-result');host.replaceChildren();if(!f){host.append(node('p','fis-v3-empty','Nenhum funcionário cadastrado.'));return;}
+    const meses=m?[m]:Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0'));
+    const r=meses.map(mm=>calcPayrollMonth(f,y,mm));
+    const total=r.reduce((s,x)=>s+x.cost,0);
+    const kpi=node('div','fis-v3-cost-kpi');kpi.innerHTML='<span>Custo estimado para '+esc(f.nome)+'</span><strong>'+money(total)+'</strong>';
+    host.append(kpi);
+    const box=node('div','fis-v3-table-wrap');box.innerHTML='<table><thead><tr><th>Mês</th><th>Bruto estimado</th><th>Diárias</th><th>Encargos estimados</th><th>Total estimado</th></tr></thead><tbody></tbody></table>';
+    r.forEach(x=>{const row=node('tr');[x.period,money(x.bruto),money(x.diarias),money(x.encargos),money(x.cost)].forEach(v=>row.append(node('td','',v)));$('tbody',box).append(row);});host.append(box);
+    message('#fis-v3-cost-info','Estimativa baseada nos dados de folha e viagens; não equivale a pagamento confirmado ou guia de encargos.');
+  }catch(e){message('#fis-v3-cost-info',e.message,true);}
+}
+function calcPayrollMonth(f,y,mm){
+  const mes=y+'-'+mm;
+  const fd=(typeof FOLHA_DB!=='undefined'?FOLHA_DB[mes+'-'+f.mat]:null)||{};
+  const p=typeof PONTO_DB!=='undefined'?PONTO_DB:[],t=typeof VIAGEM_DB!=='undefined'?VIAGEM_DB:[];
+  const normal=d=>String(d||'').includes('/')?String(d).split('/').reverse().join('-'):String(d||'');
+  const at=p.filter(x=>x.mat===f.mat&&normal(x.data).startsWith(mes));
+  const faltas=at.filter(x=>x.tipo==='Falta').length;
+  const horas=at.filter(x=>x.tipo==='HE').reduce((s,x)=>s+Number(x.horas||0),0);
+  const viagens=t.filter(x=>x.motorista===f.nome&&normal(x.data).startsWith(mes));
+  const diarias=viagens.reduce((s,x)=>s+Number(x.totalDiarias!==undefined?x.totalDiarias:(x.diaria||0)*(x.numDiarias||1)),0);
+  const base=Number(f.sal||0);
+  const bruto=Math.max(0,base-(faltas*8)*(base/220)+horas*(base/220)+Number(fd.adicional||0)+(faltas?0:Number(fd.abono||0))+diarias);
+  const rate=Math.max(0,Number(global.ERP_BUSINESS_CONFIG?.payrollDefaults?.employerCostRate||0.28));
+  const encargos=Math.round(bruto*rate*100)/100;
+  return {period:mm+'/'+y,bruto,diarias,encargos,cost:Math.round((bruto+encargos)*100)/100};
+}
+global.FiscalExtensions={install:init,onAreaChange,parseNFeXML,calcPayrollMonth};
+// O script é carregado dinamicamente: o DOM pode já estar pronto.
+// Nesse caso o workspace antigo instalou antes da definição das extensões.
+const mounted=document.getElementById('fiscal-workspace');
+if(mounted)init(mounted);
 })(window);

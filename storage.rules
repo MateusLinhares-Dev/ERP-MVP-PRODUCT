@@ -51,6 +51,34 @@ service firebase.storage {
         && request.auth.token.canBusinessDocs == true;
     }
 
+    // Documentos fiscais vinculados à empresa ou aos cadastros fiscais.
+    // Sem wildcard genérico e sem acesso por usuários sem claims fiscais.
+    match /erp-files/fiscalDocs/{company}/{owner}/{fileName} {
+      function scopeOK() {
+        return (company == 'manuela' || company == 'gratus')
+          && owner.matches('empresa|cad_[A-Za-z0-9_-]+')
+          && fileName.matches('[A-Za-z0-9_-]+\\.(pdf|jpg|png|webp)');
+      }
+
+      allow read: if authenticated()
+        && request.auth.token.canFiscalRead == true
+        && scopeOK();
+
+      allow create: if authenticated()
+        && request.auth.token.canFiscalWrite == true
+        && scopeOK()
+        && request.resource.size > 0
+        && request.resource.size <= 10 * 1024 * 1024
+        && (
+          request.resource.contentType == 'application/pdf'
+          || request.resource.contentType.matches('image/(jpeg|png|webp)')
+        );
+
+      allow delete: if authenticated()
+        && request.auth.token.canFiscalWrite == true
+        && scopeOK();
+    }
+
     match /erp-files/frotaDocs/{vehicle}/{fileName} {
       allow read: if authenticated()
         && request.auth.token.canFleetDocs == true;

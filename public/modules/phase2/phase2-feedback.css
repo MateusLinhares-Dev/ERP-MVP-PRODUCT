@@ -292,11 +292,9 @@ input[data-phase2-fiscal-only="1"]{border-color:#9bc9ab!important;background:#fb
 
 @media(max-width:420px){#tab-viagem_motorista .phase2-trip-financial-group{padding:11px}#tab-viagem_motorista .phase2-trip-financial-row{grid-template-columns:minmax(0,1fr) minmax(82px,auto);font-size:.74rem}}
 
-/* Escolha fiscal reutilizada em novas notas e edição: não depender do datalist nativo. */
 #modal-body .phase2-fiscal-picker-field, #fiscal-edit-ov .phase2-fiscal-picker-field{position:relative;min-width:0;}
 #modal-body .phase2-fiscal-picker-field select, #fiscal-edit-ov .phase2-fiscal-picker-field select,
 #modal-body #ne-pessoa-tipo, #modal-body #ns-pessoa-tipo, #fiscal-edit-ov #fe-pessoa-tipo{width:100%!important;min-width:0;max-width:100%;min-height:38px;padding:8px 11px!important;border:1px solid #cbdad0;border-radius:7px;background:#fff;color:#1b3528;font-size:.85rem;}
-#modal-body #ne-forn, #modal-body #ns-cli, #fiscal-edit-ov #fe-pessoa{width:100%;box-sizing:border-box;min-width:0;}
 .phase2-fiscal-picker-menu{position:absolute;top:100%;left:0;right:0;z-index:6000;max-height:250px;overflow-y:auto;background:#fff;border:1px solid #c9dbd0;border-radius:9px;box-shadow:0 12px 30px #193d2833;padding:5px;box-sizing:border-box;}
 .phase2-fiscal-picker-menu[hidden]{display:none!important;}
 .phase2-fiscal-picker-option{display:flex;flex-direction:column;align-items:flex-start;gap:3px;width:100%;padding:10px 12px;border:none;border-radius:6px;color:#183d2a;background:transparent;text-align:left;cursor:pointer;font-size:.83rem;}
