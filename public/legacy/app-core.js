@@ -20385,7 +20385,7 @@ function switchDespTab(id){
 
 function _despPopularBancos(){
   const sel=document.getElementById('f-banco');
-  if(!sel) return;
+  if(!sel || sel.tagName!=='SELECT') return; // Despesas usa identificação digitada livremente.
   const atual=sel.value;
   const bancos=Array.isArray(BANCOS_DB)?BANCOS_DB.filter(function(b){return b&&String(b.banco||'').trim();}):[];
   sel.innerHTML='<option value="">— Selecione uma conta cadastrada —</option>'+bancos.map(function(b){

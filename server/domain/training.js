@@ -38,6 +38,6 @@ export const courseState=(entry,course,asOf=new Date().toISOString().slice(0,10)
 };
 export const visibleNotice=(assignment,course,login,asOf)=>{
   const state=courseState(assignment,course,asOf);
-  return assignment.notifyEnabled&&assignment.employeeLogin===login&&(!assignment.notifyAt||assignment.notifyAt<=asOf)&&
+  return assignment.notifyEnabled&&String(assignment.employeeLogin||'').toLowerCase()===String(login||'').toLowerCase()&&(!assignment.notifyAt||assignment.notifyAt<=asOf)&&
     (state.displayStatus==='vencido'||state.displayStatus==='a-vencer'||state.displayStatus==='planejado'||state.displayStatus==='agendado');
 };

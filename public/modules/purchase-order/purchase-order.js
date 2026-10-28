@@ -1098,12 +1098,12 @@ function printAppliedAdvances(key,ticket,advance){
   if(snap&&typeof snap==='object'){
     for(const a of (Array.isArray(snap.adiantamentos)?snap.adiantamentos:[])){
       if(!a)continue;
-      take('Adiantamento',a.cod,a.data,[a.forma,a.bancoNome].filter(Boolean).join(' · '),a.valorAplicado,
+      take('Adiantamento',a.cod,a.data,String(a.forma||''),a.valorAplicado,
         a.cod?'ADT:'+String(a.cod):'SNAP-ADT:'+candidates.length);
     }
     for(const c of (Array.isArray(snap.cheques)?snap.cheques:[])){
       if(!c)continue;
-      take('Cheque',c.num||c.id,c.bomPara,c.banco||'',c.valorAplicado,
+      take('Cheque',c.num||c.id,c.bomPara,'',c.valorAplicado,
         c.id?'CHQ:'+String(c.id):'SNAP-CHQ:'+candidates.length);
     }
   }
@@ -1111,7 +1111,7 @@ function printAppliedAdvances(key,ticket,advance){
     const rows=typeof ADT_POR_FORN!=='undefined'&&supplierCode?(ADT_POR_FORN[supplierCode]||[]):[];
     for(const a of rows){
       if(!a||String(a.ticket||'').trim()!==ticketNo||String(a.status||'').trim().toLowerCase()!=='quitado')continue;
-      take('Adiantamento',a.cod,a.data,[a.forma,a.bancoNome].filter(Boolean).join(' · '),a.valor,
+      take('Adiantamento',a.cod,a.data,String(a.forma||''),a.valor,
         a.cod?'ADT:'+String(a.cod):'LIVE-ADT:'+candidates.length);
     }
   }catch(e){}
@@ -1119,7 +1119,7 @@ function printAppliedAdvances(key,ticket,advance){
     const rows=typeof CHEQUES_POR_FORN!=='undefined'&&supplierCode?(CHEQUES_POR_FORN[supplierCode]||[]):[];
     for(const c of rows){
       if(!c||![c._aplicadoTicket,c.vinculo,c.ticket].some(function(value){return String(value||'').trim()===ticketNo;}))continue;
-      take('Cheque',c.num||c.numero||c.id,c.bomPara||c.data,c.banco||'',c.valor,
+      take('Cheque',c.num||c.numero||c.id,c.bomPara||c.data,'',c.valor,
         c.id?'CHQ:'+String(c.id):'LIVE-CHQ:'+candidates.length);
     }
   }catch(e){}
@@ -1160,7 +1160,7 @@ function printPaymentSnapshot(key,ticket,total){
       if(cash+applied<=0)continue;
       payments.push({date:String(payment.data||''),amount:cash+applied,
         description:applied>0&&cash>0?'Pagamento e adiantamento':(applied>0?'Compensação de adiantamento':'Pagamento'),
-        details:String(payment.banco||payment.obs||'').trim()});
+        details:String(payment.formaPagamento||payment.forma||payment.metodoPagamento||'').trim()});
     }
   }
   // A payable that has been settled or partially paid is more recent than
@@ -1213,7 +1213,6 @@ function printHtml(key,ticket){
     const description=String(item.descricaoDetalhada||item.descricao||item.obs||'').trim();
     return '<tr><td class="item-description"><strong>'+esc(item.mat||item.matBase||'—')+'</strong>'+
       (description?'<span>'+esc(description)+'</span>':'')+'</td>'+
-      '<td class="center">'+esc(item.unidade||'kg')+'</td>'+
       '<td class="numeric">'+qty(quantity)+'</td>'+
       '<td class="numeric">'+money(price)+'</td>'+
       '<td class="numeric">'+money(quantity*price)+'</td></tr>';
@@ -1277,8 +1276,8 @@ function printHtml(key,ticket){
       '<tr><th>Data</th><td>'+esc(dateBR(purchaseDate))+'</td></tr>'+
       '<tr><th>Data prevista</th><td>'+esc(expectedDate?dateBR(expectedDate):'')+'</td></tr></tbody></table></div>'+
     '<section class="print-section"><h2>Itens do pedido de compra</h2>'+
-      '<table class="items"><colgroup><col class="col-description"><col class="col-unit"><col class="col-quantity"><col class="col-unit-price"><col class="col-total"></colgroup>'+
-      '<thead><tr><th>Descrição do material</th><th>Un</th><th>Qtde</th><th>Valor unitário</th><th>Valor total</th></tr></thead><tbody>'+itemRows+'</tbody></table>'+
+      '<table class="items"><colgroup><col class="col-description"><col class="col-quantity"><col class="col-unit-price"><col class="col-total"></colgroup>'+
+      '<thead><tr><th>Descrição do material</th><th>Quantidade (kg)</th><th>Valor unitário</th><th>Valor total</th></tr></thead><tbody>'+itemRows+'</tbody></table>'+
       '<table class="print-totals" aria-label="Totais da compra"><tbody>'+totals+'</tbody></table></section>'+paymentSummary+advanceDetails+laterPayments+
     '<section class="print-section"><h2>Parcelas</h2><table class="installments"><thead><tr><th>Dias</th><th>Data Vencimento</th><th>Valor</th><th>Observações</th></tr></thead><tbody>'+installments+'</tbody></table></section>'+
     '<section class="print-section order-notes"><h2>Observações</h2><div class="notes">'+esc(orderNotes)+'</div></section>'+
@@ -1311,11 +1310,10 @@ function printCss(){
     .print-section{margin-top:24px;break-inside:avoid-page}
     .print-section h2{font-size:10px;margin:0 0 5px;font-weight:700}
     .items,.installments{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px}
-    .items .col-description{width:48%}
-    .items .col-unit{width:8%}
-    .items .col-quantity{width:14%}
-    .items .col-unit-price{width:15%}
-    .items .col-total{width:15%}
+    .items .col-description{width:52%}
+    .items .col-quantity{width:16%}
+    .items .col-unit-price{width:16%}
+    .items .col-total{width:16%}
     .items th,.items td,.installments th,.installments td{border:1px solid #555;padding:4px 5px;vertical-align:top;overflow-wrap:anywhere}
     .items th,.installments th{font-weight:700;text-align:left}
     .items td.numeric,.installments td.numeric{text-align:right;white-space:nowrap}

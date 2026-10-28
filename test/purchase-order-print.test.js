@@ -45,6 +45,8 @@ test('PDF mantém layout A4 e totais do ticket sem alterar dados',()=>{
   assert.match(html,/@page\{size:A4;margin:14mm\}/);
   assert.match(html,/Pedido de compra Nº T827763/);
   assert.match(html,/Valor unitário/);
+  assert.match(html,/Quantidade \(kg\)/);
+  assert.doesNotMatch(html,/<th>Un<\/th>/);
   assert.match(html,/31,25/);
   assert.match(html,/0,00/);
   assert.deepEqual(printedTicket,base);
@@ -122,7 +124,7 @@ test('canhoto reflete pagamento registrado após o fechamento sem dar baixa nova
   assert.match(html,/Total pago \/ abatido<\/th><td>R\$ 25\.000,00/);
   assert.match(html,/Saldo a pagar<\/th><td>R\$ 14\.000,00/);
   assert.match(html,/27\/10\/2026/);
-  assert.match(html,/Itaú/);
+  assert.doesNotMatch(html,/Itaú/); // nome do banco é privado e não deve aparecer no recibo
   assert.equal(printedTicket.saldoPagar,24000); // print cannot mutate the order
 });
 
@@ -133,6 +135,7 @@ test('quitado via contas a pagar aparece no canhoto mesmo se ticket estiver atra
   const {html}=makePrint(ticket,accounts);
   assert.match(html,/Total pago \/ abatido<\/th><td>R\$ 39\.000,00/);
   assert.match(html,/Saldo a pagar<\/th><td>R\$ 0,00/);
+  assert.doesNotMatch(html,/Sicredi/);
 });
 
 test('não mistura pagamentos de outros pedidos ou duplica adiantamentos de origem',()=>{

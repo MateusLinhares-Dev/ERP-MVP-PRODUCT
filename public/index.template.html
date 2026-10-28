@@ -2607,31 +2607,12 @@
         </div>
         <div class="fg">
           <label>Forma Pagamento</label>
-          <select id="f-forma">
-            <option>PIX</option>
-            <option>Boleto</option>
-            <option>Cheque</option>
-            <option>Débito</option>
-            <option>Dinheiro</option>
-            <option>Transferência</option>
-            <option>Cartão</option>
-          </select>
+          <input type="text" id="f-forma" maxlength="80" placeholder="Digite: PIX, TED, dinheiro, cheque..." autocomplete="off">
         </div>
         <div class="fg wide">
-          <label>Banco / Conta</label>
-          <input type="text" id="f-banco" placeholder="Ex: Sicredi, Santander, Itaú..." list="banco-list">
-          <datalist id="banco-list">
-            <option value="Sicredi">
-            <option value="Santander">
-            <option value="Itaú">
-            <option value="Bradesco">
-            <option value="Banco do Brasil">
-            <option value="Caixa">
-            <option value="Nubank">
-            <option value="Inter">
-            <option value="C6 Bank">
-            <option value="Dinheiro">
-          </datalist>
+          <label>Referência financeira (opcional e livre)</label>
+          <input type="text" id="f-banco" maxlength="100" placeholder="Digite uma referência interna, se necessário" autocomplete="off">
+          <small>Não é necessário selecionar banco ou empresa; esse campo não cria movimentos bancários.</small>
         </div>
       </div>
       <div class="form-footer">

@@ -87,7 +87,7 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
       btn.classList.toggle('is-current', active);
       btn.setAttribute('aria-pressed', String(active));
     });
-    if(currentArea==='cadastros')global.phase1FiscalPartiesReload?.();
+    if(currentArea==='cadastros'){global.phase1FiscalPartiesReload?.();global.phase2FiscalReload?.();}
     global.FiscalExtensions?.onAreaChange(currentArea);
     // Não alteramos empresa, competência ou estado das notas ao trocar de área.
   }

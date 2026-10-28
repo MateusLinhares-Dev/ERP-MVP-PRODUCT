@@ -75,7 +75,7 @@ test('Filtro de combustível repopula os motoristas ao receber dados depois da a
 });
 
 test('Fiscal recarrega cadastros em nuvem ao abrir a aba sem depender de F5', async () => {
-  assert.match(fiscal,/if\(currentArea==='cadastros'\)global\.phase1FiscalPartiesReload\?\.\(\)/);
+  assert.match(fiscal,/if\(currentArea==='cadastros'\)\{global\.phase1FiscalPartiesReload\?\.\(\);global\.phase2FiscalReload\?\.\(\);\}/);
   const start=fiscal.indexOf('let fiscalPartyLoadId=0;');
   const end=fiscal.indexOf('function ensureFiscalParties()',start);
   let remote={A:{id:'A',name:'Cliente teste',type:'Cliente Fiscal',active:true}};
