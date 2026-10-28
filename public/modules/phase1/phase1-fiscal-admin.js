@@ -418,8 +418,8 @@ function init(shell){
     const button=node('button','fis-work-mainbutton',title);button.type='button';button.setAttribute('role','tab');button.dataset.fiscalArea=id;
     button.addEventListener('click',()=>global.FiscalWorkspace?.setArea(id));nav.appendChild(button);
   });
-  const xml=section('Importação de nota fiscal eletrônica','Importe NF-e modelo 55. Revise os dados antes de registrar: o arquivo não gera lançamento ou estoque automaticamente.',
-    `<div class="fis-v3-fields"><label>Arquivo XML da NF-e<input id="fis-v3-xml-file" type="file" accept=".xml,text/xml,application/xml"></label><label>Destino<select id="fis-v3-xml-dest"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></label><button id="fis-v3-xml-read" type="button">Ler XML</button></div><div id="fis-v3-xml-info" role="status"></div><div id="fis-v3-xml-preview"></div>`);
+  const xml=section('Importação de notas fiscais','Selecione arquivos XML ou um ZIP com vários XMLs de NF-e modelo 55. O ERP descompacta e apresenta as notas para revisão; nenhuma nota é salva automaticamente.',
+    `<div class="fis-v3-fields"><label>Arquivos XML ou ZIP<input id="fis-v3-xml-file" type="file" accept=".xml,.zip,text/xml,application/xml,application/zip" multiple><small>ZIP de até 32 MB · XML de até 2,5 MB · até 300 XMLs por ZIP.</small></label><label>Destino do lançamento<select id="fis-v3-xml-dest"><option value="entrada">Entrada (compra)</option><option value="saida">Saída (venda)</option></select></label><button id="fis-v3-xml-read" type="button">Ler arquivos</button></div><div id="fis-v3-xml-info" role="status" aria-live="polite"></div><div id="fis-v3-xml-preview" class="fis-v3-xml-batch"></div>`);
   xml.id='fis-v3-xml';xml.dataset.fiscalView='xml';shell.append(xml);
   $('#fis-v3-xml-read').onclick=readXML;
   const estoque=section('Estoque inicial da apuração','Defina o estoque inicial em R$ para janeiro do ano selecionado. Os meses seguintes são calculados a partir do estoque final anterior.',
@@ -478,31 +478,97 @@ function parseNFeXML(xml){
   const n=value(ide,'nNF');if(!n)throw Error('Número da NF-e ausente.');
   return {number:n,date:date.slice(0,10),issuer:value(emit,'xNome'),recipient:value(dest,'xNome'),key:String(inf.getAttribute('Id')||'').replace(/^NFe/,''),items,amount:numeric(value(total,'vNF'))};
 }
-let imported=null;
-async function readXML(){
-  try{
-    const f=$('#fis-v3-xml-file')?.files?.[0];if(!f)throw Error('Selecione um XML.');
-    if(f.size>2500000)throw Error('Arquivo maior que 2,5 MB.');
-    const info=parseNFeXML(await f.text());
-    const k=fiscalKey();const list=Object.values((typeof FISCAL_DB!=='undefined'?FISCAL_DB[k]:{})||{});
-    const existing=list.flatMap(x=>Array.isArray(x)?x:[]).some(x=>String(x.num||'')===info.number&&String(x.fornecedor||x.cliente||'').toLowerCase()===info.issuer.toLowerCase());
-    imported=existing?null:info;
-    const msg=existing?'Possível nota já cadastrada: confira o histórico antes de importar.':'Dados lidos. Confira antes de abrir o formulário.';
-    message('#fis-v3-xml-info',msg,existing);
-    const holder=$('#fis-v3-xml-preview');holder.replaceChildren();
-    const table=node('div','fis-v3-import-summary');table.innerHTML=`<strong>NF ${esc(info.number)}</strong> · ${esc(datePt(info.date))} · ${esc(info.issuer)} · ${info.items.length} item(ns) · ${money(info.amount)}`;
-    holder.append(table);
-    const action=node('button','', 'Revisar no formulário de lançamento');action.disabled=existing;
-    action.addEventListener('click',()=>openImportedDraft());holder.append(action);
-  }catch(e){imported=null;$('#fis-v3-xml-preview')?.replaceChildren();message('#fis-v3-xml-info',e.message,true);}
+let importedDrafts=[];
+function hasFiscalDuplicate(info){
+  // Comparar a competência da nota, não apenas a competência aberta no painel.
+  const period=fiscalPrefix()+info.date.slice(0,7);
+  const data=(typeof FISCAL_DB!=='undefined'?FISCAL_DB[period]:null)||{};
+  const list=[...(Array.isArray(data.entradas)?data.entradas:[]),...(Array.isArray(data.saidas)?data.saidas:[])];
+  return list.some(x=>String(x.num||x.number||'').trim()===info.number&&(
+    [x.fornecedor,x.cliente,x.emitente,x.destinatario].some(n=>String(n||'').trim().toLowerCase()===String(info.issuer||'').toLowerCase()) ||
+    (info.key && String(x.chave||x.key||'')===info.key)
+  ));
 }
-function openImportedDraft(){
-  if(!imported)return;
+async function readXML(){
+  const button=$('#fis-v3-xml-read'),holder=$('#fis-v3-xml-preview');
+  importedDrafts=[];holder?.replaceChildren();
+  try{
+    const files=Array.from($('#fis-v3-xml-file')?.files||[]);
+    if(!files.length)throw Error('Selecione um ou mais arquivos XML ou ZIP.');
+    if(files.length>20)throw Error('Selecione no máximo 20 arquivos por leitura.');
+    button.disabled=true;
+    message('#fis-v3-xml-info','Lendo arquivos e verificando as notas fiscais...');
+    let total=0;
+    const problems=[],parsed=[],seen=new Set();
+    for(const file of files){
+      const name=String(file.name||'');
+      if(!/\.(xml|zip)$/i.test(name)){problems.push(name+': somente XML ou ZIP.');continue;}
+      let content=[];
+      if(/\.zip$/i.test(name)){
+        try{
+          const {extractXmlsFromZip}=await import('/modules/phase1/fiscal-zip-reader.js');
+          const result=await extractXmlsFromZip(file);
+          content=result.files.map(x=>({name:name+' / '+x.name,text:x.text}));
+          problems.push(...result.errors.map(x=>name+' / '+x.name+': '+x.message));
+          if(!result.totalEntries)problems.push(name+': nenhum XML encontrado.');
+        }catch(error){problems.push(name+': '+error.message);continue;}
+      }else{
+        if(file.size<1||file.size>2_500_000){problems.push(name+': XML deve ter até 2,5 MB.');continue;}
+        content=[{name,text:await file.text()}];
+      }
+      for(const item of content){
+        total++;
+        if(total>600)throw Error('Limite de 600 XMLs por lote. Divida o lote antes de importar.');
+        try{
+          const info=parseNFeXML(item.text);
+          const unique=info.key||[info.number,info.issuer,info.date].join('|');
+          const duplicateInBatch=seen.has(unique);
+          seen.add(unique);
+          parsed.push({info,name:item.name,duplicateInBatch,alreadyExists:hasFiscalDuplicate(info)});
+        }catch(error){problems.push(item.name+': '+error.message);}
+      }
+    }
+    importedDrafts=parsed;
+    const valid=parsed.filter(x=>!x.duplicateInBatch&&!x.alreadyExists).length;
+    message('#fis-v3-xml-info',`${valid} NF-e pronta(s) para revisão · ${parsed.length-valid} duplicada(s) · ${problems.length} arquivo(s) com problema. Nenhum lançamento foi salvo.`,valid===0);
+    const summary=node('p','fis-v3-xml-summary',`Empresa: ${company()} · ${parsed.length} nota(s) lida(s). Clique em Revisar para abrir o formulário e salvar individualmente.`);
+    holder.append(summary);
+    parsed.forEach((item,index)=>{
+      const {info}=item,duplicate=item.duplicateInBatch||item.alreadyExists;
+      const row=node('div','fis-v3-xml-row');
+      const label=node('div','fis-v3-xml-row-main');
+      const headline=node('strong','',`NF ${info.number} · ${datePt(info.date)} · ${info.issuer}`);
+      const detail=node('small','',`${item.name} · ${info.items.length} item(ns) · ${money(info.amount)}`);
+      label.append(headline,detail);
+      const badge=node('span','fis-v3-xml-status'+(duplicate?' is-duplicate':''),duplicate?(item.alreadyExists?'Possível duplicada no fiscal':'Repetida neste lote'):'Pronta para revisar');
+      const action=node('button','', 'Revisar lançamento');
+      action.type='button';action.disabled=duplicate;
+      action.addEventListener('click',()=>openImportedDraft(index));
+      row.append(label,badge,action);holder.append(row);
+    });
+    if(problems.length){
+      const report=node('details','fis-v3-xml-problems');
+      report.append(node('summary','',`${problems.length} aviso(s) de leitura`));
+      const list=node('ul');
+      problems.slice(0,25).forEach(p=>list.append(node('li','',p)));
+      if(problems.length>25)list.append(node('li','',`Outros ${problems.length-25} avisos não exibidos.`));
+      report.append(list);holder.append(report);
+    }
+  }catch(error){importedDrafts=[];holder?.replaceChildren();message('#fis-v3-xml-info',error.message,true);}
+  finally{if(button)button.disabled=false;}
+}
+function openImportedDraft(index){
+  const selected=importedDrafts[index];if(!selected||selected.duplicateInBatch||selected.alreadyExists)return;
+  const imported=selected.info;
+  if(imported.date.slice(0,7)!==year()+'-'+month()){
+    message('#fis-v3-xml-info','A NF '+imported.number+' pertence a '+datePt(imported.date)+'. Selecione antes a competência '+imported.date.slice(5,7)+'/'+imported.date.slice(0,4)+' no Fiscal e clique em Revisar novamente.',true);
+    return;
+  }
   const isEntry=$('#fis-v3-xml-dest').value==='entrada';const prefix=isEntry?'ne':'ns';
   const opener=isEntry?global.fiscalNovaEntrada:global.fiscalNovaSaida;
-  if(typeof opener!=='function'){message('#fis-v3-xml-info','Formulário fiscal indisponível.');return;}
+  if(typeof opener!=='function'){message('#fis-v3-xml-info','Formulário fiscal indisponível.',true);return;}
   opener();
-  const date=$('#'+prefix+'-data');if(!date)return;
+  const date=$('#'+prefix+'-data');if(!date){message('#fis-v3-xml-info','Não foi possível abrir o formulário fiscal.',true);return;}
   date.value=imported.date;
   $('#'+prefix+'-num').value=imported.number;
   $('#'+prefix+(isEntry?'-forn':'-cli')).value=isEntry?imported.issuer:imported.recipient;
@@ -516,7 +582,7 @@ function openImportedDraft(){
     row.querySelector('.'+prefix+'-val').value=v.value.toFixed(2);
   });
   global.fiscalCalcTotal?.(prefix);
-  message('#fis-v3-xml-info','Rascunho preenchido. Verifique os itens, unidades e o destinatário e clique em Salvar no formulário.');
+  message('#fis-v3-xml-info','Rascunho preenchido para NF '+imported.number+'. Confira fornecedor/cliente, itens, valores e salve pelo formulário.');
 }
 function renderStock(){
   const y=year();$('#fis-v3-stock-year').value=y;

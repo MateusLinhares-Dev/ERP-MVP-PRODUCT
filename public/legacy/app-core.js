@@ -17547,8 +17547,8 @@ function renderContratos(){
   const kpiSub=document.getElementById('kpi-cont-sub');
   const kpiT=document.getElementById('kpi-cont-total');
   if(kpiT) kpiT.textContent=CONTRATOS_DB.length;
-  if(kpiS){kpiS.textContent=vencendo.length?'⚠️ Atenção':'✅ OK';}
-  if(kpiSub){kpiSub.textContent=vencendo.length?vencendo.length+' vencendo em 30 dias':'Nenhum vencendo em breve';}
+  // A contagem de vencidos é atualizada pelo painel da agenda contratual.
+  // Não substituir o número por 'OK' ou 'Atenção' neste render legado.
   const lancLabel={nao:'Não lançado',avista:'À Vista',parcelado:'Parcelado'};
   tb.innerHTML=CONTRATOS_DB.map((c,i)=>{
     const venceEmBreve=c.fim&&c.fim>=hoje&&c.fim<=new Date(Date.now()+30*86400000).toISOString().slice(0,10);

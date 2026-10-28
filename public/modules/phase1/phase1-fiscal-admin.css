@@ -117,3 +117,20 @@
 #tab-fiscal .fis-work-navlabel{flex:0 0 95px;color:#60756a;font-size:.69rem;text-transform:uppercase;letter-spacing:.05em;font-weight:750}
 #tab-fiscal .fis-work-navrow .fis-work-mainbutton{flex:0 0 auto;padding:8px 12px}
 @media(max-width:600px){#tab-fiscal .fis-work-mainnav{display:grid;overflow:visible}#tab-fiscal .fis-work-navlabel{flex-basis:70px}#tab-fiscal .fis-work-navrow .fis-work-mainbutton{padding:8px 10px}}
+
+/* Importação em lote de XMLs via ZIP: visual consistente com os demais painéis fiscais. */
+.fis-v3-xml-batch {margin-top:12px;min-width:0;}
+.fis-v3-xml-summary {margin:9px 0 13px;color:#617366;font-size:.84rem;}
+.fis-v3-xml-row {display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:14px;align-items:center;padding:12px 4px;border-bottom:1px solid #e5ece6;}
+.fis-v3-xml-row-main {min-width:0;overflow-wrap:anywhere;}
+.fis-v3-xml-row-main strong {display:block;color:#173c2b;font-size:.88rem;}
+.fis-v3-xml-row-main small {display:block;color:#708076;font-size:.76rem;margin-top:4px;}
+.fis-v3-xml-status {background:#eef6ef;color:#275d3a;border-radius:30px;padding:5px 9px;font-size:.77rem;white-space:nowrap;}
+.fis-v3-xml-status.is-duplicate {background:#fff0d8;color:#855b1b;}
+.fis-v3-xml-row button {border:1px solid #b8d0c0;background:#fff;border-radius:7px;padding:8px 12px;color:#194b34;cursor:pointer;}
+.fis-v3-xml-row button:disabled {opacity:.55;cursor:not-allowed;}
+.fis-v3-xml-problems {margin-top:13px;border:1px solid #e8dfc6;border-radius:8px;padding:10px;font-size:.83rem;}
+.fis-v3-xml-problems summary {cursor:pointer;color:#855b1b;font-weight:700;}
+#fis-v3-xml-file {max-width:100%;}
+#fis-v3-xml-file + small {display:block;margin-top:5px;color:#698075;font-size:.73rem;line-height:1.5;}
+@media(max-width:850px){.fis-v3-xml-row{grid-template-columns:1fr auto;}.fis-v3-xml-row-main{grid-column:1/-1;}}
