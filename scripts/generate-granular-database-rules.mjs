@@ -53,6 +53,9 @@ for(const node of mapped.keys()){
   if(!nodes.includes(node))throw new Error(`Mapeamento obsoleto: ${node}`);
 }
 const candidate=structuredClone(current);
+// Matrícula de cursos e documentos é gerenciada somente por API autenticada.
+// O Firebase Admin SDK escreve em erpTraining; clientes não acessam os dados diretamente.
+candidate.rules.erpTraining={'.read':false,'.write':false};
 delete candidate.rules.erp.$node;
 for(const node of nodes){
   if(explicit.has(node))continue;

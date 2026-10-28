@@ -232,6 +232,9 @@ async function main() {
   loadStyle('/legacy/design-system-v2.css');
   await loadClassic('/legacy/workspace-navigation.js');
 
+  loadStyle('/modules/final-ops/final-ops.css');
+  await loadClassic('/modules/final-ops/final-ops.js');
+
   document.dispatchEvent(new CustomEvent('erp:ready'));
 }
 

@@ -420,10 +420,11 @@ function init(shell){
   docs.id='fis-v3-documentos';docs.dataset.fiscalView='documentos';shell.append(docs);
   $('#fis-v3-doc-send').onclick=uploadFiscalDocument;
   const costs=section('Custo por funcionário','Consulta de valores de folha por mês ou ano, com encargos patronais estimados. Requer acesso à Folha de Pagamento.',
-    `<div class="fis-v3-fields"><label>Funcionário<select id="fis-v3-cost-employee"></select></label><label>Ano<input id="fis-v3-cost-year" type="number" min="2020" max="2100"></label><label>Período<select id="fis-v3-cost-month"><option value="">Ano inteiro</option>${Array.from({length:12},(_,i)=>`<option value="${String(i+1).padStart(2,'0')}">${new Date(2020,i,1).toLocaleDateString('pt-BR',{month:'long'})}</option>`).join('')}</select></label><button id="fis-v3-cost-view" type="button">Consultar custos</button></div><div id="fis-v3-cost-info" role="status"></div><div id="fis-v3-cost-result"></div>`);
+    `<div class="fis-v3-fields"><label>Consultar<select id="fis-v3-cost-kind"><option value="funcionario">Funcionário (folha)</option><option value="fornecedor">Fornecedor fiscal (compras)</option><option value="cliente">Cliente fiscal (vendas)</option></select></label><label>Cadastro<select id="fis-v3-cost-employee"></select></label><label>Ano<input id="fis-v3-cost-year" type="number" min="2020" max="2100"></label><label>Período<select id="fis-v3-cost-month"><option value="">Ano inteiro</option>${Array.from({length:12},(_,i)=>`<option value="${String(i+1).padStart(2,'0')}">${new Date(2020,i,1).toLocaleDateString('pt-BR',{month:'long'})}</option>`).join('')}</select></label><button id="fis-v3-cost-view" type="button">Consultar custos</button></div><div id="fis-v3-cost-info" role="status"></div><div id="fis-v3-cost-result"></div>`);
   costs.id='fis-v3-custos-rh';costs.dataset.fiscalView='custos-rh';shell.append(costs);
   $('#fis-v3-cost-year').value=year();$('#fis-v3-stock-year').value=year();
   $('#fis-v3-cost-view').onclick=renderCosts;
+  $('#fis-v3-cost-kind').addEventListener('change',renderCosts);
   $('#fis-v3-doc-owner').addEventListener('change',renderDocuments);
   // A sincronização remota pode completar depois da primeira abertura.
   document.addEventListener('erp:alert-source-changed',(event)=>{
@@ -643,7 +644,13 @@ async function deleteDocument(f){
 }
 async function renderCosts(){
   try{
-    const c=await claims();if(!c.canPayroll||c.erpAccess!==true){$('#fis-v3-cost-result').replaceChildren();throw Error('Consulta restrita a usuários autorizados no módulo Folha de Pagamento.');}
+    const c=await claims(),kind=$('#fis-v3-cost-kind')?.value||'funcionario';
+    if(c.erpAccess!==true){$('#fis-v3-cost-result').replaceChildren();throw Error('Sessão inválida.');}
+    if(kind!=='funcionario'){
+      if(!c.canFiscalRead)throw Error('Consulta restrita a usuários com acesso ao Fiscal.');
+      return await renderFiscalPartyCosts(kind);
+    }
+    if(!c.canPayroll){$('#fis-v3-cost-result').replaceChildren();throw Error('Consulta de funcionários exige acesso à Folha de Pagamento.');}
     let staff=typeof FUNCIONARIOS!=='undefined'&&Array.isArray(FUNCIONARIOS)?FUNCIONARIOS.filter(f=>f&&f.mat):[];
     // O sincronizador restringe funcEdit a canHR. Uma pessoa com apenas canPayroll
     // recebe os campos mínimos do cadastro pela API, que valida o token no servidor.
@@ -673,6 +680,32 @@ async function renderCosts(){
     r.forEach(x=>{const row=node('tr');[x.period,money(x.bruto),money(x.diarias),money(x.encargos),money(x.cost)].forEach(v=>row.append(node('td','',v)));$('tbody',box).append(row);});host.append(box);
     message('#fis-v3-cost-info','Estimativa baseada nos dados de folha e viagens; não equivale a pagamento confirmado ou guia de encargos.');
   }catch(e){message('#fis-v3-cost-info',e.message,true);}
+}
+async function renderFiscalPartyCosts(kind){
+  const select=$('#fis-v3-cost-employee'),current=select.value;
+  const parties=(await fiscalPartiesLive()).filter(x=>fiscalPartyKind(x.type)===kind);
+  select.replaceChildren(new Option(kind==='cliente'?'Selecione um cliente fiscal':'Selecione um fornecedor fiscal',''));
+  parties.forEach(p=>select.add(new Option(p.name+' · '+p.id,p.id)));
+  if(parties.some(p=>p.id===current))select.value=current;
+  else if(parties.length)select.value=parties[0].id;
+  const party=parties.find(p=>p.id===select.value),host=$('#fis-v3-cost-result');host.replaceChildren();
+  if(!party){host.append(node('p','fis-v3-empty','Nenhum cadastro fiscal ativo deste tipo.'));return;}
+  const y=Number($('#fis-v3-cost-year').value)||year(),requested=$('#fis-v3-cost-month').value;
+  const months=requested?[requested]:Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0'));
+  const entries=months.map(mm=>{
+    const key=(typeof _fPfx==='function'?_fPfx():'')+y+'-'+mm;
+    const source=FISCAL_DB?.[key]?.[kind==='fornecedor'?'entradas':'saidas']||[];
+    const names=String(party.name).trim().toLocaleLowerCase('pt-BR');
+    const list=source.filter(x=>String(kind==='fornecedor'?x.fornecedor:x.cliente||'').trim().toLocaleLowerCase('pt-BR')===names);
+    const amount=list.reduce((sum,x)=>sum+Number(x.valorTotal ?? x.valor ?? (x.itens||[]).reduce((n,i)=>n+Number(i.valor||0),0) ?? 0),0);
+    return {month:mm+'/'+y,count:list.length,total:Math.round(amount*100)/100};
+  });
+  const total=entries.reduce((a,x)=>a+x.total,0);
+  host.append(node('div','fis-v3-cost-kpi',`${kind==='fornecedor'?'Compras fiscais de':'Vendas fiscais para'} ${party.name}: R$ ${money(total)}`));
+  const box=node('div','fis-v3-table-wrap');const table=document.createElement('table');
+  table.innerHTML='<thead><tr><th>Mês</th><th>Notas</th><th>Valor dos lançamentos</th></tr></thead><tbody></tbody>';
+  entries.forEach(x=>{const row=node('tr');[x.month,x.count,'R$ '+money(x.total)].forEach(v=>row.append(node('td','',v)));table.tBodies[0].append(row);});box.append(table);host.append(box);
+  message('#fis-v3-cost-info','Total dos lançamentos fiscais por competência; não representa custo líquido, lucro ou pagamento confirmado.');
 }
 function calcPayrollMonth(f,y,mm){
   const mes=y+'-'+mm;

@@ -79,6 +79,25 @@ service firebase.storage {
         && scopeOK();
     }
 
+    // Certificados da matriz: a gestão é exclusiva da administradora Elaine.
+    match /erp-files/training/{enrollmentId}/{fileName} {
+      function trainingManager() {
+        return authenticated()
+          && request.auth.token.admin == true
+          && request.auth.token.erpUser == 'elaine';
+      }
+      function trainingPathOK() {
+        return enrollmentId.matches('[A-Za-z0-9_-]{4,100}')
+          && fileName.matches('[A-Za-z0-9_-]+\.(pdf|jpg|png|webp)');
+      }
+      allow read, delete: if trainingManager() && trainingPathOK();
+      allow create: if trainingManager() && trainingPathOK()
+        && request.resource.size > 0 && request.resource.size <= 10 * 1024 * 1024
+        && (request.resource.contentType == 'application/pdf'
+        || request.resource.contentType.matches('image/(png|jpeg|webp)'));
+      allow update: if false;
+    }
+
     match /erp-files/frotaDocs/{vehicle}/{fileName} {
       allow read: if authenticated()
         && request.auth.token.canFleetDocs == true;
