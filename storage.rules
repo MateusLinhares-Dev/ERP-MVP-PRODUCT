@@ -88,7 +88,7 @@ service firebase.storage {
       }
       function trainingPathOK() {
         return enrollmentId.matches('[A-Za-z0-9_-]{4,100}')
-          && fileName.matches('[A-Za-z0-9_-]+\.(pdf|jpg|png|webp)');
+          && fileName.matches('[A-Za-z0-9_-]+[.](pdf|jpg|png|webp)');
       }
       allow read, delete: if trainingManager() && trainingPathOK();
       allow create: if trainingManager() && trainingPathOK()
