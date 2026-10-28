@@ -648,9 +648,70 @@ function replaceFiscalRegistry(){
 function renderFiscalRegistry(){const host=$('#p2fis-list');if(!host)return;const q=norm($('#p2fis-search')?.value),type=$('#p2fis-type')?.value||'';const arr=Object.values(fiscalParties||{}).filter(x=>x&&(!type||x.type===type)&&(!q||norm([x.name,x.legalName,x.tradeName,x.cnpj,x.cpf,x.city,x.uf].join(' ')).includes(q))).sort((a,b)=>String(a.name||a.legalName||'').localeCompare(String(b.name||b.legalName||''),'pt-BR'));host.innerHTML=arr.length?arr.map(x=>`<div class="phase2-fiscal-party ${x.active===false?'inactive':''}"><div><span>${esc(x.type||'')}</span><b>${esc(x.legalName||x.name||'')}</b><small>${esc(x.cnpj||x.cpf||'Sem CPF/CNPJ')} ${x.city?'· '+esc(x.city+'/'+(x.uf||'')):''}</small></div><button onclick="phase2FiscalOpen('${x.id}')">Editar</button><button onclick="phase2FiscalToggle('${x.id}')">${x.active===false?'Ativar':'Inativar'}</button></div>`).join(''):'<div class="phase2-empty">Nenhum cadastro fiscal.</div>';}
 global.phase2FiscalFilter=renderFiscalRegistry;
 global.phase2FiscalOpen=function(id){const x=id?fiscalParties[id]:null,body=$('#modal-body');if(!body)return;body.className='modal wide';body.innerHTML=`<h3>${x?'✏️ Editar':'＋ Novo'} Cadastro Fiscal</h3><input type="hidden" id="p2fis-id" value="${esc(id||'')}"><div class="phase2-fiscal-form"><section><h4>Identificação</h4><div class="phase2-form-two"><label>Tipo<select id="p2fis-f-type"><option ${x?.type==='Fornecedor Fiscal'?'selected':''}>Fornecedor Fiscal</option><option ${x?.type==='Cliente Fiscal'?'selected':''}>Cliente Fiscal</option></select></label><label>Pessoa<select id="p2fis-person"><option value="PJ" ${x?.personType!=='PF'?'selected':''}>Pessoa Jurídica</option><option value="PF" ${x?.personType==='PF'?'selected':''}>Pessoa Física</option></select></label></div><label>Razão social / Nome<input id="p2fis-legal" value="${esc(x?.legalName||x?.name||'')}"></label><label>Nome fantasia<input id="p2fis-trade" value="${esc(x?.tradeName||'')}"></label><div class="phase2-form-two"><label>CNPJ<input id="p2fis-cnpj" value="${esc(x?.cnpj||'')}" placeholder="00.000.000/0000-00"></label><label>CPF<input id="p2fis-cpf" value="${esc(x?.cpf||'')}" placeholder="000.000.000-00"></label></div><div class="phase2-form-two"><label>Inscrição Estadual<input id="p2fis-ie" value="${esc(x?.ie||'')}"></label><label>Inscrição Municipal<input id="p2fis-im" value="${esc(x?.im||'')}"></label></div><div class="phase2-form-two"><label>Indicador IE<select id="p2fis-ie-ind"><option ${x?.ieIndicator==='Contribuinte ICMS'?'selected':''}>Contribuinte ICMS</option><option ${x?.ieIndicator==='Contribuinte isento'?'selected':''}>Contribuinte isento</option><option ${x?.ieIndicator==='Não contribuinte'?'selected':''}>Não contribuinte</option></select></label><label>SUFRAMA<input id="p2fis-suframa" value="${esc(x?.suframa||'')}"></label></div><label>Regime tributário<select id="p2fis-regime"><option></option>${['MEI','Simples Nacional','Lucro Presumido','Lucro Real','Isento / Não contribuinte'].map(r=>`<option ${x?.taxRegime===r?'selected':''}>${r}</option>`).join('')}</select></label></section><section><h4>Contato e endereço</h4><div class="phase2-form-two"><label>E-mail<input id="p2fis-email" value="${esc(x?.email||'')}"></label><label>Telefone<input id="p2fis-phone" value="${esc(x?.phone||'')}"></label></div><label>E-mail para NF-e / XML<input id="p2fis-nfe-email" value="${esc(x?.nfeEmail||x?.email||'')}"></label><div class="phase2-form-two"><label>CEP<input id="p2fis-cep" value="${esc(x?.cep||'')}"></label><label>UF<input id="p2fis-uf" maxlength="2" value="${esc(x?.uf||'')}"></label></div><div class="phase2-form-two"><label>País<input id="p2fis-country" value="${esc(x?.country||'Brasil')}"></label><label>Código IBGE Município<input id="p2fis-ibge" value="${esc(x?.ibge||'')}"></label></div><label>Logradouro<input id="p2fis-address" value="${esc(x?.address||'')}"></label><div class="phase2-form-two"><label>Número<input id="p2fis-number" value="${esc(x?.number||'')}"></label><label>Complemento<input id="p2fis-complement" value="${esc(x?.complement||'')}"></label></div><div class="phase2-form-two"><label>Bairro<input id="p2fis-district" value="${esc(x?.district||'')}"></label><label>Cidade<input id="p2fis-city" value="${esc(x?.city||'')}"></label></div><label>Observações<input id="p2fis-notes" value="${esc(x?.notes||'')}"></label></section></div><div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="phase2FiscalSave()">💾 Salvar</button></div>`;$('#modal-ov')?.classList.add('open');};
-global.phase2FiscalSave=async function(){if(!store)return;const id=$('#p2fis-id')?.value||store.id('FIS'),legal=String($('#p2fis-legal')?.value||'').trim();if(!legal){notify('Informe a razão social ou nome.','error');return;}const item={...(fiscalParties[id]||{}),id,type:$('#p2fis-f-type')?.value||'Fornecedor Fiscal',personType:$('#p2fis-person')?.value||'PJ',name:legal,legalName:legal,tradeName:$('#p2fis-trade')?.value||'',cnpj:$('#p2fis-cnpj')?.value||'',cpf:$('#p2fis-cpf')?.value||'',ie:$('#p2fis-ie')?.value||'',im:$('#p2fis-im')?.value||'',ieIndicator:$('#p2fis-ie-ind')?.value||'',suframa:$('#p2fis-suframa')?.value||'',taxRegime:$('#p2fis-regime')?.value||'',email:$('#p2fis-email')?.value||'',nfeEmail:$('#p2fis-nfe-email')?.value||'',phone:$('#p2fis-phone')?.value||'',cep:$('#p2fis-cep')?.value||'',uf:String($('#p2fis-uf')?.value||'').toUpperCase(),country:$('#p2fis-country')?.value||'Brasil',ibge:$('#p2fis-ibge')?.value||'',address:$('#p2fis-address')?.value||'',number:$('#p2fis-number')?.value||'',complement:$('#p2fis-complement')?.value||'',district:$('#p2fis-district')?.value||'',city:$('#p2fis-city')?.value||'',notes:$('#p2fis-notes')?.value||'',active:fiscalParties[id]?.active!==false,updatedAt:new Date().toISOString()};fiscalParties[id]=item;await store.save('fiscalParties',id,item);cm();renderFiscalRegistry();notify('Cadastro fiscal salvo.','success');};
+global.phase2FiscalSave=async function(){if(!store)return;const id=$('#p2fis-id')?.value||store.id('FIS'),legal=String($('#p2fis-legal')?.value||'').trim();if(!legal){notify('Informe a razão social ou nome.','error');return;}const item={...(fiscalParties[id]||{}),id,type:$('#p2fis-f-type')?.value||'Fornecedor Fiscal',personType:$('#p2fis-person')?.value||'PJ',name:legal,legalName:legal,tradeName:$('#p2fis-trade')?.value||'',cnpj:$('#p2fis-cnpj')?.value||'',cpf:$('#p2fis-cpf')?.value||'',ie:$('#p2fis-ie')?.value||'',im:$('#p2fis-im')?.value||'',ieIndicator:$('#p2fis-ie-ind')?.value||'',suframa:$('#p2fis-suframa')?.value||'',taxRegime:$('#p2fis-regime')?.value||'',email:$('#p2fis-email')?.value||'',nfeEmail:$('#p2fis-nfe-email')?.value||'',phone:$('#p2fis-phone')?.value||'',cep:$('#p2fis-cep')?.value||'',uf:String($('#p2fis-uf')?.value||'').toUpperCase(),country:$('#p2fis-country')?.value||'Brasil',ibge:$('#p2fis-ibge')?.value||'',address:$('#p2fis-address')?.value||'',number:$('#p2fis-number')?.value||'',complement:$('#p2fis-complement')?.value||'',district:$('#p2fis-district')?.value||'',city:$('#p2fis-city')?.value||'',notes:$('#p2fis-notes')?.value||'',active:fiscalParties[id]?.active!==false,updatedAt:new Date().toISOString()};fiscalParties[id]=item;await store.save('fiscalParties',id,item);cm();renderFiscalRegistry();document.dispatchEvent(new Event('fiscal:cadastros-atualizados'));notify('Cadastro fiscal salvo.','success');};
 global.phase2FiscalToggle=async id=>{if(!store||!fiscalParties[id])return;fiscalParties[id].active=fiscalParties[id].active===false;await store.save('fiscalParties',id,fiscalParties[id]);renderFiscalRegistry();};
-function bindFiscalModal(prefix,inputId,typeSelectId){const input=$('#'+inputId),typeSel=$('#'+typeSelectId);if(!input)return;if(typeSel){Array.from(typeSel.options).forEach(o=>{if(o.value==='fornecedor')o.textContent='Fornecedores Fiscais';if(o.value==='cliente')o.textContent='Clientes Fiscais';});}const label=input.closest('.fg')?.querySelector('label');if(label)label.textContent=prefix==='ne'?'Fornecedor Fiscal':'Cliente / Fornecedor Fiscal';const update=()=>{const type=typeSel?.value|| (prefix==='ne'?'fornecedor':'cliente'),arr=fiscalPartyList(type),id='phase2-fiscal-'+prefix+'-people';let dl=$('#'+id);if(!dl){dl=document.createElement('datalist');dl.id=id;document.body.appendChild(dl);}dl.innerHTML=arr.map(x=>`<option value="${esc(x.legalName||x.name||'')}">${esc(x.cnpj||x.cpf||'')}</option>`).join('');input.setAttribute('list',id);input.placeholder=arr.length?'Digite ou selecione um cadastro fiscal':'Nenhum cadastro deste tipo — cadastre em Cadastros Fiscais';input.dataset.phase2FiscalOnly='1';};typeSel?.removeAttribute('onchange');typeSel?.addEventListener('change',update);update();}
+// A seleção de notas fiscais usa exclusivamente os cadastros fiscais, não os cadastros comerciais.
+// Recarregamos do RTDB ao abrir cada nota; uma fotografia antiga de fiscalParties ficava vazia
+// quando o Firebase terminava de sincronizar depois da inicialização da interface.
+function fiscalPickerKey(x) { return String(x?.legalName||x?.name||'').trim(); }
+function fiscalPickerType(type) { return type==='cliente'?'cliente':'fornecedor'; }
+function fiscalPickerNormalize(s) { return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
+function bindFiscalModal(prefix,inputId,typeSelectId){
+  const input=$('#'+inputId),typeSel=$('#'+typeSelectId);
+  if(!input)return;
+  if(typeSel)Array.from(typeSel.options).forEach(o=>{
+    if(o.value==='fornecedor')o.textContent='Fornecedores Fiscais';
+    if(o.value==='cliente')o.textContent='Clientes Fiscais';
+  });
+  const label=input.closest('.fg')?.querySelector('label');
+  if(label)label.textContent=prefix==='ne'?'Fornecedor fiscal':'Cliente / fornecedor fiscal';
+  const container=input.closest('.fg');if(!container)return;
+  container.classList.add('phase2-fiscal-picker-field');
+  input.removeAttribute('list'); // o datalist nativo não abre consistentemente no Chrome
+  input.setAttribute('autocomplete','off');
+  input.setAttribute('role','combobox');
+  input.setAttribute('aria-autocomplete','list');
+  let menu=container.querySelector('.phase2-fiscal-picker-menu');
+  if(!menu){menu=document.createElement('div');menu.className='phase2-fiscal-picker-menu';menu.hidden=true;menu.setAttribute('role','listbox');input.insertAdjacentElement('afterend',menu);}
+  if(input.dataset.fiscalPickerReady==='1')return;
+  input.dataset.fiscalPickerReady='1';
+  input.dataset.phase2FiscalOnly='1';
+  let error='';
+  const list=()=>fiscalPartyList(fiscalPickerType(typeSel?.value || (prefix==='ne'?'fornecedor':'cliente')))
+    .slice().sort((a,b)=>fiscalPickerKey(a).localeCompare(fiscalPickerKey(b),'pt-BR'));
+  const render=(query,open=true)=>{
+    const matches=list().filter(x=>!query||fiscalPickerNormalize([x.name,x.legalName,x.tradeName,x.cnpj,x.cpf].join(' ')).includes(fiscalPickerNormalize(query)));
+    menu.replaceChildren();
+    if(error){const n=document.createElement('p');n.className='phase2-fiscal-picker-note';n.textContent=error;menu.append(n);}
+    else if(!matches.length){const n=document.createElement('p');n.className='phase2-fiscal-picker-note';n.textContent=list().length?'Nenhum cadastro correspondente.':'Nenhum cadastro fiscal ativo desse tipo. Cadastre na aba Cadastros fiscais.';menu.append(n);}
+    matches.slice(0,30).forEach(x=>{
+      const option=document.createElement('button');option.type='button';option.className='phase2-fiscal-picker-option';option.setAttribute('role','option');
+      const label=document.createElement('strong');label.textContent=fiscalPickerKey(x);
+      const detail=document.createElement('small');detail.textContent=x.cnpj||x.cpf||x.tradeName||x.id||'';
+      option.append(label,detail);
+      // pointerdown precede o blur do campo; a opção continua selecionável por mouse e teclado.
+      option.addEventListener('click',()=>{
+        input.value=fiscalPickerKey(x);input.dataset.fiscalPartyId=String(x.id||'');
+        menu.hidden=true;input.setAttribute('aria-expanded','false');input.dispatchEvent(new Event('change',{bubbles:true}));
+      });
+      menu.append(option);
+    });
+    menu.hidden=!open;input.setAttribute('aria-expanded',String(open));
+  };
+  input.addEventListener('focus',()=>render('',true));
+  input.addEventListener('input',()=>{input.removeAttribute('data-fiscal-party-id');render(input.value,true);});
+  input.addEventListener('keydown',e=>{if(e.key==='Escape'){menu.hidden=true;input.setAttribute('aria-expanded','false');}});
+  input.addEventListener('blur',()=>setTimeout(()=>{menu.hidden=true;input.setAttribute('aria-expanded','false');},160));
+  typeSel?.addEventListener('change',()=>{
+    if(input.dataset.fiscalPartyId){input.value='';input.removeAttribute('data-fiscal-party-id');}
+    render('',document.activeElement===input);
+  });
+  typeSel?.removeAttribute('onchange');
+  input.placeholder='Pesquisar cadastro fiscal pelo nome ou documento';
+  // O cache local pode estar vazio até a primeira resposta do Firebase.
+  Promise.resolve(loadFiscalParties()).then(()=>{error='';if(document.activeElement===input)render('',true);})
+    .catch(()=>{error='Não foi possível carregar cadastros fiscais. Verifique sua permissão ou conexão.';if(document.activeElement===input)render('',true);});
+}
 const fiscalNewEntry=global.fiscalNovaEntrada,fiscalNewExit=global.fiscalNovaSaida,fiscalEdit=global.fiscalAbrirEditar;
 if(typeof fiscalNewEntry==='function')global.fiscalNovaEntrada=function(){const r=fiscalNewEntry.apply(this,arguments);setTimeout(()=>bindFiscalModal('ne','ne-forn','ne-pessoa-tipo'),0);return r;};
 if(typeof fiscalNewExit==='function')global.fiscalNovaSaida=function(){const r=fiscalNewExit.apply(this,arguments);setTimeout(()=>bindFiscalModal('ns','ns-cli','ns-pessoa-tipo'),0);return r;};

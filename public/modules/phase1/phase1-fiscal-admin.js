@@ -274,6 +274,80 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
     observer.observe(tab, {childList: true, subtree: true});
   }
 
+  // O cabeçalho da impressão não pode assumir a empresa principal nem depender de
+  // um botão que o legado recria ao alternar Manuela/Gratus.
+  const legacyFiscalCompanySetter = global.fiscalSetEmpresa;
+  if (typeof legacyFiscalCompanySetter === 'function') {
+    global.fiscalSetEmpresa = function(company) {
+      const result = legacyFiscalCompanySetter.apply(this, arguments);
+      if (company === 'manuela' || company === 'gratus') global.FiscalWorkspaceSelectedCompany = company;
+      return result;
+    };
+  }
+  function selectedFiscalCompany() {
+    if (['manuela','gratus'].includes(global.FiscalWorkspaceSelectedCompany))
+      return global.FiscalWorkspaceSelectedCompany;
+    const badge = $('#fiscal-emp-badge')?.textContent || '';
+    if (/gratus/i.test(badge)) return 'gratus';
+    if (/manuela/i.test(badge)) return 'manuela';
+    const current = typeof global._fiscalEnsureEmpresa === 'function' ? global._fiscalEnsureEmpresa() : '';
+    return ['manuela','gratus'].includes(current) ? current : 'manuela';
+  }
+  function printEscape(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g,
+      c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function fiscalReportMarkup(info, data, company) {
+    const money = n => 'R$ ' + Number(n || 0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    const sum = n => Number(n.valorTotal || 0) || (n.itens || []).reduce((t,i)=>t+Number(i.valor || 0),0);
+    const table = (title, rows, person, heading) => {
+      if (!rows.length) return '';
+      const total = rows.reduce((t,n)=>t+sum(n),0);
+      return `<h2>${printEscape(title)}</h2><table><thead><tr><th>Data</th><th>Nº NF</th><th>${heading}</th><th>Material</th><th class="numeric">Kg</th><th class="numeric">Valor</th></tr></thead><tbody>` +
+        rows.map(n=>`<tr><td>${printEscape(n.data)}</td><td>${printEscape(n.num)}</td><td>${printEscape(n[person])}</td><td>${printEscape((n.itens||[]).map(i=>i.produto||'').join(', '))}</td><td class="numeric">${(n.itens||[]).reduce((a,i)=>a+Number(i.kg||0),0).toLocaleString('pt-BR',{maximumFractionDigits:3})}</td><td class="numeric">${money(sum(n))}</td></tr>`).join('')+
+        `</tbody><tfoot><tr><td colspan="5" class="numeric">Total</td><td class="numeric">${money(total)}</td></tr></tfoot></table>`;
+    };
+    const label = company === 'gratus' ? 'Gratus Metais' : 'Manuela Metais';
+    const logo = company === 'manuela'
+      ? '<img src="/assets/branding/manuela-metais-logo.webp" alt="Manuela Metais" class="company-logo">' : '';
+    const totalEntradas = data.ent.reduce((t,n)=>t+sum(n),0);
+    const totalSaidas = data.sai.reduce((t,n)=>t+sum(n),0);
+    return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Fiscal — ${printEscape(label)} — ${printEscape(info.label)}</title>
+<style>
+@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:20px;color:#1e2923;font-size:11px;}
+header{display:flex;gap:20px;align-items:center;justify-content:space-between;border-bottom:2px solid #174b32;padding:0 0 16px;margin-bottom:22px;min-height:77px}
+.company-logo{width:90px;max-height:75px;object-fit:contain}.company-name{font-size:21px;font-weight:700;color:#174b32}.period{font-size:13px;color:#56685a;margin-top:6px}
+h2{font-size:14px;color:#174b32;margin:23px 0 9px;}table{border-collapse:collapse;width:100%;table-layout:fixed;margin-bottom:15px;}th,td{border:1px solid #d4ded8;padding:7px 8px;text-align:left;vertical-align:top;word-break:break-word;}th{background:#eef4ef}td.numeric,th.numeric{text-align:right;white-space:nowrap;}tfoot{font-weight:700;background:#f6faf6;}footer{border-top:1px solid #d7e3da;padding-top:12px;margin-top:22px;}@media print{body{padding:0}tr{break-inside:avoid}}
+</style></head><body><header>${logo}<div><div class="company-name">${printEscape(label)}</div><div class="period">Relatório Fiscal — ${printEscape(info.label)}</div></div></header>`+
+      table('Entradas — Notas de compra',data.ent,'fornecedor','Fornecedor')+
+      table('Saídas — Notas de venda / despesa',data.sai,'cliente','Cliente')+
+      `<footer><strong>Resultado do mês:</strong> Entradas ${money(totalEntradas)} · Saídas ${money(totalSaidas)}</footer>
+<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},180)})<\/script></body></html>`;
+  }
+  const legacyFiscalPdf = global.fiscalExportarPDF;
+  if (typeof legacyFiscalPdf === 'function') {
+    global.fiscalExportarPDF = function() {
+      if (typeof global._fiscalPeriodoInfo !== 'function' || typeof global._fiscalNotasDoMes !== 'function')
+        return legacyFiscalPdf.apply(this,arguments);
+      const company = selectedFiscalCompany();
+      // Mantém a chave financeira do relatório alinhada à empresa selecionada.
+      if (typeof global.fiscalSetEmpresa === 'function' && typeof global._fiscalEnsureEmpresa === 'function'
+          && global._fiscalEnsureEmpresa() !== company) global.fiscalSetEmpresa(company);
+      const info = global._fiscalPeriodoInfo(), data = global._fiscalNotasDoMes();
+      if (!data.ent.length && !data.sai.length) {
+        if (typeof global.showToast === 'function') global.showToast('Nenhuma nota neste mês para exportar.','info');
+        return;
+      }
+      const popup = global.open('','_blank','width=1000,height=740');
+      if (!popup) {
+        if (typeof global.showToast === 'function') global.showToast('Permita a abertura de pop-ups para imprimir o relatório.','error');
+        return;
+      }
+      popup.document.open();popup.document.write(fiscalReportMarkup(info,data,company));popup.document.close();
+    };
+  }
+  global.FiscalWorkspacePrint = { fiscalReportMarkup, selectedFiscalCompany };
+
   global.FiscalWorkspace = { install, setArea };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, {once:true});
   else install();
