@@ -63,3 +63,9 @@
 .ops-pagination button:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:1000px){#tab-contratos .ops-contract-row{grid-template-columns:minmax(190px,1fr) 100px 160px}#tab-contratos .ops-contract-row button{grid-column:3}}
 @media(max-width:650px){#tab-contratos .ops-contract-row{grid-template-columns:1fr 1fr}#tab-contratos .ops-contract-description{grid-column:1/-1}#tab-contratos .ops-contract-row button{grid-column:1/-1}#tab-matriz_capacitacao .ops-training-picker-panel{padding:9px}}
+
+/* Feedback de upload com trava de clique e progresso real do Firebase Storage. */
+#tab-matriz_capacitacao .ops-training-upload-feedback{display:grid;gap:7px;margin:12px 0 0;padding:11px 12px;border:1px solid #c6dfcc;border-radius:8px;background:#f4f9f5;color:#24513a;font-size:.83rem;font-weight:650}
+#tab-matriz_capacitacao .ops-training-upload-feedback[hidden]{display:none!important}
+#tab-matriz_capacitacao .ops-training-upload-feedback progress{width:100%;height:9px;accent-color:#194b34}
+#tab-matriz_capacitacao #ops-upload-doc button:disabled{opacity:.64;cursor:wait}

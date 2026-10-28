@@ -15,6 +15,7 @@ async function token(){const t=await rawAuth()?.getIdToken();if(!t)throw Error('
 async function request(action,body){const t=await token();const response=await fetch('/api/training/matrix'+(action?'?view='+encodeURIComponent(action):''),{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:{Authorization:'Bearer '+t,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});const result=await response.json().catch(()=>({}));if(!response.ok)throw Error(result.message||'Não foi possível consultar a matriz.');return result;}
 let trainingManager=false,trainingData={courses:{},enrollments:{},documents:{},employees:[],erpUsers:[],history:[]},trainingTab='pessoas';
 let trainingSelectedEnrollmentId='';
+let trainingUploadBusy=false;
 let agendaPage=1,contractTablePage=1;
 const TRAINING_CHOICES_PER_PAGE=8, CONTRACT_PAGE_SIZE=8;
 const searchNorm=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
@@ -89,7 +90,7 @@ function renderTraining(){const host=$('#ops-training-main'),tab=trainingTab;$$(
    host.innerHTML=`<div class="ops-card ops-training-documents"><div class="ops-head"><div><h3>Documentos e certificados</h3><p>Vincule primeiro o curso ao funcionário para anexar seu certificado. Anexos PDF ou imagem de até 10 MB. Acesso restrito à Elaine.</p></div><span class="ops-doc-count">${Object.keys(trainingData.documents||{}).length} anexo(s)</span></div>
    ${!enroll.length?`<div class="ops-training-empty" role="status"><strong>Nenhuma capacitação vinculada a funcionário.</strong><p>${!activeCourses.length?'Cadastre primeiro um curso em Catálogo de cursos.':!employees.length?'Cadastre primeiro o funcionário no RH.':'Selecione um funcionário e um curso para criar o primeiro vínculo; depois você poderá anexar o certificado.'}</p></div>`:''}
    <form id="ops-quick-enroll" class="ops-training-link-box"><h4>Vincular curso a funcionário</h4><div class="ops-training-fields"><label>Funcionário<select name="employeeId" required ${!employees.length?'disabled':''}><option value="">Selecione o funcionário</option>${selectOptions(employees.map(e=>({id:e.id,name:e.name})))}</select></label><label>Curso cadastrado<select name="courseId" required ${!activeCourses.length?'disabled':''}><option value="">Selecione o curso</option>${selectOptions(activeCourses.map(c=>({id:c.id,name:c.title})))}</select></label><button class="ops-primary" type="submit" ${!canLink?'disabled':''}>Vincular capacitação</button></div><p class="ops-hint">Se já estiver vinculado, basta selecionar a capacitação abaixo. O vínculo não indica conclusão do curso.</p></form>
-   <form id="ops-upload-doc" class="ops-form"><h4>Anexar certificado</h4><div class="ops-training-enroll-picker"><label for="ops-training-picker-toggle">Capacitação do funcionário</label><div id="ops-training-current" class="ops-training-current" role="status">Nenhuma capacitação selecionada</div><button type="button" id="ops-training-picker-toggle" class="ops-training-picker-toggle" aria-expanded="false" aria-controls="ops-training-picker-panel" ${!enrollOptions.length?'disabled':''}>${enrollOptions.length?'Selecionar capacitação ('+enrollOptions.length+' vínculos)':'Nenhuma capacitação disponível'}</button><div id="ops-training-picker-panel" class="ops-training-picker-panel" hidden><label for="ops-training-enroll-search">Pesquisar funcionário ou curso</label><input id="ops-training-enroll-search" type="search" placeholder="Digite um nome ou curso" autocomplete="off"><div id="ops-training-enroll-options" class="ops-training-enroll-list" role="radiogroup" aria-label="Selecione a capacitação do funcionário"></div><p id="ops-training-enroll-empty" class="ops-hint" hidden>Nenhuma capacitação corresponde à busca.</p><div id="ops-training-choice-pager" class="ops-pagination"></div></div></div><label>Arquivo PDF ou imagem<input name="file" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" required ${!enrollOptions.length?'disabled':''}></label><button class="ops-primary" type="submit" ${!enrollOptions.length?'disabled':''}>Anexar certificado</button></form>
+   <form id="ops-upload-doc" class="ops-form"><h4>Anexar certificado</h4><div class="ops-training-enroll-picker"><label for="ops-training-picker-toggle">Capacitação do funcionário</label><div id="ops-training-current" class="ops-training-current" role="status">Nenhuma capacitação selecionada</div><button type="button" id="ops-training-picker-toggle" class="ops-training-picker-toggle" aria-expanded="false" aria-controls="ops-training-picker-panel" ${!enrollOptions.length?'disabled':''}>${enrollOptions.length?'Selecionar capacitação ('+enrollOptions.length+' vínculos)':'Nenhuma capacitação disponível'}</button><div id="ops-training-picker-panel" class="ops-training-picker-panel" hidden><label for="ops-training-enroll-search">Pesquisar funcionário ou curso</label><input id="ops-training-enroll-search" type="search" placeholder="Digite um nome ou curso" autocomplete="off"><div id="ops-training-enroll-options" class="ops-training-enroll-list" role="radiogroup" aria-label="Selecione a capacitação do funcionário"></div><p id="ops-training-enroll-empty" class="ops-hint" hidden>Nenhuma capacitação corresponde à busca.</p><div id="ops-training-choice-pager" class="ops-pagination"></div></div></div><label>Arquivo PDF ou imagem<input name="file" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" required ${!enrollOptions.length?'disabled':''}></label><button class="ops-primary" type="submit" ${!enrollOptions.length?'disabled':''}>Anexar certificado</button><div id="ops-training-upload-feedback" class="ops-training-upload-feedback" role="status" aria-live="polite" hidden><span id="ops-training-upload-label">Preparando arquivo…</span><progress id="ops-training-upload-progress" max="100" value="0"></progress></div></form>
    <div class="ops-list">${Object.values(trainingData.documents||{}).map(d=>`<div><b>${esc(d.name)}</b><span>${esc(employeeName(trainingData.enrollments[d.enrollmentId]?.employeeId))} · ${esc(courseName(trainingData.enrollments[d.enrollmentId]?.courseId))}</span><button data-open-doc="${esc(d.id)}">Abrir</button><button data-delete-doc="${esc(d.id)}">Excluir</button></div>`).join('')||'<p class="ops-hint">Nenhum certificado anexado.</p>'}</div></div>`;
    $('#ops-quick-enroll',host).onsubmit=async event=>{
      event.preventDefault();const form=event.currentTarget,employeeId=form.elements.employeeId.value,courseId=form.elements.courseId.value;
@@ -126,12 +127,79 @@ function renderTraining(){const host=$('#ops-training-main'),tab=trainingTab;$$(
  host.innerHTML=`<div class="ops-card"><h3>Vencimentos e avisos</h3><p>Avisos são exibidos no ERP conforme o login do funcionário, sem envio de mensagens externas.</p><div class="ops-list">${enroll.filter(e=>badgeFor(e)!=='Em dia').map(e=>`<div><b>${esc(employeeName(e.employeeId))}</b><span>${esc(courseName(e.courseId))} · ${esc(badgeFor(e))} · ${dateBR(expiry(e))}${e.notifyEnabled?' · aviso ativo':' · aviso desativado'}</span></div>`).join('')||'<p>Nenhum vencimento pendente.</p>'}</div></div>`;
 }
 async function submitTraining(body){try{await request(null,body);toast('Registro atualizado.');await refreshTraining();}catch(e){toast(e.message,true);}}
-async function uploadTrainingDoc(event){event.preventDefault();const form=event.target,file=form.elements.file.files[0],enrollmentId=form.querySelector('input[name="enrollmentId"]:checked')?.value||trainingSelectedEnrollmentId||'';if(!enrollmentId)return toast('Selecione a capacitação do funcionário para anexar o certificado.',true);
- if(!file||file.size>10*1024*1024||file.size<1||!['application/pdf','image/jpeg','image/png','image/webp'].includes(file.type))return toast('Utilize PDF ou imagem até 10 MB.',true);
- try{const id='TM'+global.crypto.randomUUID().replace(/-/g,'').slice(0,24),extension={'application/pdf':'pdf','image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type],path=`erp-files/training/${enrollmentId}/${id}.${extension}`;
- await global.__fbRaw.storage.ref(path).put(file,{contentType:file.type});
- await request(null,{action:'document',enrollmentId,id,extension,name:file.name});toast('Certificado anexado.');await refreshTraining();
- }catch(e){toast(e.message,true);}}
+// O mesmo arquivo enviado para o mesmo vínculo gera sempre o mesmo ID.
+// Isso evita documentos duplicados após F5, falhas de rede ou cliques repetidos.
+async function trainingDocumentId(enrollmentId,file){
+ const hashBytes=new Uint8Array(await global.crypto.subtle.digest('SHA-256',await file.arrayBuffer()));
+ const hash=Array.from(hashBytes,b=>b.toString(16).padStart(2,'0')).join('');
+ const scoped=new TextEncoder().encode(enrollmentId+':'+hash);
+ const scopedBytes=new Uint8Array(await global.crypto.subtle.digest('SHA-256',scoped));
+ return 'TM'+Array.from(scopedBytes,b=>b.toString(16).padStart(2,'0')).join('').slice(0,24);
+}
+async function trainingObjectMetadata(ref){
+ try{return await ref.getMetadata();}
+ catch(e){if(e?.code==='storage/object-not-found')return null;throw e;}
+}
+async function uploadTrainingDoc(event){
+ event.preventDefault();
+ // O lock é adquirido SINCRONAMENTE antes de qualquer await.
+ if(trainingUploadBusy)return;
+ const form=event.currentTarget||event.target;
+ const file=form.elements.file.files[0];
+ const enrollmentId=form.querySelector('input[name="enrollmentId"]:checked')?.value||trainingSelectedEnrollmentId||'';
+ if(!enrollmentId)return toast('Selecione a capacitação do funcionário para anexar o certificado.',true);
+ const extensions={'application/pdf':'pdf','image/jpeg':'jpg','image/png':'png','image/webp':'webp'};
+ if(!file||file.size>10*1024*1024||file.size<1||!extensions[file.type])return toast('Utilize PDF ou imagem até 10 MB.',true);
+ trainingUploadBusy=true;
+ const button=form.querySelector('button[type="submit"]'),buttonText=button?.textContent;
+ const input=form.elements.file,picker=$('#ops-training-picker-toggle');
+ const feedback=$('#ops-training-upload-feedback',form),label=$('#ops-training-upload-label',form),bar=$('#ops-training-upload-progress',form);
+ if(button){button.disabled=true;button.textContent='Enviando…';}
+ if(input)input.disabled=true;
+ if(picker)picker.disabled=true;
+ if(feedback)feedback.hidden=false;
+ const status=(message,progress)=>{if(label)label.textContent=message;if(bar&&Number.isFinite(progress))bar.value=progress;};
+ try{
+   status('Preparando certificado…',0);
+   const id=await trainingDocumentId(enrollmentId,file);
+   // Um arquivo já confirmado na matriz não precisa ser enviado novamente.
+   if(trainingData.documents?.[id]){toast('Este certificado já foi anexado a esta capacitação.');return;}
+   const extension=extensions[file.type],path=`erp-files/training/${enrollmentId}/${id}.${extension}`;
+   const ref=global.__fbRaw.storage.ref(path);
+   status('Verificando se o arquivo já existe…',0);
+   let metadata=await trainingObjectMetadata(ref);
+   if(!metadata){
+     status('Enviando certificado: 0%',0);
+     try{
+       const task=ref.put(file,{contentType:file.type});
+       if(typeof task.on==='function')task.on('state_changed',snapshot=>{
+         const percentage=snapshot.totalBytes?Math.min(100,Math.round(100*snapshot.bytesTransferred/snapshot.totalBytes)):0;
+         status(`Enviando certificado: ${percentage}%`,percentage);
+       });
+       await task;
+     }catch(uploadError){
+       // Outra aba pode ter criado exatamente o mesmo objeto nesse intervalo.
+       metadata=await trainingObjectMetadata(ref);
+       if(!metadata)throw uploadError;
+     }
+   }
+   if(metadata&&(Number(metadata.size)!==file.size||metadata.contentType!==file.type))throw Error('Já existe um anexo com identificador conflitante. Não foi substituído.');
+   status('Confirmando o registro do certificado…',100);
+   const result=await request(null,{action:'document',enrollmentId,id,extension,name:file.name});
+   // Sem um GET de toda a matriz depois do upload (economiza latência).
+   trainingData.documents[id]=result.document||{id,enrollmentId,name:file.name,path,createdAt:new Date().toISOString()};
+   toast(result.alreadyExists?'Este certificado já estava anexado.':'Certificado anexado com sucesso.');
+   if(trainingTab==='certificados'&&$('#ops-training-main'))renderTraining();
+ }catch(e){
+   status('Não foi possível concluir o envio. Confira a conexão e tente novamente.',0);
+   toast(e.message||'Erro ao enviar certificado.',true);
+ }finally{
+   trainingUploadBusy=false;
+   if(button){button.disabled=false;button.textContent=buttonText;}
+   if(input)input.disabled=false;
+   if(picker)picker.disabled=false;
+ }
+}
 async function openTrainingDoc(id){const doc=trainingData.documents[id];if(!doc)return;try{const url=await global.__fbRaw.storage.ref(doc.path).getDownloadURL();global.open(url,'_blank','noopener,noreferrer');}catch(e){toast(e.message,true);}}
 
 const helpModules={

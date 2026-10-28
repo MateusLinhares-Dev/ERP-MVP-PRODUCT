@@ -64,10 +64,35 @@ export default async function handler(req,res){
       const enrollmentId=safeId(b.enrollmentId),docId=safeId(b.id);const extension=String(b.extension||'');
       if(!['pdf','png','jpg','webp'].includes(extension))throw err('Formato inválido.');
       const path=`erp-files/training/${enrollmentId}/${docId}.${extension}`;
+      const documentRef=root.child('documents/'+docId);
+      // Idempotência: requisições repetidas retornam o registro já salvo.
+      const previous=await documentRef.get();
+      if(previous.exists()){
+        const saved=previous.val();
+        if(saved?.enrollmentId!==enrollmentId||saved?.path!==path)throw err('Identificador já utilizado em outro documento.',409);
+        return res.status(200).json({ok:true,id:docId,document:saved,alreadyExists:true});
+      }
       if(!(await root.child('enrollments/'+enrollmentId).get()).exists())throw err('Vínculo inexistente.',404);
-      const bucket=storage.bucket(),file=bucket.file(path),[exists]=await file.exists();if(!exists)throw err('Anexo ainda não foi enviado.',409);
-      const [meta]=await file.getMetadata();if(Number(meta.size)>10*1024*1024)throw err('Anexo maior que 10 MB.');
-      result={id:docId};await commit({['documents/'+docId]:{id:docId,enrollmentId,name:textField(b.name,140),path,createdAt:now(),createdBy:who}});
+      const bucket=storage.bucket(),file=bucket.file(path),[exists]=await file.exists();
+      if(!exists)throw err('Anexo ainda não foi enviado.',409);
+      const [meta]=await file.getMetadata();
+      if(Number(meta.size)<1||Number(meta.size)>10*1024*1024)throw err('Anexo fora do limite de 10 MB.');
+      const allowedMime={pdf:'application/pdf',png:'image/png',jpg:'image/jpeg',webp:'image/webp'};
+      if(meta.contentType!==allowedMime[extension])throw err('O tipo do arquivo não corresponde à extensão.',400);
+      const document={id:docId,enrollmentId,name:textField(b.name,140),path,createdAt:now(),createdBy:who};
+      // A transação create-only impede a duplicação inclusive entre abas/dispositivos.
+      const transaction=await documentRef.transaction(current=>current===null?document:undefined,undefined,false);
+      const saved=transaction.snapshot.val();
+      if(saved?.enrollmentId!==enrollmentId||saved?.path!==path)throw err('Identificador já utilizado em outro documento.',409);
+      if(transaction.committed){
+        try{
+          await root.child('audit').child('document_'+docId).set({action,recordId:docId,actor:who,uid:identity.uid,createdAt:now()});
+        }catch(auditError){
+          // Não informar falha de salvamento após a transação já ter sido confirmada.
+          console.error('[Matriz] Documento salvo, mas o registro de auditoria falhou.',auditError);
+        }
+      }
+      return res.status(200).json({ok:true,id:docId,document:saved,alreadyExists:!transaction.committed});
     }else if(action==='removeDocument'){
       const key=safeId(b.id),snapshot=await root.child('documents/'+key).get(),v=snapshot.val();
       if(!v)throw err('Documento não encontrado.',404);
