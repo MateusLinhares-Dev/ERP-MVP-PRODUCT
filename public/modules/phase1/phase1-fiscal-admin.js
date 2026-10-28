@@ -2,7 +2,24 @@
 'use strict';
 const store=global.Phase1Store;let fiscalParties={},docCategories={};const defaults=['Contrato','NF / Nota Fiscal','Alvará','Certidão','Procuração','Foto','Outros'];defaults.forEach(name=>{const id=name.toUpperCase();docCategories[id]={id,name};});
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-async function initFiscalParties(){if(!store)return;fiscalParties=await store.load('fiscalParties',{});renderFiscalParties();}
+let fiscalPartyLoadId=0;
+async function initFiscalParties(){
+  const seq=++fiscalPartyLoadId;
+  try{
+    // Ao voltar à aba, consultar a fonte atual: Phase1Store mantém cache e a
+    // primeira leitura pode ocorrer antes de o Firebase terminar a sincronização.
+    const raw=global._fbDB;
+    const value=raw ? (await raw.ref('erp/fiscalParties').once('value')).val() : (await store?.load('fiscalParties',{}));
+    if(seq!==fiscalPartyLoadId)return;
+    fiscalParties=value&&typeof value==='object'&&!Array.isArray(value)?value:{};
+    renderFiscalParties();
+  }catch(error){
+    console.warn('[Fiscal] Falha ao atualizar cadastros fiscais:',error);
+    const host=document.getElementById('phase1-fiscal-party-list');
+    if(host)host.textContent='Não foi possível consultar os cadastros fiscais. Tente novamente.';
+  }
+}
+global.phase1FiscalPartiesReload=initFiscalParties;
 function ensureFiscalParties(){const tab=document.getElementById('tab-fiscal');if(!tab||document.getElementById('phase1-fiscal-parties'))return;const title=tab.querySelector('.sec-title');const card=document.createElement('details');card.id='phase1-fiscal-parties';card.className='phase1-admin-card';card.innerHTML=`<summary>🧾 Cadastros Fiscais independentes</summary><div class="phase1-fiscal-form"><select id="phase1-fiscal-party-type"><option>Cliente Fiscal</option><option>Fornecedor Fiscal</option></select><input id="phase1-fiscal-party-name" placeholder="Nome / Razão social"><button onclick="phase1FiscalPartySave()">＋ Cadastrar</button></div><div class="phase1-note">Os campos fiscais adicionais não foram inferidos: permanecem aguardando AD-02.</div><div id="phase1-fiscal-party-list"></div>`;title.insertAdjacentElement('afterend',card);initFiscalParties();}
 global.phase1FiscalPartySave=async function(){const type=document.getElementById('phase1-fiscal-party-type')?.value||'Cliente Fiscal',name=String(document.getElementById('phase1-fiscal-party-name')?.value||'').trim();if(!name)return;const id=store.id('FIS');const item={id,type,name,active:true,createdAt:new Date().toISOString()};fiscalParties[id]=item;await store.save('fiscalParties',id,item);document.getElementById('phase1-fiscal-party-name').value='';renderFiscalParties();};
 global.phase1FiscalPartyToggle=async function(id){const item=fiscalParties[id];if(!item)return;item.active=!item.active;await store.save('fiscalParties',id,item);renderFiscalParties();};
@@ -70,6 +87,7 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
       btn.classList.toggle('is-current', active);
       btn.setAttribute('aria-pressed', String(active));
     });
+    if(currentArea==='cadastros')global.phase1FiscalPartiesReload?.();
     global.FiscalExtensions?.onAreaChange(currentArea);
     // Não alteramos empresa, competência ou estado das notas ao trocar de área.
   }
@@ -393,7 +411,7 @@ const uuid=()=>global.crypto?.randomUUID?.()||('id'+Date.now()+'_'+Math.random()
 function init(shell){
   const areas=[
     ['xml','Importar XML'],['estoque-inicial','Estoque inicial'],
-    ['devolucoes','NF de devolução'],['documentos','Documentos fiscais'],['custos-rh','Custos por funcionário']
+    ['devolucoes','NF de devolução'],['documentos','Documentos fiscais'],['custos-rh','Consulta de custos']
   ];
   const nav=$('.fis-work-nav-extra',shell)||$('.fis-work-mainnav',shell);if(!nav||$('#fis-v3-xml'))return;
   areas.forEach(([id,title])=>{
@@ -419,8 +437,8 @@ function init(shell){
     `<div class="fis-v3-fields"><label>Vincular a<select id="fis-v3-doc-owner"></select></label><label>Documento<input type="file" id="fis-v3-doc-file" accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp"></label><button id="fis-v3-doc-send" type="button">Anexar documento</button></div><div id="fis-v3-doc-info" role="status"></div><div id="fis-v3-doc-list"></div>`);
   docs.id='fis-v3-documentos';docs.dataset.fiscalView='documentos';shell.append(docs);
   $('#fis-v3-doc-send').onclick=uploadFiscalDocument;
-  const costs=section('Custo por funcionário','Consulta de valores de folha por mês ou ano, com encargos patronais estimados. Requer acesso à Folha de Pagamento.',
-    `<div class="fis-v3-fields"><label>Consultar<select id="fis-v3-cost-kind"><option value="funcionario">Funcionário (folha)</option><option value="fornecedor">Fornecedor fiscal (compras)</option><option value="cliente">Cliente fiscal (vendas)</option></select></label><label>Cadastro<select id="fis-v3-cost-employee"></select></label><label>Ano<input id="fis-v3-cost-year" type="number" min="2020" max="2100"></label><label>Período<select id="fis-v3-cost-month"><option value="">Ano inteiro</option>${Array.from({length:12},(_,i)=>`<option value="${String(i+1).padStart(2,'0')}">${new Date(2020,i,1).toLocaleDateString('pt-BR',{month:'long'})}</option>`).join('')}</select></label><button id="fis-v3-cost-view" type="button">Consultar custos</button></div><div id="fis-v3-cost-info" role="status"></div><div id="fis-v3-cost-result"></div>`);
+  const costs=section('Consulta de custos','Consulte folha estimada por funcionário ou lançamentos fiscais de clientes e fornecedores, por mês ou ano. A folha exige permissão específica.',
+    `<div class="fis-v3-fields"><label>Consultar<select id="fis-v3-cost-kind"><option value="funcionario">Funcionário (folha)</option><option value="fornecedor">Fornecedor fiscal (compras)</option><option value="cliente">Cliente fiscal (vendas)</option></select></label><label>Cadastro<select id="fis-v3-cost-employee"></select></label><label>Ano<select id="fis-v3-cost-year">${Array.from({length:new Date().getFullYear()-2019+2},(_,i)=>2020+i).reverse().map(y=>`<option value="${y}">${y}</option>`).join('')}</select></label><label>Período<select id="fis-v3-cost-month"><option value="">Ano inteiro</option>${Array.from({length:12},(_,i)=>`<option value="${String(i+1).padStart(2,'0')}">${new Date(2020,i,1).toLocaleDateString('pt-BR',{month:'long'})}</option>`).join('')}</select></label><button id="fis-v3-cost-view" type="button">Consultar custos</button></div><div id="fis-v3-cost-info" role="status"></div><div id="fis-v3-cost-result"></div>`);
   costs.id='fis-v3-custos-rh';costs.dataset.fiscalView='custos-rh';shell.append(costs);
   $('#fis-v3-cost-year').value=year();$('#fis-v3-stock-year').value=year();
   $('#fis-v3-cost-view').onclick=renderCosts;

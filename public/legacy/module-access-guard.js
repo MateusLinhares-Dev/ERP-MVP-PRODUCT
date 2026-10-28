@@ -19,6 +19,12 @@
     if(!tab) return false;
     
     if(tab==='avisos') return true;
+    // A ajuda é pública para qualquer conta autenticada no ERP. Não exige permissão
+    // administrativa nem dá acesso a dados ou operações de outros módulos.
+    if(tab==='help_center') return !!currentProfile();
+    // A Matriz é exclusiva da conta administradora Elaine. O servidor ainda verifica
+    // as claims Firebase antes de qualquer leitura/gravação de cursos e certificados.
+    if(tab==='matriz_capacitacao') return isElaineOwner();
 
     if(OWNER_ONLY_TABS.has(tab) && !isElaineOwner()) return false;
     var profile=currentProfile();

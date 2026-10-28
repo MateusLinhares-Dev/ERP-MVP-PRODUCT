@@ -957,7 +957,9 @@ const TABS_CFG = {
   fiscal:             {label:'Fiscal',           icon:'🧾'},
   epi:                {label:'EPI / NR-06',       icon:'🦺'},
   coordenacao:        {label:'Coordenação',        icon:'📋'},
-  senhas:             {label:'Senhas',            icon:'🔒'}
+  senhas:             {label:'Senhas',            icon:'🔒'},
+  matriz_capacitacao: {label:'Matriz',            icon:'▦'},
+  help_center:        {label:'Central de ajuda',  icon:'?'}
 };
 
 
@@ -1934,7 +1936,11 @@ function populateUsers(){
   const users=Object.entries(USERS);
   grid.innerHTML=users.map(([un,u])=>{
     const isAdmin=_usuarioEhAdmin(u);
-    const tabs=(Array.isArray(u.tabs)?u.tabs:[]).filter(t=>TABS_CFG[t]);
+    const tabs=(Array.isArray(u.tabs)?u.tabs:[]).filter(t=>TABS_CFG[t] && (t!=='matriz_capacitacao' || (un==='elaine'&&isAdmin)));
+    // Direitos efetivos não dependem de salvar uma alteração de perfil: a ajuda é
+    // acessível a todos; a matriz só à administradora Elaine.
+    if(!tabs.includes('help_center'))tabs.push('help_center');
+    if(un==='elaine'&&isAdmin&&!tabs.includes('matriz_capacitacao'))tabs.push('matriz_capacitacao');
     const granted=tabs.map(t=>`<span class="tag">${esc(TABS_CFG[t].label)}</span>`).join('');
     const key=encodeURIComponent(un).replace(/'/g,'%27');
     return `<article class="ucard ${isAdmin?'admin':''}">
@@ -1994,9 +2000,9 @@ function mudarSenha(un){
 function editUsuario(un){
   const u=USERS[un];
   if(!u){alert('Usuário não encontrado.');return;}
-  const allTabs=Object.keys(TABS_CFG);
+  const allTabs=Object.keys(TABS_CFG).filter(t=>t!=='matriz_capacitacao'||(un==='elaine'&&_usuarioEhAdmin(u)));
   const checkboxes=allTabs.map(t=>{
-    const checked=u.tabs.includes(t)?'checked':'';
+    const checked=(u.tabs.includes(t)||(t==='matriz_capacitacao'&&un==='elaine'&&_usuarioEhAdmin(u))||t==='help_center')?'checked':'';
     const cfg=TABS_CFG[t];
     return `<label style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;cursor:pointer;background:${checked?'#e8f5e9':'#f9f9f9'};margin-bottom:3px;font-size:.82rem">
       <input type="checkbox" ${checked} value="${t}" onchange="this.parentElement.style.background=this.checked?'#e8f5e9':'#f9f9f9'">
@@ -2068,7 +2074,7 @@ function excluirUsuario(un){
 }
 
 function novoUsuario(){
-  const allTabs=Object.keys(TABS_CFG);
+  const allTabs=Object.keys(TABS_CFG).filter(t=>t!=='matriz_capacitacao');
   const checkboxes=allTabs.map(t=>{
     const cfg=TABS_CFG[t];
     return `<label style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;cursor:pointer;background:#f9f9f9;margin-bottom:3px;font-size:.82rem">

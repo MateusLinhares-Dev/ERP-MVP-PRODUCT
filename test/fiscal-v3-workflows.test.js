@@ -9,7 +9,7 @@ const rules=read('storage.rules');
 const extension=js.slice(js.indexOf("(function(global){\n'use strict';\n// Extensões do Fiscal."));
 
 test('cinco áreas fiscais acessíveis e interface responsiva',()=>{
-  for(const t of ['Importar XML','Estoque inicial','NF de devolução','Documentos fiscais','Custos por funcionário'])
+  for(const t of ['Importar XML','Estoque inicial','NF de devolução','Documentos fiscais','Consulta de custos'])
     assert.ok(extension.includes(t),t);
   for(const v of ['xml','estoque-inicial','devolucoes','documentos','custos-rh'])
     assert.ok(js.includes(`'${v}'`));

@@ -20,9 +20,15 @@ function addNav(group,label,id,icon){const nav=$('#nav-bar');if(!nav||nav.queryS
   if(!target){target=document.createElement('div');target.className='sb-group open';target.innerHTML='<div class="sb-group-hdr"><span class="sb-gicon">'+icon+'</span><span class="sb-glabel">'+esc(group)+'</span><span class="sb-arr">▶</span></div><div class="sb-items"></div>';target.querySelector('.sb-group-hdr').onclick=()=>target.classList.toggle('open');nav.append(target);}
   const a=document.createElement('div');a.className='nav-tab';a.dataset.tab=id;a.innerHTML='<span class="nt-icon">'+icon+'</span><span class="nt-label">'+esc(label)+'</span>';a.onclick=()=>{try{global.switchTab?.(id);}catch(e){console.error(e);}if(id==='matriz_capacitacao')refreshTraining();if(id==='help_center')renderHelp();};$('.sb-items',target).append(a);
 }
-async function installMenu(){ensureTab('help_center');addNav('Ajuda','Help · Central de ajuda','help_center','?');
-  try{const t=await rawAuth()?.getIdTokenResult();trainingManager=Boolean(t?.claims?.admin)&&String(t?.claims?.erpUser||'').toLowerCase()==='elaine';
-    if(trainingManager){ensureTab('matriz_capacitacao');addNav('Administração','Matriz Curricular · Cursos','matriz_capacitacao','▦');}
+async function installMenu(){ensureTab('help_center');addNav('Ajuda','Central de ajuda','help_center','?');
+  try{
+    const profileOwner=global.erpIsElaineOwner?.()===true;
+    const t=await rawAuth()?.getIdTokenResult();
+    const tokenOwner=Boolean(t?.claims?.admin)&&String(t?.claims?.erpUser||'').toLowerCase()==='elaine';
+    // O menu usa a identidade do ERP já autenticado; a API valida as claims
+    // do token novamente, inclusive quando a tela é aberta por URL ou script.
+    trainingManager=profileOwner || tokenOwner;
+    if(trainingManager){ensureTab('matriz_capacitacao');addNav('Administração','Matriz','matriz_capacitacao','▦');}
     if(!$('#mm-training-notice')){const widget=document.createElement('div');widget.id='mm-training-notice';widget.hidden=true;widget.setAttribute('role','status');$('#app-screen')?.append(widget);}
     await checkNotices();
   }catch(e){console.warn('Não foi possível consultar avisos de capacitação.',e.message);}
@@ -131,9 +137,32 @@ function printReport(title,subtitle,columns,rows,totals){const printWin=global.o
 }
 function fuelEntries(){try{return typeof COMBUSTIVEL_DB!=='undefined'&&Array.isArray(COMBUSTIVEL_DB)?COMBUSTIVEL_DB:[];}catch(_){return[];}}
 function tripEntries(){try{return typeof VIAGEM_DB!=='undefined'&&Array.isArray(VIAGEM_DB)?VIAGEM_DB:[];}catch(_){return[];}}
-function ensureReports(containerId,id,label,printer){const host=$('#'+containerId);if(!host||$('#'+id,host))return;const box=document.createElement('section');box.className='ops-report';box.id=id;box.innerHTML='<label>Competência<input type="month" value="'+nowMonth()+'" aria-label="Mês do relatório"></label><label>Filtro<select aria-label="Seleção"></select></label><button type="button">'+esc(label)+'</button>';
- host.prepend(box);const s=$('select',box);s.add(new Option('Todos',''));const list=containerId==='tab-combustivel_rudnick'?fuelEntries():tripEntries();const names=[...new Set(list.map(c=>containerId==='tab-combustivel_rudnick'?c.motorista:c.motorista).filter(Boolean))].sort();names.forEach(name=>s.add(new Option(name,name)));$('button',box).onclick=()=>printer($('input',box).value,s.value);
+function ensureReports(containerId,id,label,printer){
+ const host=$('#'+containerId);if(!host||$('#'+id,host))return;
+ const box=document.createElement('section');box.className='ops-report';box.id=id;
+ box.innerHTML='<label>Competência<input type="month" value="'+nowMonth()+'" aria-label="Mês do relatório"></label><label>Motorista<select aria-label="Filtrar por motorista"></select></label><button type="button">'+esc(label)+'</button>';
+ host.prepend(box);
+ const select=$('select',box),input=$('input',box),isFuel=containerId==='tab-combustivel_rudnick';
+ // As listas chegam do Firebase DEPOIS do primeiro render da página. Atualizar
+ // antes de abrir o filtro evita o select com apenas “Todos”.
+ const refreshOptions=()=>{
+   const previous=select.value;
+   const list=isFuel?fuelEntries():tripEntries();
+   const names=[...new Set(list.map(row=>String(row.motorista||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+   select.replaceChildren(new Option('Todos os motoristas',''));
+   names.forEach(name=>select.add(new Option(name,name)));
+   if(names.includes(previous))select.value=previous;
+ };
+ refreshOptions();
+ ['focus','pointerdown','keydown'].forEach(type=>select.addEventListener(type,refreshOptions));
+ // Ao entrar novamente em Combustível/Viagens, o Firebase pode ter concluído a carga.
+ document.addEventListener('click',event=>{
+   const nav=event.target.closest('[data-tab]');
+   if(nav?.dataset.tab===containerId.slice(4))queueMicrotask(refreshOptions);
+ });
+ $('button',box).onclick=()=>{refreshOptions();printer(input.value,select.value);};
 }
+
 function printFuel(month,motorista){if(!/^\d{4}-\d{2}$/.test(month))return toast('Informe o mês.',true);const list=fuelEntries().filter(v=>dateISO(v.data).startsWith(month)&&(!motorista||v.motorista===motorista)),litres=list.reduce((s,x)=>s+Number(x.litros||0),0),total=list.reduce((s,x)=>s+Number(x.total||0),0);
  printReport('Combustível · relatório mensal',month+' · '+(motorista||'Todos os motoristas'),['Data','Veículo','Motorista','Fonte','Litros','Valor'],list.map(v=>[dateBR(dateISO(v.data)),v.caminhao||'—',v.motorista||'—',v.fonte||'—',String(v.litros||0),money(v.total)]),list.length+' abastecimentos · '+litres.toLocaleString('pt-BR')+' litros · '+money(total));}
 function printTrips(month,motorista){if(!/^\d{4}-\d{2}$/.test(month))return toast('Informe o mês.',true);const list=tripEntries().filter(v=>dateISO(v.data).startsWith(month)&&(!motorista||v.motorista===motorista));const sum=list.reduce((s,v)=>s+Number(v.totalRefeicoes||0)+Number(v.combustivel||0)+Number(v.gastosExtras||0)+Number(v.totalDiarias||0),0);
