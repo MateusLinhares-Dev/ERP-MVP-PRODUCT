@@ -100,3 +100,20 @@
 #tab-fiscal .fis-v3-empty{color:#77877d;font-size:.86rem}
 @media(max-width:930px){#tab-fiscal .fis-v3-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){#tab-fiscal .fis-v3-panel{padding:14px}#tab-fiscal .fis-v3-fields{grid-template-columns:1fr}#tab-fiscal .fis-v3-wide{grid-column:auto}}
+
+/* Fiscal: a extensão inicia escondida e não compete com abas legadas. */
+#tab-fiscal .fis-v3-panel[hidden],#tab-fiscal [data-fiscal-view][hidden]{display:none!important}
+#tab-fiscal .fis-work-mainnav{flex-wrap:wrap;gap:5px;padding:4px 0 9px;overflow:visible}
+#tab-fiscal .fis-work-mainbutton{border:1px solid transparent;border-radius:7px;padding:9px 13px}
+#tab-fiscal .fis-work-mainbutton.is-current{border-color:#afd0ba}
+#tab-fiscal .fis-v3-fields button{justify-self:start;min-width:155px;max-width:100%}
+#tab-fiscal .fis-v3-panel{box-shadow:0 2px 10px rgba(15,50,30,.04)}
+#tab-fiscal .fis-v3-fields select{cursor:pointer}
+@media(max-width:600px){#tab-fiscal .fis-work-mainnav{flex-wrap:nowrap;overflow-x:auto}#tab-fiscal .fis-v3-fields button{width:100%}}
+
+/* Duas fileiras sem empilhar controles aleatoriamente. */
+#tab-fiscal .fis-work-mainnav{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;padding:8px 0 12px}
+#tab-fiscal .fis-work-navrow{display:flex;min-width:0;gap:5px;align-items:center;overflow-x:auto;padding:4px 0}
+#tab-fiscal .fis-work-navlabel{flex:0 0 95px;color:#60756a;font-size:.69rem;text-transform:uppercase;letter-spacing:.05em;font-weight:750}
+#tab-fiscal .fis-work-navrow .fis-work-mainbutton{flex:0 0 auto;padding:8px 12px}
+@media(max-width:600px){#tab-fiscal .fis-work-mainnav{display:grid;overflow:visible}#tab-fiscal .fis-work-navlabel{flex-basis:70px}#tab-fiscal .fis-work-navrow .fis-work-mainbutton{padding:8px 10px}}

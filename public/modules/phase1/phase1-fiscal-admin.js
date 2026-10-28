@@ -186,6 +186,9 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
 
     const nav = node('div', 'fis-work-mainnav');
     nav.setAttribute('role', 'tablist');
+    const primaryNav = node('div','fis-work-navrow');
+    primaryNav.append(node('span','fis-work-navlabel','Principal'));
+    nav.append(primaryNav);
     const sections = [
       ['lancamentos', 'Lançamentos'],
       ['apuracao', 'Apuração e fechamento'],
@@ -197,8 +200,11 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
       btn.dataset.fiscalArea = area;
       btn.setAttribute('role', 'tab');
       btn.addEventListener('click', () => setArea(area));
-      nav.appendChild(btn);
+      primaryNav.appendChild(btn);
     });
+    const extraNav=node('div','fis-work-navrow fis-work-nav-extra');
+    extraNav.append(node('span','fis-work-navlabel','Ferramentas')) ;
+    nav.append(extraNav);
     shell.appendChild(nav);
 
     // Mantém os botões legados no DOM (usados por funções antigas), mas evita navegação duplicada.
@@ -262,7 +268,6 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
       directory.appendChild(footer);
     }
     shell.appendChild(directory);
-    global.FiscalExtensions?.install(shell);
     if (title) {
       title.classList.add('fis-work-legacy-title');
       title.insertAdjacentElement('afterend', shell);
@@ -271,6 +276,9 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
     replaceSubtabs();
     decorateCompanyButtons();
     relocateRegistry();
+    // Os controles da extensão precisam estar montados no document antes dos querySelector.
+    // Caso contrário, o init interrompe e todas as áreas ficam abertas.
+    try { global.FiscalExtensions?.install(shell); } catch (error) { console.error('[Fiscal] montagem das áreas adicionais',error); }
     setArea('lancamentos');
     const observer = new MutationObserver(() => relocateRegistry());
     observer.observe(tab, {childList: true, subtree: true});
@@ -376,7 +384,7 @@ function requireOnline(){if(!db())throw Error('Sem conexão autenticada ao Fireb
 async function claims(){const auth=global.__fbRaw?.auth;if(!auth?.currentUser)throw Error('Sessão expirada. Entre novamente.');return (await auth.currentUser.getIdTokenResult()).claims||{};}
 async function allowWrite(){const c=await claims();if(c.erpAccess!==true||c.canFiscalWrite!==true)throw Error('Seu perfil não permite alterar dados fiscais.');}
 function readonly(v){return document.createTextNode(v==null?'':String(v));}
-function section(title,desc,html){const e=node('section','fis-v3-panel');e.innerHTML='<h3>'+esc(title)+'</h3><p>'+esc(desc)+'</p>'+html;return e;}
+function section(title,desc,html){const e=node('section','fis-v3-panel');e.hidden=true;e.style.display='none';e.innerHTML='<h3>'+esc(title)+'</h3><p>'+esc(desc)+'</p>'+html;return e;}
 function datePt(s){if(!s)return '';return /^\d{4}-\d{2}-\d{2}$/.test(s)?s.slice(8)+'/'+s.slice(5,7)+'/'+s.slice(0,4):s;}
 function numeric(s){const n=Number(String(s||'0').replace(',','.'));return Number.isFinite(n)?n:NaN;}
 function amt(s){const n=numeric(s);if(!Number.isFinite(n)||n<0||n>1e12)throw Error('Informe um valor monetário válido.');return Math.round(n*100)/100;}
@@ -387,7 +395,7 @@ function init(shell){
     ['xml','Importar XML'],['estoque-inicial','Estoque inicial'],
     ['devolucoes','NF de devolução'],['documentos','Documentos fiscais'],['custos-rh','Custos por funcionário']
   ];
-  const nav=$('.fis-work-mainnav',shell);if(!nav||$('#fis-v3-xml'))return;
+  const nav=$('.fis-work-nav-extra',shell)||$('.fis-work-mainnav',shell);if(!nav||$('#fis-v3-xml'))return;
   areas.forEach(([id,title])=>{
     const button=node('button','fis-work-mainbutton',title);button.type='button';button.setAttribute('role','tab');button.dataset.fiscalArea=id;
     button.addEventListener('click',()=>global.FiscalWorkspace?.setArea(id));nav.appendChild(button);
@@ -401,10 +409,11 @@ function init(shell){
   estoque.id='fis-v3-estoque-inicial';estoque.dataset.fiscalView='estoque-inicial';shell.append(estoque);
   $('#fis-v3-stock-save').onclick=saveOpeningStock;
   const ret=section('Notas fiscais de devolução','Controle documental das devoluções por competência. O registro não emite uma NF-e na SEFAZ nem altera estoque ou contas automaticamente.',
-    `<div class="fis-v3-fields"><label>Data<input type="date" id="fis-v3-ret-date"></label><label>Número da NF<input id="fis-v3-ret-num" maxlength="40"></label><label>Tipo<select id="fis-v3-ret-kind"><option value="venda">Devolução de venda</option><option value="compra">Devolução de compra</option></select></label><label>Cliente ou fornecedor<input id="fis-v3-ret-party" maxlength="150"></label><label>NF original<input id="fis-v3-ret-origin" maxlength="40"></label><label>Valor (R$)<input id="fis-v3-ret-value" inputmode="decimal" placeholder="0,00"></label><label class="fis-v3-wide">Observação<input id="fis-v3-ret-note" maxlength="300"></label><button id="fis-v3-ret-save" type="button">Registrar devolução</button></div><div id="fis-v3-ret-info" role="status"></div><div id="fis-v3-ret-list"></div><button id="fis-v3-ret-apur" type="button" class="fis-v3-subtle">Atualizar devoluções da apuração (vendas)</button>`);
+    `<div class="fis-v3-fields"><label>Data<input type="date" id="fis-v3-ret-date"></label><label>Número da NF<input id="fis-v3-ret-num" maxlength="40"></label><label>Tipo<select id="fis-v3-ret-kind"><option value="venda">Devolução de venda</option><option value="compra">Devolução de compra</option></select></label><label id="fis-v3-ret-party-label">Cliente fiscal<select id="fis-v3-ret-party" required><option value="">Selecione um cliente fiscal</option></select></label><label>NF original<input id="fis-v3-ret-origin" maxlength="40"></label><label>Valor (R$)<input id="fis-v3-ret-value" inputmode="decimal" placeholder="0,00"></label><label class="fis-v3-wide">Observação<input id="fis-v3-ret-note" maxlength="300"></label><button id="fis-v3-ret-save" type="button">Registrar devolução</button></div><div id="fis-v3-ret-info" role="status"></div><div id="fis-v3-ret-list"></div><button id="fis-v3-ret-apur" type="button" class="fis-v3-subtle">Atualizar devoluções da apuração (vendas)</button>`);
   ret.id='fis-v3-devolucoes';ret.dataset.fiscalView='devolucoes';shell.append(ret);
   $('#fis-v3-ret-date').value=new Date().toISOString().slice(0,10);
   $('#fis-v3-ret-save').onclick=saveReturn;
+  $('#fis-v3-ret-kind').addEventListener('change',()=>populateReturnParties());
   $('#fis-v3-ret-apur').onclick=applyReturns;
   const docs=section('Documentos fiscais','Anexe documentos da empresa ou de um cadastro fiscal. Arquivos no Storage com acesso restrito por perfil fiscal.',
     `<div class="fis-v3-fields"><label>Vincular a<select id="fis-v3-doc-owner"></select></label><label>Documento<input type="file" id="fis-v3-doc-file" accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp"></label><button id="fis-v3-doc-send" type="button">Anexar documento</button></div><div id="fis-v3-doc-info" role="status"></div><div id="fis-v3-doc-list"></div>`);
@@ -416,6 +425,10 @@ function init(shell){
   $('#fis-v3-cost-year').value=year();$('#fis-v3-stock-year').value=year();
   $('#fis-v3-cost-view').onclick=renderCosts;
   $('#fis-v3-doc-owner').addEventListener('change',renderDocuments);
+  // A sincronização remota pode completar depois da primeira abertura.
+  document.addEventListener('erp:alert-source-changed',(event)=>{
+    if(event.detail?.source==='funcionarios' && document.querySelector('[data-fiscal-area="custos-rh"].is-current'))renderCosts();
+  });
   const refresh=()=>{const active=$('[data-fiscal-area].is-current',shell)?.dataset.fiscalArea;if(areas.some(([id])=>id===active))setTimeout(()=>onAreaChange(active),0);};
   ['fiscal-sel-mes','fiscal-sel-ano'].forEach(id=>$('#'+id)?.addEventListener('change',refresh));
   shell.querySelectorAll('[data-fiscal-company]').forEach(b=>b.addEventListener('click',refresh));
@@ -423,7 +436,7 @@ function init(shell){
 async function onAreaChange(area){
   try{
     if(area==='estoque-inicial')renderStock();
-    if(area==='devolucoes')await renderReturns();
+    if(area==='devolucoes'){await populateReturnParties();await renderReturns();}
     if(area==='documentos')await renderDocuments();
     if(area==='custos-rh')await renderCosts();
   }catch(e){message('#fis-v3-'+area+'-info',e.message,true);}
@@ -509,10 +522,12 @@ async function saveOpeningStock(){
 async function saveReturn(){
   try{
     requireOnline();await allowWrite();
-    const data=$('#fis-v3-ret-date').value,number=$('#fis-v3-ret-num').value.trim(),party=$('#fis-v3-ret-party').value.trim(),origin=$('#fis-v3-ret-origin').value.trim();
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(data)||!number||!party)throw Error('Preencha data, número e cliente/fornecedor.');
+    const data=$('#fis-v3-ret-date').value,number=$('#fis-v3-ret-num').value.trim(),partyId=$('#fis-v3-ret-party').value,origin=$('#fis-v3-ret-origin').value.trim();
+    const party=returnPartyOptions.find(x=>x.id===partyId);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(data)||!number||!party)throw Error('Preencha data, número e selecione um cadastro fiscal válido.');
+    if(!(await fiscalPartiesLive()).some(p=>p.id===partyId&&fiscalPartyKind(p.type)===(($('#fis-v3-ret-kind').value==='compra')?'fornecedor':'cliente')))throw Error('O cadastro fiscal selecionado não está mais ativo ou mudou de tipo.');
     if(!data.startsWith(year()+'-'+month()))throw Error('A devolução deve pertencer à competência selecionada.');
-    const record={id:uuid().replace(/[^a-zA-Z0-9_-]/g,''),date:data,number,party,origin,kind:$('#fis-v3-ret-kind').value,value:amt(moneyInput($('#fis-v3-ret-value').value)),notes:$('#fis-v3-ret-note').value.trim(),createdAt:new Date().toISOString()};
+    const record={id:uuid().replace(/[^a-zA-Z0-9_-]/g,''),date:data,number,party:party.name,partyId:party.id,partyType:party.type,origin,kind:$('#fis-v3-ret-kind').value,value:amt(moneyInput($('#fis-v3-ret-value').value)),notes:$('#fis-v3-ret-note').value.trim(),createdAt:new Date().toISOString()};
     if(record.value<=0)throw Error('Informe um valor maior que zero.');
     const key=fiscalKey(),ref=db().ref('erp/fiscal/'+key+'/devolucoes');
     const snap=await ref.once('value');if(Object.values(snap.val()||{}).some(x=>x.number===number&&x.kind===record.kind))throw Error('Já existe uma devolução com este número e tipo nessa competência.');
@@ -522,6 +537,34 @@ async function saveReturn(){
     message('#fis-v3-ret-info','Devolução registrada. Não houve baixa de estoque ou emissão de nota.');
     await renderReturns();
   }catch(e){message('#fis-v3-ret-info',e.message,true);}
+}
+// Usa a origem fiscal remota, e não o cache de inicialização do Phase1Store.
+async function fiscalPartiesLive(){
+  requireOnline();
+  const snap=await db().ref('erp/fiscalParties').once('value');
+  const list=snap.val()||{};
+  return Object.entries(list).filter(([,p])=>p && p.active!==false && (p.name||p.legalName))
+    .map(([id,p])=>({id:String(p.id||id),name:String(p.name||p.legalName),type:String(p.type||p.kind||'')}))
+    .sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+}
+const fiscalPartyKind=(value)=>/forneced/i.test(String(value||''))?'fornecedor':/cliente/i.test(String(value||''))?'cliente':'';
+let returnPartyOptions=[];
+async function populateReturnParties(){
+  const sel=$('#fis-v3-ret-party'),kind=$('#fis-v3-ret-kind')?.value||'venda';
+  if(!sel)return;
+  const previous=sel.value;
+  const desired=kind==='compra'?'fornecedor':'cliente';
+  const info=$('#fis-v3-ret-info');
+  sel.replaceChildren(new Option(desired==='cliente'?'Selecione um cliente fiscal':'Selecione um fornecedor fiscal',''));
+  try{
+    const all=await fiscalPartiesLive();
+    returnPartyOptions=all.filter(p=>fiscalPartyKind(p.type)===desired);
+    returnPartyOptions.forEach(p=>sel.add(new Option(p.name+' · '+p.id,p.id)));
+    if(returnPartyOptions.some(p=>p.id===previous))sel.value=previous;
+    if(!returnPartyOptions.length)message('#fis-v3-ret-info','Nenhum '+(desired==='cliente'?'cliente':'fornecedor')+' fiscal ativo. Cadastre em Cadastros fiscais antes de registrar a devolução.',true);
+    else if(info?.classList.contains('fis-v3-error'))message('#fis-v3-ret-info','');
+    const label=$('#fis-v3-ret-party-label');if(label)label.firstChild.textContent=desired==='cliente'?'Cliente fiscal':'Fornecedor fiscal';
+  }catch(error){returnPartyOptions=[];message('#fis-v3-ret-info','Não foi possível consultar os cadastros fiscais: '+error.message,true);}
 }
 let returnsCache=[];
 async function renderReturns(){
@@ -552,8 +595,8 @@ async function renderDocuments(){
   const owner=$('#fis-v3-doc-owner'),old=owner.value;
   owner.replaceChildren();
   owner.add(new Option('Empresa — '+(company()==='gratus'?'Gratus Metais':'Manuela Metais'),'empresa'));
-  const parties=await global.Phase1Store?.load?.('fiscalParties',{})||{};
-  Object.values(parties).filter(p=>p&&p.active!==false).sort((a,b)=>String(a.name).localeCompare(String(b.name))).forEach(p=>owner.add(new Option((p.type||'Cadastro')+' — '+p.name,'cad_'+String(p.id).replace(/[^a-zA-Z0-9_-]/g,''))));
+  const parties=await fiscalPartiesLive();
+  parties.forEach(p=>owner.add(new Option((p.type||'Cadastro')+' — '+p.name,'cad_'+p.id.replace(/[^a-zA-Z0-9_-]/g,''))));
   if([...owner.options].some(o=>o.value===old))owner.value=old;
   const snap=await db().ref('erp/fiscal/__documentsV3/'+company()).once('value');
   if(typeof FISCAL_DB!=='undefined'){if(!FISCAL_DB.__documentsV3)FISCAL_DB.__documentsV3={};FISCAL_DB.__documentsV3[company()]=snap.val()||{};}
@@ -575,6 +618,7 @@ async function uploadFiscalDocument(){
     const types=['application/pdf','image/jpeg','image/png','image/webp'];
     if(!types.includes(f.type)||f.size>10*1024*1024||!f.size)throw Error('Aceitos PDF, JPG, PNG ou WebP de até 10 MB.');
     const owner=$('#fis-v3-doc-owner').value;if(!/^(empresa|cad_[a-zA-Z0-9_-]+)$/.test(owner))throw Error('Cadastro fiscal inválido.');
+    if(owner!=='empresa'&&!(await fiscalPartiesLive()).some(p=>'cad_'+p.id.replace(/[^a-zA-Z0-9_-]/g,'')===owner))throw Error('O cadastro vinculado não está mais ativo.');
     const id=uuid().replace(/[^a-zA-Z0-9_-]/g,''),ext={'application/pdf':'pdf','image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[f.type];
     const path='erp-files/fiscalDocs/'+company()+'/'+owner+'/'+id+'.'+ext;
     const ref=storage().ref(path);await ref.put(f,{contentType:f.type});
@@ -600,10 +644,24 @@ async function deleteDocument(f){
 async function renderCosts(){
   try{
     const c=await claims();if(!c.canPayroll||c.erpAccess!==true){$('#fis-v3-cost-result').replaceChildren();throw Error('Consulta restrita a usuários autorizados no módulo Folha de Pagamento.');}
-    const staff=typeof FUNCIONARIOS!=='undefined'?FUNCIONARIOS:[];
+    let staff=typeof FUNCIONARIOS!=='undefined'&&Array.isArray(FUNCIONARIOS)?FUNCIONARIOS.filter(f=>f&&f.mat):[];
+    // O sincronizador restringe funcEdit a canHR. Uma pessoa com apenas canPayroll
+    // recebe os campos mínimos do cadastro pela API, que valida o token no servidor.
+    if(!staff.length){
+      const auth=global.__fbRaw?.auth;
+      const jwt=await auth?.currentUser?.getIdToken?.();
+      if(!jwt)throw Error('Sessão expirada. Entre novamente.');
+      const response=await global.fetch('/api/fiscal/staff',{headers:{Authorization:'Bearer '+jwt},cache:'no-store'});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw Error(response.status===403?'Seu perfil não está autorizado a consultar os funcionários.':(result.message||'Não foi possível consultar os funcionários no servidor.'));
+      staff=Array.isArray(result.staff)?result.staff.filter(f=>f&&f.mat):[];
+    }
     const sel=$('#fis-v3-cost-employee'),old=sel.value;
-    sel.replaceChildren();staff.forEach(f=>sel.add(new Option((f.nome||f.mat)+' ('+f.mat+')',f.mat)));
-    if(staff.some(f=>f.mat===old))sel.value=old;
+    sel.replaceChildren(new Option('Selecione um funcionário',''));
+    staff.sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'))
+      .forEach(f=>sel.add(new Option((f.nome||f.mat)+' ('+f.mat+')',f.mat)));
+    if(staff.some(f=>String(f.mat)===old))sel.value=old;
+    else if(staff.length)sel.value=String(staff[0].mat);
     const f=staff.find(x=>x.mat===sel.value),y=Number($('#fis-v3-cost-year').value)||year(),m=$('#fis-v3-cost-month').value;
     const host=$('#fis-v3-cost-result');host.replaceChildren();if(!f){host.append(node('p','fis-v3-empty','Nenhum funcionário cadastrado.'));return;}
     const meses=m?[m]:Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0'));
@@ -636,5 +694,5 @@ global.FiscalExtensions={install:init,onAreaChange,parseNFeXML,calcPayrollMonth}
 // O script é carregado dinamicamente: o DOM pode já estar pronto.
 // Nesse caso o workspace antigo instalou antes da definição das extensões.
 const mounted=document.getElementById('fiscal-workspace');
-if(mounted)init(mounted);
+if(mounted){init(mounted);global.FiscalWorkspace?.setArea(document.querySelector('[data-fiscal-area].is-current')?.dataset.fiscalArea||'lancamentos');}
 })(window);

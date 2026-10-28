@@ -13,7 +13,7 @@ test('cinco áreas fiscais acessíveis e interface responsiva',()=>{
     assert.ok(extension.includes(t),t);
   for(const v of ['xml','estoque-inicial','devolucoes','documentos','custos-rh'])
     assert.ok(js.includes(`'${v}'`));
-  assert.match(js,/if\(mounted\)init\(mounted\)/);
+  assert.match(js,/if\(mounted\)\{init\(mounted\)/);
   assert.match(css,/\.fis-v3-fields\{display:grid/);
   assert.match(css,/@media\(max-width:600px\)/);
 });
