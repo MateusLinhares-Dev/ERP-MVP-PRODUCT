@@ -149,3 +149,12 @@
 #tab-fiscal .fis-v3-legacy-import-body #fiscal-drop-zone{padding:20px!important}
 @media(max-width:880px){#tab-fiscal .fis-v3-xml-fields{grid-template-columns:repeat(2,minmax(0,1fr))}#tab-fiscal .fis-v3-xml-fields button{grid-column:1/-1}}
 @media(max-width:560px){#tab-fiscal .fis-v3-xml-fields{grid-template-columns:1fr}}
+
+/* Alinhamento uniforme do seletor de destino, arquivo e botão de leitura. */
+#tab-fiscal .fis-v3-xml-fields{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(190px,1fr) auto;align-items:end;gap:12px;margin:0}
+#tab-fiscal .fis-v3-xml-fields label{display:flex;flex-direction:column;gap:7px;min-width:0;margin:0!important;overflow:visible}
+#tab-fiscal .fis-v3-xml-fields input[type=file],#tab-fiscal .fis-v3-xml-fields select,#tab-fiscal .fis-v3-xml-fields button{box-sizing:border-box;width:100%;height:42px;min-height:42px;max-height:42px;margin:0!important;align-self:stretch}
+#tab-fiscal .fis-v3-xml-fields button{min-width:132px;align-self:end}
+#tab-fiscal .fis-v3-xml-help{margin:8px 0 14px;color:#698075;font-size:.75rem;line-height:1.45}
+@media(max-width:880px){#tab-fiscal .fis-v3-xml-fields{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#tab-fiscal .fis-v3-xml-fields button{grid-column:1/-1;max-width:180px}}
+@media(max-width:580px){#tab-fiscal .fis-v3-xml-fields{grid-template-columns:1fr}#tab-fiscal .fis-v3-xml-fields button{max-width:none;width:100%}}

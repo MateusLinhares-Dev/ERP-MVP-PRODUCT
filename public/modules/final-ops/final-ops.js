@@ -14,6 +14,11 @@ const rawAuth=()=>global.__fbRaw?.auth?.currentUser;
 async function token(){const t=await rawAuth()?.getIdToken();if(!t)throw Error('Sessão expirada; entre novamente.');return t;}
 async function request(action,body){const t=await token();const response=await fetch('/api/training/matrix'+(action?'?view='+encodeURIComponent(action):''),{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:{Authorization:'Bearer '+t,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});const result=await response.json().catch(()=>({}));if(!response.ok)throw Error(result.message||'Não foi possível consultar a matriz.');return result;}
 let trainingManager=false,trainingData={courses:{},enrollments:{},documents:{},employees:[],erpUsers:[],history:[]},trainingTab='pessoas';
+let trainingSelectedEnrollmentId='';
+let agendaPage=1,contractTablePage=1;
+const TRAINING_CHOICES_PER_PAGE=8, CONTRACT_PAGE_SIZE=8;
+const searchNorm=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+const pageCount=(n,size)=>Math.max(1,Math.ceil(n/size));
 function ensureTab(id){let panel=$('#tab-'+id);if(!panel){panel=document.createElement('section');panel.id='tab-'+id;panel.className='tab-panel';$('.app-body .content')?.append(panel);}return panel;}
 function addNav(group,label,id,icon){const nav=$('#nav-bar');if(!nav||nav.querySelector('[data-tab="'+id+'"]'))return;
   let target=$$('.sb-group',nav).find(g=>$('.sb-glabel',g)?.textContent?.trim()===group);
@@ -84,16 +89,36 @@ function renderTraining(){const host=$('#ops-training-main'),tab=trainingTab;$$(
    host.innerHTML=`<div class="ops-card ops-training-documents"><div class="ops-head"><div><h3>Documentos e certificados</h3><p>Vincule primeiro o curso ao funcionário para anexar seu certificado. Anexos PDF ou imagem de até 10 MB. Acesso restrito à Elaine.</p></div><span class="ops-doc-count">${Object.keys(trainingData.documents||{}).length} anexo(s)</span></div>
    ${!enroll.length?`<div class="ops-training-empty" role="status"><strong>Nenhuma capacitação vinculada a funcionário.</strong><p>${!activeCourses.length?'Cadastre primeiro um curso em Catálogo de cursos.':!employees.length?'Cadastre primeiro o funcionário no RH.':'Selecione um funcionário e um curso para criar o primeiro vínculo; depois você poderá anexar o certificado.'}</p></div>`:''}
    <form id="ops-quick-enroll" class="ops-training-link-box"><h4>Vincular curso a funcionário</h4><div class="ops-training-fields"><label>Funcionário<select name="employeeId" required ${!employees.length?'disabled':''}><option value="">Selecione o funcionário</option>${selectOptions(employees.map(e=>({id:e.id,name:e.name})))}</select></label><label>Curso cadastrado<select name="courseId" required ${!activeCourses.length?'disabled':''}><option value="">Selecione o curso</option>${selectOptions(activeCourses.map(c=>({id:c.id,name:c.title})))}</select></label><button class="ops-primary" type="submit" ${!canLink?'disabled':''}>Vincular capacitação</button></div><p class="ops-hint">Se já estiver vinculado, basta selecionar a capacitação abaixo. O vínculo não indica conclusão do curso.</p></form>
-   <form id="ops-upload-doc" class="ops-form"><h4>Anexar certificado</h4><div class="ops-training-enroll-picker"><label for="ops-training-enroll-search">Capacitação do funcionário</label><input id="ops-training-enroll-search" type="search" placeholder="Buscar funcionário ou curso" autocomplete="off" ${!enrollOptions.length?'disabled':''}><div id="ops-training-enroll-options" class="ops-training-enroll-list" role="radiogroup" aria-label="Selecione a capacitação do funcionário">${enroll.length?enroll.map(e=>`<label class="ops-training-enroll-item" data-enroll-name="${esc((employeeName(e.employeeId)+' '+courseName(e.courseId)).toLowerCase())}"><input name="enrollmentId" type="radio" value="${esc(e.id)}" required><span><strong>${esc(employeeName(e.employeeId))}</strong><small>${esc(courseName(e.courseId))}</small></span></label>`).join(''):'<p class="ops-hint">Nenhuma capacitação vinculada. Vincule um curso acima.</p>'}</div><p id="ops-training-enroll-empty" class="ops-hint" hidden>Nenhuma capacitação corresponde à busca.</p></div><label>Arquivo PDF ou imagem<input name="file" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" required ${!enrollOptions.length?'disabled':''}></label><button class="ops-primary" type="submit" ${!enrollOptions.length?'disabled':''}>Anexar certificado</button></form>
+   <form id="ops-upload-doc" class="ops-form"><h4>Anexar certificado</h4><div class="ops-training-enroll-picker"><label for="ops-training-picker-toggle">Capacitação do funcionário</label><div id="ops-training-current" class="ops-training-current" role="status">Nenhuma capacitação selecionada</div><button type="button" id="ops-training-picker-toggle" class="ops-training-picker-toggle" aria-expanded="false" aria-controls="ops-training-picker-panel" ${!enrollOptions.length?'disabled':''}>${enrollOptions.length?'Selecionar capacitação ('+enrollOptions.length+' vínculos)':'Nenhuma capacitação disponível'}</button><div id="ops-training-picker-panel" class="ops-training-picker-panel" hidden><label for="ops-training-enroll-search">Pesquisar funcionário ou curso</label><input id="ops-training-enroll-search" type="search" placeholder="Digite um nome ou curso" autocomplete="off"><div id="ops-training-enroll-options" class="ops-training-enroll-list" role="radiogroup" aria-label="Selecione a capacitação do funcionário"></div><p id="ops-training-enroll-empty" class="ops-hint" hidden>Nenhuma capacitação corresponde à busca.</p><div id="ops-training-choice-pager" class="ops-pagination"></div></div></div><label>Arquivo PDF ou imagem<input name="file" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" required ${!enrollOptions.length?'disabled':''}></label><button class="ops-primary" type="submit" ${!enrollOptions.length?'disabled':''}>Anexar certificado</button></form>
    <div class="ops-list">${Object.values(trainingData.documents||{}).map(d=>`<div><b>${esc(d.name)}</b><span>${esc(employeeName(trainingData.enrollments[d.enrollmentId]?.employeeId))} · ${esc(courseName(trainingData.enrollments[d.enrollmentId]?.courseId))}</span><button data-open-doc="${esc(d.id)}">Abrir</button><button data-delete-doc="${esc(d.id)}">Excluir</button></div>`).join('')||'<p class="ops-hint">Nenhum certificado anexado.</p>'}</div></div>`;
    $('#ops-quick-enroll',host).onsubmit=async event=>{
      event.preventDefault();const form=event.currentTarget,employeeId=form.elements.employeeId.value,courseId=form.elements.courseId.value;
      if(!employeeId||!courseId)return toast('Selecione o funcionário e o curso.',true);
      const existing=enroll.find(e=>e.employeeId===employeeId&&e.courseId===courseId&&e.status!=='dispensado');
-     if(existing){const input=$('#ops-upload-doc',host)?.querySelector(`input[name="enrollmentId"][value="${CSS.escape(existing.id)}"]`);if(input){input.checked=true;input.closest('.ops-training-enroll-item')?.scrollIntoView({block:'nearest'});}return toast('Este vínculo já existe. Selecione-o para anexar o certificado.');}
+     if(existing){trainingSelectedEnrollmentId=existing.id;$('#ops-training-current',host).textContent=employeeName(existing.employeeId)+' — '+courseName(existing.courseId);$('#ops-training-current',host).classList.add('is-picked');return toast('Este vínculo já existe e foi selecionado para anexar o certificado.');}
      try{await request(null,{action:'enroll',employeeId,courseId,status:'planejado',notifyEnabled:false});toast('Capacitação vinculada. Selecione-a para anexar o certificado.');await refreshTraining();}catch(e){toast(e.message,true);}
    };
-   $('#ops-training-enroll-search',host).addEventListener('input',event=>{const q=event.target.value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();let count=0;$$('.ops-training-enroll-item',host).forEach(row=>{const name=(row.dataset.enrollName||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'');row.hidden=!!q&&!name.includes(q);if(!row.hidden)count++;});$('#ops-training-enroll-empty',host).hidden=!!count||!q;});
+   const pickerToggle=$('#ops-training-picker-toggle',host),pickerPanel=$('#ops-training-picker-panel',host);
+   const choiceList=$('#ops-training-enroll-options',host),search=$('#ops-training-enroll-search',host);
+   const choicePager=$('#ops-training-choice-pager',host),choiceCurrent=$('#ops-training-current',host);
+   if(!enroll.some(e=>e.id===trainingSelectedEnrollmentId))trainingSelectedEnrollmentId='';
+   let choicePage=1;
+   const setPickerOpen=open=>{pickerPanel.hidden=!open;pickerToggle.setAttribute('aria-expanded',String(open));if(open)search.focus();};
+   const updateCurrent=()=>{const selected=enroll.find(e=>e.id===trainingSelectedEnrollmentId);choiceCurrent.textContent=selected?employeeName(selected.employeeId)+' — '+courseName(selected.courseId):'Nenhuma capacitação selecionada';choiceCurrent.classList.toggle('is-picked',!!selected);pickerToggle.textContent=selected?'Alterar capacitação':'Selecionar capacitação ('+enroll.length+' vínculos)';};
+   const showChoices=()=>{
+     const q=searchNorm(search.value);
+     const options=enroll.filter(e=>searchNorm(employeeName(e.employeeId)+' '+courseName(e.courseId)).includes(q));
+     choicePage=Math.min(choicePage,pageCount(options.length,TRAINING_CHOICES_PER_PAGE));
+     const start=(choicePage-1)*TRAINING_CHOICES_PER_PAGE;
+     choiceList.innerHTML=options.slice(start,start+TRAINING_CHOICES_PER_PAGE).map(e=>`<label class="ops-training-enroll-item" data-enroll-id="${esc(e.id)}"><input name="enrollmentId" type="radio" value="${esc(e.id)}" ${e.id===trainingSelectedEnrollmentId?'checked':''}><span><strong>${esc(employeeName(e.employeeId))}</strong><small>${esc(courseName(e.courseId))}</small></span></label>`).join('');
+     $('#ops-training-enroll-empty',host).hidden=options.length>0;
+     choicePager.innerHTML=options.length?`<span>${start+1}–${Math.min(start+TRAINING_CHOICES_PER_PAGE,options.length)} de ${options.length} vínculos</span><button type="button" data-page="prev" ${choicePage===1?'disabled':''}>Anterior</button><span>Página ${choicePage} de ${pageCount(options.length,TRAINING_CHOICES_PER_PAGE)}</span><button type="button" data-page="next" ${choicePage>=pageCount(options.length,TRAINING_CHOICES_PER_PAGE)?'disabled':''}>Próxima</button>`:'';
+   };
+   pickerToggle.addEventListener('click',()=>{setPickerOpen(pickerPanel.hidden);if(!pickerPanel.hidden)showChoices();});
+   search.addEventListener('input',()=>{choicePage=1;showChoices();});
+   choiceList.addEventListener('change',event=>{const radio=event.target.closest('input[name="enrollmentId"]');if(!radio)return;trainingSelectedEnrollmentId=radio.value;updateCurrent();setPickerOpen(false);});
+   choicePager.addEventListener('click',event=>{const btn=event.target.closest('button[data-page]');if(!btn)return;choicePage+=btn.dataset.page==='next'?1:-1;showChoices();});
+   updateCurrent();
    $('#ops-upload-doc',host).onsubmit=uploadTrainingDoc;
    $$('[data-open-doc]',host).forEach(b=>b.onclick=()=>openTrainingDoc(b.dataset.openDoc));
    $$('[data-delete-doc]',host).forEach(b=>b.onclick=()=>{if(confirm('Excluir este certificado permanentemente?'))submitTraining({action:'removeDocument',id:b.dataset.deleteDoc});});return;
@@ -101,7 +126,7 @@ function renderTraining(){const host=$('#ops-training-main'),tab=trainingTab;$$(
  host.innerHTML=`<div class="ops-card"><h3>Vencimentos e avisos</h3><p>Avisos são exibidos no ERP conforme o login do funcionário, sem envio de mensagens externas.</p><div class="ops-list">${enroll.filter(e=>badgeFor(e)!=='Em dia').map(e=>`<div><b>${esc(employeeName(e.employeeId))}</b><span>${esc(courseName(e.courseId))} · ${esc(badgeFor(e))} · ${dateBR(expiry(e))}${e.notifyEnabled?' · aviso ativo':' · aviso desativado'}</span></div>`).join('')||'<p>Nenhum vencimento pendente.</p>'}</div></div>`;
 }
 async function submitTraining(body){try{await request(null,body);toast('Registro atualizado.');await refreshTraining();}catch(e){toast(e.message,true);}}
-async function uploadTrainingDoc(event){event.preventDefault();const form=event.target,file=form.elements.file.files[0],enrollmentId=form.querySelector('input[name="enrollmentId"]:checked')?.value||'';if(!enrollmentId)return toast('Selecione a capacitação do funcionário para anexar o certificado.',true);
+async function uploadTrainingDoc(event){event.preventDefault();const form=event.target,file=form.elements.file.files[0],enrollmentId=form.querySelector('input[name="enrollmentId"]:checked')?.value||trainingSelectedEnrollmentId||'';if(!enrollmentId)return toast('Selecione a capacitação do funcionário para anexar o certificado.',true);
  if(!file||file.size>10*1024*1024||file.size<1||!['application/pdf','image/jpeg','image/png','image/webp'].includes(file.type))return toast('Utilize PDF ou imagem até 10 MB.',true);
  try{const id='TM'+global.crypto.randomUUID().replace(/-/g,'').slice(0,24),extension={'application/pdf':'pdf','image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type],path=`erp-files/training/${enrollmentId}/${id}.${extension}`;
  await global.__fbRaw.storage.ref(path).put(file,{contentType:file.type});
@@ -212,7 +237,34 @@ function addReportButtons(){ensureReports('tab-combustivel_rudnick','ops-fuel-pr
 // A ficha é renderizada sob demanda pelo módulo de viagens.
 document.addEventListener('click',e=>{if(e.target.closest('[data-trip-open]'))setTimeout(ensureTripPrintButton,60);});
 function contracts(){try{return typeof CONTRATOS_DB!=='undefined'&&Array.isArray(CONTRATOS_DB)?CONTRATOS_DB:[];}catch(_){return[];}}
-function enhanceContracts(){const host=$('#tab-contratos');if(!host||$('#ops-contracts',host))return;const oldRender=global.renderContratos;if(typeof oldRender==='function')global.renderContratos=function(){const result=oldRender.apply(this,arguments);queueMicrotask(renderContracts);return result;};const wrap=document.createElement('section');wrap.id='ops-contracts';wrap.className='ops-card';host.insertBefore(wrap,host.querySelector('.tcard')||host.firstChild);renderContracts();}
+function enhanceContracts(){
+ const host=$('#tab-contratos');if(!host||$('#ops-contracts',host))return;
+ const oldRender=global.renderContratos;
+ if(typeof oldRender==='function')global.renderContratos=function(){const result=oldRender.apply(this,arguments);queueMicrotask(()=>{renderContracts();paginateContractTable();});return result;};
+ const wrap=document.createElement('section');wrap.id='ops-contracts';wrap.className='ops-card';
+ host.insertBefore(wrap,host.querySelector('.tcard')||host.firstChild);
+ const table=$('#tb-contratos',host)?.closest('table');
+ if(table&&!$('#ops-contract-table-pager',host)){
+   const pager=document.createElement('nav');pager.id='ops-contract-table-pager';pager.className='ops-pagination';pager.setAttribute('aria-label','Paginação de contratos');table.insertAdjacentElement('afterend',pager);
+   pager.addEventListener('click',event=>{const b=event.target.closest('button[data-contract-table-page]');if(!b)return;contractTablePage+=b.dataset.contractTablePage==='next'?1:-1;paginateContractTable();});
+ }
+ // A pesquisa legada altera display; a paginação é aplicada depois sem alterar
+ // os índices que são usados por visualizar, renomear, baixar e excluir anexos.
+ host.addEventListener('input',event=>{if(!event.target.matches('.phase1-admin-search'))return;contractTablePage=1;queueMicrotask(paginateContractTable);});
+ renderContracts();paginateContractTable();
+}
+function paginateContractTable(){
+ const host=$('#tab-contratos'),body=$('#tb-contratos',host),pager=$('#ops-contract-table-pager',host);if(!body||!pager)return;
+ const rows=Array.from(body.rows),query=searchNorm(host.querySelector('.phase1-admin-search')?.value);
+ if(!contracts().length){rows.forEach(row=>{row.hidden=false;row.style.display='';});pager.hidden=true;pager.textContent='';return;}
+ const matching=rows.filter(r=>!query||searchNorm(r.textContent).includes(query));
+ contractTablePage=Math.min(Math.max(1,contractTablePage),pageCount(matching.length,CONTRACT_PAGE_SIZE));
+ const first=(contractTablePage-1)*CONTRACT_PAGE_SIZE;
+ const visible=new Set(matching.slice(first,first+CONTRACT_PAGE_SIZE));
+ rows.forEach(row=>{row.hidden=!visible.has(row);row.style.display=visible.has(row)?'':'none';});
+ pager.hidden=matching.length<=CONTRACT_PAGE_SIZE;
+ pager.innerHTML=matching.length?`<span>Exibindo ${Math.min(first+1,matching.length)}–${Math.min(first+CONTRACT_PAGE_SIZE,matching.length)} de ${matching.length} contratos</span><button type="button" data-contract-table-page="prev" ${contractTablePage===1?'disabled':''}>Anterior</button><span>Página ${contractTablePage} de ${pageCount(matching.length,CONTRACT_PAGE_SIZE)}</span><button type="button" data-contract-table-page="next" ${contractTablePage>=pageCount(matching.length,CONTRACT_PAGE_SIZE)?'disabled':''}>Próxima</button>`:'<span>Nenhum contrato corresponde à pesquisa.</span>';
+}
 function renderContracts(){
  const wrap=$('#ops-contracts');if(!wrap)return;
  const entries=contracts();
@@ -220,12 +272,16 @@ function renderContracts(){
  const overdue=dated.filter(c=>c.days<0),soon=dated.filter(c=>c.days>=0&&c.days<=Number(c.remindDays??30));
  const withoutDate=entries.length-dated.length;
  const label=c=>c.days<0?`Vencido há ${Math.abs(c.days)} dia(s)`:c.days===0?'Vence hoje':`Vence em ${c.days} dia(s)`;
- wrap.innerHTML=`<div class="ops-head"><div><h3>Agenda de vencimentos contratuais</h3><p>Agenda gerada pela data <strong>Fim</strong> dos contratos cadastrados abaixo. O aluguel já está cadastrado como contrato; não é um novo lançamento financeiro.</p><div class="ops-contract-summary"><span><strong>${overdue.length}</strong> vencidos</span><span><strong>${soon.length}</strong> a vencer</span><span><strong>${withoutDate}</strong> sem término</span></div></div><button type="button" id="ops-refresh-contracts">Atualizar</button></div><div class="ops-list">${dated.map(c=>`<div><b>${esc(c.desc||'Contrato')} ${c.days<0?'(VENCIDO)':''}</b><span>${esc(c.forn||'Sem fornecedor')} · Fim ${dateBR(c.fim)} · ${label(c)}</span><label>Avisar antes de <select data-contract-days="${esc(c.id||'')}">${[7,15,30,60,90].map(n=>`<option value="${n}"${Number(c.remindDays??30)===n?' selected':''}>${n} dias</option>`).join('')}</select></label><label>Nova data de término <input type="date" data-contract-date="${esc(c.id||'')}" value="${esc(c.fim)}"></label><button type="button" data-contract-renew="${esc(c.id||'')}">Atualizar contrato</button></div>`).join('')||'<p>Nenhum contrato com data de término. Cadastre um contrato informando o campo Fim para incluí-lo na agenda.</p>'}</div><p class="ops-hint">Alterar o prazo aqui não renova, paga ou quita parcelas em Contas a Pagar.</p>`;
+ agendaPage=Math.min(Math.max(1,agendaPage),pageCount(dated.length,CONTRACT_PAGE_SIZE));
+ const first=(agendaPage-1)*CONTRACT_PAGE_SIZE,part=dated.slice(first,first+CONTRACT_PAGE_SIZE);
+ const items=part.map(c=>`<div class="ops-contract-row"><div class="ops-contract-description"><b>${esc(c.desc||'Contrato')} ${c.days<0?'(VENCIDO)':''}</b><span>${esc(c.forn||'Sem fornecedor')} · Fim ${dateBR(c.fim)} · ${label(c)}</span></div><label>Avisar antes de <select data-contract-days="${esc(c.id||'')}">${[7,15,30,60,90].map(n=>`<option value="${n}"${Number(c.remindDays??30)===n?' selected':''}>${n} dias</option>`).join('')}</select></label><label>Nova data de término <input type="date" data-contract-date="${esc(c.id||'')}" value="${esc(c.fim)}"></label><button type="button" data-contract-renew="${esc(c.id||'')}">Atualizar contrato</button></div>`).join('');
+ wrap.innerHTML=`<div class="ops-head"><div><h3>Agenda de vencimentos contratuais</h3><p>Agenda gerada pela data <strong>Fim</strong> dos contratos cadastrados abaixo. O aluguel já está cadastrado como contrato; não é um novo lançamento financeiro.</p><div class="ops-contract-summary"><span><strong>${overdue.length}</strong> vencidos</span><span><strong>${soon.length}</strong> a vencer</span><span><strong>${withoutDate}</strong> sem término</span></div></div><button type="button" id="ops-refresh-contracts">Atualizar</button></div><div class="ops-list ops-contract-list">${items||'<p>Nenhum contrato com data de término. Cadastre um contrato informando o campo Fim para incluí-lo na agenda.</p>'}</div><nav id="ops-contract-agenda-pager" class="ops-pagination" aria-label="Paginação da agenda" ${dated.length<=CONTRACT_PAGE_SIZE?'hidden':''}><span>${dated.length?`Exibindo ${first+1}–${Math.min(first+CONTRACT_PAGE_SIZE,dated.length)} de ${dated.length} vencimentos`:''}</span><button type="button" data-agenda-page="prev" ${agendaPage===1?'disabled':''}>Anterior</button><span>Página ${agendaPage} de ${pageCount(dated.length,CONTRACT_PAGE_SIZE)}</span><button type="button" data-agenda-page="next" ${agendaPage>=pageCount(dated.length,CONTRACT_PAGE_SIZE)?'disabled':''}>Próxima</button></nav><p class="ops-hint">Alterar o prazo aqui não renova, paga ou quita parcelas em Contas a Pagar.</p>`;
  const status=$('#kpi-cont-status'),sub=$('#kpi-cont-sub'),count=$('#kpi-cont-total');
  if(status){status.textContent=String(overdue.length);status.classList.toggle('ops-contract-has-overdue',overdue.length>0);}
  if(sub)sub.textContent=overdue.length?(overdue.length===1?'Contrato fora do prazo':'Contratos fora do prazo'):(soon.length?`${soon.length} a vencer em breve`:'Nenhum contrato vencido');
  if(count)count.textContent=String(entries.length);
- $('#ops-refresh-contracts').onclick=renderContracts;
+ $('#ops-refresh-contracts').onclick=()=>{renderContracts();paginateContractTable();};
+ $$('[data-agenda-page]',wrap).forEach(button=>button.onclick=()=>{agendaPage+=button.dataset.agendaPage==='next'?1:-1;renderContracts();});
  const store=async(id,fields)=>{
   if(!/^[A-Za-z0-9_-]{4,100}$/.test(id))return toast('Contrato sem identificador válido.',true);
   const c=contracts().find(x=>String(x.id)===id);if(!c)return toast('Contrato não localizado.',true);

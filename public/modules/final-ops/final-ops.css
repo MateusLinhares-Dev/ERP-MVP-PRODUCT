@@ -38,3 +38,28 @@
 #tab-matriz_capacitacao .ops-training-enroll-list span{display:grid;gap:3px;min-width:0;line-height:1.35;overflow-wrap:anywhere}
 #tab-matriz_capacitacao .ops-training-enroll-list strong{color:#193d2a}
 #tab-matriz_capacitacao .ops-training-enroll-list small{font-size:.8rem;color:#607669}
+
+/* Busca com escolha sob demanda: no máximo 8 itens no DOM em cada página. */
+#tab-matriz_capacitacao .ops-training-current{border:1px solid #dbe6de;border-radius:8px;background:#f6f9f7;color:#607568;padding:10px 12px;margin-bottom:8px;font-size:.86rem;overflow-wrap:anywhere}
+#tab-matriz_capacitacao .ops-training-current.is-picked{background:#eaf4ed;color:#1a5135;border-color:#b7d9c1;font-weight:700}
+#tab-matriz_capacitacao .ops-training-picker-toggle{width:100%;min-height:40px;text-align:left;background:#fff;color:#174d32;border:1px solid #a9c9b4;border-radius:8px;padding:9px 12px;cursor:pointer;font-size:.85rem;font-weight:700}
+#tab-matriz_capacitacao .ops-training-picker-panel{border:1px solid #dbe6de;border-radius:9px;background:#fff;padding:12px;margin-top:8px;min-width:0}
+#tab-matriz_capacitacao .ops-training-picker-panel[hidden]{display:none!important}
+#tab-matriz_capacitacao .ops-training-picker-panel>label{display:block;margin:0 0 6px;font-size:.77rem;font-weight:650}
+#tab-matriz_capacitacao .ops-training-picker-panel #ops-training-enroll-search{margin-bottom:10px}
+#tab-matriz_capacitacao .ops-training-enroll-list{max-height:340px;overflow-y:auto}
+#tab-matriz_capacitacao .ops-training-enroll-list:empty{display:none}
+/* Agenda e tabela paginadas sem perder as ações por índice do legado. */
+#tab-contratos #tb-contratos tr[hidden]{display:none!important}
+#tab-contratos .ops-contract-row{display:grid;grid-template-columns:minmax(220px,1fr) 100px 155px auto;gap:12px;align-items:end}
+#tab-contratos .ops-contract-description{display:flex;min-width:0;flex-direction:column;gap:5px}
+#tab-contratos .ops-contract-description span{flex:initial;line-height:1.4;overflow-wrap:anywhere}
+#tab-contratos .ops-contract-row label{display:flex;flex-direction:column;gap:6px;font-size:.72rem;color:#607568;font-weight:700;min-width:0;margin:0}
+#tab-contratos .ops-contract-row select,#tab-contratos .ops-contract-row input{width:100%;min-height:37px;box-sizing:border-box;padding:7px 8px;border:1px solid #cbdacf;border-radius:7px;background:white}
+#tab-contratos .ops-contract-row button{min-height:37px;white-space:nowrap}
+.ops-pagination{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin:12px 0 2px;color:#64786b;font-size:.78rem}
+.ops-pagination[hidden]{display:none!important}
+.ops-pagination button{min-height:34px;background:#fff;border:1px solid #c3d6c9;border-radius:7px;color:#174a31;padding:6px 12px;cursor:pointer;font-weight:650}
+.ops-pagination button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:1000px){#tab-contratos .ops-contract-row{grid-template-columns:minmax(190px,1fr) 100px 160px}#tab-contratos .ops-contract-row button{grid-column:3}}
+@media(max-width:650px){#tab-contratos .ops-contract-row{grid-template-columns:1fr 1fr}#tab-contratos .ops-contract-description{grid-column:1/-1}#tab-contratos .ops-contract-row button{grid-column:1/-1}#tab-matriz_capacitacao .ops-training-picker-panel{padding:9px}}
