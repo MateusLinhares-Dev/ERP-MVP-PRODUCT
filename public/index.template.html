@@ -1183,13 +1183,18 @@
     <div class="tab-panel" id="tab-ponto">
       <div class="sec-title">🕐 Controle de Ponto</div>
       <div class="kpi-grid">
-        <div class="kpi"><div class="kpi-lbl">Dias Úteis</div><div class="kpi-val" id="kpi-ponto-dias-uteis">0</div><div class="kpi-sub">Mês atual</div></div>
-        <div class="kpi g"><div class="kpi-lbl">Funcionários</div><div class="kpi-val" id="kpi-ponto-funcionarios">0</div><div class="kpi-sub">No controle</div></div>
+        <div class="kpi"><div class="kpi-lbl">Dias Úteis</div><div class="kpi-val" id="kpi-ponto-dias-uteis">0</div><div class="kpi-sub">Mês selecionado</div></div>
+        <div class="kpi g"><div class="kpi-lbl">Funcionários</div><div class="kpi-val" id="kpi-ponto-funcionarios">0</div><div class="kpi-sub">Na visão selecionada</div></div>
         <div class="kpi r"><div class="kpi-lbl">Faltas</div><div class="kpi-val" id="kpi-ponto-faltas">0</div><div class="kpi-sub">Mês atual</div></div>
         <div class="kpi o"><div class="kpi-lbl">Horas Extras</div><div class="kpi-val" id="kpi-ponto-he">0h</div><div class="kpi-sub">Mês atual</div></div>
       </div>
       <div class="tcard">
         <div class="tcard-hdr"><div class="tcard-title">Ponto Mensal (lançamento manual)</div><button class="btn-add" onclick="om('ponto_lancamento')">+ Lançar Falta/HE</button></div>
+        <div class="erp-employee-history-filters">
+          <label>Mês de referência <input type="month" id="ponto-mes" onchange="renderPontoTab()"></label>
+          <label>Funcionários <select id="ponto-situacao" onchange="renderPontoTab()"><option value="ativos">Ativos</option><option value="inativos">Inativos — histórico</option><option value="todos">Todos (com histórico)</option></select></label>
+          <span>Inativos não aparecem em novos lançamentos. Registros anteriores continuam disponíveis para consulta.</span>
+        </div>
         <table>
           <thead><tr><th>Matr.</th><th>Nome</th><th>Dias Trab.</th><th>Faltas</th><th>H. Extras</th><th>H. Falta</th><th>Atestados</th><th>Obs.</th><th>Ações</th></tr></thead>
           <tbody id="tb-ponto"></tbody>
@@ -1895,6 +1900,10 @@
           <div class="tcard-title">Vales Lançados</div>
           <button class="btn-add" onclick="om('vale')">+ Novo Vale</button>
         </div>
+        <div class="erp-employee-history-filters">
+          <label>Situação do funcionário <select id="vales-situacao" onchange="renderVales()"><option value="ativos">Ativos</option><option value="inativos">Inativos — histórico</option><option value="todos">Todos</option></select></label>
+          <span>Vales antigos permanecem no banco e podem ser consultados mesmo após a inativação.</span>
+        </div>
         <table>
           <thead><tr><th>Matr.</th><th>Data</th><th>Mês Ref.</th><th>Nome</th><th>Valor R$</th><th>Forma</th><th>Obs.</th><th>Recibo</th><th>Ações</th></tr></thead>
           <tbody id="tb-vales"><tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum vale lançado ainda</td></tr></tbody>
@@ -1915,6 +1924,12 @@
         <div>
           <label style="font-size:.8rem;font-weight:700;color:var(--gray);display:block;margin-bottom:4px">MÊS</label>
           <input type="month" id="epi-fil-mes" onchange="renderEpi()" style="padding:8px 12px;border:1.5px solid #ccc;border-radius:8px;font-size:.88rem">
+        </div>
+        <div>
+          <label style="font-size:.8rem;font-weight:700;color:var(--gray);display:block;margin-bottom:4px">SITUAÇÃO</label>
+          <select id="epi-situacao" onchange="renderEpi()" style="padding:8px 12px;border:1.5px solid #ccc;border-radius:8px;font-size:.88rem">
+            <option value="ativos">Ativos</option><option value="inativos">Inativos — histórico</option><option value="todos">Todos</option>
+          </select>
         </div>
         <button onclick="novoEpiModal()" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-weight:700;cursor:pointer;font-size:.88rem">🦺 Registrar Entrega de EPI</button>
         <button onclick="epiImprimirFicha()" style="background:#1565c0;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-weight:700;cursor:pointer;font-size:.88rem">🖨️ Imprimir Ficha por Funcionário</button>
@@ -1943,9 +1958,11 @@
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
         <label style="font-weight:600;color:var(--primary)">Mês de referência:</label>
         <input type="month" id="folha-mes" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:.95rem" onchange="renderFolha()">
-        <button class="btn-add" style="background:#8e44ad;padding:7px 16px" onclick="verCustoAnual()">📅 Custo Anual por Funcionário</button>
-        <button class="btn-add" style="background:#27ae60;padding:7px 16px" onclick="fecharFolha()">📋 Fechar Folha / Lançar C.Pagar</button>
+        <label style="font-weight:600;color:var(--primary)">Exibir <select id="folha-situacao" onchange="renderFolha()"><option value="ativos">Ativos</option><option value="inativos">Inativos — histórico</option><option value="todos">Todos com registros</option></select></label>
+        <button class="btn-add" style="background:#8e44ad;padding:7px 16px" onclick="verCustoAnual()" title="Estimativa anual dos funcionários ativos">📅 Custo Anual (ativos)</button>
+        <button class="btn-add" id="folha-fechar-btn" style="background:#27ae60;padding:7px 16px" onclick="fecharFolha()">📋 Fechar Folha / Lançar C.Pagar</button>
       </div>
+      <p id="folha-historico-aviso" hidden class="erp-historico-nota">Consulta histórica somente leitura. Os valores exibidos são recalculados a partir dos dados atuais do cadastro e não substituem comprovantes ou folhas fechadas da época. Inativos não integram novos fechamentos.</p>
       <div class="kpi-grid" id="folha-kpis"></div>
       <div class="tcard">
         <div class="tcard-hdr"><div class="tcard-title" id="folha-titulo">Folha</div></div>

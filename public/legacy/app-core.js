@@ -5967,6 +5967,8 @@ function salvarEditAdiantamento(fornCod, adtCod){
 function editVale(idx){
   const v=VALES_DB[idx];
   if(!v){alert('Vale não encontrado.');return;}
+  const ativo=FUNCIONARIOS.find(f=>f&&f.mat===v.mat);
+  if(!ativo||!_erpFuncionarioAtivo(ativo)){alert('Registro histórico de funcionário inativo: somente leitura.');return;}
   const forn=FUNCIONARIOS.find(f=>f.mat===v.mat);
   om('editVale');
   const body=document.getElementById('modal-body');
@@ -5992,6 +5994,8 @@ function editVale(idx){
 function salvarEditVale(idx){
   const v=VALES_DB[idx];
   if(!v){alert('Não encontrado.');return;}
+  const ativo=FUNCIONARIOS.find(f=>f&&f.mat===v.mat);
+  if(!ativo||!_erpFuncionarioAtivo(ativo)){alert('Funcionário inativo: o histórico não pode ser alterado.');return;}
   const dataRaw=document.getElementById('ev-data').value;
   v.data=dataRaw?dataRaw.split('-').reverse().join('/'):'';
   v.valor=parseFloat(document.getElementById('ev-valor').value)||0;
@@ -6245,31 +6249,21 @@ function saveEpi(){ fbSalvar(); localStorage.setItem('mm_epi',JSON.stringify(EPI
 
 function renderEpi(){
   
+  const situacao=_erpSituacaoFiltro('epi-situacao');
   const selFunc=document.getElementById('epi-fil-func');
-  if(selFunc&&selFunc.options.length<=1){
-    FUNCIONARIOS.filter(f=>f.status!=='Inativo').forEach(f=>{
-      const o=document.createElement('option'); o.value=f.mat; o.textContent=f.mat+' – '+f.nome; selFunc.appendChild(o);
-    });
+  if(selFunc){
+    const selecionado=selFunc.value;
+    const funcs=FUNCIONARIOS.filter(f=>f&&_erpFiltroFuncionario(f,situacao)&&(_erpFuncionarioAtivo(f)||(EPI_DB||[]).some(e=>e.mat===f.mat)));
+    selFunc.innerHTML='<option value="">— Todos —</option>'+funcs.map(f=>'<option value="'+esc(f.mat)+'">'+esc(f.mat)+' – '+esc(f.nome)+'</option>').join('');
+    if(funcs.some(f=>f.mat===selecionado))selFunc.value=selecionado;
   }
-  
-  const filFunc=(document.getElementById('epi-fil-func')?.value||'');
-  const filMes=(document.getElementById('epi-fil-mes')?.value||'');
-  let lista=EPI_DB.filter(e=>{
-    if(filFunc&&e.mat!==filFunc) return false;
-    if(filMes&&!(e.data||'').startsWith(filMes.replace('-','/').split('/').reverse().join('/'))) return false;
-    return true;
-  });
-  
-  if(filMes) lista=EPI_DB.filter(e=>{
-    if(filFunc&&e.mat!==filFunc) return false;
-    
-    if(filMes){
-      const [yy,mm]=filMes.split('-');
-      if(e.data){
-        const parts=e.data.split('/');
-        if(parts.length===3&&(parts[2]!==yy||parts[1]!==mm)) return false;
-      }
-    }
+  const filFunc=selFunc?.value||'';
+  const filMes=document.getElementById('epi-fil-mes')?.value||'';
+  const lista=EPI_DB.filter(e=>{
+    const f=FUNCIONARIOS.find(x=>x&&x.mat===e.mat);
+    if(f?!_erpFiltroFuncionario(f,situacao):situacao==='ativos')return false;
+    if(filFunc&&e.mat!==filFunc)return false;
+    if(filMes&&!_erpRegistroMes(e.data,filMes))return false;
     return true;
   });
   const tb=document.getElementById('tb-epi');
@@ -6284,13 +6278,14 @@ function renderEpi(){
   tb.innerHTML=sorted.map(e=>{
     const f=FUNCIONARIOS.find(x=>x.mat===e.mat);
     const nome=f?f.nome:e.mat;
+    const historico=!f||_erpHistoricoSomenteLeitura(f);
     const cargo=f?f.cargo||'':'';
     const ass=e.assinatura
       ?'<span style="background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:2px 7px;font-size:.72rem;font-weight:700">✅ Assinado</span>'
       :'<span style="background:#fff3cd;color:#856404;border-radius:10px;padding:2px 7px;font-size:.72rem;font-weight:700">⏳ Pendente</span>';
     return `<tr>
       <td style="font-size:.8rem">${esc(fmtDate(e.data)||'')}</td>
-      <td><b>${esc(nome)}</b></td>
+      <td><b>${esc(nome)}</b>${historico?'<small style="display:block;color:#7b5792">Inativo / histórico</small>':''}</td>
       <td style="font-size:.78rem">${esc(cargo)}</td>
       <td style="font-size:.78rem">${esc(e.atividade||'')}</td>
       <td style="font-size:.78rem">${esc(e.risco||'')}</td>
@@ -6298,16 +6293,16 @@ function renderEpi(){
       <td style="font-size:.78rem">${esc(e.ca||'')}</td>
       <td style="font-size:.78rem">${esc(e.motivo||'')}</td>
       <td style="text-align:center">${ass}<br><div style="display:flex;gap:3px;justify-content:center;margin-top:3px">
-        <button class="btn-edit" style="font-size:.7rem;background:#1565c0;color:#fff" onclick="epiAssinarModal('${e.id}')">✍️</button>
+        ${historico?'':`<button class="btn-edit" style="font-size:.7rem;background:#1565c0;color:#fff" onclick="epiAssinarModal('${e.id}')">✍️</button>`}
         <button class="btn-edit" style="font-size:.7rem;background:#2e7d32;color:#fff" onclick="epiGerarRecibo('${e.id}')">📄</button>
       </div></td>
-      <td><button class="btn-edit-danger" style="font-size:.72rem" onclick="excluirEpi('${e.id}')">🗑️</button></td>
+      <td>${historico?'<span style="font-size:.78rem;color:#66756e">Somente leitura</span>':`<button class="btn-edit-danger" style="font-size:.72rem" onclick="excluirEpi('${e.id}')">🗑️</button>`}</td>
     </tr>`;
   }).join('');
 }
 
 function novoEpiModal(matPre){
-  const funcOpts=FUNCIONARIOS.filter(f=>f.status!=='Inativo')
+  const funcOpts=FUNCIONARIOS.filter(_erpFuncionarioAtivo)
     .map(f=>`<option value="${f.mat}" ${f.mat===matPre?'selected':''}>${f.mat} – ${f.nome}</option>`).join('');
   const epiOpts=_EPI_CATALOGO.map((c,i)=>`<option value="${i}">${c.epi}</option>`).join('');
   const motivoOpts=_EPI_MOTIVOS.map(m=>`<option>${m}</option>`).join('');
@@ -6358,6 +6353,8 @@ function salvarEpiEntrega(){
   const ca=(document.getElementById('ei-ca')?.value||'').trim();
   const motivo=document.getElementById('ei-motivo')?.value||'';
   if(!mat||!epi){ showToast('Preencha o funcionário e o EPI.','error'); return; }
+  const funcionario=FUNCIONARIOS.find(f=>f&&f.mat===mat);
+  if(!funcionario||!_erpFuncionarioAtivo(funcionario)){showToast('Funcionário inativo: não é permitido registrar nova entrega.','error');return;}
   const data=dataRaw?dataRaw.split('-').reverse().join('/'):'';
   EPI_DB.push({id:'epi_'+Date.now(), mat, data, epi, atividade:ativ, risco, ca, motivo});
   saveEpi();
@@ -6367,6 +6364,9 @@ function salvarEpiEntrega(){
 }
 
 function excluirEpi(id){
+  const registro=EPI_DB.find(e=>e.id===id);
+  const funcionario=FUNCIONARIOS.find(f=>f&&registro&&f.mat===registro.mat);
+  if(!funcionario||!_erpFuncionarioAtivo(funcionario)){showToast('Registro histórico somente leitura.','error');return;}
   if(!confirm('Excluir este registro de EPI?')) return;
   const idx=EPI_DB.findIndex(e=>e.id===id);
   if(idx<0) return;
@@ -6381,6 +6381,8 @@ function excluirEpi(id){
 function epiAssinarModal(id){
   const e=EPI_DB.find(x=>x.id===id);
   if(!e) return;
+  const ativo=FUNCIONARIOS.find(f=>f&&f.mat===e.mat);
+  if(!ativo||!_erpFuncionarioAtivo(ativo)){showToast('Histórico de inativo: somente leitura.','error');return;}
   const f=FUNCIONARIOS.find(x=>x.mat===e.mat);
   const nome=f?f.nome:e.mat;
   om('epiAssinar');
@@ -6430,6 +6432,8 @@ function _epiCanvasVazio(){ const c=document.getElementById('epi-sig-canvas'); i
 function epiSalvarAss(id){
   if(_epiCanvasVazio()){ showToast('Assine antes de salvar.','error'); return; }
   const e=EPI_DB.find(x=>x.id===id); if(!e) return;
+  const ativo=FUNCIONARIOS.find(f=>f&&f.mat===e.mat);
+  if(!ativo||!_erpFuncionarioAtivo(ativo)){showToast('Histórico de inativo: somente leitura.','error');return;}
   e.assinatura=document.getElementById('epi-sig-canvas').toDataURL('image/png');
   e.assinadoEm=new Date().toISOString().slice(0,10);
   saveEpi(); cm(); renderEpi(); showToast('Assinatura registrada! ✅','success');
@@ -6480,7 +6484,8 @@ function epiImprimirFicha(){
   const filFunc=(document.getElementById('epi-fil-func')?.value||'');
   const filMes=(document.getElementById('epi-fil-mes')?.value||'');
   
-  let mats=filFunc?[filFunc]:FUNCIONARIOS.filter(f=>f.status!=='Inativo').map(f=>f.mat);
+  const situacao=_erpSituacaoFiltro('epi-situacao');
+  let mats=filFunc?[filFunc]:FUNCIONARIOS.filter(f=>_erpFiltroFuncionario(f,situacao)).map(f=>f.mat);
   
   const epiFiltrado=(mat)=>EPI_DB.filter(e=>{
     if(e.mat!==mat) return false;
@@ -6573,6 +6578,8 @@ function epiImprimirRelatorioMensal(){
   const filMes=(document.getElementById('epi-fil-mes')?.value||'');
   let lista=EPI_DB.filter(e=>{
     if(filFunc&&e.mat!==filFunc) return false;
+    const f=FUNCIONARIOS.find(x=>x&&x.mat===e.mat);
+    if(f?!_erpFiltroFuncionario(f,_erpSituacaoFiltro('epi-situacao')):_erpSituacaoFiltro('epi-situacao')==='ativos') return false;
     if(filMes){
       const [yy,mm]=filMes.split('-');
       if(e.data){
@@ -6826,8 +6833,12 @@ function _valeMesFiltroAtual(){
 
 function _valeListaFiltrada(){
   const mes=_valeMesFiltroAtual();
-  if(!mes) return VALES_DB.slice();
-  return VALES_DB.filter(function(v){ return _valeMesChave(v)===mes; });
+  const situacao=_erpSituacaoFiltro('vales-situacao');
+  return VALES_DB.filter(function(v){
+    if(mes && _valeMesChave(v)!==mes) return false;
+    const funcionario=FUNCIONARIOS.find(f=>f&&f.mat===v.mat);
+    return funcionario?_erpFiltroFuncionario(funcionario,situacao):situacao!=='ativos';
+  });
 }
 
 function valeVerTodos(){
@@ -6894,6 +6905,34 @@ function valeGerarTodosRecibosMes(){
 
 
 
+// Consulta histórica: a inativação nunca remove vínculos nem documentos já lançados.
+function _erpFuncionarioAtivo(f){
+  if(!f || f.ativo===false || !!f.dataRescisao) return false;
+  const status=String(f.status||'Ativo').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+  return !['inativo','demitido','desligado','rescindido'].includes(status);
+}
+function _erpSituacaoFiltro(id){
+  const v=document.getElementById(id)?.value;
+  return v==='inativos'||v==='todos'?v:'ativos';
+}
+function _erpFiltroFuncionario(f,situacao){
+  return situacao==='todos'||(situacao==='inativos'?!_erpFuncionarioAtivo(f):_erpFuncionarioAtivo(f));
+}
+function _erpRegistroMes(data,mes){
+  const d=String(data||'').trim();
+  return d.startsWith(mes) || /^\d{2}\/\d{2}\/\d{4}$/.test(d) && d.slice(6)+'-'+d.slice(3,5)===mes;
+}
+function _erpTemHistoricoFolha(f,mes){
+  if(!f || !mes) return false;
+  const mat=String(f.mat||'');
+  return Object.prototype.hasOwnProperty.call(FOLHA_DB||{},mes+'-'+mat)
+    || (PONTO_DB||[]).some(p=>p&&p.mat===mat&&_erpRegistroMes(p.data,mes))
+    || (PONTO_BATIDAS_DB||[]).some(p=>p&&p.mat===mat&&_erpRegistroMes(p.data,mes))
+    || (VALES_DB||[]).some(v=>v&&v.mat===mat&&(_erpRegistroMes(v.data,mes)||String(v.mes||'')===mes))
+    || (VIAGEM_DB||[]).some(v=>v&&v.motorista===f.nome&&_erpRegistroMes(v.data,mes));
+}
+function _erpHistoricoSomenteLeitura(f){return !_erpFuncionarioAtivo(f);}
+
 function getFolhaMes(){
   const el=document.getElementById('folha-mes');
   if(!el||!el.value){
@@ -6906,6 +6945,8 @@ function getFolhaMes(){
   return el.value;
 }
 function setFolhaValor(mat,campo,val){
+  const f=FUNCIONARIOS.find(x=>x&&x.mat===mat);
+  if(!f||!_erpFuncionarioAtivo(f)){showToast('Funcionário inativo: histórico disponível somente para consulta.','error');return;}
   const mes=getFolhaMes();
   const key=mes+'-'+mat;
   if(!FOLHA_DB[key]) FOLHA_DB[key]={};
@@ -7037,6 +7078,7 @@ function renderFluxo(){
 
 
 function fecharFolha(){
+  if(_erpSituacaoFiltro('folha-situacao')!=='ativos'){ showToast('Selecione Ativos para fechar a folha. A consulta de inativos é somente histórica.','error'); return; }
   
   
   
@@ -7049,7 +7091,7 @@ function fecharFolha(){
 
   
   let totalLiq=0;
-  const lista=FUNCIONARIOS.filter(f=>f.status!=='Inativo');
+  const lista=FUNCIONARIOS.filter(_erpFuncionarioAtivo);
   lista.forEach(f=>{
     const key=mes+'-'+f.mat;
     const fd=FOLHA_DB[key]||{};
@@ -7126,16 +7168,22 @@ function renderFolha(){
   const [ano,mn]=mes.split('-');
   const nomeMes=meses[parseInt(mn)-1]+'/'+ano;
   const titulo=document.getElementById('folha-titulo');
-  const listaTodos=FUNCIONARIOS.filter(function(f){return f.status!=='Inativo';});
+  const situacao=_erpSituacaoFiltro('folha-situacao');
+  const listaTodos=FUNCIONARIOS.filter(function(f){return f && _erpFiltroFuncionario(f,situacao) && (_erpFuncionarioAtivo(f)||_erpTemHistoricoFolha(f,mes));});
   const termoEl=document.getElementById('folha-pesquisa');
   const termo=String(termoEl&&termoEl.value||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   const lista=termo?listaTodos.filter(function(f){
     const texto=[f.mat,f.nome,f.cargo,f.empresa,f.role,f.descricao].map(function(v){return String(v||'');}).join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     return texto.includes(termo);
   }):listaTodos;
-  if(titulo) titulo.textContent='Folha – '+nomeMes+(termo?' · '+lista.length+' de '+listaTodos.length+' funcionário(s)':'');
+  if(titulo) titulo.textContent='Folha – '+nomeMes+(situacao==='inativos'?' · Histórico de inativos':situacao==='todos'?' · Todos com registros':'')+(termo?' · '+lista.length+' de '+listaTodos.length+' funcionário(s)':'');
+  const aviso=document.getElementById('folha-historico-aviso');
+  if(aviso) aviso.hidden=situacao==='ativos';
+  const botaoFechar=document.getElementById('folha-fechar-btn');
+  if(botaoFechar){botaoFechar.disabled=situacao!=='ativos';botaoFechar.title=situacao==='ativos'?'Fechar folha dos funcionários ativos':'Histórico é somente leitura. Selecione Ativos para fechar a folha.';}
   let totalBruto=0,totalInss=0,totalLiq=0,totalDec=0,totalFer=0,totalDiariasAll=0;
   tbFolha.innerHTML=lista.map(f=>{
+    const historico=_erpHistoricoSomenteLeitura(f);
     const key=mes+'-'+f.mat;
     const fd=FOLHA_DB[key]||{};
     
@@ -7190,14 +7238,14 @@ function renderFolha(){
     const inpStyle='width:70px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:.82rem;text-align:right';
     const inpStyleDec='width:75px;padding:2px 4px;border:1px solid #f0c040;border-radius:4px;font-size:.82rem;text-align:right;background:#fffbea';
     const inpStyleFer='width:75px;padding:2px 4px;border:1px solid #a0c4e0;border-radius:4px;font-size:.82rem;text-align:right;background:#f0f7ff';
-    return '<tr style="'+(f.status==='Inativo'?'opacity:.5':'')+'">'+
-      '<td>'+f.mat+'</td><td>'+esc(f.nome)+'</td><td>'+esc(f.cargo)+'</td>'+
+    return '<tr class="'+(historico?'erp-historico-inativo':'')+'">'+
+      '<td>'+esc(f.mat)+'</td><td>'+esc(f.nome)+(historico?' <small title="Consulta histórica, valores calculados com dados atuais">(Inativo)</small>':'')+'</td><td>'+esc(f.cargo)+'</td>'+
       '<td>R$ '+fmt(f.sal)+'</td>'+
       '<td style="color:'+(faltas>0?'#e74c3c':'inherit')+';font-weight:'+(faltas>0?'700':'400')+'">'+faltas+'</td>'+
       '<td style="color:'+(atestados>0?'#e67e22':'inherit')+'">'+atestados+'</td>'+
       '<td>R$ '+fmt(heValor)+'</td>'+
-      '<td><input type="number" min="0" step="0.01" style="'+inpStyle+'" value="'+(fd.adicional||0)+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;adicional&#39;,this.value)" title="Editar adicional deste mês"></td>'+
-      '<td><input type="number" min="0" step="0.01" style="'+inpStyle+(faltas>0||atestados>0?';background:#fff0f0':'')+'" value="'+(fd.abono||0)+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;abono&#39;,this.value)" title="'+(faltas>0||atestados>0?'Atenção: funcionário tem falta/atestado':'Editar abono deste mês')+'"></td>'+
+      '<td>'+(historico?'R$ '+fmt(fd.adicional||0):'<input type="number" min="0" step="0.01" style="'+inpStyle+'" value="'+(fd.adicional||0)+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;adicional&#39;,this.value)" title="Editar adicional deste mês">')+'</td>'+
+      '<td>'+(historico?'R$ '+fmt(fd.abono||0):'<input type="number" min="0" step="0.01" style="'+inpStyle+(faltas>0||atestados>0?';background:#fff0f0':'')+'" value="'+(fd.abono||0)+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;abono&#39;,this.value)" title="'+(faltas>0||atestados>0?'Atenção: funcionário tem falta/atestado':'Editar abono deste mês')+'">')+'</td>'+
       '<td>R$ '+fmt(bruto)+'</td>'+
       '<td>R$ '+fmt(inss)+'</td>'+
       '<td>R$ '+fmt(irrf)+'</td>'+
@@ -7207,13 +7255,13 @@ function renderFolha(){
       '<td style="background:#e8f5e9;text-align:center">'+qtdViagens+'</td>'+
       '<td style="background:#e8f5e9;font-weight:600;color:#1a5e2a">R$ '+fmt(totalDiarias)+'</td>'+
       '<td><b>R$ '+fmt(liq)+'</b></td>'+
-      '<td style="background:#fffbea"><input type="number" min="0" step="0.01" style="'+inpStyleDec+'" value="'+fmt(provDec).replace('.','').replace(',','.')+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;decTerceiro&#39;,this.value)" title="Provisão 13º salário"></td>'+
-      '<td style="background:#f0f7ff"><input type="number" min="0" step="0.01" style="'+inpStyleFer+'" value="'+fmt(provFer).replace('.','').replace(',','.')+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;ferias&#39;,this.value)" title="Provisão férias"></td>'+
+      '<td style="background:#fffbea">'+(historico?'R$ '+fmt(provDec):'<input type="number" min="0" step="0.01" style="'+inpStyleDec+'" value="'+fmt(provDec).replace('.','').replace(',','.')+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;decTerceiro&#39;,this.value)" title="Provisão 13º salário">')+'</td>'+
+      '<td style="background:#f0f7ff">'+(historico?'R$ '+fmt(provFer):'<input type="number" min="0" step="0.01" style="'+inpStyleFer+'" value="'+fmt(provFer).replace('.','').replace(',','.')+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;ferias&#39;,this.value)" title="Provisão férias">')+'</td>'+
       '<td style="white-space:nowrap">'+
-      '<button class="btn-edit" onclick="toggleInativarFunc(&#39;'+f.mat+'&#39;)" style="font-size:.75rem;background:#e67e22" title="Inativar">⏸️</button> '+
-      '<button class="btn-edit-danger" onclick="excluirFuncionario(&#39;'+f.mat+'&#39;)" title="Excluir" style="font-size:.75rem">🗑️</button>'+
+      (historico?'<span style="font-size:.78rem;color:#66756e">Somente leitura</span>':('<button class="btn-edit" onclick="toggleInativarFunc(&#39;'+f.mat+'&#39;)" style="font-size:.75rem;background:#e67e22" title="Inativar">⏸️</button> '+
+      '<button class="btn-edit-danger" onclick="excluirFuncionario(&#39;'+f.mat+'&#39;)" title="Excluir" style="font-size:.75rem">🗑️</button>'))+
       '</td></tr>';
-  }).join('');
+  }).join('') || '<tr><td colspan="21" style="padding:20px;text-align:center">Nenhum registro histórico encontrado neste mês para a situação selecionada.</td></tr>';
   
   const kpis=document.getElementById('folha-kpis');
   if(kpis) kpis.innerHTML=
@@ -7361,7 +7409,7 @@ function renderVales(){
   if(kSub) kSub.textContent='Dia '+diaVale+' · '+nomeMesK;
   if(kAberto) kAberto.textContent=String(doMes.length);
   if(kTotal) kTotal.textContent='R$ '+fmt(totalGeral);
-  if(count) count.textContent=filtroMes?('Vales encontrados: '+listaFiltrada.length):('Todos os vales: '+VALES_DB.length);
+  if(count) count.textContent='Registros exibidos: '+listaFiltrada.length+' · Histórico geral preservado';
   if(listaFiltrada.length===0){
     tb.innerHTML='<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum vale encontrado para o período selecionado</td></tr>';
     return;
@@ -7376,6 +7424,7 @@ function renderVales(){
     const gi=VALES_DB.indexOf(v);
     const f=FUNCIONARIOS.find(function(x){return x.mat===v.mat;});
     const nome=f?f.nome:v.mat;
+    const historico=!f||_erpHistoricoSomenteLeitura(f);
     const assBadge=v.assinatura
       ?'<span style="background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:2px 8px;font-size:.72rem;font-weight:700">✅ Assinado</span>'
       :'<span style="background:#fff3cd;color:#856404;border-radius:10px;padding:2px 8px;font-size:.72rem;font-weight:700">⏳ Pendente</span>';
@@ -7383,7 +7432,7 @@ function renderVales(){
       '<td>'+esc(v.mat||'—')+'</td>'+ 
       '<td>'+esc(_fmtDataBR(v.data)||'—')+'</td>'+ 
       '<td>'+esc(v.mes||'—')+'</td>'+ 
-      '<td><b>'+esc(nome||'—')+'</b></td>'+ 
+      '<td><b>'+esc(nome||'—')+'</b>'+(historico?' <small style="color:#7b5792">(Inativo / histórico)</small>':'')+'</td>'+ 
       '<td style="font-weight:700">R$ '+fmt(v.valor)+'</td>'+ 
       '<td>'+esc(v.forma||'—')+'</td>'+ 
       '<td style="font-size:.78rem">'+esc(v.obs||'—')+'</td>'+ 
@@ -7392,8 +7441,7 @@ function renderVales(){
         '<button class="btn-edit" style="font-size:.72rem;background:#1565c0;color:#fff" onclick="valeAssinarModal('+gi+',\''+String(v.mat||'').replace(/'/g,"\\'")+'\')" title="Capturar assinatura">✍️ Assinar</button>'+ 
         '<button class="btn-edit" style="font-size:.72rem;background:#2e7d32;color:#fff" onclick="valeGerarRecibo('+gi+')" title="Gerar recibo">📄 Recibo</button>'+ 
         '</div></td>'+ 
-      '<td style="white-space:nowrap"><button class="btn-edit" onclick="editVale('+gi+')" title="Editar" style="margin-right:4px">✏️</button>'+ 
-      '<button class="btn-edit-danger" onclick="excluirVale('+gi+')" title="Excluir">🗑️</button></td>'+ 
+      '<td style="white-space:nowrap">'+(historico?'<span style="color:#66756e;font-size:.78rem">Somente leitura</span>':'<button class="btn-edit" onclick="editVale('+gi+')" title="Editar" style="margin-right:4px">✏️</button><button class="btn-edit-danger" onclick="excluirVale('+gi+')" title="Excluir">🗑️</button>')+'</td>'+ 
       '</tr>';
   }).join('');
 }
@@ -7404,6 +7452,8 @@ function salvarPontoLancamento(){
   const tipo=document.getElementById('pt-tipo')?.value||'Falta';
   const horas=parseFloat(document.getElementById('pt-horas')?.value)||0;
   if(!mat){alert('Selecione o funcionário.');return;}
+  const funcionario=FUNCIONARIOS.find(f=>f&&f.mat===mat);
+  if(!funcionario || !_erpFuncionarioAtivo(funcionario)){alert('Funcionário inativo. Novos lançamentos são bloqueados; consulte o histórico no filtro.');return;}
   if(!data){alert('Informe a data.');return;}
   const dataFmt=data.split('-').reverse().join('/');
   PONTO_DB.push({mat,data:dataFmt,tipo,horas,obs:document.getElementById('pt-obs')?.value||''});
@@ -7418,6 +7468,8 @@ function salvarValeFunc(){
   const data=document.getElementById('vl-data')?.value;
   const valor=parseFloat(document.getElementById('vl-valor')?.value)||0;
   if(!mat){alert('Selecione o funcionário.');return;}
+  const funcionario=FUNCIONARIOS.find(f=>f&&f.mat===mat);
+  if(!funcionario || !_erpFuncionarioAtivo(funcionario)){alert('Funcionário inativo. Novos lançamentos são bloqueados; consulte o histórico no filtro.');return;}
   if(!valor||valor<=0){alert('Informe o valor do vale.');return;}
   const dataFmt=data?data.split('-').reverse().join('/'):'';
   VALES_DB.push({
@@ -7436,6 +7488,8 @@ function salvarValeFunc(){
 
 function excluirVale(idx){
   const v=VALES_DB[idx];
+  const f=FUNCIONARIOS.find(x=>x&&v&&x.mat===v.mat);
+  if(!f||!_erpFuncionarioAtivo(f)){alert('Registro histórico de funcionário inativo não pode ser excluído nesta tela.');return;}
   if(!v||!confirm('Excluir vale de R$ '+Number(v.valor).toFixed(2)+'?')) return;
   _syncVales.remover(idx);
   saveDB();
@@ -7456,16 +7510,23 @@ function renderPontoTab(){
   const tb=document.getElementById('tb-ponto');
   if(!tb) return;
   const agora=new Date();
-  const mes=String(agora.getMonth()+1).padStart(2,'0');
-  const ano=String(agora.getFullYear());
-  const lancamentosMes=PONTO_DB.filter(function(p){
-    const partes=String(p&&p.data||'').split('/');
-    return partes.length===3 && partes[1]===mes && partes[2]===ano;
+  const ref=document.getElementById('ponto-mes');
+  if(ref&&!ref.value) ref.value=agora.getFullYear()+'-'+String(agora.getMonth()+1).padStart(2,'0');
+  const referencia=ref?.value||agora.getFullYear()+'-'+String(agora.getMonth()+1).padStart(2,'0');
+  const [ano,mes]=referencia.split('-');
+  const situacao=_erpSituacaoFiltro('ponto-situacao');
+  const lancamentosMes=PONTO_DB.filter(p=>p&&_erpRegistroMes(p.data,referencia));
+  const diasUteis=_diasUteisNoMes(Number(ano),Number(mes)-1);
+  const funcionarios=FUNCIONARIOS.filter(f=>{
+    if(!f||!_erpFiltroFuncionario(f,situacao)) return false;
+    if(_erpFuncionarioAtivo(f)) return true;
+    return lancamentosMes.some(p=>p.mat===f.mat) || (PONTO_BATIDAS_DB||[]).some(p=>p.mat===f.mat&&_erpRegistroMes(p.data,referencia));
   });
-  const diasUteis=_diasUteisNoMes(agora.getFullYear(),agora.getMonth());
-  const ativos=FUNCIONARIOS.filter(function(f){ return f && f.status!=='Inativo'; }).length;
-  const faltasMes=lancamentosMes.filter(function(p){ return p.tipo==='Falta'; }).length;
-  const horasExtrasMes=lancamentosMes.filter(function(p){ return p.tipo==='HE'; }).reduce(function(total,p){ return total+Number(p.horas||0); },0);
+  const matsVisiveis=new Set(funcionarios.map(f=>f.mat));
+  const lancamentosVisiveis=lancamentosMes.filter(p=>matsVisiveis.has(p.mat));
+  const ativos=funcionarios.length;
+  const faltasMes=lancamentosVisiveis.filter(p=>p.tipo==='Falta').length;
+  const horasExtrasMes=lancamentosVisiveis.filter(p=>p.tipo==='HE').reduce((total,p)=>total+Number(p.horas||0),0);
   const kDias=document.getElementById('kpi-ponto-dias-uteis');
   const kFunc=document.getElementById('kpi-ponto-funcionarios');
   const kFaltas=document.getElementById('kpi-ponto-faltas');
@@ -7486,21 +7547,22 @@ function renderPontoTab(){
   
   
   try{ if(_syncPonto.limparDuplicatasExatas()){ saveDB(); } }catch(e){}
-  tb.innerHTML=FUNCIONARIOS.map(f=>{
+  tb.innerHTML=funcionarios.map(f=>{
+    const historico=_erpHistoricoSomenteLeitura(f);
     const lancs=lancamentosMes.filter(p=>p.mat===f.mat);
     const faltas=lancs.filter(p=>p.tipo==='Falta').length;
     const he=lancs.filter(p=>p.tipo==='HE').reduce((s,p)=>s+Number(p.horas||0),0);
     const hf=lancs.filter(p=>p.tipo==='Falta').reduce((s,p)=>s+8,0);
     const ates=lancs.filter(p=>p.tipo==='Atestado').length;
-    const diasTrab=Math.max(0,diasUteis-faltas);
+    const diasTrab=historico?'—':Math.max(0,diasUteis-faltas);
     return '<tr>'+
-      '<td>'+f.mat+'</td><td><b>'+esc(f.nome)+'</b></td>'+
+      '<td>'+esc(f.mat)+'</td><td><b>'+esc(f.nome)+'</b>'+(historico?' <small title="Consulta de registros anteriores" style="color:#7b5792">(Inativo)</small>':'')+'</td>'+
       '<td>'+diasTrab+'</td><td>'+faltas+'</td>'+
       '<td>'+he+'h</td><td>'+hf+'h</td><td>'+ates+'</td>'+
       '<td style="font-size:.75rem">'+(lancs.map(l=>l.tipo+' '+l.data).join(', ')||'—')+'</td>'+
-      '<td><button class="btn-edit-danger" onclick="excluirPontoFunc(&#39;'+f.mat+'&#39;)" title="Excluir lançamentos">🗑️</button></td>'+
+      '<td>'+(historico?'<span style="color:#66756e;font-size:.78rem">Somente leitura</span>':'<button class="btn-edit-danger" onclick="excluirPontoFunc(&#39;'+f.mat+'&#39;)" title="Excluir lançamentos deste mês">🗑️</button>')+'</td>'+
       '</tr>';
-  }).join('');
+  }).join('') || '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--gray)">Nenhum registro de ponto para esta situação e mês. O histórico continua preservado.</td></tr>';
 
   try{ _popularSelectPontoFuncionarios(); }catch(e){}
   try{ renderCartaoPontoImportado(); }catch(e){}
@@ -7514,10 +7576,11 @@ function _popularSelectPontoFuncionarios(){
   if(!sel) return;
   const valorAtual=sel.value;
   const matsComDados=new Set(PONTO_BATIDAS_DB.map(r=>r.mat));
-  const funcs=FUNCIONARIOS.filter(f=>matsComDados.has(f.mat)).sort((a,b)=>a.nome.localeCompare(b.nome));
+  const situacao=_erpSituacaoFiltro('ponto-situacao');
+  const funcs=FUNCIONARIOS.filter(f=>matsComDados.has(f.mat)&&_erpFiltroFuncionario(f,situacao)).sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
   sel.innerHTML='<option value="">— Selecione —</option>'+
     funcs.map(f=>'<option value="'+f.mat+'">'+esc(f.nome)+'</option>').join('');
-  if(valorAtual && matsComDados.has(valorAtual)) sel.value=valorAtual;
+  if(valorAtual && funcs.some(f=>f.mat===valorAtual)) sel.value=valorAtual;
 }
 
 
@@ -7579,11 +7642,13 @@ function renderCartaoPontoImportado(){
 
 function excluirPontoFunc(mat){
   const f=FUNCIONARIOS.find(x=>x.mat===mat);
-  if(!confirm('Excluir todos os lançamentos de ponto de '+(f?f.nome:mat)+'?')) return;
+  const mes=document.getElementById('ponto-mes')?.value||new Date().toISOString().slice(0,7);
+  if(!f || !_erpFuncionarioAtivo(f)){ alert('Registros de funcionários inativos são somente para consulta.'); return; }
+  if(!confirm('Excluir SOMENTE os lançamentos de '+(f?f.nome:mat)+' em '+mes+'? Os outros períodos serão preservados.')) return;
   const before=PONTO_DB.length;
   
   
-  for(let i=PONTO_DB.length-1;i>=0;i--){ if(PONTO_DB[i] && PONTO_DB[i].mat===mat) _syncPonto.remover(i); }
+  for(let i=PONTO_DB.length-1;i>=0;i--){ if(PONTO_DB[i] && PONTO_DB[i].mat===mat && _erpRegistroMes(PONTO_DB[i].data,mes)) _syncPonto.remover(i); }
   saveDB();
   renderPontoTab();
   alert('✅ '+(before-PONTO_DB.length)+' lançamento(s) removido(s).');
@@ -13238,11 +13303,18 @@ function toggleInativarFunc(mat){
   localStorage.setItem('mm_funcionarios_edit', JSON.stringify(FUNCIONARIOS));
   try{fbSalvar();}catch(e){}
   renderTbFuncionarios();
+  try{renderPontoTab();renderFolha();renderVales();}catch(e){console.warn('Atualização de histórico:',e);}
 }
 
 function excluirFuncionario(mat){
   const f=FUNCIONARIOS.find(x=>x.mat===mat);
   if(!f) return;
+  const historico=(PONTO_DB||[]).some(r=>r&&r.mat===mat)
+    || (PONTO_BATIDAS_DB||[]).some(r=>r&&r.mat===mat)
+    || (VALES_DB||[]).some(r=>r&&r.mat===mat)
+    || (EPI_DB||[]).some(r=>r&&r.mat===mat)
+    || Object.keys(FOLHA_DB||{}).some(key=>key.endsWith('-'+mat));
+  if(historico){alert('Este funcionário possui registros históricos em Ponto, Folha, Vales ou EPI. Inative-o em vez de excluir, para preservar a rastreabilidade.');return;}
   if(!confirm('Excluir permanentemente o funcionário '+f.nome+'?\nSugestão: use ⏸️ Inativar para manter o histórico.')) return;
   const idx=FUNCIONARIOS.findIndex(x=>x.mat===mat);
   FUNCIONARIOS.splice(idx,1);

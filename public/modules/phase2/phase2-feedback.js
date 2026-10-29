@@ -336,13 +336,13 @@ function renderUnifiedEpi(prefMat){
   const fs=$('#p2epi-func');if(prefMat&&fs&&Array.from(fs.options).some(o=>o.value===prefMat))fs.value=prefMat;fs?.addEventListener('change',renderEmployeeEpiHistory);renderEmployeeEpiHistory();
 }
 global.phase2EpiStockHint=function(){const idx=Number($('#p2epi-item')?.value),item=(()=>{try{return ALX_ITENS?.[idx];}catch(e){return null;}})(),h=$('#p2epi-stock');if(h)h.textContent=item?'Disponível: '+kg(item.qtd)+' '+(item.un||'un'):'';};
-global.phase2EpiEditRecord=function(id){let e=null;try{e=(EPI_DB||[]).find(x=>x&&x.id===id);}catch(_e){}if(!e)return;const body=$('#modal-body');if(!body)return;const iso=String(e.data||'').includes('/')?String(e.data).split('/').reverse().join('-'):String(e.data||today());body.className='modal';body.innerHTML=`<h3>✏️ Editar entrega de EPI</h3><div class="fg"><label>EPI</label><input id="p2ee-name" value="${esc(e.epi||'')}" readonly></div><div class="phase2-form-two"><div class="fg"><label>Data</label><input id="p2ee-date" type="date" value="${esc(iso)}"></div><div class="fg"><label>Quantidade</label><input id="p2ee-qty" type="number" min="1" step="1" value="${Number(e.qtd||1)}"></div></div><div class="fg"><label>CA</label><input id="p2ee-ca" value="${esc(e.ca||'')}"></div><div class="fg"><label>Motivo / observação</label><input id="p2ee-reason" value="${esc(e.motivo||'')}"></div><div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="phase2EpiSaveRecord('${esc(id)}')">Salvar</button></div>`;$('#modal-ov')?.classList.add('open');};
-global.phase2EpiSaveRecord=function(id){let e=null,m=null,item=null;try{e=(EPI_DB||[]).find(x=>x&&x.id===id);m=(ALX_MOV||[]).find(x=>x&&(x.epiId===id||x.id===e?._almoxMovId));item=m?(ALX_ITENS||[]).find(x=>x&&(x.id&&m.itemId?x.id===m.itemId:String(x.nome||'')===String(m.item||''))):null;}catch(_e){}if(!e)return;const qty=Number($('#p2ee-qty')?.value)||0;if(!(qty>0)||!Number.isInteger(qty)){notify('Quantidade de EPI deve ser inteira.','error');return;}if(m&&item){const old=Number(m.qtd||e.qtd||1),delta=qty-old;if(delta>Number(item.qtd||0)){notify('Estoque insuficiente para aumentar esta entrega.','error');return;}item.qtd=Number(item.qtd||0)-delta;m.qtd=qty;m.after=Number(item.qtd||0);m.data=$('#p2ee-date')?.value||m.data;m.obs=$('#p2ee-reason')?.value||m.obs;}e.qtd=qty;e.data=($('#p2ee-date')?.value||today()).split('-').reverse().join('/');e.ca=String($('#p2ee-ca')?.value||'').trim();e.motivo=String($('#p2ee-reason')?.value||'').trim();try{if(typeof saveAlmoxa==='function')saveAlmoxa();if(typeof saveEpi==='function')saveEpi();cm();renderEmployeeEpiHistory();if(typeof alxRenderItens==='function')alxRenderItens();notify('Entrega de EPI atualizada.','success');}catch(_e){}};
+global.phase2EpiEditRecord=function(id){let e=null;try{e=(EPI_DB||[]).find(x=>x&&x.id===id);}catch(_e){}if(!e)return;let employee=null;try{employee=(FUNCIONARIOS||[]).find(f=>f&&f.mat===e.mat);}catch(_e){}if(!activeEmployee(employee)){notify('Histórico de funcionário inativo: somente leitura.','error');return;}const body=$('#modal-body');if(!body)return;const iso=String(e.data||'').includes('/')?String(e.data).split('/').reverse().join('-'):String(e.data||today());body.className='modal';body.innerHTML=`<h3>✏️ Editar entrega de EPI</h3><div class="fg"><label>EPI</label><input id="p2ee-name" value="${esc(e.epi||'')}" readonly></div><div class="phase2-form-two"><div class="fg"><label>Data</label><input id="p2ee-date" type="date" value="${esc(iso)}"></div><div class="fg"><label>Quantidade</label><input id="p2ee-qty" type="number" min="1" step="1" value="${Number(e.qtd||1)}"></div></div><div class="fg"><label>CA</label><input id="p2ee-ca" value="${esc(e.ca||'')}"></div><div class="fg"><label>Motivo / observação</label><input id="p2ee-reason" value="${esc(e.motivo||'')}"></div><div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="phase2EpiSaveRecord('${esc(id)}')">Salvar</button></div>`;$('#modal-ov')?.classList.add('open');};
+global.phase2EpiSaveRecord=function(id){let e=null,m=null,item=null;try{e=(EPI_DB||[]).find(x=>x&&x.id===id);m=(ALX_MOV||[]).find(x=>x&&(x.epiId===id||x.id===e?._almoxMovId));item=m?(ALX_ITENS||[]).find(x=>x&&(x.id&&m.itemId?x.id===m.itemId:String(x.nome||'')===String(m.item||''))):null;}catch(_e){}if(!e)return;let employee=null;try{employee=(FUNCIONARIOS||[]).find(f=>f&&f.mat===e.mat);}catch(_e){}if(!activeEmployee(employee)){notify('Histórico de funcionário inativo: somente leitura.','error');return;}const qty=Number($('#p2ee-qty')?.value)||0;if(!(qty>0)||!Number.isInteger(qty)){notify('Quantidade de EPI deve ser inteira.','error');return;}if(m&&item){const old=Number(m.qtd||e.qtd||1),delta=qty-old;if(delta>Number(item.qtd||0)){notify('Estoque insuficiente para aumentar esta entrega.','error');return;}item.qtd=Number(item.qtd||0)-delta;m.qtd=qty;m.after=Number(item.qtd||0);m.data=$('#p2ee-date')?.value||m.data;m.obs=$('#p2ee-reason')?.value||m.obs;}e.qtd=qty;e.data=($('#p2ee-date')?.value||today()).split('-').reverse().join('/');e.ca=String($('#p2ee-ca')?.value||'').trim();e.motivo=String($('#p2ee-reason')?.value||'').trim();try{if(typeof saveAlmoxa==='function')saveAlmoxa();if(typeof saveEpi==='function')saveEpi();cm();renderEmployeeEpiHistory();if(typeof alxRenderItens==='function')alxRenderItens();notify('Entrega de EPI atualizada.','success');}catch(_e){}};
 const originalAlxTabPhase2=global.alxTab;if(typeof originalAlxTabPhase2==='function')global.alxTab=function(name){const panel=$('#phase2-alx-epi-panel');if(panel)panel.style.display='none';const epiBtn=$('#alx-stab-btn-epi-integrado');if(epiBtn){epiBtn.style.background='#eaf4ed';epiBtn.style.color='#174d34';}return originalAlxTabPhase2.apply(this,arguments);};
 function renderEmployeeEpiHistory(){const host=$('#p2epi-history');if(!host)return;const mat=$('#p2epi-func')?.value||'';let list=[];try{list=(EPI_DB||[]).filter(e=>e&&e.mat===mat).slice().reverse();}catch(e){}host.innerHTML=list.length?list.map(e=>`<div class="phase2-epi-history-row"><div><b>${esc(e.epi||'EPI')}</b><small>${esc(e.data||'')} · ${esc(e.motivo||'')}</small></div><span>${e.qtd?esc(e.qtd)+' un':''}</span><button onclick="phase2EpiEditRecord('${esc(e.id)}')">Editar</button></div>`).join(''):'<div class="phase2-empty">Nenhuma entrega registrada para este funcionário.</div>';}
 global.phase2EpiDeliver=function(){
   const mat=$('#p2epi-func')?.value||'',idx=Number($('#p2epi-item')?.value),qty=Number($('#p2epi-qtd')?.value)||0,deliveryDate=$('#p2epi-date')?.value||today(),ca=String($('#p2epi-ca')?.value||'').trim(),reason=$('#p2epi-reason')?.value||'Primeira entrega',obs=String($('#p2epi-obs')?.value||'').trim();let item=null,emp=null;try{item=ALX_ITENS?.[idx];emp=(FUNCIONARIOS||[]).find(f=>f.mat===mat);}catch(e){}
-  if(!mat||!item){notify('Selecione funcionário e EPI.','error');return;}if(!(qty>0)||!Number.isInteger(qty)){notify('A quantidade de EPI deve ser inteira.','error');return;}const before=Number(item.qtd||0);if(qty>before){notify('Estoque insuficiente. Disponível: '+kg(before)+' '+(item.un||'un')+'.','error');return;}
+  if(!mat||!item){notify('Selecione funcionário e EPI.','error');return;}if(!activeEmployee(emp)){notify('Funcionário inativo: não é permitido registrar nova entrega.','error');return;}if(!(qty>0)||!Number.isInteger(qty)){notify('A quantidade de EPI deve ser inteira.','error');return;}const before=Number(item.qtd||0);if(qty>before){notify('Estoque insuficiente. Disponível: '+kg(before)+' '+(item.un||'un')+'.','error');return;}
   const movId='EPI-MOV-'+Date.now(),epiId='epi_'+Date.now();item.qtd=before-qty;
   try{ALX_MOV.unshift({id:movId,item:item.nome,itemId:item.id||'',tipo:'saida',qtd:qty,data,mat,resp:emp?.nome||mat,obs:'Entrega de EPI'+(obs?' — '+obs:''),origem:'EPI',epiId,before,after:item.qtd,ts:new Date().toISOString()});EPI_DB.push({id:epiId,mat:mat,data:deliveryDate.split('-').reverse().join('/'),epi:item.nome,qtd:qty,atividade:'',risco:'',ca:ca,motivo:reason+(obs?' — '+obs:''),_almoxMovId:movId});if(typeof saveAlmoxa==='function')saveAlmoxa();if(typeof saveEpi==='function')saveEpi();if(typeof alxRenderItens==='function')alxRenderItens();if(typeof renderEpi==='function')renderEpi();notify('Entrega registrada e estoque baixado uma única vez.','success');renderUnifiedEpi(mat);}catch(e){console.error(e);notify('Não foi possível registrar a entrega.','error');}
 };
@@ -640,9 +640,8 @@ if(typeof originalSaveTripPhase2==='function')global.salvarViagem=function(){
 
 /* ---------- Fiscal independente completo ---------- */
 let fiscalParties={};
-let fiscalLiveRef=null,fiscalLoadSeq=0,fiscalReadDenied=false;
+let fiscalLiveRef=null,fiscalLoadSeq=0;
 async function loadFiscalParties(){
- if(fiscalReadDenied){const host=$('#p2fis-list');if(host)host.textContent='Sem permissão fiscal para consultar cadastros (canFiscalRead). Solicite revisão do acesso.';return;}
  const seq=++fiscalLoadSeq;
  const db=global._fbDB||global.__fbRaw?.db;
  if(db?.ref){
@@ -650,21 +649,16 @@ async function loadFiscalParties(){
    if(!fiscalLiveRef){
      fiscalLiveRef=ref;
      // Sincronizar a lista de clientes E fornecedores em tempo real, sem precisar de F5.
-     const onValue=snapshot=>{const value=snapshot.val();fiscalParties=value&&typeof value==='object'&&!Array.isArray(value)?value:{};renderFiscalRegistry();};
-     const onError=error=>{
-       const denied=/permission_denied|permission denied/i.test(String(error?.message||''));
-       if(denied){fiscalReadDenied=true;console.warn('[Fiscal] Acesso negado a fiscalParties; confira canFiscalRead.');}
-       else console.error('[Fiscal] Sincronização dos cadastros falhou:',error);
-       try{ref.off('value',onValue);}catch(_){}
-       const host=$('#p2fis-list');if(host)host.textContent=denied?'Sem permissão para ler cadastros fiscais (canFiscalRead).':'Não foi possível sincronizar os cadastros fiscais.';
+     ref.on('value',snapshot=>{const value=snapshot.val();fiscalParties=value&&typeof value==='object'&&!Array.isArray(value)?value:{};renderFiscalRegistry();},error=>{
+       console.error('[Fiscal] Sincronização dos cadastros falhou:',error);
+       const host=$('#p2fis-list');if(host)host.textContent='Não foi possível sincronizar os cadastros fiscais. Verifique o acesso e tente atualizar.';
        fiscalLiveRef=null;
-     };
-     ref.on('value',onValue,onError);
+     });
    }
    try{
      const snapshot=await ref.once('value');if(seq!==fiscalLoadSeq)return;
      const value=snapshot.val();fiscalParties=value&&typeof value==='object'&&!Array.isArray(value)?value:{};renderFiscalRegistry();
-   }catch(error){const denied=/permission_denied|permission denied/i.test(String(error?.message||''));if(denied){fiscalReadDenied=true;}else console.error('[Fiscal] Leitura dos cadastros:',error);const host=$('#p2fis-list');if(host)host.textContent=denied?'Sem permissão para ler cadastros fiscais (canFiscalRead).':'Falha ao carregar cadastros fiscais. Atualize a aba.';}
+   }catch(error){console.error('[Fiscal] Leitura dos cadastros:',error);const host=$('#p2fis-list');if(host)host.textContent='Falha ao carregar cadastros fiscais. Atualize a aba.';}
    return;
  }
  if(store){try{const value=await store.load('fiscalParties',{});if(seq!==fiscalLoadSeq)return;fiscalParties=value||{};renderFiscalRegistry();}catch(error){console.error('[Fiscal] Cache indisponível:',error);}}
@@ -779,7 +773,7 @@ function addContractRenameButtons(){
   const body=$('#tb-contratos');if(!body)return;
   Array.from(body.rows).forEach((row,i)=>{
     const c=phase2ContractAt(i);
-    if(!c?.arquivoBase64&&!c?.arquivoStoragePath)return;
+    if(!c?.arquivoBase64)return;
     const cell=row.cells[row.cells.length-1];if(!cell)return;
     if(!row.querySelector('.phase2-contract-rename')){
       const b=document.createElement('button');
@@ -806,7 +800,7 @@ function addContractRenameButtons(){
 }
 global.phase2ContractRename=async function(i,button){
   const c=phase2ContractAt(i);
-  if(!c?.arquivoBase64&&!c?.arquivoStoragePath){notify('Este contrato não possui anexo.','error');return false;}
+  if(!c?.arquivoBase64){notify('Este contrato não possui anexo.','error');return false;}
   const oldName=phase2ContractName(c);
   const dot=oldName.lastIndexOf('.');
   const base=dot>0?oldName.slice(0,dot):oldName;
@@ -832,7 +826,7 @@ global.phase2ContractRename=async function(i,button){
     // O anexo é um data URL salvo no RTDB; alterar apenas o nome não reenvia os bytes.
     await db.ref('erp/contratos/'+id).update({arquivoNome:newName});
     c.arquivoNome=newName;
-    try{const cache=CONTRATOS_DB.map(item=>{const copy={...item};delete copy.arquivoBase64;return copy;});const serialized=JSON.stringify(cache);if(serialized.length<1024*1024)localStorage.setItem('mm_contratos',serialized);}catch(e){console.warn('Cache local de contratos indisponível, nome salvo no Firebase.',e);}
+    try{localStorage.setItem('mm_contratos',JSON.stringify(CONTRATOS_DB));}catch(e){console.warn('Cache local de contratos indisponível, nome salvo no Firebase.',e);}
     try{
       if(typeof renderContratos==='function')renderContratos();
       addContractRenameButtons();
@@ -847,17 +841,7 @@ global.phase2ContractRename=async function(i,button){
 };
 global.phase2ContractDownload=function(i){
   const c=phase2ContractAt(i);
-  if(!c?.arquivoBase64&&!c?.arquivoStoragePath){notify('Arquivo não encontrado.','error');return false;}
-  if(c.arquivoStoragePath){
-    const ref=global.__fbRaw?.storage?.ref(c.arquivoStoragePath);
-    if(!ref){notify('Armazenamento indisponível.','error');return false;}
-    return ref.getDownloadURL().then(url=>fetch(url)).then(response=>{
-      if(!response.ok)throw Error('Falha ao baixar anexo.');return response.blob();
-    }).then(blob=>{
-      const link=URL.createObjectURL(blob),a=document.createElement('a');a.href=link;a.download=phase2ContractName(c);
-      document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(link),60000);return true;
-    }).catch(error=>{console.error(error);notify('Não foi possível baixar o anexo com as permissões atuais.','error');return false;});
-  }
+  if(!c?.arquivoBase64){notify('Arquivo não encontrado.','error');return false;}
   try{
     const data=String(c.arquivoBase64);
     if(!data.startsWith('data:')||!data.includes(','))throw new Error('Formato do anexo inválido');
@@ -1037,7 +1021,7 @@ function apply(){
 }
 if(global.Phase1Dom)global.Phase1Dom.register(apply);else setInterval(apply,1000);
 setTimeout(()=>{apply();ensureOwnerModule();loadFiscalParties();},350);
-document.addEventListener('erp:user-started',()=>{fiscalReadDenied=false;setTimeout(()=>{apply();ensureOwnerModule();},700);});
+document.addEventListener('erp:user-started',()=>setTimeout(()=>{apply();ensureOwnerModule();},700));
 
 global.Phase2Feedback=Object.freeze({apply,chequeSequenceByBank,isDiscreteItem,isEpiItem,tripCostParts:phase2TripCostParts,tripMonthlyReport:phase2TripMonthlyReport});
 })(window);
