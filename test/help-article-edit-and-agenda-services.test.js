@@ -117,3 +117,17 @@ test('API de ajuda usa ETag; serviço exige permissão e regras privadas',()=>{
  const front=source('public/modules/phase1/phase1-agenda.js');
  assert.match(front,/Gerenciar/);assert.match(front,/api\/agenda\/services/);
 });
+
+test('resposta de mutação da API de serviços corresponde ao contrato consumido pela interface',()=>{
+ const api=source('api/agenda/services.js');
+ const front=source('public/modules/phase1/phase1-agenda.js');
+ // Regression: previous POST returned {items}, while the UI read {services},
+ // corrupting the service catalog and throwing on serviceCatalog.length.
+ assert.match(api,/res\.status\(200\)\.json\(\{ok:true,changed:result\.changed,services:result\.items\}\)/);
+ assert.match(api,/res\.status\(200\)\.json\(\{services:agendaServiceCatalog/);
+ assert.match(front,/function servicesFromResponse\(data\)/);
+ assert.match(front,/serviceCatalog=servicesFromResponse\(data\)/);
+ assert.match(front,/serviceCatalog=servicesFromResponse\(result\)/);
+ assert.match(front,/name\.length<3\|\|name\.length>80/);
+ assert.match(front,/const services=Array\.isArray\(serviceCatalog\)\?serviceCatalog:\[\]/);
+});

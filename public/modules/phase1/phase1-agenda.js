@@ -84,14 +84,22 @@ function setServiceOptions(preferred){
   }
   if(serviceCatalog.some(item=>item.name===previous))select.value=previous;
 }
+function servicesFromResponse(data){
+  // Never overwrite the valid catalog with an undefined or malformed payload.
+  const services=Array.isArray(data?.services)?data.services:Array.isArray(data?.items)?data.items:null;
+  if(!services||!services.every(item=>item&&typeof item.id==='string'&&typeof item.name==='string')){
+    throw new Error('A API retornou uma lista de serviços inválida. Atualize a tela e tente novamente.');
+  }
+  return services;
+}
 async function refreshServices(){
   const result=await agendaServiceRequest('load');
-  if(!Array.isArray(result.services))throw new Error('Resposta inválida do catálogo de serviços.');
-  serviceCatalog=result.services;setServiceOptions();renderServiceManager();
+  serviceCatalog=servicesFromResponse(result);setServiceOptions();renderServiceManager();
 }
 function renderServiceManager(){
   const list=document.getElementById('phase1-agenda-service-list');if(!list)return;
-  list.innerHTML=serviceCatalog.length?serviceCatalog.map(item=>`<div class="phase1-agenda-service-item"><span>${esc(item.name)}</span><button type="button" data-service-delete="${esc(item.id)}" ${serviceBusy?'disabled':''} aria-label="Excluir ${esc(item.name)}">Excluir</button></div>`).join(''):'<p class="phase1-agenda-service-empty">Sem serviços. Cadastre um para poder agendar.</p>';
+  const services=Array.isArray(serviceCatalog)?serviceCatalog:[];
+  list.innerHTML=services.length?services.map(item=>`<div class="phase1-agenda-service-item"><span>${esc(item.name)}</span><button type="button" data-service-delete="${esc(item.id)}" ${serviceBusy?'disabled':''} aria-label="Excluir ${esc(item.name)}">Excluir</button></div>`).join(''):'<p class="phase1-agenda-service-empty">Sem serviços. Cadastre um para poder agendar.</p>';
   list.querySelectorAll('[data-service-delete]').forEach(button=>button.onclick=()=>deleteService(button.dataset.serviceDelete));
 }
 function serviceManagerStatus(message,error=false){
@@ -100,7 +108,7 @@ function serviceManagerStatus(message,error=false){
 function openServiceManager(){
   document.getElementById('phase1-agenda-service-ov')?.remove();
   const ov=document.createElement('div');ov.id='phase1-agenda-service-ov';ov.className='phase1-agenda-service-ov';
-  ov.innerHTML=`<section class="phase1-agenda-service-card" role="dialog" aria-modal="true" aria-labelledby="phase1-agenda-service-title"><div class="phase1-agenda-service-heading"><div><h3 id="phase1-agenda-service-title">Serviços da agenda</h3><p>Serviços disponíveis para todos os usuários com acesso à Agenda de Entregas.</p></div><button type="button" id="phase1-agenda-service-close" aria-label="Fechar">×</button></div><form id="phase1-agenda-service-form"><label for="phase1-agenda-service-name">Novo serviço</label><div class="phase1-agenda-service-new"><input id="phase1-agenda-service-name" maxlength="80" placeholder="Ex.: ENTREGA DE MATERIAL" required><button type="submit" id="phase1-agenda-service-add">Adicionar</button></div></form><p class="phase1-agenda-service-note">Excluir um serviço remove apenas esta opção da lista. Entregas antigas permanecem registradas.</p><div id="phase1-agenda-service-list" class="phase1-agenda-service-list"></div><p id="phase1-agenda-service-message" role="status"></p></section>`;
+  ov.innerHTML=`<section class="phase1-agenda-service-card" role="dialog" aria-modal="true" aria-labelledby="phase1-agenda-service-title"><div class="phase1-agenda-service-heading"><div><h3 id="phase1-agenda-service-title">Serviços da agenda</h3><p>Serviços disponíveis para todos os usuários com acesso à Agenda de Entregas.</p></div><button type="button" id="phase1-agenda-service-close" aria-label="Fechar">×</button></div><form id="phase1-agenda-service-form"><label for="phase1-agenda-service-name">Novo serviço</label><div class="phase1-agenda-service-new"><input id="phase1-agenda-service-name" minlength="3" maxlength="80" placeholder="Ex.: ENTREGA DE MATERIAL" required><button type="submit" id="phase1-agenda-service-add">Adicionar</button></div></form><p class="phase1-agenda-service-note">Excluir um serviço remove apenas esta opção da lista. Entregas antigas permanecem registradas.</p><div id="phase1-agenda-service-list" class="phase1-agenda-service-list"></div><p id="phase1-agenda-service-message" role="status"></p></section>`;
   document.body.appendChild(ov);
   ov.querySelector('#phase1-agenda-service-close').onclick=()=>{if(!serviceBusy)ov.remove();};
   ov.onclick=e=>{if(e.target===ov&&!serviceBusy)ov.remove();};
@@ -111,10 +119,11 @@ function openServiceManager(){
 async function addService(event){
   event.preventDefault();if(serviceBusy)return;
   const input=document.getElementById('phase1-agenda-service-name');const name=input?.value?.trim();if(!name)return;
+  if(name.length<3||name.length>80){serviceManagerStatus('Informe um serviço com 3 a 80 caracteres.',true);return;}
   serviceBusy=true;const button=document.getElementById('phase1-agenda-service-add');if(button){button.disabled=true;button.textContent='Salvando...';}
   try{
     const data=await agendaServiceRequest('update',{action:'add',name});
-    serviceCatalog=data.services;setServiceOptions(name.toLocaleUpperCase('pt-BR').replace(/\s+/g,' '));
+    serviceCatalog=servicesFromResponse(data);setServiceOptions(name.toLocaleUpperCase('pt-BR').replace(/\s+/g,' '));
     if(input)input.value='';renderServiceManager();serviceManagerStatus(data.changed?'Serviço cadastrado para os usuários da agenda.':'Este serviço já está cadastrado.');
   }catch(e){serviceManagerStatus(e.message,true);}
   finally{serviceBusy=false;if(button){button.disabled=false;button.textContent='Adicionar';}renderServiceManager();}
@@ -125,7 +134,7 @@ async function deleteService(id){
   serviceBusy=true;renderServiceManager();serviceManagerStatus('Excluindo...');
   try{
     const data=await agendaServiceRequest('update',{action:'delete',id});
-    serviceCatalog=data.services;setServiceOptions();serviceManagerStatus('Serviço removido da lista.');
+    serviceCatalog=servicesFromResponse(data);setServiceOptions();serviceManagerStatus('Serviço removido da lista.');
   }catch(e){serviceManagerStatus(e.message,true);}
   finally{serviceBusy=false;renderServiceManager();}
 }

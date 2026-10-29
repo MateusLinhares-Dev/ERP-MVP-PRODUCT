@@ -22,6 +22,6 @@ export default async function handler(req,res){
       try{await new AuditRepository().record({actorUid:actor.uid,actorLogin:actor.erpUser,action:action==='add'?'agenda_service_created':'agenda_service_deleted',module:'agenda_entregas',entityType:'service',entityId:id||name});}
       catch(err){console.error('Agenda service audit failed:',err?.code||'audit_failure');}
     }
-    return res.status(200).json({ok:true,...result});
+    return res.status(200).json({ok:true,changed:result.changed,services:result.items});
   }catch(e){return sendError(res,e);}
 }
