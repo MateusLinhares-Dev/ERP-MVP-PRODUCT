@@ -36,10 +36,15 @@ test('prévia RH iD usa seletor pesquisável, pagina os cartões e confirma vín
   const css = readFileSync(new URL('../public/modules/phase1/rhid-preview.css', import.meta.url), 'utf8');
   const boot = readFileSync(new URL('../public/app/bootstrap.js', import.meta.url), 'utf8');
   assert.match(code, /_RHID_PREVIA_POR_PAGINA = 6/);
-  assert.match(code, /window\.ERPEnhanceSearchableSelect\(select/);
-  assert.match(code, /placeholder:'Pesquisar nome ou matrícula/);
+  assert.match(code, /class=\"rhid-picker-input\"/);
+  assert.match(code, /_rhidAtivarCombos\(tbody\)/);
+  assert.match(code, /_RHID_SUGESTOES_POR_PAGINA=8/);
+  assert.match(code, /Pesquisar funcionário por nome ou matrícula/);
+  assert.doesNotMatch(code, /window\.ERPEnhanceSearchableSelect/);
   assert.match(code, /_rhidVinculosPendentes\.get\(i\)/);
   assert.match(code, /if\(mats\.has\(mat\)\)/, 'duplicidade de matrícula continua bloqueada');
   assert.match(css, /\.rhid-preview-table/);
+  assert.match(css, /\.rhid-picker-input/);
+  assert.match(css, /select\.rhid-picker-native\{display:none!important\}/);
   assert.ok(boot.includes("loadStyle('/modules/phase1/rhid-preview.css')"));
 });

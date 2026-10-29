@@ -37,3 +37,23 @@
 
 .rhid-preview-toolbar .rhid-refresh-employees{border:1px solid #bed9c8;border-radius:7px;background:#fff;color:#23533b;padding:10px 12px;min-height:38px;cursor:pointer;font-weight:700;white-space:nowrap}
 .rhid-preview-refresh-status{display:block;min-height:1em;margin-top:-6px;margin-bottom:8px;color:#587666;font-size:.75rem}
+
+/* Busca de funcionários RH iD independente do seletor global. */
+.rhid-picker{position:relative;width:100%;min-width:0}
+.rhid-preview-table select.rhid-picker-native{display:none!important}
+.rhid-picker-control{display:flex;position:relative;align-items:center;width:100%}
+.rhid-picker-input{width:100%;min-width:0;min-height:40px!important;padding:9px 42px 9px 12px!important;background:#fff!important;border:1px solid #bfcfc5!important;border-radius:8px!important;box-sizing:border-box!important;font-size:.83rem!important}
+.rhid-picker-input:focus{outline:2px solid #c1e8d0;border-color:#1b7046!important}
+.rhid-picker-toggle{position:absolute;right:3px;top:3px;bottom:3px;min-width:35px;border:0;border-radius:6px;background:transparent;color:#30533e;cursor:pointer}
+.rhid-picker-options{position:absolute;z-index:30000;top:calc(100% + 4px);left:0;right:0;min-width:240px;max-height:300px;overflow-y:auto;background:#fff;border:1px solid #bfcfc5;border-radius:8px;box-shadow:0 14px 28px #092c1b25;padding:5px;box-sizing:border-box}
+.rhid-picker-options[hidden]{display:none!important}
+.rhid-picker-option{display:block;width:100%;text-align:left;border:0;border-radius:6px;padding:9px 11px;font-size:.82rem;color:#204531;background:#fff;cursor:pointer;white-space:normal;overflow-wrap:anywhere}
+.rhid-picker-option:hover,.rhid-picker-option:focus{background:#e7f4e9}
+.rhid-picker-option[aria-selected="true"]{background:#dff0e4;font-weight:700}
+.rhid-picker-clear{border-bottom:1px solid #e4ece6;color:#61776a;margin-bottom:4px}
+.rhid-picker-footer{display:flex;align-items:center;justify-content:space-between;gap:5px;border-top:1px solid #dbe7df;padding:9px 3px 2px;flex-wrap:wrap}
+.rhid-picker-footer small{font-size:.69rem;color:#5a7263;margin-right:auto}
+.rhid-picker-nav{border:1px solid #c5d8cc;border-radius:6px;background:#eff8f1;color:#24583a;padding:5px 8px;cursor:pointer;font-size:.74rem}
+.rhid-picker-nav:disabled{opacity:.45;cursor:not-allowed}
+.rhid-picker-empty{padding:12px;color:#60766a;font-size:.8rem}
+@media(max-width:700px){.rhid-picker-options{min-width:0;max-height:240px}}

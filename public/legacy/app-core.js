@@ -11620,10 +11620,13 @@ function _rhidAtualizarOpcoesFuncionarios(){
     const mat=_rhidVinculosPendentes.get(indice)||'';
     select.innerHTML=_rhidOpcoesFuncionarios(funcionarios,mat);
     select.value=mat||'';
-    // Mantém o campo de pesquisa, o texto digitado e a matrícula já escolhida.
-    if(typeof window.ERPEnhanceSearchableSelect==='function'){
-      window.ERPEnhanceSearchableSelect(select)?.refresh();
-    }
+    // O campo visível é autossuficiente: não depende de outro módulo JS
+    // ter sido carregado para oferecer pesquisa na prévia RH iD.
+    const combo=select.closest('.rhid-picker');
+    if(!combo)return;
+    const input=combo.querySelector('.rhid-picker-input');
+    if(combo.dataset.open==='1')_rhidRenderizarSugestoes(combo);
+    else if(input)input.value=_rhidRotuloFuncionario(mat);
   });
 }
 // Consulta dirigida SOMENTE ao cadastro de funcionários. Não dispara fbCarregar
@@ -11665,7 +11668,7 @@ document.addEventListener?.('erp:alert-source-changed',event=>{
   if(event.detail?.source==='funcionarios')_rhidAtualizarOpcoesFuncionarios();
 });
 document.addEventListener?.('focusin',event=>{
-  if(event.target?.closest?.('#ponto-rhid-preview .erp-search-select')){
+  if(event.target?.closest?.('#ponto-rhid-preview .rhid-picker-input')){
     void atualizarFuncionariosPreviaRHiD();
   }
 },true);
@@ -11718,6 +11721,128 @@ function atualizarVinculoCartaoPontoRHiD(indice,mat){
   _rhidVinculosPendentes.set(Number(indice),mat||'');
   _rhidAtualizarResumoPrevia();
 }
+// Combobox exclusivo da prévia RH iD. O select original fica oculto para
+// compatibilidade; a busca funciona mesmo se o seletor global não carregar.
+const _RHID_SUGESTOES_POR_PAGINA=8;
+function _rhidRotuloFuncionario(mat){
+  if(!mat)return '';
+  const f=FUNCIONARIOS.find(f=>f&&String(f.mat)===String(mat));
+  return f?String(f.nome||'')+' ('+String(f.mat)+')'+(!_erpFuncionarioAtivo(f)?' — Inativo':''):'⚠ Matrícula não encontrada — revise';
+}
+function _rhidFecharBuscas(exceto){
+  const host=document.getElementById('ponto-rhid-preview');
+  if(!host)return;
+  host.querySelectorAll('.rhid-picker[data-open="1"]').forEach(combo=>{
+    if(combo===exceto)return;
+    combo.dataset.open='0';
+    const list=combo.querySelector('.rhid-picker-options');
+    const input=combo.querySelector('.rhid-picker-input');
+    if(list)list.hidden=true;
+    if(input){
+      input.setAttribute('aria-expanded','false');
+      input.value=_rhidRotuloFuncionario(_rhidVinculosPendentes.get(Number(combo.dataset.rhidCombo))||'');
+    }
+  });
+}
+function _rhidRenderizarSugestoes(combo){
+  if(!combo||combo.dataset.open!=='1')return;
+  const list=combo.querySelector('.rhid-picker-options');
+  if(!list)return;
+  const query=String(combo.dataset.query||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').trim();
+  const opts=_rhidFuncionariosOrdenados().filter(f=>
+    !query || (String(f.nome||'')+' '+String(f.mat||'')).normalize('NFD')
+      .replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').includes(query));
+  const maxPaginas=Math.max(1,Math.ceil(opts.length/_RHID_SUGESTOES_POR_PAGINA));
+  const pagina=Math.max(0,Math.min(Number(combo.dataset.page)||0,maxPaginas-1));
+  combo.dataset.page=String(pagina);
+  list.replaceChildren();
+  const limpar=document.createElement('button');
+  limpar.type='button';limpar.className='rhid-picker-option rhid-picker-clear';
+  limpar.textContent='— Não vincular —';
+  limpar.addEventListener('click',()=>_rhidSelecionarBusca(combo,''));
+  list.appendChild(limpar);
+  const inicio=pagina*_RHID_SUGESTOES_POR_PAGINA;
+  const visibles=opts.slice(inicio,inicio+_RHID_SUGESTOES_POR_PAGINA);
+  if(!visibles.length){
+    const empty=document.createElement('p');
+    empty.className='rhid-picker-empty';empty.textContent='Nenhum funcionário encontrado.';
+    list.appendChild(empty);
+  }
+  visibles.forEach(f=>{
+    const button=document.createElement('button');
+    button.type='button';button.className='rhid-picker-option';
+    button.dataset.rhidValue=String(f.mat);
+    button.setAttribute('role','option');
+    button.setAttribute('aria-selected',String(_rhidVinculosPendentes.get(Number(combo.dataset.rhidCombo))===f.mat));
+    button.textContent=_rhidRotuloFuncionario(f.mat);
+    button.addEventListener('click',()=>_rhidSelecionarBusca(combo,String(f.mat)));
+    list.appendChild(button);
+  });
+  const footer=document.createElement('div');footer.className='rhid-picker-footer';
+  const summary=document.createElement('small');
+  summary.textContent=opts.length+' resultado(s) · página '+(pagina+1)+' de '+maxPaginas;
+  footer.appendChild(summary);
+  if(maxPaginas>1){
+    [['Anterior',-1],['Próxima',1]].forEach(([label,step])=>{
+      const nav=document.createElement('button');nav.type='button';nav.className='rhid-picker-nav';
+      nav.textContent=label;nav.disabled=(step<0?pagina===0:pagina===maxPaginas-1);
+      nav.addEventListener('click',()=>{
+        combo.dataset.page=String(pagina+step);
+        _rhidRenderizarSugestoes(combo);
+        combo.querySelector('.rhid-picker-input')?.focus();
+      });
+      footer.appendChild(nav);
+    });
+  }
+  list.appendChild(footer);
+}
+function _rhidSelecionarBusca(combo,mat){
+  const indice=Number(combo.dataset.rhidCombo);
+  const select=combo.querySelector('[data-rhid-match]');
+  atualizarVinculoCartaoPontoRHiD(indice,mat);
+  if(select)select.value=mat;
+  _rhidFecharBuscas();
+}
+function _rhidAbrirBusca(combo,query=''){
+  if(!combo)return;
+  _rhidFecharBuscas(combo);
+  combo.dataset.open='1';combo.dataset.query=query;combo.dataset.page='0';
+  const list=combo.querySelector('.rhid-picker-options');
+  const input=combo.querySelector('.rhid-picker-input');
+  if(list)list.hidden=false;
+  if(input)input.setAttribute('aria-expanded','true');
+  _rhidRenderizarSugestoes(combo);
+}
+function _rhidAtivarCombos(tbody){
+  tbody.querySelectorAll('.rhid-picker').forEach(combo=>{
+    const input=combo.querySelector('.rhid-picker-input');
+    const toggle=combo.querySelector('.rhid-picker-toggle');
+    input.addEventListener('focus',()=>{
+      if(combo.dataset.open!=='1')_rhidAbrirBusca(combo);
+      input.select();
+    });
+    input.addEventListener('input',()=>{
+      if(combo.dataset.open!=='1')_rhidAbrirBusca(combo,input.value);
+      else{combo.dataset.query=input.value;combo.dataset.page='0';_rhidRenderizarSugestoes(combo);}
+    });
+    toggle.addEventListener('click',()=>{
+      if(combo.dataset.open==='1')_rhidFecharBuscas();
+      else{_rhidAbrirBusca(combo);input.focus();}
+    });
+    // Permite escolher com teclado sem abrir o select nativo.
+    input.addEventListener('keydown',event=>{
+      if(event.key==='Escape'){_rhidFecharBuscas();input.blur();return;}
+      if(event.key==='Tab'){_rhidFecharBuscas();return;}
+      if(event.key==='Enter' && combo.dataset.open==='1'){
+        const first=combo.querySelector('.rhid-picker-option[data-rhid-value]');
+        if(first){event.preventDefault();_rhidSelecionarBusca(combo,first.dataset.rhidValue);}
+      }
+    });
+  });
+}
+document.addEventListener?.('pointerdown',event=>{
+  if(!event.target?.closest?.('#ponto-rhid-preview .rhid-picker'))_rhidFecharBuscas();
+},true);
 function _rhidRenderizarLinhasPrevia(){
   const host=document.getElementById('ponto-rhid-preview');
   const tbody=host?.querySelector('#rhid-preview-rows');
@@ -11732,18 +11857,14 @@ function _rhidRenderizarLinhasPrevia(){
     const pag=_rhidPaginasPendentes[i];
     const mat=_rhidVinculosPendentes.get(i)||'';
     return '<tr><td data-label="Funcionário no PDF"><b>'+esc(pag.nome)+'</b></td><td data-label="Período">'+pag.dias.length+' dias</td>'+ 
-      '<td data-label="Vincular ao ERP"><select data-rhid-match="'+i+'" onchange="atualizarVinculoCartaoPontoRHiD('+i+',this.value)" aria-label="Vincular '+esc(pag.nome)+' ao funcionário do ERP">'+
-      _rhidOpcoesFuncionarios(opts,mat)+'</select></td></tr>';
+      '<td data-label="Vincular ao ERP"><div class="rhid-picker" data-rhid-combo="'+i+'" data-open="0" data-page="0">'+
+      '<select class="rhid-picker-native" style="display:none" data-rhid-match="'+i+'" tabindex="-1" aria-hidden="true" onchange="atualizarVinculoCartaoPontoRHiD('+i+',this.value)">'+
+      _rhidOpcoesFuncionarios(opts,mat)+'</select>'+
+      '<div class="rhid-picker-control"><input class="rhid-picker-input" type="search" autocomplete="off" aria-label="Pesquisar funcionário do ERP para '+esc(pag.nome)+'" aria-autocomplete="list" aria-expanded="false" aria-controls="rhid-picker-options-'+i+'" placeholder="Pesquisar funcionário por nome ou matrícula…" value="'+esc(_rhidRotuloFuncionario(mat))+'">'+
+      '<button type="button" class="rhid-picker-toggle" aria-label="Mostrar funcionários">⌄</button></div>'+
+      '<div class="rhid-picker-options" id="rhid-picker-options-'+i+'" role="listbox" hidden></div></div></td></tr>';
   }).join('')||'<tr><td colspan="3" class="rhid-preview-empty">Nenhum cartão encontrado para esta busca.</td></tr>';
-  // Reaproveita o componente de busca utilizado na Agenda e na Rodoviária.
-  // Mantém o select original para que a matrícula seja a mesma do cadastro ERP.
-  if(typeof window.ERPEnhanceSearchableSelect==='function'){
-    tbody.querySelectorAll('[data-rhid-match]').forEach(select=>{
-      window.ERPEnhanceSearchableSelect(select,{
-        placeholder:'Pesquisar nome ou matrícula…',label:'Pesquisar funcionário do ERP'
-      });
-    });
-  }
+  _rhidAtivarCombos(tbody);
   const label=host.querySelector('#rhid-preview-page-label');
   if(label)label.textContent=ids.length+' resultado(s) · página '+(_rhidPaginaPrevia+1)+' de '+paginas;
   const previous=host.querySelector('#rhid-preview-previous');

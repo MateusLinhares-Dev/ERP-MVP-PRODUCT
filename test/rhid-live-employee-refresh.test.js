@@ -11,12 +11,14 @@ const code = source.slice(start, end);
 function fixture() {
   let remote = [];
   let reads = 0;
-  let refreshes = 0;
   const opts = { mat: 'F001', nome: 'FUNCIONARIO ANTIGO', status: 'Ativo' };
   const employees = [opts];
+  const input = { value: 'FUNCIONARIO ANTIGO (F001)' };
+  const combo = { dataset: { open: '0' }, querySelector: () => input };
   const select = {
     innerHTML: '', value: 'F001',
     getAttribute(name) { return name === 'data-rhid-match' ? '0' : null; },
+    closest: () => combo,
   };
   const status = { textContent: '' };
   const host = {
@@ -30,7 +32,6 @@ function fixture() {
       },
     },
     window: {
-      ERPEnhanceSearchableSelect() { return { refresh() { refreshes++; } }; },
       _fbDB: {
         ref(path) {
           assert.equal(path, 'erp/funcEdit', 'consulta somente a lista de funcionários');
@@ -64,10 +65,9 @@ function fixture() {
   })`, context);
   api.setup();
   return {
-    api, employees, select, status,
+    api, employees, select, input, status,
     setRemote(data) { remote = data; },
     get reads() { return reads; },
-    get refreshes() { return refreshes; },
   };
 }
 
@@ -79,7 +79,7 @@ test('cadastro novo na mesma sessão atualiza opções sem refazer PDF e preserv
   assert.match(f.select.innerHTML, /F001.*selected/);
   assert.equal(f.select.value, 'F001');
   assert.equal(f.api.link(), 'F001');
-  assert.ok(f.refreshes > 0, 'o seletor pesquisável atualiza seu conteúdo');
+  assert.equal(f.input.value, 'FUNCIONARIO ANTIGO (F001)', 'busca própria mantém funcionário selecionado');
   assert.equal(f.reads, 0, 'sincronização local não provoca consultas ao banco');
 });
 
