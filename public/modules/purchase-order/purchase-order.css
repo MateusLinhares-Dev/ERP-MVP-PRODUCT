@@ -103,3 +103,7 @@
 .phase4-po-table .phase4-po-row-total{min-width:136px;text-align:right;font-weight:800;color:#17492f;background:#f3f8f4;border-color:#dce9df;font-variant-numeric:tabular-nums;cursor:default}
 .phase4-po-table .phase4-po-row-total:focus{box-shadow:none}
 .phase4-po-table .description{min-width:126px}
+
+.phase4-po-duplicate-warnings{margin:12px 0;padding:12px 14px;border:1px solid #edc778;border-radius:9px;background:#fff9e8;color:#795311;font-size:.85rem;font-weight:700;line-height:1.5}
+.phase4-po-duplicate-warnings[hidden]{display:none!important}
+.phase4-po-table tr.phase4-po-duplicate-item td:nth-child(2) input{border-color:#dd9d2f!important;background:#fffaf0!important}

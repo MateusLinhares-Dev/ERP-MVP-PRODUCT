@@ -66,11 +66,14 @@ function drawEditor(){const host=$('#tab-engineering_help');if(!host)return;
  <form id="eng-help-form"><div class="mm-eng-form-grid"><label>Título<input name="title" maxlength="130" required></label><label>Categoria<select name="category">${Object.entries(cats).map(([id,v])=>`<option value="${esc(id)}">${esc(v)}</option>`).join('')}</select></label></div>
  <label>Resumo<textarea name="summary" rows="2" maxlength="300" required></textarea></label><label>Palavras-chave (opcional)<input name="keywords" maxlength="260"></label><label>Passo a passo (um passo por linha)<textarea name="steps" rows="7" maxlength="10500" placeholder="1º passo...&#10;2º passo..."></textarea></label><label>Cuidados e avisos<textarea name="warning" rows="3" maxlength="500"></textarea></label>
  <div class="mm-eng-form-grid"><label>Módulo correspondente (opcional)<input name="module" maxlength="60" placeholder="Ex.: fiscal"></label><label>Publicação<select name="status"><option value="draft">Rascunho — privado</option><option value="published">Publicado — visível aos usuários</option></select></label></div>
- <div class="mm-eng-row"><span role="status" id="eng-help-message"></span><div><button type="button" class="mm-eng-danger" id="eng-help-delete" hidden>Excluir</button><button type="submit" class="mm-eng-primary" id="eng-help-save">Salvar artigo</button></div></div></form></section></div>`;
+ <p class="mm-eng-publication-hint" id="eng-help-publication-hint" role="status">Este artigo está em rascunho. Apenas a engenharia pode visualizá-lo.</p>
+ <div class="mm-eng-row"><span role="status" id="eng-help-message"></span><div><button type="button" class="mm-eng-danger" id="eng-help-delete" hidden>Excluir</button><button type="button" class="mm-eng-primary" id="eng-help-publish">Publicar artigo</button><button type="submit" class="mm-eng-primary" id="eng-help-save">Salvar artigo</button></div></div></form></section></div>`;
  $('#eng-help-refresh').onclick=loadArticles;
  $('#eng-help-new').onclick=()=>selectArticle('');
  $('#eng-help-find').oninput=()=>renderArticleList();
  $('#eng-help-form').onsubmit=saveArticle;
+ $('#eng-help-form').elements.status.onchange=()=>publicationHint();
+ $('#eng-help-publish').onclick=()=>{if(saving)return;const form=$('#eng-help-form');form.elements.status.value='published';publicationHint();form.requestSubmit();};
  $('#eng-help-delete').onclick=deleteArticle;
  selectArticle('');
 }
@@ -79,16 +82,22 @@ function renderArticleList(){const area=$('#eng-help-list');if(!area)return;cons
  area.innerHTML=found.length?found.map(a=>`<button type="button" class="${a.id===selected?'chosen':''}" data-article="${esc(a.id)}"><strong>${esc(a.title)}</strong><small>${esc(cats[a.category])} · ${a.status==='published'?'Publicado':'Rascunho'}</small></button>`).join(''):'<div class="mm-eng-empty">Nenhum artigo cadastrado. Use “Novo artigo”.</div>';
  area.querySelectorAll('[data-article]').forEach(b=>b.onclick=()=>selectArticle(b.dataset.article));
 }
+function publicationHint(){
+ const published=$('#eng-help-form')?.elements?.status?.value==='published';
+ const hint=$('#eng-help-publication-hint');if(!hint)return;
+ hint.classList.toggle('published',published);
+ hint.textContent=published?'Ao salvar, este artigo ficará visível aos usuários na Central de Ajuda.':'Este artigo está em rascunho. Apenas a engenharia pode visualizá-lo.';
+}
 function selectArticle(id){selected=id;const a=articles.find(x=>x.id===id)||{};const form=$('#eng-help-form');if(!form)return;form.reset();
  for(const k of ['title','summary','keywords','warning','module','status','category']){if(a[k]!=null)form.elements[k].value=a[k];}
  form.elements.steps.value=(a.steps||[]).join('\n');
- $('#eng-edit-title').textContent=id?'Editar artigo':'Novo artigo';$('#eng-edit-status').textContent=id?(a.status==='published'?'Publicado':'Rascunho'):'Rascunho';$('#eng-help-delete').hidden=!id;$('#eng-help-message').textContent='';renderArticleList();
+ $('#eng-edit-title').textContent=id?'Editar artigo':'Novo artigo';$('#eng-edit-status').textContent=id?(a.status==='published'?'Publicado':'Rascunho'):'Rascunho';$('#eng-help-delete').hidden=!id;$('#eng-help-message').textContent='';publicationHint();renderArticleList();
 }
 async function saveArticle(event){event.preventDefault();if(saving)return;const form=event.currentTarget;const data=new FormData(form);const payload=Object.fromEntries(data.entries());payload.steps=String(payload.steps||'').split('\n').map(x=>x.trim()).filter(Boolean);const item=articles.find(x=>x.id===selected);
- saving=true;$('#eng-help-save').disabled=true;$('#eng-help-save').textContent='Salvando...';$('#eng-help-message').textContent='Validando e registrando...';
- try{const result=await call('/api/help/articles',{method:'POST',body:JSON.stringify({action:'save',id:selected||undefined,revision:item?.revision||0,article:payload})});selected=result.id;$('#eng-help-message').textContent='Artigo salvo com segurança.';await loadArticles();selectArticle(selected);}
+ saving=true;$('#eng-help-save').disabled=true;$('#eng-help-publish').disabled=true;$('#eng-help-save').textContent='Salvando...';$('#eng-help-message').textContent='Validando e registrando...';
+ try{const result=await call('/api/help/articles',{method:'POST',body:JSON.stringify({action:'save',id:selected||undefined,revision:item?.revision||0,article:payload})});selected=result.id;await loadArticles();selectArticle(selected);$('#eng-help-message').textContent=payload.status==='published'?'Artigo publicado! Agora aparece na Central de Ajuda dos usuários.':'Rascunho salvo. Para aparecer aos usuários, escolha “Publicado — visível aos usuários” e salve novamente.';}
  catch(e){$('#eng-help-message').textContent=e.message;}
- finally{saving=false;$('#eng-help-save').disabled=false;$('#eng-help-save').textContent='Salvar artigo';}
+ finally{saving=false;$('#eng-help-save').disabled=false;$('#eng-help-publish').disabled=false;$('#eng-help-save').textContent='Salvar artigo';}
 }
 async function deleteArticle(){if(saving||!selected)return;const a=articles.find(x=>x.id===selected);if(!a||!confirm('Excluir permanentemente este artigo?'))return;saving=true;$('#eng-help-delete').disabled=true;
  try{await call('/api/help/articles',{method:'POST',body:JSON.stringify({action:'delete',id:selected,revision:a.revision})});selected='';await loadArticles();selectArticle('');}

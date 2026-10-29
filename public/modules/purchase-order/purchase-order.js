@@ -188,6 +188,38 @@ function supplierOptions(){
     .map(function(f){return '<option value="'+esc(f.nome||'')+'"></option>';})
     .join('');
 }
+function refreshSupplierOptions(){
+ const list=document.getElementById('phase4-po-suppliers');
+ if(list)list.innerHTML=supplierOptions();
+}
+document.addEventListener('erp:catalog-updated',event=>{
+ if(event.detail?.type==='fornecedores')refreshSupplierOptions();
+});
+function normalizedMaterial(value){
+ return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,' ').toLocaleUpperCase('pt-BR');
+}
+function duplicateMaterials(items){
+ const groups=new Map();
+ (items||[]).forEach((item,index)=>{
+   const key=normalizedMaterial(item?.mat);if(!key)return;
+   if(!groups.has(key))groups.set(key,[]);groups.get(key).push(index+1);
+ });
+ return [...groups.entries()].filter(([,rows])=>rows.length>1);
+}
+function updateDuplicateWarnings(state){
+ const warnings=document.getElementById('phase4-po-duplicate-warnings');
+ const groups=duplicateMaterials(state?.items);
+ if(warnings){
+   warnings.hidden=!groups.length;
+   warnings.textContent=groups.length?'Material repetido: '+groups.map(([name,rows])=>name+' (itens '+rows.join(' e ')+')').join('; ')+'. Confira se a repetição é intencional.':'';
+ }
+ const repeated=new Set(groups.flatMap(([,rows])=>rows));
+ document.querySelectorAll('#phase4-po-items tr').forEach((row,index)=>{
+   row.classList.toggle('phase4-po-duplicate-item',repeated.has(index+1));
+   const input=row.querySelector('input[list="phase4-po-materials"]');
+   if(input)input.setAttribute('aria-invalid',String(repeated.has(index+1)));
+ });
+}
 function materialOptions(){
   return materials()
     .slice()
@@ -238,8 +270,8 @@ function render(body){
 
   body.innerHTML='<div class="phase4-po">'+
     '<div class="phase4-po-title"><div><h2>'+(state.editKey?'Editar pedido de compra':'Pedido de compra')+'</h2><p>Compra de sucata</p></div><div class="phase4-po-title-actions"><button type="button" class="phase4-po-outline" onclick="phase4PurchaseCancel()">Cancelar</button><button type="button" class="phase4-po-save" onclick="phase4PurchaseSave()">Salvar</button></div></div>'+
-    '<section class="phase4-po-card"><h3>Fornecedor</h3><label class="phase4-po-field full"><span>Fornecedor *</span><input id="phase4-po-supplier" list="phase4-po-suppliers" autocomplete="off" value="'+esc(selected)+'" placeholder="Digite ou selecione o fornecedor" onchange="phase4PurchaseSupplierChanged()"><datalist id="phase4-po-suppliers">'+supplierOptions()+'</datalist></label>'+sourceTicketsHtml(state)+'</section>'+
-    '<section class="phase4-po-card"><h3>Itens do pedido de compra</h3><div class="phase4-po-table-wrap"><table class="phase4-po-table"><thead><tr><th>#</th><th>Item / Material</th><th>Observação</th><th>Un.</th><th>Quantidade</th><th>Preço unitário</th><th>Preço total</th><th></th></tr></thead><tbody id="phase4-po-items"></tbody></table></div><datalist id="phase4-po-materials">'+materialOptions()+'</datalist><button type="button" class="phase4-po-add-item" onclick="phase4PurchaseAddItem()" title="Adicionar material (Alt+Z)" aria-keyshortcuts="Alt+Z">＋ Adicionar outro item</button></section>'+
+    '<section class="phase4-po-card"><h3>Fornecedor</h3><label class="phase4-po-field full"><span>Fornecedor *</span><input id="phase4-po-supplier" list="phase4-po-suppliers" autocomplete="off" value="'+esc(selected)+'" placeholder="Digite ou selecione o fornecedor" onchange="phase4PurchaseSupplierChanged()" onfocus="phase4PurchaseRefreshSuppliers()" oninput="phase4PurchaseRefreshSuppliers()"><datalist id="phase4-po-suppliers">'+supplierOptions()+'</datalist></label>'+sourceTicketsHtml(state)+'</section>'+
+    '<section class="phase4-po-card"><h3>Itens do pedido de compra</h3><div class="phase4-po-table-wrap"><table class="phase4-po-table"><thead><tr><th>#</th><th>Item / Material</th><th>Observação</th><th>Un.</th><th>Quantidade</th><th>Preço unitário</th><th>Preço total</th><th></th></tr></thead><tbody id="phase4-po-items"></tbody></table></div><datalist id="phase4-po-materials">'+materialOptions()+'</datalist><div id="phase4-po-duplicate-warnings" class="phase4-po-duplicate-warnings" role="status" aria-live="polite" hidden></div><button type="button" class="phase4-po-add-item" onclick="phase4PurchaseAddItem()" title="Adicionar material (Alt+Z)" aria-keyshortcuts="Alt+Z">＋ Adicionar outro item</button></section>'+
     '<section class="phase4-po-card phase4-po-notes-card" aria-labelledby="phase4-po-notes-title"><h3 id="phase4-po-notes-title">Observações</h3><label class="phase4-po-field phase4-po-order-notes" for="phase4-po-notes"><span>Observações do pedido</span><textarea id="phase4-po-notes" name="observacoesPedido" rows="4" placeholder="Digite as observações" oninput="phase4PurchaseSyncMeta()">'+esc(state.notes||'')+'</textarea></label></section>'+
     '<div class="phase4-po-columns">'+
       '<section class="phase4-po-card"><h3>Totais da compra</h3><div class="phase4-po-summary"><div><span>Nº de itens</span><b id="phase4-po-item-count">0</b></div><div><span>Soma das quantidades</span><b id="phase4-po-qty-total">0 kg</b></div><div><span>Total dos produtos</span><b id="phase4-po-products-total">R$ 0,00</b></div><div class="grand"><span>Total do pedido</span><b id="phase4-po-grand-total">R$ 0,00</b></div></div><div class="phase4-po-form-grid two"><label class="phase4-po-field"><span>Desconto R$</span><input id="phase4-po-discount" inputmode="decimal" value="'+esc(state.discount?money(state.discount):'0,00')+'" oninput="phase4PurchaseRecalc()"></label><label class="phase4-po-field"><span>Frete R$</span><input id="phase4-po-freight" inputmode="decimal" value="'+esc(state.freight?money(state.freight):'0,00')+'" oninput="phase4PurchaseRecalc()"></label></div></section>'+
@@ -267,6 +299,7 @@ function renderItems(body,state){
       '<td class="action">'+(item.source&&!state.editKey?'<span class="phase4-po-locked" title="Item vindo da pesagem">🔒</span>':'<button type="button" title="Remover item" onclick="phase4PurchaseRemoveItem('+index+')">✕</button>')+'</td>'+
     '</tr>';
   }).join('');
+  updateDuplicateWarnings(state);
 }
 function getState(){
   const body=document.getElementById('cs-lanc-body');
@@ -281,6 +314,7 @@ global.phase4PurchaseItem=function(index,field,value){
   const total=document.getElementById('phase4-po-row-total-'+index);
   if(total)total.value='R$ '+money(Number(item.quantidade||0)*Number(item.preco||0));
   global.phase4PurchaseRecalc();
+  updateDuplicateWarnings(state);
 };
 global.phase4PurchaseAddItem=function(){
   const tuple=getState(),body=tuple[0],state=tuple[1];
@@ -433,6 +467,7 @@ global.phase4PurchaseSupplierChanged=function(){
     global.csCarregarForn(supplier.nome);
   },0);
 };
+global.phase4PurchaseRefreshSuppliers=refreshSupplierOptions;
 function prepareLegacy(body,state){
   const supplier=supplierByName(state.supplierName||selectedSupplierName());
   if(!supplier)throw new Error('Selecione um fornecedor cadastrado.');

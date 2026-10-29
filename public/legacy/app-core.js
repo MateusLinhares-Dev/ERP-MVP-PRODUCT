@@ -12386,6 +12386,7 @@ function saveClientes(){
     if(typeof fbSalvarImediato==='function') fbSalvarImediato(); else if(typeof fbSalvar==='function') fbSalvar();
   }catch(e){ console.warn('saveClientes:',e); }
   try{ if(typeof rodPopularPessoaSelect==='function' && (_rodTipoAtual||'compra')==='venda') rodPopularPessoaSelect(); }catch(e){}
+  document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'clientes'}}));
 }
 async function recarregarClientesDoBanco(){
   try{
@@ -12964,14 +12965,17 @@ function salvarEditFornecedor(){
   f.conta  = g('ef-conta');
   f.obs    = g('ef-obs');
   f.nota   = g('ef-nota');
+  try{
   localStorage.setItem('mm_fornecedores_edit', JSON.stringify(
     FORNECEDORES.map(x=>({cod:x.cod,nome:x.nome,cpf:x.cpf,cnpj:x.cnpj,rg:x.rg,ie:x.ie,
       tel:x.tel,wpp:x.wpp,email:x.email,cep:x.cep,rua:x.rua,num:x.num,compl:x.compl,
       bairro:x.bairro,cidade:x.cidade,obs:x.obs,nota:x.nota,pix:x.pix,banco:x.banco,agencia:x.agencia,conta:x.conta,docs:x.docs||[]}))
   ));
+  }catch(cacheError){console.warn('[fornecedores] Cache local cheio; salvamento no Firebase continuará.',cacheError?.name||'StorageError');}
   try{ fbSalvar(); }catch(e){} 
   renderTabelaFornecedores();
   populateFornSelects();
+  document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'fornecedores'}}));
   cm();
   alert('✅ Fornecedor atualizado!');
 }
@@ -12979,7 +12983,11 @@ function salvarEditFornecedor(){
 function salvarNovoFornecedor(){
   const nome=document.getElementById('nf-nome')?.value.trim().toUpperCase();
   if(!nome){alert('Informe o nome!');return;}
-  const cod='F'+String(FORNECEDORES.length+1).padStart(3,'0');
+  const reserved=new Set(FORNECEDORES.map(f=>String(f?.cod||'')));
+  try{FORN_DELETED.forEach(code=>reserved.add(String(code)));}catch(e){}
+  let next=Math.max(0,...[...reserved].map(code=>/^F(\d+)$/.test(code)?Number(code.slice(1)):0))+1;
+  while(reserved.has('F'+String(next).padStart(3,'0')))next++;
+  const cod='F'+String(next).padStart(3,'0');
   const g=id=>document.getElementById(id)?.value.trim()||'';
   FORNECEDORES.push({cod,nome,
     cpf:    g('nf-cpf'),
@@ -13004,13 +13012,24 @@ function salvarNovoFornecedor(){
   });
   if(!PRECOS_FORN_DATA) window.PRECOS_FORN_DATA={};
   PRECOS_FORN_DATA[cod]={};
+  try{
   localStorage.setItem('mm_fornecedores_edit', JSON.stringify(
     FORNECEDORES.map(x=>({cod:x.cod,nome:x.nome,cpf:x.cpf,cnpj:x.cnpj,rg:x.rg,ie:x.ie,
       tel:x.tel,wpp:x.wpp,email:x.email,cep:x.cep,rua:x.rua,num:x.num,compl:x.compl,
       bairro:x.bairro,cidade:x.cidade,obs:x.obs,nota:x.nota,pix:x.pix,banco:x.banco,agencia:x.agencia,conta:x.conta,docs:x.docs||[]}))
   ));
+  }catch(cacheError){console.warn('[fornecedores] Cache local cheio; salvamento no Firebase continuará.',cacheError?.name||'StorageError');}
   renderTabelaFornecedores();
   populateFornSelects();
+  document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'fornecedores'}}));
+  try{
+    const item=FORNECEDORES.find(x=>x.cod===cod);
+    if(item&&window.__businessRepository){
+      _syncFornecedores.paraObjeto();
+      window.__businessRepository.upsert('fornecedores',item.id,item)
+        .catch(e=>{console.error('[fornecedores] Falha no cadastro RTDB:',e);try{showToast('Falha ao sincronizar fornecedor. Atualize e confira antes de utilizá-lo.','error',7000);}catch(_){}});
+    }
+  }catch(e){console.warn('[fornecedores] Sincronização:',e);}
   try{ if(typeof rodPopularPessoaSelect==='function' && (_rodTipoAtual||'compra')==='compra') rodPopularPessoaSelect(); }catch(e){}
   try{ fbSalvar(); }catch(e){} 
   cm();

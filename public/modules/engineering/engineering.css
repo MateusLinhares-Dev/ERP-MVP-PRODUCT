@@ -18,3 +18,6 @@
 #tab-help_center .mm-help-empty{grid-column:1/-1}#tab-help_center .mm-help-hero-circle{font-size:65px;font-weight:800;color:#b6e6c5}
 @media(max-width:1050px){.mm-eng-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.mm-eng-editor-layout{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:620px){.mm-eng-hero{padding:23px 18px;align-items:stretch;flex-direction:column}.mm-eng-filters,.mm-eng-form-grid{grid-template-columns:1fr}.mm-eng-panel{padding:12px!important}.mm-eng-card{padding:14px}}
+
+.mm-eng-publication-hint{padding:10px 12px;border-radius:8px;background:#fff8e7;border:1px solid #f0dca9;color:#765516;font-size:12px;font-weight:700;margin:10px 0}
+.mm-eng-publication-hint.published{background:#edf8f0;border-color:#b8dcc3;color:#175932}

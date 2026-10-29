@@ -6,16 +6,21 @@ function enhanceModal(){
   const card=document.querySelector('#agd-novo-ov>div');if(!card||card.dataset.phase1==='1')return;
   const who=document.getElementById('agd-novo-nome');if(!who)return;
   const type=document.getElementById('agd-novo-tipo');
-  if(type){type.value='Cliente';try{if(typeof _agdNovoAtualizaNomes==='function')_agdNovoAtualizaNomes();}catch(e){}const wrap=type.parentElement;if(wrap)wrap.style.display='none';}
-  const whoWrap=who.parentElement;
-  if(whoWrap) whoWrap.style.gridColumn='1 / -1';
-  if(typeof global.ERPEnhanceSearchableSelect==='function'){
-    global.ERPEnhanceSearchableSelect(who,{placeholder:'Digite o nome do cliente para pesquisar',label:'Cliente da entrega'});
+  if(type){
+    type.value='Cliente';
+    type.parentElement?.classList.add('phase1-agenda-party-type');
+    type.onchange=()=>{try{if(typeof _agdNovoAtualizaNomes==='function')_agdNovoAtualizaNomes();}catch(e){}global.ERPRefreshSearchableSelect?.('agd-novo-nome');};
+    try{if(typeof _agdNovoAtualizaNomes==='function')_agdNovoAtualizaNomes();}catch(e){}
+    const typeLabel=type.parentElement?.querySelector('label');if(typeLabel)typeLabel.textContent='TIPO DE CADASTRO';
   }
-  if(whoWrap){const label=whoWrap.querySelector('label');if(label)label.textContent='CLIENTE';const quick=document.createElement('button');quick.type='button';quick.className='phase1-agenda-quick';quick.textContent='＋ Cadastro rápido';quick.onclick=global.phase1AgendaQuickClient;whoWrap.appendChild(quick);}
+  const whoWrap=who.parentElement;
+  if(typeof global.ERPEnhanceSearchableSelect==='function'){
+    global.ERPEnhanceSearchableSelect(who,{placeholder:'Buscar pelo nome, digite para filtrar…',label:'Cliente ou fornecedor da entrega'});
+  }
+  if(whoWrap){const label=whoWrap.querySelector('label');if(label)label.textContent='CLIENTE / FORNECEDOR';const quick=document.createElement('button');quick.type='button';quick.className='phase1-agenda-quick';quick.textContent='＋ Cadastro rápido de cliente';quick.onclick=global.phase1AgendaQuickClient;whoWrap.appendChild(quick);}
   const material=document.getElementById('agd-novo-material');const obs=document.getElementById('agd-novo-obs');const obsWrap=obs?.parentElement;
   if(obsWrap){
-    const before=document.createElement('div');before.className='phase1-agenda-fields phase1-agenda-fields-before';before.innerHTML=`<label><span>SERVIÇO</span><input id="agd-novo-servico" placeholder="Ex.: entrega, retirada, atendimento"></label><label><span>FORMA DE PAGAMENTO</span><select id="agd-novo-pagamento"><option value="">— Não informado —</option><option>PIX</option><option>Dinheiro</option><option>Cheque</option><option>Transferência</option><option>A prazo</option><option>Outro</option></select></label>`;obsWrap.insertAdjacentElement('beforebegin',before);
+    const before=document.createElement('div');before.className='phase1-agenda-fields phase1-agenda-fields-before';before.innerHTML=`<label><span>SERVIÇO</span><select id="agd-novo-servico"><option value="ENTREGA DE MATERIAL">ENTREGA DE MATERIAL</option><option value="RETIRADA DE MATERIAL">RETIRADA DE MATERIAL</option><option value="COLETA DE MATERIAL">COLETA DE MATERIAL</option><option value="ATENDIMENTO">ATENDIMENTO</option></select></label><label><span>FORMA DE PAGAMENTO</span><select id="agd-novo-pagamento"><option value="">— Não informado —</option><option>PIX</option><option>Dinheiro</option><option>Cheque</option><option>Transferência</option><option>A prazo</option><option>Outro</option></select></label>`;obsWrap.insertAdjacentElement('beforebegin',before);
     const after=document.createElement('div');after.className='phase1-agenda-fields phase1-agenda-fields-after';after.innerHTML=`<label><span>STATUS</span><select id="agd-novo-status"><option>Agendado</option><option>Confirmado</option><option>Chegou</option><option>Concluído</option><option>Cancelado</option></select></label>`;obsWrap.insertAdjacentElement('afterend',after);
   }
   if(material){const materialWrap=material.parentElement;const details=document.createElement('details');details.className='phase1-agenda-optional';details.innerHTML='<summary>Mais detalhes do agendamento</summary>';materialWrap.insertAdjacentElement('beforebegin',details);details.appendChild(materialWrap);const label=materialWrap.querySelector('label');if(label)label.textContent='MATERIAL / DETALHE (OPCIONAL)';}
@@ -23,7 +28,15 @@ function enhanceModal(){
   card.dataset.phase1='1';
   setTimeout(()=>document.querySelector('#agd-novo-ov .erp-search-select-input')?.focus(),35);
 }
-if(typeof original.open==='function')global.agendaAbrirNovo=function(){const result=original.open.apply(this,arguments);setTimeout(enhanceModal,0);return result;};
+if(typeof original.open==='function')global.agendaAbrirNovo=function(){const result=original.open.apply(this,arguments);enhanceModal();return result;};
+// Open always uses the latest in-memory registry, not a frozen list from page load.
+document.addEventListener('erp:catalog-updated',()=>{
+  const select=document.getElementById('agd-novo-nome');if(!select)return;
+  const old=select.value;
+  try{if(typeof _agdNovoAtualizaNomes==='function')_agdNovoAtualizaNomes();}catch(e){}
+  if(old&&[...select.options].some(x=>x.value===old))select.value=old;
+  global.ERPRefreshSearchableSelect?.('agd-novo-nome');
+});
 if(typeof original.save==='function')global.agendaNovo=function(){
   let before=[];try{before=(AGENDA_DB||[]).map(x=>x&&x.id).filter(Boolean);}catch(e){}
   const service=String(document.getElementById('agd-novo-servico')?.value||'').trim();
@@ -48,6 +61,6 @@ global.phase1AgendaSaveQuickClient=function(){
   const name=String(document.getElementById('phase1-agenda-cli-name')?.value||'').trim();if(!name){try{showToast('Informe o nome do cliente.','error');}catch(e){}return;}
   try{const exists=(CLIENTES||[]).some(c=>String(c?.nome||'').trim().toUpperCase()===name.toUpperCase());if(!exists){const code='CL'+String(Date.now()).slice(-8);CLIENTES.push({cod:code,nome:name,tel:String(document.getElementById('phase1-agenda-cli-phone')?.value||'').trim(),cpf:String(document.getElementById('phase1-agenda-cli-cpf')?.value||'').trim(),cnpj:String(document.getElementById('phase1-agenda-cli-cnpj')?.value||'').trim(),email:String(document.getElementById('phase1-agenda-cli-email')?.value||'').trim(),cidade:String(document.getElementById('phase1-agenda-cli-city')?.value||'').trim(),status:'Ativo'});if(typeof saveClientes==='function')saveClientes();}}
   catch(e){console.error(e);return;}
-  const type=document.getElementById('agd-novo-tipo');if(type)type.value='Cliente';try{if(typeof _agdNovoAtualizaNomes==='function')_agdNovoAtualizaNomes();}catch(e){}const select=document.getElementById('agd-novo-nome');if(select)select.value=name;global.ERPRefreshSearchableSelect?.('agd-novo-nome');document.getElementById('phase1-agenda-client-ov')?.remove();
+  const type=document.getElementById('agd-novo-tipo');if(type)type.value='Cliente';try{if(typeof _agdNovoAtualizaNomes==='function')_agdNovoAtualizaNomes();}catch(e){}document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'clientes'}}));const select=document.getElementById('agd-novo-nome');if(select)select.value=name;global.ERPRefreshSearchableSelect?.('agd-novo-nome');document.getElementById('phase1-agenda-client-ov')?.remove();
 };
 })(window);
