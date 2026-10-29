@@ -11583,6 +11583,92 @@ function _cpfSoDigitos(s){ return (s||'').replace(/\D/g,''); }
 // vinculados a outro funcionário automaticamente. Nada é salvo antes da revisão.
 let _rhidPaginasPendentes = [];
 let _rhidImportando = false;
+// Os vínculos ficam em memória enquanto o usuário pesquisa/pagina na prévia.
+// Nunca são persistidos até a confirmação explícita da importação.
+let _rhidVinculosPendentes = new Map();
+let _rhidPaginaPrevia = 0;
+let _rhidFiltroPrevia = '';
+const _RHID_PREVIA_POR_PAGINA = 6;
+// A prévia permanece aberta enquanto o RH cadastra funcionários. A lista de
+// matrículas precisa refletir o cadastro atual sem refazer a leitura do PDF.
+let _rhidAssinaturaCadastro = '';
+let _rhidUltimaConsultaCadastro = 0;
+let _rhidConsultaCadastroPendente = null;
+function _rhidFuncionariosOrdenados(){
+  return FUNCIONARIOS.filter(f=>f&&f.mat).slice()
+    .sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+}
+function _rhidAssinaturaFuncionarios(){
+  return JSON.stringify(FUNCIONARIOS.filter(f=>f&&f.mat)
+    .map(f=>[f.mat,f.nome,f.status]));
+}
+function _rhidOpcoesFuncionarios(lista,mat){
+  const ativo=lista.some(f=>String(f.mat)===String(mat));
+  const aviso=mat&&!ativo?'<option value="'+esc(mat)+'" selected disabled>⚠ Matrícula excluída — revise o vínculo</option>':'';
+  return '<option value="">— Não vincular —</option>'+aviso+
+    lista.map(f=>'<option value="'+esc(f.mat)+'"'+(String(f.mat)===String(mat)?' selected':'')+'>'+esc(f.nome)+' ('+esc(f.mat)+')'+(!_erpFuncionarioAtivo(f)?' — Inativo':'')+'</option>').join('');
+}
+function _rhidAtualizarOpcoesFuncionarios(){
+  const host=document.getElementById('ponto-rhid-preview');
+  if(!host||!_rhidPaginasPendentes.length||_rhidImportando)return;
+  const assinatura=_rhidAssinaturaFuncionarios();
+  if(assinatura===_rhidAssinaturaCadastro)return;
+  _rhidAssinaturaCadastro=assinatura;
+  const funcionarios=_rhidFuncionariosOrdenados();
+  host.querySelectorAll('[data-rhid-match]').forEach(select=>{
+    const indice=Number(select.getAttribute('data-rhid-match'));
+    const mat=_rhidVinculosPendentes.get(indice)||'';
+    select.innerHTML=_rhidOpcoesFuncionarios(funcionarios,mat);
+    select.value=mat||'';
+    // Mantém o campo de pesquisa, o texto digitado e a matrícula já escolhida.
+    if(typeof window.ERPEnhanceSearchableSelect==='function'){
+      window.ERPEnhanceSearchableSelect(select)?.refresh();
+    }
+  });
+}
+// Consulta dirigida SOMENTE ao cadastro de funcionários. Não dispara fbCarregar
+// ou fbSalvar e não regrava os dados de outros módulos.
+async function atualizarFuncionariosPreviaRHiD(forcar=false){
+  if(!_rhidPaginasPendentes.length||_rhidImportando)return;
+  _rhidAtualizarOpcoesFuncionarios();
+  if(!window._fbDB)return;
+  if(_rhidConsultaCadastroPendente)return _rhidConsultaCadastroPendente;
+  if(!forcar && Date.now()-_rhidUltimaConsultaCadastro<20000)return;
+  _rhidUltimaConsultaCadastro=Date.now();
+  const status=document.getElementById('rhid-preview-refresh-status');
+  if(status)status.textContent='Atualizando funcionários…';
+  _rhidConsultaCadastroPendente=(async()=>{
+    try{
+      const snapshot=await window._fbDB.ref('erp/funcEdit').once('value');
+      const remoto=snapshot.val();
+      if(remoto&&typeof remoto==='object'){
+        // Mescla versões com o mecanismo existente para não descartar um
+        // cadastro recém-criado nesta sessão que ainda está sincronizando.
+        const mesclado=_mesclarFuncEdit(remoto,null);
+        if(Array.isArray(mesclado)&&mesclado.length){
+          const antes=_rhidAssinaturaFuncionarios();
+          FUNCIONARIOS.splice(0,FUNCIONARIOS.length,...mesclado);
+          if(antes!==_rhidAssinaturaFuncionarios())_rhidAtualizarOpcoesFuncionarios();
+        }
+      }
+      if(status)status.textContent='Lista de funcionários atualizada.';
+    }catch(error){
+      if(status)status.textContent='Não foi possível consultar o cadastro na nuvem. A lista local continua disponível.';
+      console.warn('[RH iD] Falha ao atualizar funcionários:',error?.code||error?.message||error);
+    }finally{_rhidConsultaCadastroPendente=null;}
+  })();
+  return _rhidConsultaCadastroPendente;
+}
+// O Firebase já emite este evento quando recebe mudanças de outros usuários.
+// Os cadastros feitos nesta mesma aba passam pelo renderTbFuncionarios().
+document.addEventListener?.('erp:alert-source-changed',event=>{
+  if(event.detail?.source==='funcionarios')_rhidAtualizarOpcoesFuncionarios();
+});
+document.addEventListener?.('focusin',event=>{
+  if(event.target?.closest?.('#ponto-rhid-preview .erp-search-select')){
+    void atualizarFuncionariosPreviaRHiD();
+  }
+},true);
 function _rhidNomeNormalizado(nome){
   return String(nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/^Z\d{2}\s+/i,'').replace(/\s+/g,' ').trim().toUpperCase();
 }
@@ -11599,32 +11685,108 @@ function _rhidMatriculaSugerida(pagina){
     (!cpf || !_cpfSoDigitos(f.cpf) || _cpfSoDigitos(f.cpf)===cpf));
   return porNome.length===1 ? porNome[0].mat : '';
 }
+function _rhidIndicesFiltrados(){
+  const q=_rhidNomeNormalizado(_rhidFiltroPrevia);
+  const digits=_cpfSoDigitos(_rhidFiltroPrevia);
+  return _rhidPaginasPendentes.map((p,i)=>({p,i})).filter(({p})=>
+    !q || _rhidNomeNormalizado(p.nome).includes(q) ||
+    String(p.nome||'').toUpperCase().includes(q) ||
+    (digits.length>=3 && _cpfSoDigitos(p.cpf).includes(digits))
+  ).map(x=>x.i);
+}
+function _rhidAtualizarResumoPrevia(){
+  const total=_rhidPaginasPendentes.length;
+  const vinculados=Array.from(_rhidVinculosPendentes.values()).filter(Boolean).length;
+  const el=document.getElementById('rhid-preview-summary');
+  if(el) el.textContent=vinculados+' de '+total+' vínculos selecionados · '+(total-vinculados)+' pendente(s)';
+}
+function filtrarCartoesRHiD(q){
+  _rhidFiltroPrevia=String(q||'');
+  _rhidPaginaPrevia=0;
+  _rhidRenderizarLinhasPrevia();
+}
+function mudarPaginaCartoesRHiD(pagina){
+  const total=_rhidIndicesFiltrados().length;
+  const paginas=Math.max(1,Math.ceil(total/_RHID_PREVIA_POR_PAGINA));
+  _rhidPaginaPrevia=Math.max(0,Math.min(paginas-1,Number(pagina)||0));
+  _rhidRenderizarLinhasPrevia();
+}
+function atualizarVinculoCartaoPontoRHiD(indice,mat){
+  if(_rhidImportando)return;
+  if(!Number.isInteger(Number(indice))||!_rhidPaginasPendentes[Number(indice)])return;
+  if(mat&&!FUNCIONARIOS.some(f=>f&&f.mat===mat))return;
+  _rhidVinculosPendentes.set(Number(indice),mat||'');
+  _rhidAtualizarResumoPrevia();
+}
+function _rhidRenderizarLinhasPrevia(){
+  const host=document.getElementById('ponto-rhid-preview');
+  const tbody=host?.querySelector('#rhid-preview-rows');
+  if(!tbody)return;
+  const ids=_rhidIndicesFiltrados();
+  const paginas=Math.max(1,Math.ceil(ids.length/_RHID_PREVIA_POR_PAGINA));
+  _rhidPaginaPrevia=Math.max(0,Math.min(_rhidPaginaPrevia,paginas-1));
+  const visiveis=ids.slice(_rhidPaginaPrevia*_RHID_PREVIA_POR_PAGINA,(_rhidPaginaPrevia+1)*_RHID_PREVIA_POR_PAGINA);
+  const opts=_rhidFuncionariosOrdenados();
+  _rhidAssinaturaCadastro=_rhidAssinaturaFuncionarios();
+  tbody.innerHTML=visiveis.map(i=>{
+    const pag=_rhidPaginasPendentes[i];
+    const mat=_rhidVinculosPendentes.get(i)||'';
+    return '<tr><td data-label="Funcionário no PDF"><b>'+esc(pag.nome)+'</b></td><td data-label="Período">'+pag.dias.length+' dias</td>'+ 
+      '<td data-label="Vincular ao ERP"><select data-rhid-match="'+i+'" onchange="atualizarVinculoCartaoPontoRHiD('+i+',this.value)" aria-label="Vincular '+esc(pag.nome)+' ao funcionário do ERP">'+
+      _rhidOpcoesFuncionarios(opts,mat)+'</select></td></tr>';
+  }).join('')||'<tr><td colspan="3" class="rhid-preview-empty">Nenhum cartão encontrado para esta busca.</td></tr>';
+  // Reaproveita o componente de busca utilizado na Agenda e na Rodoviária.
+  // Mantém o select original para que a matrícula seja a mesma do cadastro ERP.
+  if(typeof window.ERPEnhanceSearchableSelect==='function'){
+    tbody.querySelectorAll('[data-rhid-match]').forEach(select=>{
+      window.ERPEnhanceSearchableSelect(select,{
+        placeholder:'Pesquisar nome ou matrícula…',label:'Pesquisar funcionário do ERP'
+      });
+    });
+  }
+  const label=host.querySelector('#rhid-preview-page-label');
+  if(label)label.textContent=ids.length+' resultado(s) · página '+(_rhidPaginaPrevia+1)+' de '+paginas;
+  const previous=host.querySelector('#rhid-preview-previous');
+  const next=host.querySelector('#rhid-preview-next');
+  if(previous)previous.disabled=_rhidPaginaPrevia===0;
+  if(next)next.disabled=_rhidPaginaPrevia>=paginas-1;
+  _rhidAtualizarResumoPrevia();
+}
 function _rhidExibirPrevia(paginas){
   const host=document.getElementById('ponto-rhid-preview');
   if(!host) return;
   _rhidPaginasPendentes=paginas.filter(p=>p&&p.dias&&p.dias.length&&p.nome);
+  _rhidVinculosPendentes=new Map();
+  _rhidPaginaPrevia=0;
+  _rhidFiltroPrevia='';
   const falhas=paginas.length-_rhidPaginasPendentes.length;
   if(!_rhidPaginasPendentes.length){
     host.style.display='block';
     host.innerHTML='<div style="padding:12px;color:#9c2d24;background:#fff1ef;border:1px solid #edcac5;border-radius:8px">O PDF não contém cartões reconhecíveis. Nenhum dado foi alterado.</div>';
     return;
   }
-  const opts=FUNCIONARIOS.filter(Boolean).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
-  const rows=_rhidPaginasPendentes.map((pag,i)=>{
-    const mat=_rhidMatriculaSugerida(pag);
-    const choices=opts.map(f=>'<option value="'+esc(f.mat)+'"'+(f.mat===mat?' selected':'')+'>'+esc(f.nome)+' ('+esc(f.mat)+')'+(!_erpFuncionarioAtivo(f)?' — Inativo':'')+'</option>').join('');
-    return '<tr><td>'+esc(pag.nome)+'</td><td>'+pag.dias.length+' dias</td><td><select data-rhid-match="'+i+'" style="width:100%;min-width:200px;padding:7px;border:1px solid #c9d8d0;border-radius:6px"><option value="">— Não vincular —</option>'+choices+'</select></td></tr>';
-  }).join('');
+  _rhidPaginasPendentes.forEach((p,i)=>_rhidVinculosPendentes.set(i,_rhidMatriculaSugerida(p)));
   host.style.display='block';
-  host.innerHTML='<div style="border:1px solid #bad9c7;background:#f7fcf8;border-radius:10px;padding:14px">'+
-    '<strong>Conferir a importação RH iD</strong><p style="font-size:.83rem;color:#4a6758;margin:6px 0 10px">'+
+  host.innerHTML='<div class="rhid-preview-panel">'+
+    '<strong>Conferir a importação RH iD</strong><p class="rhid-preview-description">'+
     _rhidPaginasPendentes.length+' cartões reconhecidos · '+_rhidPaginasPendentes.reduce((n,p)=>n+p.dias.length,0)+' dias lidos'+
-    (falhas?' · '+falhas+' página(s) não reconhecida(s)':'')+'. Selecione a correspondência correta para cada funcionário. Não serão criados funcionários automaticamente.</p>'+
-    '<div style="max-height:350px;overflow:auto"><table style="width:100%"><thead><tr><th>Funcionário no PDF</th><th>Período</th><th>Vincular ao cadastro do ERP</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
-    '<div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:12px;flex-wrap:wrap"><button type="button" onclick="cancelarImportacaoCartaoPontoRHiD()" style="padding:8px 12px">Cancelar</button><button id="ponto-rhid-confirmar" type="button" class="btn-save" onclick="confirmarImportacaoCartaoPontoRHiD()">Importar vínculos selecionados</button></div></div>';
+    (falhas?' · '+falhas+' página(s) não reconhecida(s)':'')+'. Pesquise por nome ou matrícula do ERP antes de vincular. Pré-seleções devem ser conferidas; nada é gravado automaticamente.</p>'+
+    '<div class="rhid-preview-toolbar"><label for="rhid-preview-search">Pesquisar no PDF<input id="rhid-preview-search" type="search" placeholder="Buscar nome no relatório…" autocomplete="off" oninput="filtrarCartoesRHiD(this.value)"></label>'+
+    '<button type="button" class="rhid-refresh-employees" onclick="atualizarFuncionariosPreviaRHiD(true)">Atualizar funcionários</button>'+
+    '<span id="rhid-preview-summary" role="status" aria-live="polite"></span></div>'+
+    '<small id="rhid-preview-refresh-status" class="rhid-preview-refresh-status" role="status" aria-live="polite"></small>'+
+    '<table class="rhid-preview-table"><thead><tr><th>Funcionário no PDF</th><th>Período</th><th>Vincular ao cadastro do ERP</th></tr></thead><tbody id="rhid-preview-rows"></tbody></table>'+
+    '<div class="rhid-preview-pagination"><span id="rhid-preview-page-label"></span><div><button type="button" id="rhid-preview-previous" onclick="mudarPaginaCartoesRHiD(_rhidPaginaPrevia-1)">Anterior</button>'+
+    '<button type="button" id="rhid-preview-next" onclick="mudarPaginaCartoesRHiD(_rhidPaginaPrevia+1)">Próxima</button></div></div>'+
+    '<div class="rhid-preview-actions"><button type="button" onclick="cancelarImportacaoCartaoPontoRHiD()">Cancelar</button><button id="ponto-rhid-confirmar" type="button" class="btn-save" onclick="confirmarImportacaoCartaoPontoRHiD()">Importar vínculos selecionados</button></div></div>';
+  _rhidRenderizarLinhasPrevia();
+  void atualizarFuncionariosPreviaRHiD(true);
 }
 function cancelarImportacaoCartaoPontoRHiD(){
   _rhidPaginasPendentes=[];
+  _rhidVinculosPendentes.clear();
+  _rhidFiltroPrevia='';
+  _rhidPaginaPrevia=0;
   const host=document.getElementById('ponto-rhid-preview');
   if(host){host.innerHTML='';host.style.display='none';}
   const status=document.getElementById('ponto-import-status');
@@ -11637,7 +11799,7 @@ async function confirmarImportacaoCartaoPontoRHiD(){
   const selecionados=[];
   const mats=new Set();
   for(let i=0;i<_rhidPaginasPendentes.length;i++){
-    const mat=host?.querySelector('[data-rhid-match="'+i+'"]')?.value;
+    const mat=_rhidVinculosPendentes.get(i)||'';
     if(!mat)continue;
     const f=FUNCIONARIOS.find(x=>x&&x.mat===mat);
     if(!f){alert('Funcionário selecionado não existe mais no cadastro. Atualize a lista.');return;}
@@ -13266,6 +13428,8 @@ function renderTbFuncionarios(){
     : '<tr><td colspan="8" style="text-align:center;color:var(--gray);padding:20px">Nenhum funcionário inativo</td></tr>';
 
   _funcAtualizarSetas();
+  // RH iD pode estar aberto em outra aba do ERP; sincronize sem recarregar o PDF.
+  _rhidAtualizarOpcoesFuncionarios();
 }
 
 function toggleInativarFunc(mat){

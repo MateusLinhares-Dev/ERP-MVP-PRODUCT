@@ -189,6 +189,7 @@ async function main() {
   loadStyle('/modules/phase1/phase1-purchase.css');
   loadStyle('/modules/phase1/phase1-agenda.css');
   loadStyle('/modules/phase1/phase1-searchable-select.css');
+  loadStyle('/modules/phase1/rhid-preview.css');
   loadStyle('/modules/phase1/phase1-alerts.css');
   loadStyle('/modules/phase1/phase1-commercial.css');
   loadStyle('/modules/phase1/phase1-usability.css');

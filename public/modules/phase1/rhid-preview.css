@@ -1,0 +1,39 @@
+/* Prévia de importação RH iD: compacta, pesquisável e paginada. */
+.rhid-preview-panel{border:1px solid #bad9c7;background:#f7fcf8;border-radius:10px;padding:14px;overflow:visible}
+.rhid-preview-description{font-size:.83rem;color:#4a6758;margin:6px 0 12px;line-height:1.45}
+.rhid-preview-toolbar{display:flex;align-items:flex-end;gap:16px;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap}
+.rhid-preview-toolbar label{flex:1;min-width:min(240px,100%);max-width:420px;font-size:.78rem;font-weight:700;color:#315743}
+.rhid-preview-toolbar input{display:block;width:100%;margin-top:5px;min-height:38px;border:1px solid #c9d8d0;border-radius:7px;background:#fff;padding:8px 10px;box-sizing:border-box}
+#rhid-preview-summary{font-size:.78rem;color:#426755;background:#eaf5ee;border:1px solid #cfe6d6;border-radius:99px;padding:7px 12px}
+.rhid-preview-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed}
+.rhid-preview-table th,.rhid-preview-table td{text-align:left;vertical-align:middle;padding:9px 12px;border-bottom:1px solid #deebe2;font-size:.82rem}
+.rhid-preview-table th{background:#eaf5ee;color:#254b35;font-size:.76rem}
+.rhid-preview-table th:nth-child(1){width:40%}
+.rhid-preview-table th:nth-child(2){width:12%}
+.rhid-preview-table th:nth-child(3){width:48%}
+.rhid-preview-table td:first-child{overflow-wrap:anywhere}
+.rhid-preview-table td:nth-child(3){overflow:visible}
+.rhid-preview-table tr:last-child td{border-bottom:none}
+.rhid-preview-table select{width:100%;min-width:0;padding:8px;border:1px solid #c9d8d0;border-radius:6px;background:#fff}
+.rhid-preview-table .erp-search-select{min-width:0}
+.rhid-preview-table .erp-search-select-input{height:38px!important}
+.rhid-preview-table .erp-search-select-popover{z-index:20050}
+.rhid-preview-empty{text-align:center!important;color:#61796b;padding:20px!important}
+.rhid-preview-pagination,.rhid-preview-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px}
+.rhid-preview-pagination{font-size:.77rem;color:#527363;border-top:1px solid #e2eee6;padding-top:12px}
+.rhid-preview-pagination>div,.rhid-preview-actions{display:flex;gap:8px}
+.rhid-preview-pagination button,.rhid-preview-actions button{padding:8px 12px;border:1px solid #c9d8d0;border-radius:7px;background:#fff;color:#234b36;font-weight:700;cursor:pointer}
+.rhid-preview-pagination button:disabled{opacity:.45;cursor:not-allowed}
+.rhid-preview-actions{justify-content:flex-end}
+.rhid-preview-actions .btn-save{background:#154d32;color:#fff;border-color:#154d32}
+@media(max-width:700px){
+  .rhid-preview-table,.rhid-preview-table tbody,.rhid-preview-table tr,.rhid-preview-table td{display:block;width:100%!important;box-sizing:border-box}
+  .rhid-preview-table thead{display:none}
+  .rhid-preview-table tr{background:#fff;border:1px solid #d6e5dc;border-radius:8px;margin:9px 0;padding:8px 0}
+  .rhid-preview-table td{border:0;padding:5px 12px}
+  .rhid-preview-table td::before{content:attr(data-label);display:block;font-size:.69rem;font-weight:700;color:#718779;margin-bottom:4px}
+  .rhid-preview-panel{padding:10px}
+}
+
+.rhid-preview-toolbar .rhid-refresh-employees{border:1px solid #bed9c8;border-radius:7px;background:#fff;color:#23533b;padding:10px 12px;min-height:38px;cursor:pointer;font-weight:700;white-space:nowrap}
+.rhid-preview-refresh-status{display:block;min-height:1em;margin-top:-6px;margin-bottom:8px;color:#587666;font-size:.75rem}
