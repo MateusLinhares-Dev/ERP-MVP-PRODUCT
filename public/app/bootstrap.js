@@ -187,6 +187,7 @@ async function main() {
 
   loadStyle('/modules/phase1/phase1-purchase.css');
   loadStyle('/modules/phase1/phase1-agenda.css');
+  loadStyle('/modules/phase1/phase1-searchable-select.css');
   loadStyle('/modules/phase1/phase1-alerts.css');
   loadStyle('/modules/phase1/phase1-commercial.css');
   loadStyle('/modules/phase1/phase1-usability.css');
@@ -199,6 +200,7 @@ async function main() {
   await loadClassic('/modules/phase1/phase1-store.js');
   await loadClassic('/modules/phase1/phase1-dom.js');
   await loadClassic('/modules/phase1/phase1-purchase.js');
+  await loadClassic('/modules/phase1/phase1-searchable-select.js');
   await loadClassic('/modules/phase1/phase1-agenda.js');
   await loadClassic('/modules/phase1/phase1-alerts.js');
   await loadClassic('/modules/phase1/phase1-commercial.js');
@@ -236,6 +238,8 @@ async function main() {
   await loadClassic('/modules/help-center/help-center.js');
   loadStyle('/modules/final-ops/final-ops.css');
   await loadClassic('/modules/final-ops/final-ops.js');
+  loadStyle('/modules/engineering/engineering.css');
+  await loadClassic('/modules/engineering/engineering.js');
 
   document.dispatchEvent(new CustomEvent('erp:ready'));
 }

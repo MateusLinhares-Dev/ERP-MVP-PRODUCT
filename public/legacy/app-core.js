@@ -1936,7 +1936,7 @@ function populateUsers(){
   const users=Object.entries(USERS);
   grid.innerHTML=users.map(([un,u])=>{
     const isAdmin=_usuarioEhAdmin(u);
-    const tabs=(Array.isArray(u.tabs)?u.tabs:[]).filter(t=>TABS_CFG[t] && (t!=='matriz_capacitacao' || (un==='elaine'&&isAdmin)));
+    const tabs=(Array.isArray(u.tabs)?u.tabs:[]).filter(t=>TABS_CFG[t] && (t!=='matriz_capacitacao' || ((un==='elaine'||un==='engadministrator')&&isAdmin)));
     // Direitos efetivos não dependem de salvar uma alteração de perfil: a ajuda é
     // acessível a todos; a matriz só à administradora Elaine.
     if(!tabs.includes('help_center'))tabs.push('help_center');
@@ -1949,8 +1949,7 @@ function populateUsers(){
         <div class="erp-user-identity"><div class="ucard-name">${esc(u.name||un)}</div>
           <div class="ucard-role">${esc(u.role||'Sem função')} · ${esc(un)}</div></div>
         <div class="erp-user-actions">
-          <button class="btn-edit" onclick="editUsuario(decodeURIComponent('${key}'))">Editar</button>
-          <button class="btn-edit" onclick="mudarSenha(decodeURIComponent('${key}'))">Alterar senha</button>
+          ${un==='engadministrator'?'<span class="tag">Engenharia · Conta protegida</span>':`<button class="btn-edit" onclick="editUsuario(decodeURIComponent('${key}'))">Editar</button><button class="btn-edit" onclick="mudarSenha(decodeURIComponent('${key}'))">Alterar senha</button>`}
         </div>
       </div>
       ${u.descricao?`<p class="ucard-desc">${esc(u.descricao)}</p>`:''}
@@ -1963,7 +1962,7 @@ function populateUsers(){
 
 function mudarSenha(un){
   const u=USERS[un];
-  if(!u) return;
+  if(!u || un==='engadministrator') return;
   const old=document.getElementById('modal-ov-confirm'); if(old) old.remove();
   const ov=document.createElement('div'); ov.className='modal-ov open'; ov.id='modal-ov-confirm';
   const box=document.createElement('div'); box.className='modal'; box.style.maxWidth='360px';
@@ -2000,6 +1999,7 @@ function mudarSenha(un){
 function editUsuario(un){
   const u=USERS[un];
   if(!u){alert('Usuário não encontrado.');return;}
+  if(un==='engadministrator'){alert('Perfil reservado: use o provisionamento seguro de engenharia.');return;}
   const allTabs=Object.keys(TABS_CFG).filter(t=>t!=='matriz_capacitacao'||(un==='elaine'&&_usuarioEhAdmin(u)));
   const checkboxes=allTabs.map(t=>{
     const checked=(u.tabs.includes(t)||(t==='matriz_capacitacao'&&un==='elaine'&&_usuarioEhAdmin(u))||t==='help_center')?'checked':'';

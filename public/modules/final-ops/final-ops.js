@@ -33,7 +33,7 @@ async function installMenu(){ensureTab('help_center');addNav('Ajuda','Central de
     const tokenOwner=Boolean(t?.claims?.admin)&&String(t?.claims?.erpUser||'').toLowerCase()==='elaine';
     // O menu usa a identidade do ERP já autenticado; a API valida as claims
     // do token novamente, inclusive quando a tela é aberta por URL ou script.
-    trainingManager=profileOwner || tokenOwner;
+    trainingManager=profileOwner || tokenOwner || (Boolean(t?.claims?.engineer)&&t?.claims?.erpUser==='engadministrator');
     if(trainingManager){ensureTab('matriz_capacitacao');addNav('Administração','Matriz','matriz_capacitacao','▦');}
     if(!$('#mm-training-notice')){const widget=document.createElement('div');widget.id='mm-training-notice';widget.hidden=true;widget.setAttribute('role','status');$('#app-screen')?.append(widget);}
     await checkNotices();

@@ -6,7 +6,7 @@ import {applyApiSecurityHeaders,assertSameOrigin,assertJsonBody,sendError} from 
 import {safeId,coursePayload,enrollmentPayload,courseState,visibleNotice,textField,yearMonthDelta} from '../../server/domain/training.js';
 
 const err=(message,status=400)=>Object.assign(new Error(message),{status,code:status===403?'TRAINING_FORBIDDEN':'TRAINING_ERROR'});
-const manager=i=>i.admin===true&&String(i.erpUser||'').toLowerCase()==='elaine';
+const manager=i=>i.admin===true&&(String(i.erpUser||'').toLowerCase()==='elaine'||(i.engineer===true&&i.erpUser==='engadministrator'));
 const now=()=>new Date().toISOString();
 const records=value=>value&&typeof value==='object'&&!Array.isArray(value)?value:{};
 // Matrículas curtas (ex.: '1' ou 'F1') devem continuar válidas como chaves do ERP.

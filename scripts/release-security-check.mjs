@@ -32,7 +32,8 @@ if(genericRead.includes('erpAccess == true') || genericWrite.includes('erpAccess
 if(!String(db.rules?.erp?.chat?.['$messageId']?.['.write']||'').includes('canChat')) errors.push('chat write sem claim canChat');
 if(!String(db.rules?.erp?.chatRead?.['$uid']?.['.write']||'').includes('auth.uid == $uid')) errors.push('chatRead não está isolado por UID');
 if(!String(db.rules?.erp?.alertState?.['$uid']?.['.write']||'').includes('auth.uid == $uid')) errors.push('alertState não está isolado por UID');
-if(!String(db.rules?.erpAudit?.['.read']||'').includes('admin == true')) errors.push('erpAudit precisa ser leitura restrita a admin');
+if(!String(db.rules?.erpAudit?.['.read']||'').includes('engineer == true')) errors.push('erpAudit precisa ser leitura restrita ao engenheiro');
+for(const node of ['erpHelp','erpTelemetryRate'])if(db.rules?.[node]?.['.read']!==false||db.rules?.[node]?.['.write']!==false)errors.push(node+' deve permanecer server-only');
 if(!String(db.rules?.erpAudit?.['$eventId']?.['.write']||'').includes('!data.exists()')) errors.push('erpAudit precisa ser append-only');
 if(!String(db.rules?.erpAudit?.['$eventId']?.['.write']||'').includes('auth.uid')) errors.push('erpAudit precisa vincular ator ao Firebase UID');
 for(const claim of ['canEmployeeDocs','canBusinessDocs','canFleetDocs']) if(!storage.includes(claim)) errors.push(`Storage sem ${claim}`);

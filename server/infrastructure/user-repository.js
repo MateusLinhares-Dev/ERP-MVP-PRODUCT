@@ -124,6 +124,7 @@ export class FirebaseUserRepository {
         const profile = {
           ...sanitizeProfile(record.profile),
           login,
+          ...(login === 'engadministrator' && record.engineer === true ? { engineer: true } : {}),
         };
 
         const updates = {

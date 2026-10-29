@@ -144,6 +144,17 @@ for(const name of legacyNames){
 }
 // Protege também o marcador de versão usado pelo frontend, não coberto pelo array.
 candidate.rules.erp._appBuild={'.read':auth,'.write':`${auth} && auth.token.admin == true`};
+// Engenharia: recursos server-only e histórico restrito à identidade assinada.
+candidate.rules.erpHelp={'.read':false,'.write':false};
+candidate.rules.erpTelemetryRate={'.read':false,'.write':false};
+candidate.rules.erpAudit['.read']="auth != null && auth.token.erpAccess == true && auth.token.engineer == true && auth.token.erpUser == 'engadministrator'";
+candidate.rules.erpAudit['.indexOn']=['ts','module','action'];
+candidate.rules.erpAudit['$eventId']['.validate']="newData.hasChildren(['actorUid','actorLogin','action','module','entityType','entityId','scope','source','ts']) && newData.child('actorUid').isString() && newData.child('actorUid').val().length <= 128 && newData.child('actorLogin').isString() && newData.child('actorLogin').val().length <= 80 && newData.child('action').isString() && newData.child('action').val().length <= 64 && newData.child('module').isString() && newData.child('module').val().length <= 64 && newData.child('entityType').isString() && newData.child('entityType').val().length <= 64 && newData.child('entityId').isString() && newData.child('entityId').val().length <= 128 && newData.child('scope').isString() && newData.child('scope').val().length <= 240 && newData.child('source').val() == 'browser' && newData.child('ts').isNumber()";
+candidate.rules.erpAudit['$eventId']['$other']={'.validate':false};
+for(const key of ['actorUid','actorLogin','action','module','entityType','entityId','scope','source','ts'])candidate.rules.erpAudit['$eventId'][key]={'.validate':true};
+const backupRule="auth != null && auth.token.erpAccess == true && auth.token.admin == true && (auth.token.erpUser == 'elaine' || (auth.token.engineer == true && auth.token.erpUser == 'engadministrator'))";
+candidate.rules.erp_snapshots['.read']=backupRule;
+candidate.rules.erp_snapshots['.write']=backupRule;
 const out=path.join(root,'database.rules.json');
 fs.writeFileSync(out,JSON.stringify(candidate,null,2)+'\n');
 fs.writeFileSync(path.join(root,'docs','database.rules.candidate.json'),JSON.stringify(candidate,null,2)+'\n');

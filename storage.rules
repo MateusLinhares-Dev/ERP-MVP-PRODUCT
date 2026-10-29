@@ -104,7 +104,7 @@ service firebase.storage {
       function trainingManager() {
         return authenticated()
           && request.auth.token.admin == true
-          && request.auth.token.erpUser == 'elaine';
+          && (request.auth.token.erpUser == 'elaine' || (request.auth.token.engineer == true && request.auth.token.erpUser == 'engadministrator'));
       }
       function trainingPathOK() {
         return enrollmentId.matches('[A-Za-z0-9_-]{4,100}')

@@ -1,0 +1,20 @@
+/* Painel de engenharia isolado do ERP operacional. */
+.mm-eng-panel{background:#f2f6f3;min-width:0;padding:24px clamp(14px,2vw,32px) 55px!important;color:#193f2b;font-family:Inter,system-ui,Arial,sans-serif}
+.mm-eng-panel *{box-sizing:border-box}
+.mm-eng-hero{padding:28px 30px;background:linear-gradient(115deg,#153f2d,#216747);border-radius:15px;color:#fff;display:flex;justify-content:space-between;gap:18px;align-items:center;margin-bottom:18px}
+.mm-eng-hero h1{font-size:26px;letter-spacing:-.02em;margin:8px 0}.mm-eng-hero p{font-size:13px;line-height:1.6;max-width:720px;color:#d8f0df}.mm-eng-hero small{font-weight:800;letter-spacing:.13em;color:#b8e6ca}
+.mm-eng-hero button{background:#fff;color:#164a35;border:0;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer}
+.mm-eng-card{background:#fff;border:1px solid #dce8df;box-shadow:0 3px 12px #1439230a;border-radius:13px;padding:20px;margin-bottom:15px;min-width:0}
+.mm-eng-card h2{font-size:16px;margin:0 0 4px}.mm-eng-card p{font-size:12px;color:#63796a;margin:3px 0 10px}
+.mm-eng-card input,.mm-eng-card textarea,.mm-eng-card select{width:100%;min-width:0;max-width:100%;border:1px solid #c7d9ce;background:#fff;border-radius:8px;padding:10px 11px;font:inherit;font-size:12px;color:#1c4731}
+.mm-eng-card label{font-weight:700;display:grid;gap:6px;font-size:11px;color:#42624d;margin-bottom:12px}
+.mm-eng-card button{font-size:12px;border:1px solid #bad1c2;background:#fff;color:#24563b;border-radius:8px;padding:10px 13px;cursor:pointer;font-weight:750}
+.mm-eng-card button:disabled{opacity:.55;cursor:default}.mm-eng-card button.mm-eng-primary{background:#175437;color:#fff;border-color:#175437}
+.mm-eng-card button.mm-eng-danger{border-color:#f2c0bf;color:#9d3333;background:#fffafa}
+.mm-eng-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:end;gap:11px}.mm-eng-filters label{margin:0}.mm-eng-filters button{align-self:end;min-height:38px}
+.mm-eng-overflow{overflow-x:auto}.mm-eng-table{border-collapse:collapse;min-width:760px;width:100%;font-size:12px}.mm-eng-table th{text-align:left;font-weight:750;background:#f5f9f5;color:#567360;padding:12px;border-bottom:1px solid #dce8df}.mm-eng-table td{padding:12px;border-bottom:1px solid #edf2ee;color:#244732;max-width:230px;overflow-wrap:anywhere}.mm-eng-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin:0 0 14px}.mm-eng-row>div{display:flex;gap:9px;align-items:center}.mm-eng-level{padding:4px 8px;border-radius:100px;background:#eef2f1;color:#5a7462;font-weight:700}.mm-eng-level.error{background:#fde5e5;color:#a52929}.mm-eng-level.warn{background:#fff4dd;color:#916020}
+.mm-eng-editor-layout{display:grid;grid-template-columns:minmax(250px,330px) minmax(0,1fr);gap:16px}.mm-eng-help-list{display:flex;flex-direction:column;gap:8px;max-height:590px;overflow-y:auto;margin-top:10px}.mm-eng-help-list button{text-align:left;display:grid;gap:5px}.mm-eng-help-list button.chosen{background:#e8f4ea;border-color:#91bea1}.mm-eng-help-list small{font-size:10px;color:#697d70}.mm-eng-empty{padding:24px 12px;text-align:center;font-size:12px;color:#75887a}.mm-eng-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mm-help-filter-row{display:flex;gap:12px;margin:10px 0 20px}.mm-help-filter-row label{display:flex;gap:10px;align-items:center;font-size:12px;color:#46614c;font-weight:700}.mm-help-filter-row select{border:1px solid #c6d9cb;border-radius:7px;padding:9px;max-width:230px;background:#fff;color:#244730}.mm-help-detail[hidden]{display:none!important}.mm-help-detail{margin-top:20px}
+#tab-help_center .mm-help-empty{grid-column:1/-1}#tab-help_center .mm-help-hero-circle{font-size:65px;font-weight:800;color:#b6e6c5}
+@media(max-width:1050px){.mm-eng-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.mm-eng-editor-layout{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:620px){.mm-eng-hero{padding:23px 18px;align-items:stretch;flex-direction:column}.mm-eng-filters,.mm-eng-form-grid{grid-template-columns:1fr}.mm-eng-panel{padding:12px!important}.mm-eng-card{padding:14px}}

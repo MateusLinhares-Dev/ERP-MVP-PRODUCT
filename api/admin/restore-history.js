@@ -8,7 +8,7 @@ export default async function handler(req,res){
   try{
     assertMethod(req,'GET');
     const user=await requireIdentity(req,{admin:true});
-    if(user.erpUser!=='elaine'){const e=new Error('Histórico de restauração restrito à Elaine.');e.status=403;throw e;}
+    if(user.erpUser!=='elaine' && user.engineer!==true){const e=new Error('Histórico de restauração restrito à Elaine.');e.status=403;throw e;}
     const {db}=getFirebaseAdmin();
 
     const actions=new Set(['snapshot-restored','manual-database-backup-imported']);

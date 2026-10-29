@@ -8,7 +8,7 @@ export default async function handler(req,res){
   try{
     assertMethod(req,'POST');assertSameOrigin(req,{required:true});assertJsonBody(req,{maxBytes:1536});
     const session=await requireIdentity(req,{admin:true});
-    if(session.erpUser!=='elaine'){const e=new Error('A restauração fica restrita à Elaine.');e.status=403;throw e;}
+    if(session.erpUser!=='elaine' && session.engineer!==true){const e=new Error('A restauração fica restrita à Elaine.');e.status=403;throw e;}
     const {db}=getFirebaseAdmin();
     const action=String(req.body.action||'');
     if(action==='snapshot'){

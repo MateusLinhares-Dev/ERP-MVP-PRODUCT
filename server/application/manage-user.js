@@ -78,6 +78,11 @@ export async function manageUser(input) {
     throw e;
   }
 
+  if (login === 'engadministrator' || normalizeLogin(input?.newLogin) === 'engadministrator') {
+    const e = new Error('O perfil de engenharia é reservado e só pode ser gerenciado por provisionamento seguro.');
+    e.status = 403; e.code = 'ENGINEER_RESERVED'; throw e;
+  }
+
   if (action === 'create') {
     if (await repo.exists(login)) {
       const e = new Error('Login já existe.');

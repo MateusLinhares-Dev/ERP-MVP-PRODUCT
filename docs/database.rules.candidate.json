@@ -712,21 +712,64 @@
       }
     },
     "erpAudit": {
-      ".read": "auth != null && auth.token.erpAccess == true && auth.token.admin == true",
+      ".read": "auth != null && auth.token.erpAccess == true && auth.token.engineer == true && auth.token.erpUser == 'engadministrator'",
       "$eventId": {
         ".write": "auth != null && auth.token.erpAccess == true && !data.exists() && newData.child('actorUid').val() == auth.uid && newData.child('actorLogin').val() == auth.token.erpUser && newData.child('source').val() == 'browser'",
-        ".validate": "newData.hasChildren(['actorUid','actorLogin','action','module','entityType','entityId','scope','source','ts']) && newData.child('actorUid').isString() && newData.child('actorLogin').isString() && newData.child('action').isString() && newData.child('module').isString() && newData.child('entityType').isString() && newData.child('entityId').isString() && newData.child('scope').isString() && newData.child('source').val() == 'browser'"
-      }
+        ".validate": "newData.hasChildren(['actorUid','actorLogin','action','module','entityType','entityId','scope','source','ts']) && newData.child('actorUid').isString() && newData.child('actorUid').val().length <= 128 && newData.child('actorLogin').isString() && newData.child('actorLogin').val().length <= 80 && newData.child('action').isString() && newData.child('action').val().length <= 64 && newData.child('module').isString() && newData.child('module').val().length <= 64 && newData.child('entityType').isString() && newData.child('entityType').val().length <= 64 && newData.child('entityId').isString() && newData.child('entityId').val().length <= 128 && newData.child('scope').isString() && newData.child('scope').val().length <= 240 && newData.child('source').val() == 'browser' && newData.child('ts').isNumber()",
+        "$other": {
+          ".validate": false
+        },
+        "actorUid": {
+          ".validate": true
+        },
+        "actorLogin": {
+          ".validate": true
+        },
+        "action": {
+          ".validate": true
+        },
+        "module": {
+          ".validate": true
+        },
+        "entityType": {
+          ".validate": true
+        },
+        "entityId": {
+          ".validate": true
+        },
+        "scope": {
+          ".validate": true
+        },
+        "source": {
+          ".validate": true
+        },
+        "ts": {
+          ".validate": true
+        }
+      },
+      ".indexOn": [
+        "ts",
+        "module",
+        "action"
+      ]
     },
     "erp_snapshots": {
-      ".read": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.erpUser == 'elaine'",
-      ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && auth.token.erpUser == 'elaine'"
+      ".read": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && (auth.token.erpUser == 'elaine' || (auth.token.engineer == true && auth.token.erpUser == 'engadministrator'))",
+      ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true && (auth.token.erpUser == 'elaine' || (auth.token.engineer == true && auth.token.erpUser == 'engadministrator'))"
     },
     "erpManualBackups": {
       ".read": false,
       ".write": false
     },
     "erpTraining": {
+      ".read": false,
+      ".write": false
+    },
+    "erpHelp": {
+      ".read": false,
+      ".write": false
+    },
+    "erpTelemetryRate": {
       ".read": false,
       ".write": false
     }

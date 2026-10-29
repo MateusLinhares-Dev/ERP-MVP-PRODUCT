@@ -14,11 +14,16 @@
     }catch(e){ return false; }
   }
 
+  function isEngineer(){
+    try{const p=currentProfile();return String(typeof cuKey!=='undefined'?cuKey:'').toLowerCase()==='engadministrator' && p?.engineer===true && p?.admin===true;}catch(_){return false;}
+  }
+
   function canAccessTab(tab){
     tab=String(tab||'').trim();
     if(!tab) return false;
     
     if(tab==='avisos') return true;
+    if(isEngineer()) return true;
     // A ajuda é pública para qualquer conta autenticada no ERP. Não exige permissão
     // administrativa nem dá acesso a dados ou operações de outros módulos.
     if(tab==='help_center') return !!currentProfile();
@@ -41,6 +46,7 @@
   window.erpCanAccessTab=canAccessTab;
   window.erpTabExists=tabExists;
   window.erpIsElaineOwner=isElaineOwner;
+  window.erpIsEngineer=isEngineer;
   window.ERP_OWNER_ONLY_TABS=OWNER_ONLY_TABS;
 
   window.switchTab=function(tid){
