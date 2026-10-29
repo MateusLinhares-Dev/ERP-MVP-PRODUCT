@@ -165,6 +165,7 @@ async function main() {
   await loadClassic('/modules/banking/reconciliation-domain.js');
   loadStyle('/modules/banking/reconciliation.css');
   loadStyle('/modules/banking/bank-integrations.css');
+  await loadClassic('/modules/phase1/rhid-card-reader.js');
   await loadClassic('/legacy/app-core.js');
   await loadClassic('/modules/banking/reconciliation-ui.js');
   await loadClassic('/modules/banking/bank-integrations-ui.js');

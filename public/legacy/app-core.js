@@ -7573,18 +7573,16 @@ function renderPontoTab(){
 
 function _popularSelectPontoFuncionarios(){
   const sel=document.getElementById('ponto-cartao-func');
-  if(!sel) return;
-  const valorAtual=sel.value;
-  const matsComDados=new Set(PONTO_BATIDAS_DB.map(r=>r.mat));
+  if(!sel)return;
+  const anterior=sel.value;
   const situacao=_erpSituacaoFiltro('ponto-situacao');
-  const funcs=FUNCIONARIOS.filter(f=>matsComDados.has(f.mat)&&_erpFiltroFuncionario(f,situacao)).sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
-  sel.innerHTML='<option value="">— Selecione —</option>'+
-    funcs.map(f=>'<option value="'+f.mat+'">'+esc(f.nome)+'</option>').join('');
-  if(valorAtual && funcs.some(f=>f.mat===valorAtual)) sel.value=valorAtual;
+  const todos=FUNCIONARIOS.filter(f=>f&&_erpFiltroFuncionario(f,situacao)).slice()
+    .sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+  sel.innerHTML='<option value="">— Selecione —</option>'+todos.map(f=>
+    '<option value="'+esc(f.mat)+'">'+esc(f.nome)+' ('+esc(f.mat)+')'+(!_erpFuncionarioAtivo(f)?' — Inativo':'')+'</option>'
+  ).join('');
+  if(anterior&&todos.some(f=>f.mat===anterior))sel.value=anterior;
 }
-
-
-
 
 function renderCartaoPontoImportado(){
   const host=document.getElementById('ponto-cartao-host');
@@ -11559,114 +11557,8 @@ function _colunaPorBordaEsquerda(x, bordas){
 }
 
 function _parseCartaoPontoPagina(linhas, textoCompleto){
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  function campoPorRotulo(rotuloExato){
-    for(let i=0;i<linhas.length;i++){
-      const itens = linhas[i].itens;
-      const idx = itens.findIndex(function(it){ return it.str.trim()===rotuloExato; });
-      if(idx<0) continue;
-      const partes=[];
-      for(let k=idx+1;k<itens.length;k++){
-        if(/:$/.test(itens[k].str.trim())) break;
-        partes.push(itens[k].str);
-      }
-      return partes.join(' ').trim();
-    }
-    return null;
-  }
-  const nome = campoPorRotulo('NOME DO FUNCIONÁRIO:');
-  const cpf = campoPorRotulo('CPF DO FUNCIONÁRIO:');
-  const pis = campoPorRotulo('PIS DO FUNCIONÁRIO:');
-  const cargo = campoPorRotulo('NOME DO CARGO:');
-  const mPeriodo = textoCompleto.match(/DE (\d{2}\/\d{2}\/\d{4}) ATÉ (\d{2}\/\d{2}\/\d{4})/);
-  const periodoInicio = mPeriodo ? mPeriodo[1] : null;
-  const periodoFim = mPeriodo ? mPeriodo[2] : null;
-
-  let idxHeader = -1;
-  for(let i=0;i<linhas.length;i++){
-    const txts = linhas[i].itens.map(function(it){ return it.str; });
-    if(txts.indexOf('DIA')>=0 && (txts.indexOf('PREVISTO')>=0 || txts.indexOf('TRABALHADO')>=0 || txts.some(function(t){return /^ENT\.\s*1$/.test(t);}))){ idxHeader=i; break; }
-  }
-  if(idxHeader<0) return {nome:nome, cpf:cpf, pis:pis, cargo:cargo, periodoInicio:periodoInicio, periodoFim:periodoFim, erro:'cabecalho_nao_encontrado', dias:[], extraColunas:{}};
-
-  const headerItens = linhas[idxHeader].itens;
-  function bordaDe(regex){
-    const it = headerItens.find(function(x){ return regex.test(x.str); });
-    return it ? it.x : null;
-  }
-  const bordas = {
-    dia: bordaDe(/^DIA$/),
-    previsto: bordaDe(/^PREVISTO$/),
-    ent1: bordaDe(/^ENT\.\s*1$/),
-    sai1: bordaDe(/^SAÍ\.\s*1$/),
-    ent2: bordaDe(/^ENT\.\s*2$/),
-    sai2: bordaDe(/^SAÍ\.\s*2$/),
-    ent3: bordaDe(/^ENT\.\s*3$/),
-    sai3: bordaDe(/^SAÍ\.\s*3$/),
-    total: bordaDe(/^TRABALHADO$/),
-    faltaAtraso: bordaDe(/^ATRASO$/)
-  };
-  const extraColunas = {};
-  headerItens.forEach(function(it){
-    const m = it.str.match(/^(\d{1,3})%([DN])$/);
-    if(m){
-      const chave = 'extra_'+m[1]+'_'+m[2];
-      bordas[chave] = it.x;
-      extraColunas[chave] = {pct:m[1], periodo:m[2]};
-    }
-  });
-
-  const dias = [];
-  const alteracoes = [];
-  let modoAlteracoes = false;
-  for(let i=idxHeader+1;i<linhas.length;i++){
-    const itens = linhas[i].itens;
-    if(!itens.length) continue;
-    const primeiro = itens[0].str;
-    if(primeiro==='TOTAIS') continue; 
-    if(primeiro.indexOf('Alterações')===0){ modoAlteracoes=true; continue; }
-    if(modoAlteracoes){ alteracoes.push(itens.map(function(x){return x.str;}).join(' ')); continue; }
-    const mData = primeiro.match(/^(\d{2}\/\d{2}\/\d{4})\s*-\s*([A-ZÇÃÁ]{3})$/);
-    if(!mData) continue; 
-
-    const cols = {};
-    for(let k=1;k<itens.length;k++){
-      const col = _colunaPorBordaEsquerda(itens[k].x, bordas);
-      if(!col) continue;
-      if(!cols[col]) cols[col]=[];
-      cols[col].push(itens[k].str);
-    }
-    function j(col){ return (cols[col]||[]).join(' ').trim(); }
-
-    const extras = {};
-    Object.keys(extraColunas).forEach(function(chave){
-      const v = j(chave);
-      if(v) extras[chave] = {pct:extraColunas[chave].pct, periodo:extraColunas[chave].periodo, valor:v};
-    });
-
-    dias.push({
-      data: mData[1], diaSemana: mData[2],
-      previsto: j('previsto'),
-      ent1: j('ent1'), sai1: j('sai1'),
-      ent2: j('ent2'), sai2: j('sai2'),
-      ent3: j('ent3'), sai3: j('sai3'),
-      total: j('total'), faltaAtraso: j('faltaAtraso'),
-      extras: extras
-    });
-  }
-
-  return {nome:nome, cpf:cpf, pis:pis, cargo:cargo, periodoInicio:periodoInicio, periodoFim:periodoFim, extraColunas:extraColunas, dias:dias, alteracoes:alteracoes};
+  if(!window.RHiDCardReader) throw new Error('Leitor RH iD não carregado. Atualize a página.');
+  return window.RHiDCardReader.parsePage(linhas, textoCompleto);
 }
 
 async function _lerCartaoPontoRHiD(pdfData){
@@ -11687,68 +11579,151 @@ async function _lerCartaoPontoRHiD(pdfData){
 
 function _cpfSoDigitos(s){ return (s||'').replace(/\D/g,''); }
 
-function importarCartaoPontoRHiD(input){
-  const file = input.files[0];
-  if(!file) return;
-  const status = document.getElementById('ponto-import-status');
-  if(status) status.textContent = '⏳ Lendo PDF...';
-
-  const reader = new FileReader();
-  reader.onload = async function(e){
-    try{
-      const paginas = await _lerCartaoPontoRHiD(new Uint8Array(e.target.result));
-
-      const naoEncontrados = [];
-      let funcImportados = 0, diasImportados = 0;
-      const agora = new Date().toLocaleString('pt-BR');
-
-      paginas.forEach(function(pag){
-        if(pag.erro || !pag.dias.length) return;
-        const cpfDigitos = _cpfSoDigitos(pag.cpf).slice(0,11);
-        const func = FUNCIONARIOS.find(function(f){ return _cpfSoDigitos(f.cpf) === cpfDigitos && cpfDigitos; });
-        if(!func){
-          naoEncontrados.push((pag.nome||'?')+' (CPF '+(pag.cpf||'?')+')');
-          return;
-        }
-        
-        
-        
-        for(let i=PONTO_BATIDAS_DB.length-1;i>=0;i--){
-          const r = PONTO_BATIDAS_DB[i];
-          if(r && r.mat===func.mat && pag.dias.some(function(d){ return d.data===r.data; })){
-            _syncPontoBatidas.remover(i);
-          }
-        }
-        pag.dias.forEach(function(d){
-          PONTO_BATIDAS_DB.push(Object.assign({mat:func.mat, origem:'rhid',
-            periodoInicio:pag.periodoInicio, periodoFim:pag.periodoFim, importadoEm:agora}, d));
-          diasImportados++;
-        });
-        funcImportados++;
-      });
-
-      saveDB();
-      try{ renderPontoTab(); }catch(ee){}
-      try{ _popularSelectPontoFuncionarios(); }catch(ee){}
-
-      const nadaLido = (funcImportados===0 && diasImportados===0);
-      let msg;
-      if(nadaLido && !naoEncontrados.length){
-        msg = '⚠️ Não consegui ler nenhum dia deste PDF.\n\nConfira se é mesmo o "Cartão de Ponto" exportado do RH iD em PDF (não uma foto/print). Se for e mesmo assim não ler, me avise.';
-      } else {
-        msg = '✅ '+funcImportados+' funcionário(s), '+diasImportados+' dia(s) importado(s) do RH iD.';
-        if(naoEncontrados.length){
-          msg += '\n\n⚠️ '+naoEncontrados.length+' funcionário(s) do RH iD NÃO encontrado(s) no cadastro (CPF não bate com nenhum funcionário) — não foram importados:\n• '+naoEncontrados.join('\n• ');
+// A prévia impede que nomes semelhantes ou CPFs não cadastrados sejam
+// vinculados a outro funcionário automaticamente. Nada é salvo antes da revisão.
+let _rhidPaginasPendentes = [];
+let _rhidImportando = false;
+function _rhidNomeNormalizado(nome){
+  return String(nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/^Z\d{2}\s+/i,'').replace(/\s+/g,' ').trim().toUpperCase();
+}
+function _rhidMatriculaSugerida(pagina){
+  const cpf=_cpfSoDigitos(pagina.cpf);
+  if(cpf.length===11){
+    const porCpf=FUNCIONARIOS.filter(f=>f&&_cpfSoDigitos(f.cpf)===cpf);
+    if(porCpf.length===1) return porCpf[0].mat;
+    if(porCpf.length>1) return '';
+  }
+  const nome=_rhidNomeNormalizado(pagina.nome);
+  if(!nome) return '';
+  const porNome=FUNCIONARIOS.filter(f=>f&&_rhidNomeNormalizado(f.nome)===nome &&
+    (!cpf || !_cpfSoDigitos(f.cpf) || _cpfSoDigitos(f.cpf)===cpf));
+  return porNome.length===1 ? porNome[0].mat : '';
+}
+function _rhidExibirPrevia(paginas){
+  const host=document.getElementById('ponto-rhid-preview');
+  if(!host) return;
+  _rhidPaginasPendentes=paginas.filter(p=>p&&p.dias&&p.dias.length&&p.nome);
+  const falhas=paginas.length-_rhidPaginasPendentes.length;
+  if(!_rhidPaginasPendentes.length){
+    host.style.display='block';
+    host.innerHTML='<div style="padding:12px;color:#9c2d24;background:#fff1ef;border:1px solid #edcac5;border-radius:8px">O PDF não contém cartões reconhecíveis. Nenhum dado foi alterado.</div>';
+    return;
+  }
+  const opts=FUNCIONARIOS.filter(Boolean).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+  const rows=_rhidPaginasPendentes.map((pag,i)=>{
+    const mat=_rhidMatriculaSugerida(pag);
+    const choices=opts.map(f=>'<option value="'+esc(f.mat)+'"'+(f.mat===mat?' selected':'')+'>'+esc(f.nome)+' ('+esc(f.mat)+')'+(!_erpFuncionarioAtivo(f)?' — Inativo':'')+'</option>').join('');
+    return '<tr><td>'+esc(pag.nome)+'</td><td>'+pag.dias.length+' dias</td><td><select data-rhid-match="'+i+'" style="width:100%;min-width:200px;padding:7px;border:1px solid #c9d8d0;border-radius:6px"><option value="">— Não vincular —</option>'+choices+'</select></td></tr>';
+  }).join('');
+  host.style.display='block';
+  host.innerHTML='<div style="border:1px solid #bad9c7;background:#f7fcf8;border-radius:10px;padding:14px">'+
+    '<strong>Conferir a importação RH iD</strong><p style="font-size:.83rem;color:#4a6758;margin:6px 0 10px">'+
+    _rhidPaginasPendentes.length+' cartões reconhecidos · '+_rhidPaginasPendentes.reduce((n,p)=>n+p.dias.length,0)+' dias lidos'+
+    (falhas?' · '+falhas+' página(s) não reconhecida(s)':'')+'. Selecione a correspondência correta para cada funcionário. Não serão criados funcionários automaticamente.</p>'+
+    '<div style="max-height:350px;overflow:auto"><table style="width:100%"><thead><tr><th>Funcionário no PDF</th><th>Período</th><th>Vincular ao cadastro do ERP</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    '<div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:12px;flex-wrap:wrap"><button type="button" onclick="cancelarImportacaoCartaoPontoRHiD()" style="padding:8px 12px">Cancelar</button><button id="ponto-rhid-confirmar" type="button" class="btn-save" onclick="confirmarImportacaoCartaoPontoRHiD()">Importar vínculos selecionados</button></div></div>';
+}
+function cancelarImportacaoCartaoPontoRHiD(){
+  _rhidPaginasPendentes=[];
+  const host=document.getElementById('ponto-rhid-preview');
+  if(host){host.innerHTML='';host.style.display='none';}
+  const status=document.getElementById('ponto-import-status');
+  if(status)status.textContent='Importação cancelada. Nenhum registro foi alterado.';
+}
+async function confirmarImportacaoCartaoPontoRHiD(){
+  if(_rhidImportando||!_rhidPaginasPendentes.length)return;
+  const host=document.getElementById('ponto-rhid-preview');
+  const btn=document.getElementById('ponto-rhid-confirmar');
+  const selecionados=[];
+  const mats=new Set();
+  for(let i=0;i<_rhidPaginasPendentes.length;i++){
+    const mat=host?.querySelector('[data-rhid-match="'+i+'"]')?.value;
+    if(!mat)continue;
+    const f=FUNCIONARIOS.find(x=>x&&x.mat===mat);
+    if(!f){alert('Funcionário selecionado não existe mais no cadastro. Atualize a lista.');return;}
+    if(mats.has(mat)){alert('Um funcionário do ERP não pode receber dois cartões da mesma importação. Revise os vínculos.');return;}
+    mats.add(mat);
+    selecionados.push({pagina:_rhidPaginasPendentes[i],mat});
+  }
+  if(!selecionados.length){
+    alert('Nenhum funcionário do PDF foi vinculado ao ERP. Revise os nomes e CPFs ou cadastre os funcionários antes de importar.');return;
+  }
+  if(!confirm('Importar '+selecionados.length+' funcionário(s) selecionado(s)? Batidas do RH iD nas mesmas datas serão substituídas; lançamentos manuais serão preservados.'))return;
+  _rhidImportando=true;
+  if(btn){btn.disabled=true;btn.textContent='Salvando no Firebase…';}
+  try{
+    if(!window._fbDB)throw new Error('Banco Firebase indisponível. Conecte-se antes de importar.');
+    const agora=new Date().toLocaleString('pt-BR');
+    const updates={};
+    const substituir=new Map();
+    const novos=[];
+    for(const {pagina,mat} of selecionados){
+      const dates=new Set(pagina.dias.map(d=>d.data));
+      substituir.set(mat,dates);
+      const prefix='PB_RHID_'+String(mat).replace(/[^a-zA-Z0-9_-]/g,'_')+'_';
+      const identificadores=new Set(pagina.dias.map(d=>prefix+d.data.split('/').reverse().join('')));
+      for(let i=0;i<PONTO_BATIDAS_DB.length;i++){
+        const old=PONTO_BATIDAS_DB[i];
+        if(old&&old.mat===mat&&old.origem==='rhid'&&dates.has(old.data)){
+          if(old.id&&!identificadores.has(old.id))updates[old.id]=null;
         }
       }
-      if(status) status.textContent = nadaLido ? '⚠️ Nada foi lido do PDF — confira o arquivo.' : (naoEncontrados.length ? '⚠️ Importado com pendências — veja o aviso.' : '✅ Importado com sucesso!');
-      alert(msg);
-      showToast(nadaLido ? '⚠️ Nada foi importado — confira o PDF' : (naoEncontrados.length ? '⚠️ Importado com '+naoEncontrados.length+' pendência(s)' : '✅ Cartão de ponto importado!'), nadaLido?'warn':(naoEncontrados.length?'warn':'success'), 6000);
-    }catch(err){
-      console.error('Erro ao importar cartão de ponto:', err);
-      if(status) status.textContent = '❌ Erro: '+err.message;
-      showToast('Erro ao importar PDF do RH iD: '+err.message, 'error', 7000);
+      pagina.dias.forEach(d=>{
+        const id=prefix+d.data.split('/').reverse().join('');
+        const item=Object.assign({id,mat,origem:'rhid',
+          periodoInicio:pagina.periodoInicio,periodoFim:pagina.periodoFim,importadoEm:agora},d);
+        updates[id]=item;
+        novos.push(item);
+      });
     }
+    // Grava apenas esta coleção. A API Firebase confirma o sucesso antes de
+    // atualizar a tela, ao contrário do agendador genérico de salvamento.
+    await window._fbDB.ref('erp/pontoBatidas').update(updates);
+    // O Firebase pode atualizar o array via listener durante o await. Não usar
+    // índices calculados antes da gravação, pois outras linhas podem ter mudado.
+    for(let i=PONTO_BATIDAS_DB.length-1;i>=0;i--){
+      const old=PONTO_BATIDAS_DB[i];
+      if(!old||old.origem!=='rhid'||!substituir.get(old.mat)?.has(old.data))continue;
+      if(old.id&&updates[old.id]===null)_syncPontoBatidas.remover(i);
+      else PONTO_BATIDAS_DB.splice(i,1);
+    }
+    novos.forEach(item=>{
+      const pos=PONTO_BATIDAS_DB.findIndex(r=>r&&r.id===item.id);
+      if(pos<0)PONTO_BATIDAS_DB.push(item);
+      else Object.assign(PONTO_BATIDAS_DB[pos],item);
+    });
+    cancelarImportacaoCartaoPontoRHiD();
+    const status=document.getElementById('ponto-import-status');
+    if(status)status.textContent='Salvos no Firebase: '+selecionados.length+' funcionário(s), '+novos.length+' registros de dias.';
+    try{renderPontoTab();}catch(e){console.warn('Falha na atualização da tela do ponto:',e);}
+    showToast('Cartões do RH iD salvos no Firebase.','success',6000);
+  }catch(e){
+    console.error('Falha ao salvar cartões no Firebase:',e);
+    if(btn){btn.disabled=false;btn.textContent='Importar vínculos selecionados';}
+    const status=document.getElementById('ponto-import-status');
+    if(status)status.textContent='Falha ao salvar no Firebase: '+(e&&e.code?e.code:e.message);
+    showToast('Não foi possível salvar no Firebase. Nenhum registro local foi substituído.','error',7500);
+  }finally{_rhidImportando=false;}
+}
+
+function importarCartaoPontoRHiD(input){
+  const file=input.files&&input.files[0];
+  if(!file)return;
+  const status=document.getElementById('ponto-import-status');
+  cancelarImportacaoCartaoPontoRHiD();
+  if(status)status.textContent='Lendo '+esc(file.name)+'…';
+  if(!/\.pdf$/i.test(file.name)){if(status)status.textContent='Selecione um arquivo PDF.';input.value='';return;}
+  const reader=new FileReader();
+  reader.onload=async function(e){
+    try{
+      const pages=await _lerCartaoPontoRHiD(new Uint8Array(e.target.result));
+      _rhidExibirPrevia(pages);
+      if(status)status.textContent=pages.filter(p=>p.dias&&p.dias.length).length+' cartão(ões) reconhecido(s). Revise os vínculos antes de importar.';
+    }catch(err){
+      console.error('Erro ao ler cartão do RH iD:',err);
+      if(status)status.textContent='Erro ao ler o PDF: '+err.message;
+      showToast('Não foi possível ler o PDF do RH iD.','error',6500);
+    }finally{input.value='';}
   };
   reader.readAsArrayBuffer(file);
 }
