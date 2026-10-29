@@ -2,10 +2,11 @@ import '../../server/config/load-local-env.js';
 import { getFirebaseAdmin } from '../../server/infrastructure/firebase-admin.js';
 import { requireIdentity } from '../../server/http/auth.js';
 import { applyApiSecurityHeaders, assertJsonBody, assertSameOrigin, sendError } from '../../server/http/http.js';
-import { validateArticle,validateArticleId,newArticleId,assertRevision } from '../../server/domain/help-article.js';
+import { validateArticle,validateArticleId,newArticleId } from '../../server/domain/help-article.js';
+import { mutateHelpArticle } from '../../server/application/help-article-mutation.js';
 import { AuditRepository } from '../../server/infrastructure/audit-repository.js';
 const fail=(message,status=400,code='HELP_ERROR')=>Object.assign(new Error(message),{status,code});
-const list=v=>Object.values(v&&typeof v==='object'&&!Array.isArray(v)?v:{});
+const list=v=>Object.entries(v&&typeof v==='object'&&!Array.isArray(v)?v:{}).map(([id,a])=>({...(a||{}),id}));
 export default async function handler(req,res){
   applyApiSecurityHeaders(res,req);
   try{
@@ -30,22 +31,11 @@ export default async function handler(req,res){
     const expected=Number(b.revision||0);
     if(!Number.isSafeInteger(expected)||expected<0)throw fail('Revisão inválida.');
     const doc=action==='save'?validateArticle(b.article):null;
-    let conflict=false,notFound=false;
-    const outcome=await ref.transaction(current=>{
-      if(action==='delete'){
-        if(!current){notFound=true;return;}
-        if(current.revision!==expected){conflict=true;return;}
-        return null;
-      }
-      if(!current && b.id){notFound=true;return;}
-      if(current&&current.revision!==expected){conflict=true;return;}
-      const now=Date.now();
-      return {...doc,id,revision:(current?.revision||0)+1,createdAt:current?.createdAt||now,createdBy:current?.createdBy||actor.erpUser,
-        updatedAt:now,updatedBy:actor.erpUser};
-    },undefined,false);
-    if(!outcome.committed){if(conflict)assertRevision({revision:-1},expected);throw fail(notFound?'Artigo não encontrado.':'Não foi possível atualizar o artigo.',notFound?404:409);}
+    const result=await mutateHelpArticle(ref,{action,id:b.id||null,revision:expected,article:doc,actor:actor.erpUser});
+    if(result.outcome==='conflict')throw fail('Este artigo foi alterado em outra sessão. Atualize a lista para continuar.',409,'REVISION_CONFLICT');
+    if(result.outcome==='not_found')throw fail('O artigo não foi encontrado no banco. Atualize a lista antes de tentar novamente.',404,'ARTICLE_NOT_FOUND');
     try{await new AuditRepository().record({actorUid:actor.uid,actorLogin:actor.erpUser,action:action==='delete'?'help_deleted':'help_saved',module:'help_center',entityType:'article',entityId:id});}
     catch(err){console.error('Help article saved, audit failed:',err?.code||'audit_failure');}
-    return res.status(200).json({ok:true,id,article:outcome.snapshot.val()});
+    return res.status(200).json({ok:true,id,article:result.article});
   }catch(e){return sendError(res,e);}
 }

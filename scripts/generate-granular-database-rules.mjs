@@ -146,6 +146,7 @@ for(const name of legacyNames){
 candidate.rules.erp._appBuild={'.read':auth,'.write':`${auth} && auth.token.admin == true`};
 // Engenharia: recursos server-only e histórico restrito à identidade assinada.
 candidate.rules.erpHelp={'.read':false,'.write':false};
+candidate.rules.erpAgendaServices={'.read':false,'.write':false};
 candidate.rules.erpTelemetryRate={'.read':false,'.write':false};
 candidate.rules.erpAudit['.read']="auth != null && auth.token.erpAccess == true && auth.token.engineer == true && auth.token.erpUser == 'engadministrator'";
 candidate.rules.erpAudit['.indexOn']=['ts','module','action'];

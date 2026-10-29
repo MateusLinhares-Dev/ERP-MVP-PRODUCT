@@ -761,6 +761,10 @@
       ".read": false,
       ".write": false
     },
+    "erpAgendaServices": {
+      ".read": false,
+      ".write": false
+    },
     "erpTraining": {
       ".read": false,
       ".write": false

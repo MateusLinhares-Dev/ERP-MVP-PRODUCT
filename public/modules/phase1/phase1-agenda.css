@@ -7,3 +7,27 @@
 #agd-novo-ov .phase1-agenda-party-type,#agd-novo-ov .phase1-agenda-party-type+div{min-width:0}
 #agd-novo-ov .phase1-agenda-fields{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 @media(max-width:520px){#agd-novo-ov .phase1-agenda-fields{grid-template-columns:1fr}}
+
+/* Catálogo persistente de serviços, gerenciado na própria Agenda. */
+#agd-novo-ov .phase1-agenda-service-label{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:6px}
+#agd-novo-ov .phase1-agenda-service-label>span{grid-column:1/-1}
+#agd-novo-ov .phase1-agenda-manage{border:1px solid #b7ccc0;border-radius:8px;background:#f0f7f2;color:#16482f;padding:10px 7px;font-size:.73rem;font-weight:750;cursor:pointer}
+.phase1-agenda-service-ov{position:fixed;inset:0;background:rgba(9,23,16,.55);z-index:12500;display:grid;place-items:center;padding:16px}
+.phase1-agenda-service-card{box-sizing:border-box;width:min(540px,96vw);max-height:88vh;overflow:auto;background:#fff;border-radius:14px;padding:20px;box-shadow:0 20px 65px #0004}
+.phase1-agenda-service-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:1px solid #e3eae5;margin-bottom:14px;padding-bottom:10px}
+.phase1-agenda-service-heading h3{margin:0 0 5px;color:#173d2a}
+.phase1-agenda-service-heading p,.phase1-agenda-service-note{font-size:.76rem;color:#65766c;margin:0 0 8px}
+#phase1-agenda-service-close{border:0;background:#edf3ef;border-radius:7px;cursor:pointer;font-size:1.35rem;min-width:34px;min-height:34px}
+#phase1-agenda-service-form label{display:block;font-size:.76rem;font-weight:800;color:#506158;margin-bottom:6px}
+.phase1-agenda-service-new{display:flex;gap:8px}
+.phase1-agenda-service-new input{flex:1;min-width:0;border:1px solid #c5d7cc;border-radius:8px;padding:10px}
+.phase1-agenda-service-new button{border:0;background:#194c35;color:#fff;font-weight:700;border-radius:8px;padding:10px 13px;cursor:pointer}
+.phase1-agenda-service-note{margin:12px 0}
+.phase1-agenda-service-list{display:grid;gap:7px;max-height:300px;overflow-y:auto}
+.phase1-agenda-service-item{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#f5f8f6;border:1px solid #dce6df;border-radius:8px;padding:7px 9px}
+.phase1-agenda-service-item span{font-size:.83rem;font-weight:650;overflow-wrap:anywhere}
+.phase1-agenda-service-item button{border:1px solid #ecc9c9;background:white;color:#a32b31;border-radius:7px;padding:7px 10px;cursor:pointer}
+.phase1-agenda-service-item button:disabled,.phase1-agenda-service-new button:disabled{opacity:.5;cursor:wait}
+#phase1-agenda-service-message{font-size:.78rem;color:#17653d;margin:10px 0 0;min-height:1em}
+#phase1-agenda-service-message.error{color:#b33137}
+@media(max-width:520px){.phase1-agenda-service-new{flex-direction:column}}
