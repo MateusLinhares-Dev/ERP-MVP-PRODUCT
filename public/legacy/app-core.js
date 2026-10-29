@@ -11744,6 +11744,33 @@ function _rhidFecharBuscas(exceto){
     }
   });
 }
+// Mantém o menu inteiramente visível no viewport, independentemente da posição
+// da linha na tabela. A paginação fica fora da área rolável das opções.
+function _rhidPosicionarSugestoes(combo){
+  if(!combo||combo.dataset.open!=='1')return;
+  const list=combo.querySelector('.rhid-picker-options');
+  const control=combo.querySelector('.rhid-picker-control');
+  if(!list||!control||list.hidden)return;
+  const rect=control.getBoundingClientRect();
+  const viewport=window.visualViewport;
+  const vh=viewport?.height||window.innerHeight||document.documentElement.clientHeight;
+  const vw=viewport?.width||window.innerWidth||document.documentElement.clientWidth;
+  const freeDown=Math.max(0,vh-rect.bottom-10);
+  const freeUp=Math.max(0,rect.top-10);
+  const opensUp=freeDown<270&&freeUp>freeDown;
+  const space=opensUp?freeUp:freeDown;
+  const maxHeight=Math.max(88,Math.min(340,space-6));
+  const width=Math.max(160,Math.min(rect.width,vw-16));
+  const left=Math.max(8,Math.min(rect.left,vw-width-8));
+  list.style.position='fixed';
+  list.style.width=width+'px';
+  list.style.left=left+'px';
+  list.style.maxHeight=maxHeight+'px';
+  // Ajuste depois do layout, para ficar encostado ao campo mesmo com poucos resultados.
+  const realHeight=Math.min(maxHeight,list.getBoundingClientRect().height||maxHeight);
+  list.style.top=(opensUp?Math.max(8,rect.top-realHeight-4):Math.min(vh-8,rect.bottom+4))+'px';
+  list.dataset.direction=opensUp?'up':'down';
+}
 function _rhidRenderizarSugestoes(combo){
   if(!combo||combo.dataset.open!=='1')return;
   const list=combo.querySelector('.rhid-picker-options');
@@ -11756,17 +11783,20 @@ function _rhidRenderizarSugestoes(combo){
   const pagina=Math.max(0,Math.min(Number(combo.dataset.page)||0,maxPaginas-1));
   combo.dataset.page=String(pagina);
   list.replaceChildren();
+  const items=document.createElement('div');
+  items.className='rhid-picker-items';
+  list.appendChild(items);
   const limpar=document.createElement('button');
   limpar.type='button';limpar.className='rhid-picker-option rhid-picker-clear';
   limpar.textContent='— Não vincular —';
   limpar.addEventListener('click',()=>_rhidSelecionarBusca(combo,''));
-  list.appendChild(limpar);
+  items.appendChild(limpar);
   const inicio=pagina*_RHID_SUGESTOES_POR_PAGINA;
   const visibles=opts.slice(inicio,inicio+_RHID_SUGESTOES_POR_PAGINA);
   if(!visibles.length){
     const empty=document.createElement('p');
     empty.className='rhid-picker-empty';empty.textContent='Nenhum funcionário encontrado.';
-    list.appendChild(empty);
+    items.appendChild(empty);
   }
   visibles.forEach(f=>{
     const button=document.createElement('button');
@@ -11776,7 +11806,7 @@ function _rhidRenderizarSugestoes(combo){
     button.setAttribute('aria-selected',String(_rhidVinculosPendentes.get(Number(combo.dataset.rhidCombo))===f.mat));
     button.textContent=_rhidRotuloFuncionario(f.mat);
     button.addEventListener('click',()=>_rhidSelecionarBusca(combo,String(f.mat)));
-    list.appendChild(button);
+    items.appendChild(button);
   });
   const footer=document.createElement('div');footer.className='rhid-picker-footer';
   const summary=document.createElement('small');
@@ -11795,6 +11825,7 @@ function _rhidRenderizarSugestoes(combo){
     });
   }
   list.appendChild(footer);
+  _rhidPosicionarSugestoes(combo);
 }
 function _rhidSelecionarBusca(combo,mat){
   const indice=Number(combo.dataset.rhidCombo);
@@ -11843,6 +11874,14 @@ function _rhidAtivarCombos(tbody){
 document.addEventListener?.('pointerdown',event=>{
   if(!event.target?.closest?.('#ponto-rhid-preview .rhid-picker'))_rhidFecharBuscas();
 },true);
+// Ao rolar a janela ou redimensionar, o popup acompanha o campo original.
+function _rhidReposicionarBuscas(){
+  document.querySelectorAll?.('#ponto-rhid-preview .rhid-picker[data-open="1"]').forEach(_rhidPosicionarSugestoes);
+}
+document.addEventListener?.('scroll',_rhidReposicionarBuscas,true);
+window.addEventListener?.('resize',_rhidReposicionarBuscas);
+window.visualViewport?.addEventListener?.('resize',_rhidReposicionarBuscas);
+
 function _rhidRenderizarLinhasPrevia(){
   const host=document.getElementById('ponto-rhid-preview');
   const tbody=host?.querySelector('#rhid-preview-rows');
