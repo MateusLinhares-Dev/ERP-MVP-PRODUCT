@@ -11,8 +11,9 @@
   }
 
   function controls(key, body, render, opts) {
-    const table = body.closest('table');
-    if (!table) return null;
+    // Aceita tabelas e listas de cards; paginador fora do conteúdo re-renderizado.
+    const table = typeof body.closest === 'function' ? body.closest('table') : null;
+    const anchor = table || body;
     const state = stateFor(key);
     const id = 'erp-list-pager-' + key;
     let bar = document.getElementById(id);
@@ -20,7 +21,7 @@
       bar = document.createElement('div');
       bar.id = id;
       bar.className = 'erp-list-pager';
-      table.insertAdjacentElement('afterend', bar);
+      anchor.insertAdjacentElement('afterend', bar);
     }
     if (opts.searchable) {
       let input = document.getElementById(id + '-search');
@@ -31,7 +32,7 @@
         input.className = 'erp-list-pager-search';
         input.setAttribute('aria-label', 'Pesquisar na listagem');
         input.placeholder = opts.placeholder || 'Buscar em todos os registros...';
-        table.insertAdjacentElement('beforebegin', input);
+        anchor.insertAdjacentElement('beforebegin', input);
         input.addEventListener('input', () => {
           state.query = input.value;
           state.page = 1;
