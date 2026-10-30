@@ -423,8 +423,37 @@ if(typeof legacyAvisos==='function')global.renderAvisos=function(){const r=legac
 if(typeof legacyBadge==='function')global.avisosAtualizarBadge=function(){const r=legacyBadge.apply(this,arguments);setTimeout(()=>{const el=$('.nav-tab[data-tab="avisos"] .nt-label');if(!el)return;const old=el.querySelector('.p3-aviso-count');if(old)old.remove();const extra=myUpcoming().length;if(extra){const s=document.createElement('span');s.className='p3-aviso-count';s.textContent=String(extra);el.appendChild(document.createTextNode(' '));el.appendChild(s);}},0);return r;};
 
 /* Cheques: explicação, contagem consistente e limpeza do controle */
-function chequeSequence(){let list=[];try{list=Object.values(CHQ_CTRL||{}).filter(Boolean);}catch(e){}const groups={};list.forEach(c=>{const b=String(c.b||'Sem banco'),n=parseInt(String(c.n||'').replace(/\D/g,''),10);if(Number.isFinite(n))(groups[b]||(groups[b]=[])).push(n);});return Object.entries(groups).map(([b,nums])=>{nums=[...new Set(nums)].sort((a,b)=>a-b);const miss=[];for(let n=nums[0];nums.length&&n<nums[nums.length-1];n++)if(!nums.includes(n))miss.push(n);return {bank:b,missing:miss};});}
-function decorateCheque(){const root=$('#chq-ctrl-root');if(!root)return;try{const live=Object.entries(CHQ_CTRL||{}).filter(([id,c])=>c&&!(global._chqDel||{})[id]).map(([,c])=>c),tot={A:{q:0,v:0},C:{q:0,v:0},X:{q:0,v:0}};live.forEach(c=>{const st=c.s||'A';if(!tot[st])tot[st]={q:0,v:0};tot[st].q++;tot[st].v+=Number(c.v||0);});$$('.kpi',root).forEach(k=>{const lbl=norm($('.kpi-lbl',k)?.textContent||''),val=$('.kpi-val',k),sub=$('.kpi-sub',k);if(lbl==='a compensar'){if(val)val.textContent='R$ '+money(tot.A.v);if(sub)sub.textContent=tot.A.q+' cheque(s) pendente(s)';}else if(lbl==='compensados'){if(val)val.textContent=String(tot.C.q);if(sub)sub.textContent='R$ '+money(tot.C.v)+' já caíram';}else if(lbl==='cancelados'){if(val)val.textContent=String(tot.X.q);}else if(lbl==='total no controle'){if(val)val.textContent=String(live.length);}});}catch(e){}$$('th',root).forEach(th=>{if(/Desc\. Compra\?/i.test(th.textContent||'')){th.textContent='Abate compra?';th.title='Sim = este cheque representa um adiantamento e deve ser abatido do valor da compra. Não significa apenas que o cheque foi compensado.';}});$$('button',root).forEach(b=>{if((b.textContent||'').includes('🛒 Sim')){b.textContent='✓ Sim · adiantamento';b.title='Este cheque será considerado adiantamento e poderá abater o valor da compra. A compensação bancária é tratada separadamente.';}});let info=$('#phase3-cheque-help');if(!info){info=document.createElement('div');info.id='phase3-cheque-help';info.className='p3-cheque-help';info.innerHTML='<b>“Abate compra?”</b> Use <strong>Sim</strong> somente quando o cheque for um <strong>adiantamento ao fornecedor</strong>. Assim ele pode reduzir o saldo da compra. Compensar o cheque no banco é outra operação.';root.prepend(info);}const gaps=chequeSequence().filter(x=>x.missing.length);let gap=$('#phase3-cheque-gaps');if(!gap){gap=document.createElement('div');gap.id='phase3-cheque-gaps';root.insertBefore(gap,info.nextSibling);}const gapHtml=gaps.length?gaps.map(x=>`<div>⚠️ <b>${esc(x.bank)}</b>: faltando ${esc(x.missing.slice(0,25).join(', '))}</div>`).join(''):'<div class="ok">✓ Sequências cadastradas sem lacunas internas.</div>';if(gap.innerHTML!==gapHtml)gap.innerHTML=gapHtml;}
+// Usa apenas numeros efetivamente cadastrados (O(n log n)); nunca percorre todos os faltantes.
+function chequeSequence(){
+  let list=[];try{list=Object.entries(CHQ_CTRL||{}).filter(([id,c])=>c&&!(global._chqDel||{})[id]).map(([,c])=>c);}catch(e){}
+  const groups=new Map();
+  list.forEach(c=>{
+    const bank=String(c.b||'Sem banco'),value=String(c.n||'').replace(/\D/g,''),n=Number(value);
+    if(!value||!Number.isSafeInteger(n)||n<0)return;
+    if(!groups.has(bank))groups.set(bank,new Set());
+    groups.get(bank).add(n);
+  });
+  return Array.from(groups,([bank,unique])=>{
+    const nums=Array.from(unique).sort((a,b)=>a-b),ranges=[];
+    for(let i=1;i<nums.length;i++){
+      const count=nums[i]-nums[i-1]-1;
+      if(count>0)ranges.push({start:nums[i-1]+1,end:nums[i]-1,count,large:count>250});
+    }
+    return {bank,ranges,missing:ranges.slice(0,3)};
+  });
+}
+function decorateCheque(){const root=$('#chq-ctrl-root');if(!root)return;try{const live=Object.entries(CHQ_CTRL||{}).filter(([id,c])=>c&&!(global._chqDel||{})[id]).map(([,c])=>c),tot={A:{q:0,v:0},C:{q:0,v:0},X:{q:0,v:0}};live.forEach(c=>{const st=c.s||'A';if(!tot[st])tot[st]={q:0,v:0};tot[st].q++;tot[st].v+=Number(c.v||0);});$$('.kpi',root).forEach(k=>{const lbl=norm($('.kpi-lbl',k)?.textContent||''),val=$('.kpi-val',k),sub=$('.kpi-sub',k);if(lbl==='a compensar'){if(val)val.textContent='R$ '+money(tot.A.v);if(sub)sub.textContent=tot.A.q+' cheque(s) pendente(s)';}else if(lbl==='compensados'){if(val)val.textContent=String(tot.C.q);if(sub)sub.textContent='R$ '+money(tot.C.v)+' já caíram';}else if(lbl==='cancelados'){if(val)val.textContent=String(tot.X.q);}else if(lbl==='total no controle'){if(val)val.textContent=String(live.length);}});}catch(e){}$$('th',root).forEach(th=>{if(/Desc\. Compra\?/i.test(th.textContent||'')){th.textContent='Abate compra?';th.title='Sim = este cheque representa um adiantamento e deve ser abatido do valor da compra. Não significa apenas que o cheque foi compensado.';}});$$('button',root).forEach(b=>{if((b.textContent||'').includes('🛒 Sim')){b.textContent='✓ Sim · adiantamento';b.title='Este cheque será considerado adiantamento e poderá abater o valor da compra. A compensação bancária é tratada separadamente.';}});let info=$('#phase3-cheque-help');if(!info){info=document.createElement('div');info.id='phase3-cheque-help';info.className='p3-cheque-help';info.innerHTML='<b>“Abate compra?”</b> Use <strong>Sim</strong> somente quando o cheque for um <strong>adiantamento ao fornecedor</strong>. Assim ele pode reduzir o saldo da compra. Compensar o cheque no banco é outra operação.';root.prepend(info);}const gaps=chequeSequence().filter(x=>x.ranges.length);
+let gap=$('#phase3-cheque-gaps');if(!gap){gap=document.createElement('div');gap.id='phase3-cheque-gaps';root.insertBefore(gap,info.nextSibling);}
+const fmt=n=>Number(n).toLocaleString('pt-BR');
+const gapHtml=gaps.length?gaps.map(x=>{
+  const small=x.ranges.filter(r=>!r.large),large=x.ranges.filter(r=>r.large);
+  const compact=small.slice(0,3).map(r=>r.start===r.end?fmt(r.start):`${fmt(r.start)}–${fmt(r.end)} (${fmt(r.count)})`);
+  const parts=[];
+  if(small.length)parts.push(`${small.length} lacuna(s): ${compact.join(', ')}${small.length>3?` e mais ${small.length-3}`:''}`);
+  if(large.length)parts.push(`${large.length} salto(s) grande(s): ${large.slice(0,2).map(r=>fmt(r.start-1)+' → '+fmt(r.end+1)).join(', ')}${large.length>2?', …':''} (confira outra série/talão)`);
+  return `<div>⚠️ <b>${esc(x.bank)}</b>: ${esc(parts.join(' · '))}</div>`;
+}).join(''):'<div class="ok">✓ Sequências cadastradas sem lacunas internas.</div>';
+if(gap.innerHTML!==gapHtml)gap.innerHTML=gapHtml;}
 const legacyChequeRender=global.renderChequesCompensar;if(typeof legacyChequeRender==='function')global.renderChequesCompensar=function(){const r=legacyChequeRender.apply(this,arguments);setTimeout(decorateCheque,0);return r;};
 const legacyChequeDelete=global.chqExcluir;if(typeof legacyChequeDelete==='function')global.chqExcluir=function(id){const r=legacyChequeDelete.apply(this,arguments);setTimeout(()=>{try{renderChequesCompensar();}catch(e){}},350);return r;};
 

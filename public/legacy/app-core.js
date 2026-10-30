@@ -837,15 +837,25 @@ function _usersMarcarApagado(k){
 function _usersDesmarcarApagado(k){
   const i=_USERS_DEL.indexOf(k); if(i>=0) _USERS_DEL.splice(i,1);
 }
+// Mantém os testes de domínio e a inicialização anterior compatíveis caso
+// o paginador não tenha sido carregado em um cenário isolado.
+function _erpPaginarDados(key, dados, bodyId, callback, options){
+  return typeof ERPListPager!=='undefined' && ERPListPager && typeof ERPListPager.slice==='function'
+    ? ERPListPager.slice(key,dados,bodyId,callback,options) : dados;
+}
+function _erpReiniciarPagina(key){
+  if(typeof ERPListPager!=='undefined' && ERPListPager && typeof ERPListPager.reset==='function') ERPListPager.reset(key);
+}
 let _fornFiltroAtual='';
 
 function _getFornFiltrados(){
-  const v=(_fornFiltroAtual||'').toLowerCase().trim();
+  const normalizar=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  const v=normalizar(_fornFiltroAtual);
   
   const ativos=getFornAtivos().slice().sort(function(a,b){ return String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{sensitivity:'base'}); });
   if(!v) return ativos;
   return ativos.filter(function(f){
-    return ((f.cod||'')+' '+(f.nome||'')+' '+(f.cidade||'')).toLowerCase().includes(v);
+    return normalizar((f.cod||'')+' '+(f.nome||'')+' '+(f.cidade||'')).includes(v);
   });
 }
 
@@ -860,7 +870,8 @@ function renderTabelaFornecedores(){
   if(!tbForn) return;
   const _isEl=_usuarioAtualEhAdmin();
   const lista=_getFornFiltrados();
-  tbForn.innerHTML=lista.map(function(f){
+  const pagina=_erpPaginarDados('fornecedores-compra',lista,'tb-fornecedores',renderTabelaFornecedores);
+  tbForn.innerHTML=pagina.map(function(f){
     const c=esc(f.cod);
     let r='<tr onclick="fornSelLinha(this)" style="cursor:pointer" title="Clique pra marcar esta linha">';
     r+='<td style="text-align:center">'+(_isEl?'<input type="checkbox" class="forn-chk" value="'+c+'" onchange="atualizarBtnExcluir()">':'')+'</td>';
@@ -886,6 +897,9 @@ function renderTabelaFornecedores(){
     r+='</td></tr>';
     return r;
   }).join('');
+  const _chkTodas=document.getElementById('chk-all-forn');
+  if(_chkTodas) _chkTodas.checked=false;
+  atualizarBtnExcluir();
   tbForn.querySelectorAll('.forn-ficha-btn[data-ficha-cod]').forEach(function(btn){
     btn.addEventListener('click',function(ev){
       ev.preventDefault();
@@ -912,6 +926,7 @@ function fornSelLinha(tr){
 })();
 function filtrarTabelaForn(val){
   _fornFiltroAtual=(val!==undefined)?val:(document.getElementById('forn-busca-nome')?.value||'');
+  _erpReiniciarPagina('fornecedores-compra');
   renderTabelaFornecedores();
 }
 
@@ -1500,19 +1515,23 @@ function renderFornDespesa(){
   const tb=document.getElementById('tb-fornecedores-despesa');
   if(!tb) return;
   if(FORNECEDORES_DESPESA.length===0){
+    _erpPaginarDados('fornecedores-despesa',[], 'tb-fornecedores-despesa',renderFornDespesa);
     tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--gray);padding:20px">Nenhum fornecedor de despesa cadastrado</td></tr>';
     return;
   }
-  tb.innerHTML=FORNECEDORES_DESPESA.map((f,i)=>
+  const pagina=_erpPaginarDados('fornecedores-despesa',FORNECEDORES_DESPESA,'tb-fornecedores-despesa',renderFornDespesa,{
+    searchable:true, placeholder:'Pesquisar fornecedor de despesa...', text:f=>[f.nome,f.cpf,f.cat,f.tel,f.obs].join(' ')
+  });
+  tb.innerHTML=pagina.map((f)=>
     '<tr>'+
-    '<td>FD-'+(i+1).toString().padStart(3,'0')+'</td>'+
+    '<td>FD-'+(FORNECEDORES_DESPESA.indexOf(f)+1).toString().padStart(3,'0')+'</td>'+ 
     '<td><b>'+esc(f.nome)+'</b></td>'+
     '<td>'+(f.cpf||'—')+'</td>'+
     '<td>'+(f.tel||'—')+'</td>'+
     '<td>'+(f.cat||'—')+'</td>'+
     '<td style="font-size:.75rem;max-width:160px">'+(f.obs||'—')+'</td>'+
     '<td style="white-space:nowrap">'+
-    '<button class="btn-edit-danger" onclick="excluirFornDespesa('+i+')" title="Excluir">🗑️</button>'+
+    '<button class="btn-edit-danger" onclick="excluirFornDespesa('+FORNECEDORES_DESPESA.indexOf(f)+')" title="Excluir">🗑️</button>'+ 
     '</td></tr>'
   ).join('');
   
@@ -7411,6 +7430,7 @@ function renderVales(){
   if(kTotal) kTotal.textContent='R$ '+fmt(totalGeral);
   if(count) count.textContent='Registros exibidos: '+listaFiltrada.length+' · Histórico geral preservado';
   if(listaFiltrada.length===0){
+    _erpPaginarDados('vales',[],'tb-vales',renderVales);
     tb.innerHTML='<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum vale encontrado para o período selecionado</td></tr>';
     return;
   }
@@ -7420,7 +7440,8 @@ function renderVales(){
     const db=pb.length===3?new Date(Number(pb[2]),Number(pb[1])-1,Number(pb[0])).getTime():Date.parse(b&&b.data||'')||0;
     return db-da;
   });
-  tb.innerHTML=sorted.map(function(v){
+  const pagina=_erpPaginarDados('vales',sorted,'tb-vales',renderVales,{searchable:true,placeholder:'Pesquisar vale, funcionário ou observação...',text:v=>{const f=FUNCIONARIOS.find(x=>x.mat===v.mat);return [v.mat,f?.nome,v.data,v.mes,v.obs,v.forma].join(' ');}});
+  tb.innerHTML=pagina.map(function(v){
     const gi=VALES_DB.indexOf(v);
     const f=FUNCIONARIOS.find(function(x){return x.mat===v.mat;});
     const nome=f?f.nome:v.mat;
@@ -13043,6 +13064,7 @@ let _cliFiltroAtual='';
 
 function filtrarTabelaCli(val){
   _cliFiltroAtual=(val!==undefined)?val:(document.getElementById('cli-busca-nome')?.value||'');
+  _erpReiniciarPagina('clientes');
   renderClientes();
 }
 
@@ -13057,11 +13079,13 @@ function renderClientes(){
     ? CLIENTES.filter((c,i)=>((c.cod||'C'+String(i+1).padStart(3,'0'))+' '+(c.nome||'')+' '+(c.cidade||'')+' '+(c.cnpj||'')+' '+(c.cpf||'')).toLowerCase().includes(v))
     : CLIENTES.slice()).sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{sensitivity:'base'}));
   if(!lista.length){
+    _erpPaginarDados('clientes',[], 'tb-clientes-list',renderClientes);
     tbody.innerHTML='<tr><td colspan="7" style="color:var(--gray);text-align:center;padding:20px">'+(v?'Nenhum cliente encontrado para "'+esc(v)+'"':'Nenhum cliente cadastrado ainda')+'</td></tr>';
     return;
   }
   const _isEl=_usuarioAtualEhAdmin();
-  tbody.innerHTML=lista.map((c,i)=>{
+  const pagina=_erpPaginarDados('clientes',lista,'tb-clientes-list',renderClientes);
+  tbody.innerHTML=pagina.map((c,i)=>{
     const realIdx=CLIENTES.indexOf(c);
     return '<tr>'+
       '<td>'+(c.cod||'C'+String(realIdx+1).padStart(3,'0'))+'</td>'+
@@ -13578,13 +13602,13 @@ function renderTbFuncionarios(){
   
   const tbA=document.getElementById('tb-funcionarios');
   if(tbA) tbA.innerHTML=ativos.length
-    ? ativos.map(_funcRow).join('')
+    ? _erpPaginarDados('funcionarios-ativos',ativos,'tb-funcionarios',renderTbFuncionarios,{searchable:true,placeholder:'Pesquisar funcionário ou matrícula...',text:f=>[f.mat,f.nome,f.cpf,f.cargo].join(' ')}).map(_funcRow).join('')
     : '<tr><td colspan="8" style="text-align:center;color:var(--gray);padding:20px">Nenhum funcionário ativo</td></tr>';
 
   
   const tbI=document.getElementById('tb-funcionarios-inativos');
   if(tbI) tbI.innerHTML=inativos.length
-    ? inativos.map(_funcRow).join('')
+    ? _erpPaginarDados('funcionarios-inativos',inativos,'tb-funcionarios-inativos',renderTbFuncionarios,{searchable:true,placeholder:'Pesquisar funcionário inativo...',text:f=>[f.mat,f.nome,f.cpf].join(' ')}).map(_funcRow).join('')
     : '<tr><td colspan="8" style="text-align:center;color:var(--gray);padding:20px">Nenhum funcionário inativo</td></tr>';
 
   _funcAtualizarSetas();
@@ -17622,7 +17646,8 @@ function renderContasPagar(){
   
   cpRenderDias();
 
-  const exibidos=_cpAplicarFiltros(_cpVisiveis()).sort((a,b)=>toISO(a.venc).localeCompare(toISO(b.venc)));
+  const todosExibidos=_cpAplicarFiltros(_cpVisiveis()).sort((a,b)=>toISO(a.venc).localeCompare(toISO(b.venc)));
+  const exibidos=_erpPaginarDados('contas-pagar',todosExibidos,'tb-contas-pagar',renderContasPagar,{searchable:true,placeholder:'Pesquisar credor, descrição ou vencimento...',text:c=>[c.cred,c.desc,c.venc,c.bancoNome].join(' ')});
 
   
   const _mesLbl=document.getElementById('cp-mes-label');
@@ -17643,7 +17668,7 @@ function renderContasPagar(){
 
   const resumoEl=document.getElementById('cp-filtro-resumo');
   if(resumoEl){
-    resumoEl.textContent=exibidos.length+' conta(s) encontrada(s)'+(_cpFiltroDia?' · dia '+_cpFiltroDia.split('-').reverse().join('/'):'')+(_cpFiltroEmpresa?' · '+_cpFiltroEmpresa:'');
+    resumoEl.textContent=todosExibidos.length+' conta(s) encontrada(s)'+(_cpFiltroDia?' · dia '+_cpFiltroDia.split('-').reverse().join('/'):'')+(_cpFiltroEmpresa?' · '+_cpFiltroEmpresa:'');
   }
 
   const diasSemana=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -17669,7 +17694,7 @@ function renderContasPagar(){
       
       const diaKey=vParts?vParts[0]+'/'+vParts[1]+'/'+vParts[2]:'';
       if(diaKey && diaKey!==lastDiaKey){
-        const somaD=lista.filter(x=>{const p=x.venc&&x.venc.indexOf('/')>=0?x.venc.split('/'):null;return p&&p[0]+'/'+p[1]+'/'+p[2]===diaKey;}).reduce((s,x)=>s+Number(x.valor||0),0);
+        const somaD=todosExibidos.filter(x=>{const p=x.venc&&x.venc.indexOf('/')>=0?x.venc.split('/'):null;return p&&p[0]+'/'+p[1]+'/'+p[2]===diaKey;}).reduce((s,x)=>s+Number(x.valor||0),0);
         const eHoje=vISO===hoje;
         const eAtras=vISO&&vISO<hoje;
         const dSem=vISO?diasSemana[new Date(vISO+'T00:00:00').getDay()]:'';
@@ -17722,11 +17747,12 @@ function renderContasPagar(){
       const corEmp={}; ordemEmp.forEach(function(n){ corEmp[n]=_cfgFinanceCompanyColor(n); });
       chaves.forEach(function(e){
         const listaE=grupos[e];
-        const somaE=listaE.reduce(function(s,x){ return s+Number(x.valor||0); },0);
+        const listaETotal=todosExibidos.filter(c=>(_cpEmpresa(c)||'Sem empresa')===e);
+        const somaE=listaETotal.reduce(function(s,x){ return s+Number(x.valor||0); },0);
         const cor=corEmp[e]||'#555';
         rows.push('<tr><td colspan="8" style="padding:0"></td></tr>');
         rows.push('<tr style="background:'+cor+'"><td colspan="8" style="padding:9px 16px;font-weight:800;font-size:.92rem;color:#fff">'+
-          '🏢 '+esc(e)+' &nbsp;·&nbsp; '+listaE.length+' conta(s) &nbsp;·&nbsp; Total: R$ '+fmt(somaE)+'</td></tr>');
+          '🏢 '+esc(e)+' &nbsp;·&nbsp; '+listaETotal.length+' conta(s) no filtro &nbsp;·&nbsp; Total: R$ '+fmt(somaE)+'</td></tr>');
         _cpMontarLinhasDias(listaE, rows);
       });
     } else {
@@ -18843,11 +18869,13 @@ function renderContasReceber(){
   _setCR('kpi-cr-atras-val',String(_atrasados.length));
   _setCR('kpi-cr-receb-val','R$ '+fmt(_totReceb));
   if(CONTAS_RECEBER.length===0){
+    _erpPaginarDados('contas-receber',[],'tb-contas-receber',renderContasReceber);
     tbody.innerHTML='<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum lançamento ainda</td></tr>';
     return;
   }
   const sorted=[...CONTAS_RECEBER].sort((a,b)=>a.venc.localeCompare(b.venc));
-  tbody.innerHTML=sorted.map((c,i)=>{
+  const pagina=_erpPaginarDados('contas-receber',sorted,'tb-contas-receber',renderContasReceber,{searchable:true,placeholder:'Pesquisar conta, cliente, NF ou observação...',text:c=>[c.cli,c.nf,c.obs,c.venc,c.forma].join(' ')});
+  tbody.innerHTML=pagina.map((c)=>{
     const idx=CONTAS_RECEBER.indexOf(c);
     const atrasado=c.status==='Pendente'&&c.venc<hoje;
     const stCls=c.status==='Recebido'?'b-pago':atrasado?'b-pend':'b-zerado';
@@ -19834,11 +19862,13 @@ function renderVendas(){
   _sv2('kpi-v-atras-val','R$ '+fmt(_atrasFinal));
   
   if(VENDAS_DB.length===0){
+    _erpPaginarDados('vendas',[],'tb-vendas-list',renderVendas);
     tbody.innerHTML='<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhuma venda lançada ainda</td></tr>';
     return;
   }
-  tbody.innerHTML=[...VENDAS_DB].reverse().map((v,ri)=>{
-    const idx=VENDAS_DB.length-1-ri;
+  const pagina=_erpPaginarDados('vendas',[...VENDAS_DB].reverse(),'tb-vendas-list',renderVendas,{searchable:true,placeholder:'Pesquisar venda, cliente, NF ou material...',text:v=>[v.cliente,v.nf,v.data,...(v.itens||[]).map(i=>i.mat)].join(' ')});
+  tbody.innerHTML=pagina.map((v)=>{
+    const idx=VENDAS_DB.indexOf(v);
     const _pago=v.status==='Pago'||v.status==='Permuta';
     const stCls=v.status==='Permuta'?'b-pago':(_pago?'b-pago':v.status==='A prazo'?'b-zerado':'b-pend');
     

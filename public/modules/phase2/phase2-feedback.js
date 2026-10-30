@@ -137,16 +137,62 @@ const originalChqSave=global.chqSalvarModal;
 function chequeData(){let obj={};try{obj=CHQ_CTRL||{};}catch(e){}return Object.values(obj||{}).filter(Boolean);}
 function chequeNumber(c){const n=parseInt(String(c?.n||c?.num||c?.numero||'').replace(/\D/g,''),10);return Number.isFinite(n)?n:null;}
 function chequeBank(c){return String(c?.b||c?.banco||c?.bank||'').trim();}
+// Computa saltos entre numeros cadastrados; nunca percorre numeros nao cadastrados.
+// Um intervalo de ate 250 posicoes e uma lacuna; acima disso pode indicar outro talao.
+const CHEQUE_LARGE_JUMP=250;
+const CHEQUE_MAX_RANGES_SHOWN=3;
 function chequeSequenceByBank(){
-  const groups={};chequeData().forEach(c=>{const n=chequeNumber(c),b=chequeBank(c)||'Sem banco';if(n==null)return;(groups[b]||(groups[b]=[])).push(n);});
-  return Object.entries(groups).map(([bank,nums])=>{nums=[...new Set(nums)].sort((a,b)=>a-b);const missing=[];if(nums.length>1)for(let n=nums[0];n<nums[nums.length-1];n++)if(!nums.includes(n))missing.push(n);return {bank,nums,min:nums[0],max:nums[nums.length-1],missing};});
+  const groups=new Map();
+  chequeData().forEach(c=>{
+    const n=chequeNumber(c),bank=chequeBank(c)||'Sem banco';
+    if(!Number.isSafeInteger(n)||n<0)return;
+    if(!groups.has(bank))groups.set(bank,new Set());
+    groups.get(bank).add(n);
+  });
+  return Array.from(groups,([bank,set])=>{
+    const nums=Array.from(set).sort((a,b)=>a-b),ranges=[];
+    let missingCount=0,largeJumps=0;
+    for(let i=1;i<nums.length;i++){
+      const gap=nums[i]-nums[i-1]-1;
+      if(gap<=0)continue;
+      const range={start:nums[i-1]+1,end:nums[i]-1,count:gap,large:gap>CHEQUE_LARGE_JUMP};
+      ranges.push(range);
+      missingCount+=gap;
+      if(range.large)largeJumps++;
+    }
+    // `missing` e mantido apenas como amostra pequena para consumidores legados.
+    // Nunca construa uma lista proporcional ao intervalo numerico.
+    const missing=[];
+    for(const range of ranges){
+      if(range.large)continue;
+      for(let n=range.start;n<=range.end&&missing.length<12;n++)missing.push(n);
+      if(missing.length===12)break;
+    }
+    return {bank,nums,min:nums[0],max:nums[nums.length-1],ranges,missing,missingCount,largeJumps};
+  });
+}
+function chequeGapCompact(range){
+  const fmt=n=>Number(n).toLocaleString('pt-BR');
+  return range.start===range.end?fmt(range.start):`${fmt(range.start)}–${fmt(range.end)} (${fmt(range.count)})`;
+}
+function chequeGapSummary(group){
+  const small=group.ranges.filter(r=>!r.large),large=group.ranges.filter(r=>r.large),parts=[];
+  if(small.length){
+    parts.push(`⚠️ ${small.length} lacuna(s): ${small.slice(0,CHEQUE_MAX_RANGES_SHOWN).map(chequeGapCompact).join(', ')}${small.length>CHEQUE_MAX_RANGES_SHOWN?` e mais ${small.length-CHEQUE_MAX_RANGES_SHOWN}`:''}`);
+  }
+  if(large.length){
+    const jumps=large.slice(0,2).map(r=>`${Number(r.start-1).toLocaleString('pt-BR')} → ${Number(r.end+1).toLocaleString('pt-BR')}`).join(', ');
+    parts.push(`ℹ️ ${large.length} salto(s) de numeração (${jumps}${large.length>2?', …':''}); confira se é outra série/talão`);
+  }
+  return parts.length?parts.join(' · '):'✓ Sequência sem lacunas internas';
 }
 function renderChequeSequenceStatus(){
   const tab=$('#tab-cheques_compensar');if(!tab)return;
   let box=$('#phase2-cheque-sequence');if(!box){box=document.createElement('div');box.id='phase2-cheque-sequence';box.className='phase2-cheque-sequence';const anchor=tab.querySelector('.kpi-grid');anchor?.insertAdjacentElement('afterend',box);}
   const groups=chequeSequenceByBank();
   if(!groups.length){box.innerHTML='<b>Numeração dos cheques</b><span>Nenhum cheque cadastrado.</span>';return;}
-  box.innerHTML=groups.map(g=>`<div><b>${esc(g.bank)}</b><span>${g.min===g.max?g.min:`${g.min} → ${g.max}`}</span>${g.missing.length?`<strong>⚠️ Faltando: ${g.missing.join(', ')}</strong>`:'<em>✓ sequência sem lacunas</em>'}</div>`).join('');
+  const html=groups.map(g=>`<div><b>${esc(g.bank)}</b><span>${g.min===g.max?g.min:`${g.min} → ${g.max}`}</span><small class="phase2-cheque-gap-status">${esc(chequeGapSummary(g))}</small></div>`).join('');
+  if(box.innerHTML!==html)box.innerHTML=html;
 }
 function cleanChequeControl(){
   const tab=$('#tab-cheques_compensar');if(!tab)return;
@@ -213,8 +259,11 @@ function enhanceChequeModal(){
     let msg='',cls='';
     if(Number.isFinite(n)&&existing.includes(n)){msg='⛔ Este número já existe neste banco.';cls='bad';}
     else if(Number.isFinite(n)&&max!=null&&n>max+1){
-      const missed=[];for(let x=max+1;x<n;x++)missed.push(x);
-      msg='⚠️ Você está pulando: '+missed.join(', ');cls='warn';
+      const gap=n-max-1;
+      msg=gap>CHEQUE_LARGE_JUMP
+        ?`ℹ️ Salto de ${max.toLocaleString('pt-BR')} para ${n.toLocaleString('pt-BR')}. Você está pulando uma faixa muito grande: confira se é um novo talão/série.`
+        :`⚠️ Você está pulando: ${chequeGapCompact({start:max+1,end:n-1,count:gap})}`;
+      cls='warn';
     }else if(Number.isFinite(n)&&max!=null&&n===max+1){msg='✓ Próximo número da sequência.';cls='ok';}
     else if(max!=null){msg='Último número cadastrado neste banco: '+max;}
     hint.className='phase2-field-hint '+cls;hint.textContent=msg;
@@ -237,8 +286,11 @@ if(typeof originalChqSave==='function')global.chqSalvarModal=function(){
   }
   const max=existing.length?Math.max(...existing):null;
   if(!editingId&&Number.isFinite(n)&&max!=null&&n>max+1){
-    const missing=[];for(let x=max+1;x<n;x++)missing.push(x);
-    if(!confirm('Atenção: ficará uma lacuna na sequência. Números faltantes: '+missing.join(', ')+'.\n\nDeseja salvar mesmo assim?'))return;
+    const gap=n-max-1;
+    const description=gap>CHEQUE_LARGE_JUMP
+      ?`Salto de numeração entre ${max.toLocaleString('pt-BR')} e ${n.toLocaleString('pt-BR')}. Pode ser uma nova série ou talão; confirme antes de salvar.`
+      :`Números faltantes: ${chequeGapCompact({start:max+1,end:n-1,count:gap})}.`;
+    if(!confirm('Atenção: '+description+'\n\nDeseja salvar mesmo assim?'))return;
   }
   ['#chqm-d','#chqm-venc','#chqm-cd'].forEach(selector=>{
     const input=$(selector);if(!input)return;

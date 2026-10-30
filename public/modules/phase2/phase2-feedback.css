@@ -301,3 +301,8 @@ input[data-phase2-fiscal-only="1"]{border-color:#9bc9ab!important;background:#fb
 .phase2-fiscal-picker-option:hover,.phase2-fiscal-picker-option:focus-visible{background:#eaf5ed;outline:1px solid #bad9c5;}
 .phase2-fiscal-picker-option small{font-size:.72rem;color:#637669;}
 .phase2-fiscal-picker-note{margin:0;padding:12px;line-height:1.5;color:#52695c;font-size:.8rem;}
+
+/* Cheques: intervalos compactos e altura limitada mesmo para muitos bancos. */
+#tab-cheques_compensar .phase2-cheque-sequence{max-height:190px;overflow:auto;align-items:start}
+#tab-cheques_compensar .phase2-cheque-sequence>div{grid-template-columns:auto auto;max-width:100%;min-width:0}
+#tab-cheques_compensar .phase2-cheque-gap-status{grid-column:1/-1;display:block;font-size:.72rem;font-weight:600;color:#806022;line-height:1.4;overflow-wrap:anywhere}
