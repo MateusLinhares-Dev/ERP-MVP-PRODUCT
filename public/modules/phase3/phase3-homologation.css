@@ -133,3 +133,7 @@ thead .phase2-purchase-history-obs{position:sticky!important;top:0!important;rig
 #tab-precos_clientes .phase3-price-arrow{
   cursor:pointer;
 }
+
+/* Nao permitir que alertas de sequencia dominem a tela de cheques. */
+#phase3-cheque-gaps{max-height:108px;overflow-y:auto}
+#phase3-cheque-gaps>div{max-width:100%;overflow-wrap:anywhere;line-height:1.35}

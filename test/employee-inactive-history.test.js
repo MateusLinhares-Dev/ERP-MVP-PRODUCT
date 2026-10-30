@@ -58,6 +58,8 @@ function makeContext({filters={}, folha={}}={}) {
     confirm:()=>true,saveDB:()=>{throw Error('salvamento inesperado')},
     localStorage:{setItem:()=>{}}, fbSalvar:()=>{}, renderTbFuncionarios:()=>{},
     EPI_HELPER_STUB:null,
+    // Em teste unitário isolado, o paginador não é carregado pelo bootstrap.
+    _erpPaginarDados:(_key, rows)=>rows,
   });
   vm.runInContext(helpers,ctx);
   return {ctx,nodes,messages};
