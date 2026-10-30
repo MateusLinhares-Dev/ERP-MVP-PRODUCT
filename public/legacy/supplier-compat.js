@@ -65,6 +65,10 @@
     if(!sel) return;
     var atual=sel.value;
     var lista=_activeSuppliers();
+    // Mudanças de página não devem reconstruir milhares de <option> de preços.
+    var signature=lista.map(function(f){return String(f.cod||'')+'|'+String(f.nome||'');}).join('\u0001');
+    if(sel.__fornOptionsSignature===signature && sel.options && sel.options.length===lista.length+1) return;
+    sel.__fornOptionsSignature=signature;
     sel.innerHTML='<option value="">— Selecione —</option>'+lista.map(function(f){
       return '<option value="'+_safe(f.cod)+'">'+_safe(f.nome)+'</option>';
     }).join('');
@@ -143,7 +147,12 @@
     var tb=document.getElementById('tb-fornecedores'); if(!tb) return;
     var isElaine=(typeof cu!=='undefined' && cu && cu.admin===true);
     var lista=(typeof _getFornFiltrados==='function')?_getFornFiltrados():_activeSuppliers();
-    tb.innerHTML=lista.map(function(f){
+    // O compat de bancos/PIX substitui o renderizador legado. Paginar aqui é
+    // obrigatório: caso contrário, todos os fornecedores voltam ao DOM.
+    var visiveis=(window.ERPListPager && typeof window.ERPListPager.slice==='function')
+      ? window.ERPListPager.slice('fornecedores-compra',lista,'tb-fornecedores',window.renderTabelaFornecedores)
+      : lista;
+    tb.innerHTML=visiveis.map(function(f){
       var c=_safe(f.cod), contas=_accountList(f), pixLabel='💳 PIX'+(contas.length>1?' ('+contas.length+')':'');
       var r='<tr onclick="fornSelLinha(this)" style="cursor:pointer" title="Clique pra marcar esta linha">';
       r+='<td style="text-align:center">'+(isElaine?'<input type="checkbox" class="forn-chk" value="'+c+'" onchange="atualizarBtnExcluir()">':'')+'</td>';
@@ -159,6 +168,9 @@
       if(isElaine) r+=' <button class="btn-edit-danger" onclick="event.stopPropagation();excluirFornecedor(\''+c+'\')" title="Excluir">🗑️</button>';
       r+='</td></tr>'; return r;
     }).join('');
+    var marcarTodos=document.getElementById('chk-all-forn');
+    if(marcarTodos) marcarTodos.checked=false;
+    if(typeof atualizarBtnExcluir==='function') atualizarBtnExcluir();
     tb.querySelectorAll('.forn-ficha-btn[data-ficha-cod]').forEach(function(btn){
       btn.addEventListener('click',function(event){
         event.preventDefault();

@@ -306,3 +306,19 @@ input[data-phase2-fiscal-only="1"]{border-color:#9bc9ab!important;background:#fb
 #tab-cheques_compensar .phase2-cheque-sequence{max-height:190px;overflow:auto;align-items:start}
 #tab-cheques_compensar .phase2-cheque-sequence>div{grid-template-columns:auto auto;max-width:100%;min-width:0}
 #tab-cheques_compensar .phase2-cheque-gap-status{grid-column:1/-1;display:block;font-size:.72rem;font-weight:600;color:#806022;line-height:1.4;overflow-wrap:anywhere}
+
+/* Conferência de cheques sob demanda: sem listas de números gigantes no resumo. */
+#tab-cheques_compensar #phase2-cheque-sequence,#tab-cheques_compensar #phase3-cheque-gaps{display:none!important}
+#phase2-cheque-head .phase2-cheque-attention{margin-left:auto;background:#f0f6f1;color:#1a603a;border:1px solid #cbded0;border-radius:8px;padding:9px 13px;font-weight:700;font-size:.81rem;cursor:pointer;white-space:normal}
+#phase2-cheque-head .phase2-cheque-attention.has-attention{background:#fff5e6;color:#875209;border-color:#edcc8a}
+#phase2-cheque-head .phase2-cheque-attention:focus-visible,#phase2-cheque-review button:focus-visible{outline:2px solid #197b43;outline-offset:2px}
+#phase2-cheque-review[hidden]{display:none!important}
+#phase2-cheque-review{border:1px solid #e2d5aa;border-radius:12px;background:#fffefa;padding:14px 16px;margin:0 0 14px;color:#243d30}
+.phase2-cheque-review-heading{display:flex;gap:12px;justify-content:space-between;align-items:center}.phase2-cheque-review-heading>div{display:grid;gap:2px}.phase2-cheque-review-heading strong{font-size:.96rem}.phase2-cheque-review-heading small{color:#6b796e;font-size:.74rem}.phase2-cheque-review-heading button{border:1px solid #d3dfd6;background:#fff;border-radius:7px;padding:6px 10px;cursor:pointer}
+#phase2-cheque-review>p{font-size:.76rem;color:#66766b;margin:8px 0}
+.phase2-cheque-review-scroll{max-height:350px;overflow-y:auto;overscroll-behavior:contain;border:1px solid #e5eae6;border-radius:9px;background:#fff}
+.phase2-cheque-review-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 12px;border-bottom:1px solid #edf0ed;min-width:0}
+.phase2-cheque-review-row:last-child{border-bottom:0}.phase2-cheque-review-row>span{display:grid;gap:4px;min-width:0}.phase2-cheque-review-row b{font-size:.78rem}.phase2-cheque-review-row small{color:#65716a;font-size:.72rem;overflow-wrap:anywhere}
+.phase2-cheque-review-row button{flex-shrink:0;background:#174d34;border:0;border-radius:7px;color:#fff;font-size:.75rem;font-weight:700;padding:8px 11px;cursor:pointer}
+.phase2-cheque-review-caution{font-size:.72rem;font-weight:700;color:#976719;white-space:nowrap}
+@media(max-width:720px){.phase2-cheque-review-row{flex-direction:column;align-items:stretch}.phase2-cheque-review-row button{align-self:flex-start}#phase2-cheque-head{align-items:stretch}#phase2-cheque-head .phase2-cheque-attention{margin-left:0}}

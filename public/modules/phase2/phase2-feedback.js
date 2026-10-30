@@ -186,13 +186,67 @@ function chequeGapSummary(group){
   }
   return parts.length?parts.join(' · '):'✓ Sequência sem lacunas internas';
 }
-function renderChequeSequenceStatus(){
-  const tab=$('#tab-cheques_compensar');if(!tab)return;
-  let box=$('#phase2-cheque-sequence');if(!box){box=document.createElement('div');box.id='phase2-cheque-sequence';box.className='phase2-cheque-sequence';const anchor=tab.querySelector('.kpi-grid');anchor?.insertAdjacentElement('afterend',box);}
-  const groups=chequeSequenceByBank();
-  if(!groups.length){box.innerHTML='<b>Numeração dos cheques</b><span>Nenhum cheque cadastrado.</span>';return;}
-  const html=groups.map(g=>`<div><b>${esc(g.bank)}</b><span>${g.min===g.max?g.min:`${g.min} → ${g.max}`}</span><small class="phase2-cheque-gap-status">${esc(chequeGapSummary(g))}</small></div>`).join('');
-  if(box.innerHTML!==html)box.innerHTML=html;
+// Mantem a lista de inconsistencias compacta: nunca enumera saltos extensos.
+const CHEQUE_REVIEW_MAX_ROWS=48;
+const CHEQUE_REVIEW_EXPAND_SMALL=8;
+function chequeReviewRows(groups){
+  const rows=[];let total=0,jumps=0,limited=false;
+  for(const group of groups){
+    for(const range of group.ranges){
+      if(range.large){jumps++;total++;if(rows.length<CHEQUE_REVIEW_MAX_ROWS)rows.push({bank:group.bank,range,number:null,type:'jump'});else limited=true;continue;}
+      total++;
+      if(range.count<=CHEQUE_REVIEW_EXPAND_SMALL){
+        for(let n=range.start;n<=range.end;n++){if(rows.length<CHEQUE_REVIEW_MAX_ROWS)rows.push({bank:group.bank,range,number:n,type:'missing'});else {limited=true;break;}}
+      }else if(rows.length<CHEQUE_REVIEW_MAX_ROWS){rows.push({bank:group.bank,range,number:range.start,type:'range'});}else limited=true;
+    }
+  }
+  return {rows,total,jumps,limited};
+}
+function renderChequeAttention(){
+  const tab=$('#tab-cheques_compensar'),head=$('#phase2-cheque-head');
+  if(!tab||!head)return;
+  const groups=chequeSequenceByBank(),data=chequeReviewRows(groups);
+  let trigger=$('#phase2-cheque-attention');
+  if(!trigger){
+    trigger=document.createElement('button');trigger.type='button';trigger.id='phase2-cheque-attention';
+    trigger.className='phase2-cheque-attention';trigger.setAttribute('aria-expanded','false');
+    trigger.setAttribute('aria-controls','phase2-cheque-review');
+    head.appendChild(trigger);
+    trigger.addEventListener('click',()=>{
+      const panel=$('#phase2-cheque-review');if(!panel)return;
+      const open=panel.hidden;panel.hidden=!open;
+      trigger.setAttribute('aria-expanded',String(open));
+      if(open)panel.scrollIntoView?.({behavior:'smooth',block:'nearest'});
+    });
+  }
+  trigger.textContent=data.total?`⚠️ Atenções da numeração (${data.total})`:'✓ Numeração sem lacunas';
+  trigger.classList.toggle('has-attention',data.total>0);
+  let panel=$('#phase2-cheque-review');
+  if(!panel){
+    panel=document.createElement('section');panel.id='phase2-cheque-review';
+    panel.className='phase2-cheque-review';panel.hidden=true;
+    head.insertAdjacentElement('afterend',panel);
+    panel.addEventListener('click',event=>{
+      const btn=event.target.closest('button[data-chq-number]');if(!btn||!panel.contains(btn))return;
+      global.phase2ChequeCreateMissing(btn.dataset.chqBank,btn.dataset.chqNumber);
+    });
+  }
+  const fmt=n=>Number(n).toLocaleString('pt-BR');
+  const rows=data.rows.map(entry=>{
+    const {range,bank,number,type}=entry;
+    const status=type==='jump'
+      ?`Salto ${fmt(range.start-1)} → ${fmt(range.end+1)} · confirme se é outro talão/série`
+      :type==='range'
+        ?`Faltam ${fmt(range.count)} números: ${fmt(range.start)}–${fmt(range.end)}. Cadastre individualmente após conferência.`
+        :`Cheque nº ${fmt(number)} não identificado na sequência`;
+    const action=type==='jump'
+      ?'<span class="phase2-cheque-review-caution">Conferir talão</span>'
+      :`<button type="button" data-chq-number="${number}" data-chq-bank="${esc(bank)}">＋ Cadastrar nº ${fmt(number)}</button>`;
+    return `<div class="phase2-cheque-review-row"><span><b>${esc(bank)}</b><small>${esc(status)}</small></span>${action}</div>`;
+  }).join('');
+  const more=data.limited?`<p class="phase2-cheque-review-more">Existem outras ocorrências. Após tratar os primeiros números, atualize a consulta. Nenhuma sequência foi alterada automaticamente.</p>`:'';
+  const html=`<div class="phase2-cheque-review-heading"><div><strong>Conferência de numeração</strong><small>${data.total} intervalo(s) para analisar${data.jumps?` · ${data.jumps} possível(is) novo(s) talão(ões)`:''}</small></div><button type="button" class="phase2-cheque-review-close" aria-label="Fechar conferência">Fechar</button></div><p>As lacunas são indícios, não cheques perdidos confirmados. Confira o talão antes de cadastrar.</p><div class="phase2-cheque-review-scroll">${rows||'<p>Nenhuma lacuna detectada nos cheques cadastrados.</p>'}</div>${more}`;
+  if(panel.innerHTML!==html){panel.innerHTML=html;panel.querySelector('.phase2-cheque-review-close')?.addEventListener('click',()=>{panel.hidden=true;trigger.setAttribute('aria-expanded','false');});}
 }
 function cleanChequeControl(){
   const tab=$('#tab-cheques_compensar');if(!tab)return;
@@ -209,7 +263,7 @@ function cleanChequeControl(){
   }
   if(root&&!$('#phase2-cheque-head')){
     const head=document.createElement('div');head.id='phase2-cheque-head';head.className='phase2-cheque-head';
-    head.innerHTML='<div><b>Controle de cheques</b><small>Cadastre por banco. O sistema avisa duplicidades e números faltantes na sequência.</small></div><span>⚠ Lacunas ficam destacadas abaixo</span>';
+    head.innerHTML='<div><b>Controle de cheques</b><small>Confira números faltantes por banco sem carregar listas extensas.</small></div>';
     root.prepend(head);
   }
   const search=tab.querySelector('input[placeholder*="Nº ou cliente"],input[placeholder*="cliente"]');
@@ -217,8 +271,29 @@ function cleanChequeControl(){
     search.dataset.phase2Bound='1';search.removeAttribute('oninput');
     search.addEventListener('input',function(){try{_chqFbusca=norm(this.value);}catch(e){}phase2FilterChequeRows(this.value);});
   }
-  renderChequeSequenceStatus();
+  renderChequeAttention();
 }
+global.phase2ChequeCreateMissing=function(bank,value){
+  const number=Number(value),found=chequeSequenceByBank().find(x=>x.bank===bank);
+  if(!Number.isSafeInteger(number)||number<0||!found||found.nums.includes(number)||!found.ranges.some(r=>!r.large&&number>=r.start&&number<=r.end)){
+    notify('Esse número já está cadastrado ou não pertence a uma lacuna pequena. Atualize a conferência.','error');return;
+  }
+  if(typeof global.chqNovo!=='function' && typeof global._chqModal!=='function'){
+    notify('Não foi possível abrir o cadastro de cheque.','error');return;
+  }
+  if(typeof global.chqNovo==='function')global.chqNovo();else global._chqModal(null);
+  const bankField=$('#chqm-b'),numField=$('#chqm-n');
+  if(!bankField||!numField)return;
+  const option=Array.from(bankField.options).find(o=>o.value===bank);
+  if(!option){
+    global.chqFecharModal?.();
+    notify('O banco deste cheque não está disponível no formulário. Confira a configuração dos bancos.','error');return;
+  }
+  bankField.value=bank;numField.value=String(number);
+  bankField.dispatchEvent(new Event('change',{bubbles:true}));
+  numField.dispatchEvent(new Event('input',{bubbles:true}));
+  // Nenhum outro dado do cheque e preenchido automaticamente.
+};
 function phase2FilterChequeRows(q){q=norm(q);$$('#tab-cheques_compensar tbody tr').forEach(row=>row.hidden=!!q&&!norm(row.textContent).includes(q));}
 if(typeof originalRenderChequeControl==='function')global.renderChequesCompensar=function(){const result=originalRenderChequeControl.apply(this,arguments);setTimeout(cleanChequeControl,0);return result;};
 if(typeof originalChqSetBusca==='function')global.chqSetBusca=function(v){try{_chqFbusca=norm(v);}catch(e){}phase2FilterChequeRows(v);};
@@ -298,7 +373,7 @@ if(typeof originalChqSave==='function')global.chqSalvarModal=function(){
     input.type='text';input.value=br;
   });
   const r=originalChqSave.apply(this,arguments);
-  setTimeout(()=>{renderChequeSequenceStatus();cleanChequeControl();},80);
+  setTimeout(()=>{cleanChequeControl();},80);
   return r;
 };
 
@@ -720,7 +795,7 @@ function fiscalPartyList(type){return Object.values(fiscalParties||{}).filter(x=
 function replaceFiscalRegistry(){
   const old=$('#phase1-fiscal-parties');if(!old)return;if(old.dataset.phase2==='1'){loadFiscalParties();return;}old.dataset.phase2='1';old.open=true;old.innerHTML=`<summary>🧾 Cadastros Fiscais</summary><div class="phase2-fiscal-registry"><div class="phase2-fiscal-toolbar"><select id="p2fis-type" onchange="phase2FiscalFilter()"><option value="">Todos</option><option value="Fornecedor Fiscal">Fornecedor Fiscal</option><option value="Cliente Fiscal">Cliente Fiscal</option></select><input id="p2fis-search" placeholder="🔍 Buscar cadastro fiscal..." oninput="phase2FiscalFilter()"><button class="phase2-primary" onclick="phase2FiscalOpen()">＋ Novo cadastro</button></div><div id="p2fis-list"></div></div>`;loadFiscalParties();
 }
-function renderFiscalRegistry(){const host=$('#p2fis-list');if(!host)return;const q=norm($('#p2fis-search')?.value),type=$('#p2fis-type')?.value||'';const arr=Object.values(fiscalParties||{}).filter(x=>x&&(!type||x.type===type)&&(!q||norm([x.name,x.legalName,x.tradeName,x.cnpj,x.cpf,x.city,x.uf].join(' ')).includes(q))).sort((a,b)=>String(a.name||a.legalName||'').localeCompare(String(b.name||b.legalName||''),'pt-BR'));host.innerHTML=arr.length?arr.map(x=>`<div class="phase2-fiscal-party ${x.active===false?'inactive':''}"><div><span>${esc(x.type||'')}</span><b>${esc(x.legalName||x.name||'')}</b><small>${esc(x.cnpj||x.cpf||'Sem CPF/CNPJ')} ${x.city?'· '+esc(x.city+'/'+(x.uf||'')):''}</small></div><button onclick="phase2FiscalOpen('${x.id}')">Editar</button><button onclick="phase2FiscalToggle('${x.id}')">${x.active===false?'Ativar':'Inativar'}</button></div>`).join(''):'<div class="phase2-empty">Nenhum cadastro fiscal.</div>';}
+function renderFiscalRegistry(){const host=$('#p2fis-list');if(!host)return;const q=norm($('#p2fis-search')?.value),type=$('#p2fis-type')?.value||'';const arr=Object.values(fiscalParties||{}).filter(x=>x&&(!type||x.type===type)&&(!q||norm([x.name,x.legalName,x.tradeName,x.cnpj,x.cpf,x.city,x.uf].join(' ')).includes(q))).sort((a,b)=>String(a.name||a.legalName||'').localeCompare(String(b.name||b.legalName||''),'pt-BR'));const page=window.ERPListPager?.slice('fiscal-cadastros',arr,'p2fis-list',renderFiscalRegistry)||arr;host.innerHTML=arr.length?page.map(x=>`<div class="phase2-fiscal-party ${x.active===false?'inactive':''}"><div><span>${esc(x.type||'')}</span><b>${esc(x.legalName||x.name||'')}</b><small>${esc(x.cnpj||x.cpf||'Sem CPF/CNPJ')} ${x.city?'· '+esc(x.city+'/'+(x.uf||'')):''}</small></div><button onclick="phase2FiscalOpen('${x.id}')">Editar</button><button onclick="phase2FiscalToggle('${x.id}')">${x.active===false?'Ativar':'Inativar'}</button></div>`).join(''):'<div class="phase2-empty">Nenhum cadastro fiscal.</div>';}
 global.phase2FiscalFilter=renderFiscalRegistry;
 global.phase2FiscalOpen=function(id){const x=id?fiscalParties[id]:null,body=$('#modal-body');if(!body)return;body.className='modal wide';body.innerHTML=`<h3>${x?'✏️ Editar':'＋ Novo'} Cadastro Fiscal</h3><input type="hidden" id="p2fis-id" value="${esc(id||'')}"><div class="phase2-fiscal-form"><section><h4>Identificação</h4><div class="phase2-form-two"><label>Tipo<select id="p2fis-f-type"><option ${x?.type==='Fornecedor Fiscal'?'selected':''}>Fornecedor Fiscal</option><option ${x?.type==='Cliente Fiscal'?'selected':''}>Cliente Fiscal</option></select></label><label>Pessoa<select id="p2fis-person"><option value="PJ" ${x?.personType!=='PF'?'selected':''}>Pessoa Jurídica</option><option value="PF" ${x?.personType==='PF'?'selected':''}>Pessoa Física</option></select></label></div><label>Razão social / Nome<input id="p2fis-legal" value="${esc(x?.legalName||x?.name||'')}"></label><label>Nome fantasia<input id="p2fis-trade" value="${esc(x?.tradeName||'')}"></label><div class="phase2-form-two"><label>CNPJ<input id="p2fis-cnpj" value="${esc(x?.cnpj||'')}" placeholder="00.000.000/0000-00"></label><label>CPF<input id="p2fis-cpf" value="${esc(x?.cpf||'')}" placeholder="000.000.000-00"></label></div><div class="phase2-form-two"><label>Inscrição Estadual<input id="p2fis-ie" value="${esc(x?.ie||'')}"></label><label>Inscrição Municipal<input id="p2fis-im" value="${esc(x?.im||'')}"></label></div><div class="phase2-form-two"><label>Indicador IE<select id="p2fis-ie-ind"><option ${x?.ieIndicator==='Contribuinte ICMS'?'selected':''}>Contribuinte ICMS</option><option ${x?.ieIndicator==='Contribuinte isento'?'selected':''}>Contribuinte isento</option><option ${x?.ieIndicator==='Não contribuinte'?'selected':''}>Não contribuinte</option></select></label><label>SUFRAMA<input id="p2fis-suframa" value="${esc(x?.suframa||'')}"></label></div><label>Regime tributário<select id="p2fis-regime"><option></option>${['MEI','Simples Nacional','Lucro Presumido','Lucro Real','Isento / Não contribuinte'].map(r=>`<option ${x?.taxRegime===r?'selected':''}>${r}</option>`).join('')}</select></label></section><section><h4>Contato e endereço</h4><div class="phase2-form-two"><label>E-mail<input id="p2fis-email" value="${esc(x?.email||'')}"></label><label>Telefone<input id="p2fis-phone" value="${esc(x?.phone||'')}"></label></div><label>E-mail para NF-e / XML<input id="p2fis-nfe-email" value="${esc(x?.nfeEmail||x?.email||'')}"></label><div class="phase2-form-two"><label>CEP<input id="p2fis-cep" value="${esc(x?.cep||'')}"></label><label>UF<input id="p2fis-uf" maxlength="2" value="${esc(x?.uf||'')}"></label></div><div class="phase2-form-two"><label>País<input id="p2fis-country" value="${esc(x?.country||'Brasil')}"></label><label>Código IBGE Município<input id="p2fis-ibge" value="${esc(x?.ibge||'')}"></label></div><label>Logradouro<input id="p2fis-address" value="${esc(x?.address||'')}"></label><div class="phase2-form-two"><label>Número<input id="p2fis-number" value="${esc(x?.number||'')}"></label><label>Complemento<input id="p2fis-complement" value="${esc(x?.complement||'')}"></label></div><div class="phase2-form-two"><label>Bairro<input id="p2fis-district" value="${esc(x?.district||'')}"></label><label>Cidade<input id="p2fis-city" value="${esc(x?.city||'')}"></label></div><label>Observações<input id="p2fis-notes" value="${esc(x?.notes||'')}"></label></section></div><div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="phase2FiscalSave()">💾 Salvar</button></div>`;$('#modal-ov')?.classList.add('open');};
 global.phase2FiscalSave=async function(){if(!store)return;const id=$('#p2fis-id')?.value||store.id('FIS'),legal=String($('#p2fis-legal')?.value||'').trim();if(!legal){notify('Informe a razão social ou nome.','error');return;}const item={...(fiscalParties[id]||{}),id,type:$('#p2fis-f-type')?.value||'Fornecedor Fiscal',personType:$('#p2fis-person')?.value||'PJ',name:legal,legalName:legal,tradeName:$('#p2fis-trade')?.value||'',cnpj:$('#p2fis-cnpj')?.value||'',cpf:$('#p2fis-cpf')?.value||'',ie:$('#p2fis-ie')?.value||'',im:$('#p2fis-im')?.value||'',ieIndicator:$('#p2fis-ie-ind')?.value||'',suframa:$('#p2fis-suframa')?.value||'',taxRegime:$('#p2fis-regime')?.value||'',email:$('#p2fis-email')?.value||'',nfeEmail:$('#p2fis-nfe-email')?.value||'',phone:$('#p2fis-phone')?.value||'',cep:$('#p2fis-cep')?.value||'',uf:String($('#p2fis-uf')?.value||'').toUpperCase(),country:$('#p2fis-country')?.value||'Brasil',ibge:$('#p2fis-ibge')?.value||'',address:$('#p2fis-address')?.value||'',number:$('#p2fis-number')?.value||'',complement:$('#p2fis-complement')?.value||'',district:$('#p2fis-district')?.value||'',city:$('#p2fis-city')?.value||'',notes:$('#p2fis-notes')?.value||'',active:fiscalParties[id]?.active!==false,updatedAt:new Date().toISOString()};await store.save('fiscalParties',id,item);fiscalParties[id]=item;cm();renderFiscalRegistry();await loadFiscalParties();notify('Cadastro fiscal salvo.','success');};
