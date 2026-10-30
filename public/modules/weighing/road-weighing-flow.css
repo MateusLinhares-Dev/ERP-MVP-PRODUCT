@@ -1,0 +1,39 @@
+.road-weighing-flow-board{margin:10px 0 14px;background:#fff;border:1px solid #dfe7e2;border-radius:14px;padding:14px;box-shadow:0 3px 12px rgba(20,61,42,.08)}
+.road-weighing-stepper{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:14px}
+.road-weighing-step{display:flex;align-items:center;gap:6px;color:#9aa7a0;font-size:.68rem;min-width:0}
+.road-weighing-step span{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#edf2ef;color:#718078;font-weight:900;flex:0 0 auto}
+.road-weighing-step b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.road-weighing-step.done{color:#2e7d32}.road-weighing-step.done span{background:#2e7d32;color:#fff}
+.road-weighing-step.active{color:#173d2a}.road-weighing-step.active span{background:#173d2a;color:#fff;box-shadow:0 0 0 4px #dce9e2}
+.road-weighing-flow-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;color:#173d2a;font-size:.95rem;font-weight:900}
+.road-weighing-status-pill{padding:5px 10px;border-radius:999px;background:var(--status-bg);color:var(--status-color);border:1px solid var(--status-color);font-size:.7rem}
+.road-weighing-flow-grid{display:grid;grid-template-columns:1.4fr repeat(4,.8fr);gap:8px}
+.road-weighing-kpi{background:#f7faf8;border:1px solid #e3ebe6;border-radius:9px;padding:8px 10px;min-width:0}
+.road-weighing-kpi small{display:block;color:#708078;font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+.road-weighing-kpi b{display:block;color:#173d2a;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.road-weighing-summary-materials{font-size:.73rem;color:#52655b;margin-top:10px}
+.road-weighing-summary-next{font-size:.78rem;margin-top:6px;padding:8px 10px;background:#f7faf8;border-radius:8px}
+.road-weighing-muted{font-size:.68rem;color:#90a4ae;margin-top:6px}
+.road-weighing-welcome{display:flex;justify-content:space-between;gap:16px;align-items:center;background:#f5faf7;border:1px solid #dce9e2;border-radius:10px;padding:12px}
+.road-weighing-welcome div:first-child{display:flex;flex-direction:column;gap:4px;color:#173d2a}.road-weighing-welcome span{font-size:.78rem;color:#607068}
+.road-weighing-live-weight{min-width:140px;text-align:right}.road-weighing-live-weight small{display:block;color:#718078;font-size:.65rem;font-weight:800;text-transform:uppercase}.road-weighing-live-weight b{font-size:1.25rem;color:#173d2a}
+.road-weighing-primary-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.road-weighing-choice{display:grid;grid-template-columns:36px 1fr;grid-template-rows:auto auto;column-gap:9px;text-align:left;border:2px solid;border-radius:10px;padding:11px 12px;background:#fff;cursor:pointer}
+.road-weighing-choice>span{grid-row:1/3;font-size:1.5rem;align-self:center}.road-weighing-choice b{font-size:.82rem}.road-weighing-choice small{font-size:.68rem;color:#66766e;margin-top:2px}
+.road-weighing-choice.road{border-color:#1565c0;color:#0d47a1;background:#f5f9ff}.road-weighing-choice.balance{border-color:#6a1b9a;color:#4a148c;background:#fcf7ff}
+.road-weighing-next-action{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}.road-weighing-next-action small{font-size:.7rem;color:#607068}
+.road-weighing-main-button{border:0;border-radius:8px;background:#1565c0;color:#fff;padding:9px 14px;font-size:.75rem;font-weight:900;cursor:pointer}.road-weighing-main-button.purple{background:#6a1b9a}.road-weighing-main-button.green{background:#1b5e20}
+.road-weighing-final-box{display:grid;grid-template-columns:1fr 180px auto;gap:8px;align-items:center;margin-top:12px;background:#eef8f0;border:1px solid #81c784;border-radius:10px;padding:10px}.road-weighing-final-box>div{display:flex;flex-direction:column;gap:2px;color:#1b5e20}.road-weighing-final-box small{color:#607068;font-size:.68rem}.road-weighing-final-box input{padding:9px 10px;border:2px solid #2e7d32;border-radius:8px;font-weight:800;text-align:right}
+.road-weighing-ticket{border:2px solid var(--weighing-stage-color,#2e7d32);background:var(--weighing-stage-bg,#f7faf8);border-radius:10px;padding:10px 11px;margin-bottom:8px}
+.road-weighing-ticket-legacy{--weighing-stage-color:#78909c;--weighing-stage-bg:#f5f7f8}.road-weighing-ticket-header{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.78rem;color:#20372c}.road-weighing-stage{border-radius:999px;padding:3px 7px;background:var(--weighing-stage-color,#78909c);color:#fff;font-size:.62rem;font-weight:900;white-space:nowrap}.road-weighing-truck{margin-top:3px;color:#607068;font-size:.7rem;font-weight:700}.road-weighing-weights{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:.68rem;color:#54645c}.road-weighing-weights span{background:rgba(255,255,255,.75);border-radius:6px;padding:3px 6px}.road-weighing-materials{margin-top:6px;font-size:.68rem;color:#45564e}.road-weighing-next{margin-top:5px;font-size:.68rem;color:var(--weighing-stage-color,#546e7a)}.road-weighing-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.road-weighing-button{border:0;border-radius:7px;padding:7px 9px;color:#fff;font-size:.68rem;font-weight:900;cursor:pointer}.road-weighing-button-road{background:#1565c0}.road-weighing-button-balance{background:#6a1b9a}.road-weighing-button-success{background:#2e7d32}.road-weighing-empty{color:#9aa7a0;font-style:italic;font-size:.8rem;margin:4px 0}
+.road-weighing-balance-stage{display:none;border:1px solid #dce9e2;border-radius:11px;padding:10px;margin:0 0 10px;background:#fff}.road-weighing-balance-instruction{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:.75rem;color:#173d2a}.road-weighing-balance-instruction span{color:#607068}.road-weighing-ticket-stage-badge{margin-bottom:5px;border-radius:5px;padding:3px 6px;font-size:.65rem;font-weight:900;color:#fff}.road-weighing-disabled{opacity:.48;pointer-events:none}
+.road-weighing-material-panel-friendly{gap:10px!important}.road-weighing-material-helper{display:grid;gap:3px;background:#fff8e1;border:1px solid #ffcc80;border-radius:8px;padding:9px;color:#5d4037;font-size:.68rem;line-height:1.35}.road-weighing-material-helper b{font-size:.76rem;color:#e65100;margin-bottom:2px}.road-weighing-finish-purchase{background:#1b5e20!important;color:#fff!important;padding:12px!important;font-size:.82rem!important;box-shadow:0 2px 0 #0b3d10}
+@media(max-width:1100px){.road-weighing-flow-grid{grid-template-columns:1fr 1fr}.road-weighing-kpi-ticket{grid-column:1/-1}.road-weighing-final-box{grid-template-columns:1fr}.road-weighing-primary-actions{grid-template-columns:1fr}.road-weighing-step b{display:none}}
+
+#rod-modo-fila .road-weighing-ticket{width:100%;max-width:100%;box-sizing:border-box;overflow:hidden}
+#rod-modo-fila .road-weighing-ticket .road-weighing-ticket-header{align-items:flex-start}
+#rod-modo-fila .road-weighing-ticket .road-weighing-ticket-header>div{min-width:0;overflow-wrap:anywhere}
+#rod-modo-fila .road-weighing-ticket .road-weighing-materials,#rod-modo-fila .road-weighing-ticket .road-weighing-next{overflow-wrap:anywhere}
+#rod-modo-fila .road-weighing-ticket .road-weighing-primary-actions,#rod-modo-fila .road-weighing-ticket .road-weighing-final-box{display:none!important}
+#rod-modo-fila .road-weighing-actions{display:grid;grid-template-columns:1fr;gap:5px}
+#rod-modo-fila .road-weighing-button{width:100%;white-space:normal;line-height:1.2}

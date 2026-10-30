@@ -26,7 +26,11 @@
     "encode:service-account": "node scripts/service-account-to-base64.mjs",
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f erp"
+    "docker:logs": "docker compose logs -f erp",
+    "audit:access": "node scripts/access-inventory.mjs",
+    "provision:engineer": "node scripts/provision-engineer.mjs",
+    "generate:rules:candidate": "node scripts/generate-granular-database-rules.mjs",
+    "audit:security:strict": "ERP_SECURITY_STRICT=1 node scripts/release-security-check.mjs"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",

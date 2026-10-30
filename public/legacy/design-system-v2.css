@@ -1,0 +1,79 @@
+/* Componentes operacionais unificados: não altera dados, eventos nem permissões. */
+:root{--erp-line:#dce5df;--erp-ink:#243a2c;--erp-muted:#64756b;--erp-green:#1c4c34;--erp-soft:#f5f8f6;--erp-focus:#27784e}
+#app-screen .content{background:#f3f6f4}
+#app-screen .tab-panel.active{max-width:100%;min-width:0}
+#app-screen .tab-panel .sec-title{font-size:1.15rem;letter-spacing:-.025em;margin:0 0 18px;color:#20392b}
+#app-screen .tcard{border-radius:10px;border-color:var(--erp-line);box-shadow:0 1px 3px #15352309}
+#app-screen .tcard .tcard-hdr{padding:15px 18px;min-height:52px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#app-screen .tab-panel :is(input,select,textarea){max-width:100%;font-family:inherit}
+#app-screen .tab-panel :is(button,.btn){transition:background .15s,border-color .15s,color .15s}
+#app-screen :is(.tab-panel,.modal) :is(button,input,select,textarea):focus-visible{outline:2px solid var(--erp-focus);outline-offset:2px}
+#app-screen .tcard table :is(th,td){vertical-align:middle;line-height:1.5}
+#app-screen .tcard table tbody tr{border-bottom:1px solid #e7eee8}
+#app-screen .tcard table td[style*="text-align:right"],#app-screen .tcard table td.numeric{font-variant-numeric:tabular-nums}
+#app-screen .tab-panel .form-grid{column-gap:14px;row-gap:14px}
+#app-screen .tab-panel .fg{min-width:0}
+#app-screen .tab-panel :is(.form-card,.tcard) :is(button,.btn){margin-top:2px;margin-bottom:2px}
+#app-screen :is(#tab-folha_pagamento,#tab-vendas,#tab-funcionarios,#tab-estoque) .tcard{overflow-x:auto}
+#app-screen :is(#tab-folha_pagamento,#tab-vendas,#tab-funcionarios,#tab-estoque) .tcard table{min-width:900px}
+#app-screen .tab-panel .btn-edit-danger{white-space:nowrap}
+#app-screen .tab-panel :is(.kpi-grid,.kpi-row){column-gap:12px;row-gap:12px}
+#app-screen .tab-panel :is(.kpi,.kpi-card){min-width:0}
+#app-screen .tab-panel :is(.kpi-val,.kpi-num){font-variant-numeric:tabular-nums}
+#app-screen .sidebar .sb-group{margin:4px 9px 10px;border:1px solid #385a46;border-radius:8px;overflow:hidden;background:#1b3627}
+#app-screen .sidebar .sb-standalone{background:transparent;border:0;border-radius:0;margin:0 0 7px}
+#app-screen .sidebar .sb-group-hdr{background:#234431;border-bottom:1px solid #355a43;padding:11px 10px}
+#app-screen .sidebar .nav-tab{padding:9px 11px;font-size:.81rem}
+#app-screen .sidebar .nav-tab.active{border-left-color:#c6b04c;background:#33543d}
+#app-screen .sidebar .sb-items{padding:5px 0}
+#app-screen .sidebar.collapsed .sb-group{margin:3px;border-radius:5px}
+#app-screen .sidebar.collapsed .nav-tab .nt-label{display:none!important}
+.erp-module-trigger{display:flex;align-items:center;gap:9px;width:calc(100% - 18px);margin:7px 9px 11px;padding:10px 11px;border:1px solid #47624e;border-radius:8px;color:#dbe7dd;background:#244232;font-size:.79rem;font-weight:600;text-align:left;cursor:pointer;font-family:inherit}
+.erp-module-trigger span{flex:1}.erp-module-trigger kbd{font-size:.65rem;border:1px solid #6b8973;border-radius:4px;padding:2px 5px;font-family:inherit;color:#bbcfc0}
+.erp-module-trigger:hover{background:#2f533e}
+.sidebar.collapsed .erp-module-trigger{margin:6px 4px;width:calc(100% - 8px);padding:9px;justify-content:center}
+.sidebar.collapsed .erp-module-trigger :is(span,kbd){display:none}
+.erp-command-overlay[hidden]{display:none!important}
+.erp-command-overlay{position:fixed;inset:0;background:#101c14ab;backdrop-filter:blur(2px);z-index:999999;display:flex;align-items:flex-start;justify-content:center;padding:16vh 12px 20px}
+.erp-command-panel{width:min(560px,100%);background:#fff;color:#1d3224;border-radius:12px;box-shadow:0 22px 65px #0004;overflow:hidden}
+.erp-command-search{display:flex;gap:8px;align-items:center;padding:15px;border-bottom:1px solid var(--erp-line)}
+.erp-command-search input{flex:1;min-width:0;min-height:44px;border:1px solid #ccdad0;border-radius:7px;padding:10px 14px;font-size:1rem}
+.erp-command-search button{padding:10px 13px;background:#fff;border:1px solid #cddad0;border-radius:7px;cursor:pointer}
+.erp-command-results{max-height:min(410px,50vh);overflow-y:auto;padding:7px}
+.erp-command-option{display:block;width:100%;padding:12px 14px;background:#fff;color:#263b2c;border:0;border-radius:6px;text-align:left;font-size:.9rem;cursor:pointer}
+.erp-command-option:hover,.erp-command-option[aria-selected="true"]{background:#e8f3eb;color:#17452b}
+.erp-command-empty{padding:20px;color:#667569;text-align:center}
+.erp-command-help{border-top:1px solid var(--erp-line);font-size:.76rem;color:#637669;padding:12px 16px}
+/* Extrato bancário em largura útil, com tabela e filtros sem cortes. */
+#modal-body.erp-bank-statement{width:min(1080px,calc(100vw - 32px));max-height:min(90dvh,950px);overflow-y:auto;padding:20px 22px}
+.erp-statement-header{margin-bottom:16px}.erp-statement-header h3{font-size:1.18rem;color:#233f2c;margin:0 0 5px}.erp-statement-header p{color:#738176;margin:0}
+.erp-statement-totals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:18px}
+.erp-statement-totals>div{border:1px solid #dae5dc;border-radius:9px;padding:13px 14px;background:#fafcfb;min-width:0}
+.erp-statement-totals small{display:block;color:#607267;margin-bottom:6px;font-size:.74rem}.erp-statement-totals strong{display:block;color:#1e3e2b;font-size:1.08rem;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.erp-statement-entry{border:1px solid #dce6df;border-radius:9px;margin-bottom:16px;background:#fff}
+.erp-statement-entry summary{padding:13px 16px;cursor:pointer;font-weight:750;color:#244733}
+.erp-statement-entry-fields{border-top:1px solid #ecf0ed;padding:15px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) 155px 155px auto;align-items:end;gap:10px}
+.erp-statement-entry-fields label,.erp-statement-filters label{font-size:.75rem;font-weight:650;color:#566a5b;min-width:0}
+.erp-statement-entry-fields :is(input,select),.erp-statement-filters :is(input,select){display:block;width:100%;height:39px;border:1px solid #cfdbd1;background:#fff;border-radius:6px;padding:8px 10px;color:#284333;margin-top:5px;min-width:0}
+.erp-statement-entry-fields button{min-height:39px;margin:0;border-radius:6px;cursor:pointer}
+.erp-statement-filters{display:flex;flex-wrap:wrap;gap:10px;align-items:end;background:#f8faf8;border:1px solid #e1e8e1;border-radius:8px;padding:13px;margin-bottom:13px}
+.erp-statement-filters>input{flex:1 1 230px;max-width:380px}.erp-statement-filters>select{width:145px}.erp-statement-filters>label{width:155px}.erp-statement-filters #erp-bank-result-count{font-size:.75rem;color:#637869;margin-left:auto;padding:9px 0;white-space:nowrap}
+.erp-statement-table-wrap{overflow-x:auto;border:1px solid #dde5df;border-radius:8px}
+.erp-statement-table{width:100%;min-width:750px;border-collapse:collapse;text-align:left;font-size:.82rem}
+.erp-statement-table th{background:#f4f7f4;color:#586e60;padding:12px 13px;white-space:nowrap;border-bottom:1px solid #dce6de}
+.erp-statement-table td{padding:12px 13px;border-bottom:1px solid #e7ede8;vertical-align:middle}
+.erp-statement-table tr[hidden]{display:none!important}.erp-statement-table tbody tr:hover{background:#f8fbf9}
+.erp-statement-table .erp-ledger-description{min-width:210px;max-width:340px;overflow-wrap:anywhere}
+.erp-statement-table .erp-money{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.erp-statement-table .is-income{color:#256d45}.erp-statement-table .is-expense{color:#b34236}
+.erp-statement-table .erp-row-actions{white-space:nowrap}
+.erp-statement-table .erp-row-actions button{padding:6px 9px!important;margin:2px!important;font-size:.72rem!important}
+.erp-statement-table .erp-statement-empty{text-align:center;color:#758278;padding:24px}
+@media(max-width:1000px){.erp-statement-entry-fields{grid-template-columns:repeat(3,minmax(0,1fr))}.erp-statement-entry-fields .erp-statement-wide{grid-column:span 2}}
+@media(max-width:640px){.erp-statement-totals{grid-template-columns:repeat(2,minmax(0,1fr))}.erp-statement-entry-fields{grid-template-columns:1fr 1fr}.erp-statement-entry-fields .erp-statement-wide{grid-column:span 2}.erp-statement-filters>label{width:calc(50% - 6px)}.erp-statement-filters>input{max-width:100%;flex:1 1 100%}#modal-body.erp-bank-statement{padding:14px}}
+
+/* Saldos de legado fora da escala: não sobrepor valores ou controles. */
+.erp-bank-statement .erp-statement-totals strong{font-size:clamp(.78rem,1vw,1.06rem);line-height:1.4;overflow-wrap:anywhere;word-break:break-word}
+.erp-bank-statement .erp-ledger-precision-warning{padding:10px 13px;margin:0 0 14px;border:1px solid #e1c57a;border-radius:7px;background:#fff9e9;color:#725312;font-size:.78rem;line-height:1.45}
+.erp-bank-statement .erp-statement-table td.erp-money{max-width:260px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.45;text-align:right}
+#tab-contas_banco .kpi-val{overflow-wrap:anywhere;word-break:break-word}

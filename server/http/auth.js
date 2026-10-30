@@ -14,6 +14,7 @@ export async function requireIdentity(
   req,
   {
     admin = false,
+    engineer = false,
   } = {},
 ) {
   const header =
@@ -85,6 +86,18 @@ export async function requireIdentity(
     e.code = 'ADMIN_REQUIRED';
 
     throw e;
+  }
+
+  if (engineer) {
+    if (decoded.engineer !== true || decoded.admin !== true || decoded.erpUser !== 'engadministrator' || decoded.uid !== 'erp:engadministrator') {
+      const e = new Error('Área restrita ao perfil de engenharia.'); e.status = 403; e.code = 'ENGINEER_REQUIRED'; throw e;
+    }
+    // Token antigo não deve manter acesso após remoção/desativação do perfil.
+    const { FirebaseUserRepository } = await import('../infrastructure/user-repository.js');
+    const secure = await new FirebaseUserRepository().getSecureUser('engadministrator');
+    if (!secure || secure.active === false || secure.engineer !== true || secure.admin !== true) {
+      const e = new Error('Perfil de engenharia inativo.'); e.status = 403; e.code = 'ENGINEER_REVOKED'; throw e;
+    }
   }
 
   return decoded;

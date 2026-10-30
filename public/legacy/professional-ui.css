@@ -1,0 +1,456 @@
+/* Identidade visual consistente. Dados, funções e acesso continuam nos módulos existentes. */
+:root{
+  --ui-bg:#f5f7f6;
+  --ui-surface:#fff;
+  --ui-ink:#26382d;
+  --ui-muted:#687a6d;
+  --ui-line:#dce4de;
+  --ui-primary:#1b5036;
+  --ui-primary-hover:#123a28;
+  --ui-soft:#eff5f0;
+  --ui-radius:7px;
+  --ui-shadow:0 1px 3px rgba(17,48,31,.045);
+  --bg:var(--ui-bg);
+  --border:var(--ui-line);
+  --radius:var(--ui-radius);
+  --radius-lg:9px;
+  --radius-xl:12px;
+  --shadow:var(--ui-shadow);
+}
+
+/* Topo. Logo e identificação têm espaços independentes. */
+#app-screen .header{
+  height:66px;min-height:66px;padding:0 22px;
+  background:#183c2b;box-shadow:0 1px 4px rgba(0,0,0,.15);
+}
+#app-screen .hdr-brand{min-width:0}
+#app-screen .hdr-brand>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+#app-screen .hdr-logo{display:flex;align-items:center;gap:12px;letter-spacing:-.01em;font-size:1.05rem;font-weight:750;line-height:1.1;min-width:0}
+#app-screen .hdr-logo .brand-logo-img{
+  width:42px;height:42px;object-fit:contain;flex-shrink:0;
+  background:#fff;border:1px solid #e1e8e2;border-radius:7px;padding:4px;box-shadow:none;
+}
+#app-screen .hdr-logo .brand-logo-text{display:inline-flex;align-items:baseline;flex-wrap:nowrap;white-space:nowrap;color:#fff}
+#app-screen .hdr-logo .brand-logo-accent{color:#e0c55d}
+#app-screen .hdr-sub{padding-left:54px;font-size:.62rem;font-weight:550;color:#c6d2c8;line-height:1.15;opacity:1}
+#app-screen .hdr-user{flex-shrink:0}
+.login-logo{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;margin-bottom:10px;line-height:1.1}
+.login-logo .brand-logo-img{width:152px;height:164px;object-fit:contain}
+.login-logo .brand-logo-text{display:none;font-size:1.5rem;color:var(--primary)}
+.login-logo .brand-logo-accent{color:var(--accent)}
+
+/* Barra lateral: SVGs reais — nunca escondidos por CSS. */
+#app-screen .sidebar{background:#152b20;box-shadow:1px 0 2px rgba(0,0,0,.1)}
+#app-screen .sidebar .sb-group-hdr{display:flex;align-items:center;gap:10px;padding:10px 16px;color:#9aaea1;font-size:.69rem;letter-spacing:.06em}
+#app-screen .sidebar .sb-group-hdr .sb-gicon{
+  display:inline-flex!important;align-items:center;justify-content:center;
+  width:16px;height:16px;flex:0 0 16px;color:#a5c5ae;
+}
+#app-screen .sidebar .nav-tab{
+  display:flex;align-items:center;gap:11px;
+  padding:9px 16px;font-size:.81rem;font-weight:550;
+  color:#c5d1c8;border-left:3px solid transparent;
+  transition:background .15s,color .15s;
+}
+#app-screen .sidebar .sb-standalone .nav-tab{padding-left:16px}
+#app-screen .sidebar .nav-tab .nt-icon{
+  display:inline-flex!important;align-items:center;justify-content:center;
+  width:17px;height:17px;flex:0 0 17px;color:#a7c0af;
+}
+#app-screen .sidebar :is(.nt-icon,.sb-gicon) svg{
+  display:block;width:16px;height:16px;flex-shrink:0;
+  stroke:currentColor;stroke-width:1.85;fill:none;
+  stroke-linecap:round;stroke-linejoin:round;
+}
+#app-screen .sidebar .nav-tab .nt-label{display:inline!important;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#app-screen .sidebar .nav-tab:hover{background:#224132;color:#fff}
+#app-screen .sidebar .nav-tab.active{background:#2a4937;border-left-color:#d7bf63;color:#fff;font-weight:700}
+#app-screen .sidebar .nav-tab.active .nt-icon{color:#f4d66f}
+#app-screen .sidebar.collapsed .nav-tab .nt-label{display:none!important}
+#app-screen .sidebar.collapsed .nav-tab{padding-left:17px;padding-right:12px}
+#app-screen .sidebar.collapsed .sb-group-hdr{padding-left:17px}
+#app-screen .sidebar .sb-group-hdr:focus-visible,#app-screen .sidebar .nav-tab:focus-visible{outline:2px solid #f3d37b;outline-offset:-2px}
+
+/* Sistema de página, cards, filtros e tabelas. */
+#app-screen .content{background:var(--ui-bg);padding:22px 25px}
+#app-screen .sec-title{font-size:1.25rem;font-weight:750;letter-spacing:-.025em;color:#25382c;margin:0 0 20px}
+#app-screen .tcard{border:1px solid var(--ui-line);background:#fff;border-radius:8px;box-shadow:var(--ui-shadow)}
+#app-screen .tcard-hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:13px 17px;min-height:54px;border-bottom:1px solid #e7ede8;background:#fff}
+#app-screen .tcard-title{font-size:.93rem;font-weight:730;color:#273f30}
+#app-screen .kpi-grid{gap:12px;margin-bottom:18px}
+#app-screen .kpi{padding:15px 18px;background:#fff;border:1px solid var(--ui-line);border-radius:8px;box-shadow:var(--ui-shadow)}
+#app-screen .kpi::after{display:none}
+#app-screen .kpi:hover{transform:none;box-shadow:var(--ui-shadow)}
+#app-screen .kpi-lbl{font-size:.7rem;color:#607269;letter-spacing:.025em}
+#app-screen .kpi-val{font-size:1.35rem;letter-spacing:-.025em;font-weight:750;line-height:1.25}
+#app-screen .kpi-sub{font-size:.73rem;color:#758279}
+#app-screen .tcard table{width:100%;border-collapse:collapse}
+#app-screen .tcard :is(th,thead th){background:#f7f9f7;color:#4c5c52;line-height:1.2;border-bottom:1px solid #dbe4dc;font-size:.72rem;font-weight:700;letter-spacing:0;padding:11px 13px}
+#app-screen .tcard td{padding:11px 13px;border-bottom:1px solid #edf1ee;font-size:.8rem;vertical-align:middle}
+#app-screen .tcard tbody tr:hover{background:#f7faf7}
+#app-screen :is(.btn-add,.btn-save){background:#1d4933;color:#fff;border:1px solid #1d4933;border-radius:6px;box-shadow:none;font-weight:700;transform:none}
+#app-screen :is(.btn-add,.btn-save):hover{background:var(--ui-primary-hover);border-color:var(--ui-primary-hover);opacity:1;transform:none}
+#app-screen :is(.btn-edit,.btn-cancel){border-radius:6px;font-weight:650}
+#app-screen button:not(:disabled),#app-screen summary{cursor:pointer}
+#app-screen :is(input,select,textarea):focus-visible,#app-screen :is(button,summary):focus-visible{outline:2px solid #3a875e;outline-offset:2px}
+
+/* Formulários dos módulos administrativos. */
+#app-screen :is(#tab-cheques,#tab-cheques_compensar,#tab-despesas_grupo,#tab-contratos,#tab-documentos_empresas,#tab-lista_compras,#tab-coordenacao,#tab-fiscal,#tab-viagem_motorista,#tab-combustivel_rudnick,#tab-caminhoes) :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea){
+  font-family:inherit;font-size:.84rem;min-width:0;max-width:100%;
+  border:1px solid #cfdcd2;border-radius:6px;background-color:#fff;color:#24382b;
+}
+#app-screen :is(#tab-cheques,#tab-cheques_compensar,#tab-despesas_grupo,#tab-contratos,#tab-documentos_empresas,#tab-lista_compras,#tab-coordenacao,#tab-fiscal,#tab-viagem_motorista,#tab-combustivel_rudnick,#tab-caminhoes) :is(.fg label,label){font-size:.75rem;font-weight:650;color:#53665a}
+#app-screen :is(#tab-cheques,#tab-cheques_compensar,#tab-despesas_grupo,#tab-contratos,#tab-documentos_empresas,#tab-lista_compras,#tab-coordenacao,#tab-fiscal,#tab-viagem_motorista,#tab-combustivel_rudnick,#tab-caminhoes) :is(.tcard,.form-card,.cbx-card){min-width:0}
+#app-screen :is(#tab-cheques,#tab-cheques_compensar,#tab-contratos,#tab-documentos_empresas,#tab-lista_compras,#tab-caminhoes,#tab-viagem_motorista) .tcard{overflow-x:auto}
+#app-screen :is(#tab-cheques,#tab-cheques_compensar,#tab-contratos,#tab-lista_compras,#tab-caminhoes,#tab-viagem_motorista) .tcard table{min-width:780px}
+
+/* Cheques: navegação e ações separadas, filtros em barra própria. */
+#tab-cheques .erp-checks-toolbar{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;margin-bottom:18px;background:#fff;
+  padding:0 12px;border:1px solid var(--ui-line);border-radius:8px;
+}
+#tab-cheques .erp-checks-tabs{display:flex;flex-wrap:wrap;align-items:stretch;gap:3px;min-width:0}
+#tab-cheques .erp-checks-tab{
+  border:0;border-bottom:2px solid transparent;background:transparent;
+  padding:14px 13px;font-size:.83rem;color:#6b7d71;font-weight:600;
+  white-space:nowrap;font-family:inherit;
+}
+#tab-cheques .erp-checks-tab:hover{background:#f2f6f3;color:#244c35}
+#tab-cheques .erp-checks-actions{display:flex;gap:9px;align-items:center;padding:8px 0}
+#tab-cheques .erp-checks-actions>.btn-add{margin:0;padding:9px 14px;white-space:nowrap}
+#tab-cheques .erp-actions-dropdown{position:relative;z-index:20}
+#tab-cheques .erp-actions-dropdown summary{
+  display:inline-flex;align-items:center;min-height:35px;padding:7px 12px;
+  border:1px solid #cfdad1;border-radius:6px;background:#fff;color:#395541;
+  font-size:.82rem;font-weight:700;list-style:none;user-select:none;
+}
+#tab-cheques .erp-actions-dropdown summary::-webkit-details-marker{display:none}
+#tab-cheques .erp-actions-dropdown summary::after{content:'⌄';margin-left:8px;font-size:1rem}
+#tab-cheques .erp-actions-dropdown[open] summary{background:#eaf3ed}
+#tab-cheques .erp-actions-dropdown-list{
+  position:absolute;right:0;top:calc(100% + 5px);width:205px;
+  padding:5px;background:#fff;border:1px solid #dae3dc;border-radius:8px;
+  box-shadow:0 10px 28px rgba(12,32,20,.16);display:flex;flex-direction:column;
+}
+#tab-cheques .erp-actions-dropdown-list button{
+  text-align:left;padding:10px 12px;border:0;background:#fff;
+  color:#314c38;border-radius:5px;font-size:.82rem;font-family:inherit;
+}
+#tab-cheques .erp-actions-dropdown-list button:hover{background:#eef5ef}
+#tab-cheques .erp-checks-filters{
+  display:flex;gap:12px;flex-wrap:wrap;align-items:center;
+  padding:13px 16px;border:1px solid var(--ui-line);border-radius:8px;background:#fff;margin-bottom:14px;
+}
+#tab-cheques .erp-checks-filters #cheq-busca-num{max-width:none!important;min-width:210px;flex:1;border:1px solid #cfdad1!important;padding:9px 11px!important}
+#tab-cheques .erp-checks-filters :is(#cheq-busca-de,#cheq-busca-ate){border:1px solid #cfdad1!important;padding:8px!important}
+#tab-cheques .erp-checks-filters button{border:1px solid #d9e1da!important;background:#f8faf8!important;color:#395543!important;padding:8px 12px!important}
+#tab-cheques .kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+#tab-cheques .tcard{margin-top:10px}
+#tab-cheques :is(#cheqtab-lista,#cheqtab-desconto,#cheqtab-historico){min-width:0}
+#tab-cheques #cheqtab-desconto>div:first-child{background:#f9faf9!important;border:1px solid #e0e6df!important;color:#506254!important;border-radius:8px!important}
+
+/* Cheques Controle, contratos e documentos: mesma linguagem de tabela. */
+#tab-cheques_compensar :is(.tcard,.kpi),#tab-contratos :is(.tcard,.kpi){border-radius:8px}
+#tab-contratos .kpi-grid{grid-template-columns:repeat(2,minmax(0,280px))}
+#tab-documentos_empresas .erp-docs-filters{
+  display:grid;grid-template-columns:minmax(150px,190px) minmax(230px,1fr) minmax(160px,190px) auto;
+  align-items:end;gap:12px;background:#fff;padding:15px 17px;
+  border:1px solid var(--ui-line);border-radius:8px;margin-bottom:16px;
+}
+#tab-documentos_empresas .erp-docs-filters :is(input,select){width:100%!important;min-height:37px;border:1px solid #cfdad1!important}
+#tab-documentos_empresas .erp-docs-filters .btn-add{min-height:37px}
+#tab-documentos_empresas #de-lista{padding:14px!important}
+#tab-lista_compras .tcard:first-of-type{padding:16px!important}
+#tab-lista_compras .tcard-hdr>div{gap:8px}
+#tab-lista_compras #lc-nome{min-width:190px}
+#tab-lista_compras #lc-filtro{min-width:150px}
+#tab-lista_compras #lc-tbody td{padding:10px 12px}
+
+/* Despesas: filtros > navegação > indicadores > formulário > extratos. */
+#tab-despesas_grupo .erp-expenses-filters{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  border:1px solid var(--ui-line);border-radius:8px;background:#fff;
+  padding:13px 16px;margin-bottom:14px;
+}
+#tab-despesas_grupo .erp-expenses-filters :is(input,select){min-height:37px;padding:7px 10px!important;border:1px solid #cfdad1!important}
+#tab-despesas_grupo>.tabs{display:flex;flex-wrap:wrap;gap:0;padding:0 14px;border:1px solid var(--ui-line);border-radius:8px;background:#fff;margin-bottom:17px}
+#tab-despesas_grupo .desp-tab-btn{border:0!important;border-radius:0!important;border-bottom:2px solid transparent!important;padding:13px 17px!important;background:transparent!important;color:#65776a!important;font-weight:650!important}
+#tab-despesas_grupo .desp-tab-btn.desp-active{background:#f5f9f5!important;color:#1d4933!important;border-bottom-color:#1d4933!important}
+#tab-despesas_grupo .kpi-row{gap:12px;margin-bottom:15px}
+#tab-despesas_grupo .form-card{background:#fff;border:1px solid var(--ui-line);border-radius:9px;padding:19px 21px;box-shadow:var(--ui-shadow)}
+#tab-despesas_grupo .form-card h3{font-size:1rem;color:#273c30;font-weight:750;margin-bottom:16px}
+#tab-despesas_grupo .form-grid{gap:13px}
+#tab-despesas_grupo .fg{min-width:0}
+#tab-despesas_grupo .form-footer{border-top:1px solid #edf1ed;padding-top:15px;margin-top:17px}
+
+/* Fiscal: seletor de empresa e submódulos com hierarquia explícita. */
+#tab-fiscal [data-fiscal-company]{background:#fff!important;color:#4b6153!important;border:1px solid #cfdcd2!important;border-radius:6px!important;box-shadow:none}
+#tab-fiscal [data-fiscal-company][style*="background:#1565c0"]{background:#1d4933!important;color:#fff!important}
+#tab-fiscal :is(.btn-fiscal-tab){background:#fff!important;color:#51695a!important;border:1px solid #d9e2da!important;border-radius:6px!important;padding:8px 12px!important;font-size:.8rem!important}
+#tab-fiscal .btn-fiscal-tab.active-fiscal-tab{background:#1d4933!important;border-color:#1d4933!important;color:#fff!important}
+#tab-fiscal :is(#fiscal-panel-mensal,#fiscal-panel-anual,#fiscal-panel-impostos,#fiscal-panel-apuracao){min-width:0}
+#tab-fiscal [style*="background:#f0f4ff"]{background:#fff!important;border:1px solid var(--ui-line)!important;border-radius:8px!important}
+#tab-fiscal [style*="background:#e8f5e9"]{background:#f5f8f5!important;border:1px solid #dae6dc!important}
+#tab-fiscal [style*="background:#fff3e0"]{background:#faf8f3!important;border:1px solid #eee5d7!important}
+#tab-fiscal [style*="font-size:1.1rem"][style*="font-weight:800"]{color:#224833}
+
+/* Frota, viagem e tanque: formulário legível, custos em segundo plano. */
+#tab-viagem_motorista .tcard,#tab-caminhoes .tcard{margin-bottom:16px!important}
+#tab-viagem_motorista .fg{min-width:0}
+#tab-viagem_motorista [style*="grid-template-columns:repeat(4,1fr)"],
+#tab-viagem_motorista [style*="grid-template-columns:repeat(5,1fr)"]{
+  grid-template-columns:repeat(auto-fit,minmax(170px,1fr))!important;gap:14px!important;
+}
+#tab-viagem_motorista [style*="border-top:2px dashed"]{border-top:1px solid #e4ebe5!important;padding-top:15px!important}
+#tab-viagem_motorista [style*="background:#fff3cd"],
+#tab-viagem_motorista [style*="background:#f0e8ff"],
+#tab-viagem_motorista [style*="background:#e8f5e9"]{
+  background:#f4f8f5!important;border:1px solid #e0e8e1!important;color:#34513b!important;border-radius:6px!important;
+}
+#tab-viagem_motorista [style*="border:1px solid #c8a400"]{border-color:#cfdcd2!important}
+#tab-combustivel_rudnick .cbx-h{font-weight:750;font-size:1.24rem;color:#263e2f}
+#app-screen #tab-combustivel_rudnick .cbx-kpis{gap:12px}
+#app-screen #tab-combustivel_rudnick .cbx-kpi{border:1px solid var(--ui-line);border-radius:8px;box-shadow:var(--ui-shadow)}
+#tab-combustivel_rudnick .cbx-kpi .v{font-size:1.33rem;color:#254c36}
+#app-screen #tab-combustivel_rudnick .cbx-card{background:#fff;border:1px solid var(--ui-line);padding:19px;border-radius:8px;box-shadow:var(--ui-shadow)}
+#tab-combustivel_rudnick .cbx-tab.on{color:#1d4933!important;border-bottom-color:#1d4933!important}
+#tab-combustivel_rudnick .cbx-btn-p{background:#1d4933;color:#fff}
+#tab-combustivel_rudnick .cbx-chip{background:#eef4ef;color:#315a3d}
+#tab-caminhoes .tcard{margin-top:12px}
+
+/* Coordenação: segmentação de abas e quadros menos saturados. */
+#tab-coordenacao [id^="coord-stab-btn-"]{background:#fff!important;color:#53665a!important;border-radius:0!important;border-bottom:2px solid transparent!important;font-size:.84rem!important;padding:12px 15px!important}
+#tab-coordenacao [id^="coord-stab-btn-"].is-active{color:#1d4933!important;background:#f3f7f3!important;border-bottom-color:#1d4933!important;font-weight:700!important}
+#tab-coordenacao [style*="background:#e8f5e9"],#tab-coordenacao [style*="background:#fff8e1"],
+#tab-coordenacao [style*="background:#f9f9f9"]{background:#fff!important;border-color:#dce5dd!important}
+#tab-coordenacao [style*="border:2px solid #ddd"]{border:1px solid #dce5dd!important}
+#tab-coordenacao [style*="font-size:2.2rem"]{font-size:1.6rem!important}
+#tab-coordenacao [style*="grid-template-columns:1fr 1.4fr"]{gap:16px!important}
+
+@media(max-width:1100px){
+  #tab-cheques .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #tab-documentos_empresas .erp-docs-filters{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #tab-combustivel_rudnick .cbx-kpis,#tab-combustivel_rudnick .cbx-g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #tab-coordenacao [style*="grid-template-columns:1fr 1fr 1fr 1fr"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  #tab-coordenacao [style*="grid-template-columns:1fr 1.4fr"]{grid-template-columns:1fr!important}
+}
+@media(max-width:800px){
+  #app-screen .header{padding:0 12px;gap:8px}
+  #app-screen .hdr-logo .brand-logo-img{width:36px;height:36px}
+  #app-screen .hdr-logo{gap:8px;font-size:.9rem}
+  #app-screen .hdr-sub{padding-left:44px;font-size:.57rem}
+  #tab-cheques .erp-checks-toolbar{align-items:stretch;padding:0 10px}
+  #tab-cheques .erp-checks-actions{margin-left:auto}
+}
+@media(max-width:640px){
+  #app-screen .content{padding:12px}
+  #app-screen .hdr-sub{display:none}
+  #app-screen .hdr-logo .brand-logo-text{display:none}
+  #tab-cheques .erp-checks-tabs{width:100%;overflow-x:auto;flex-wrap:nowrap}
+  #tab-cheques .erp-checks-actions{width:100%;justify-content:flex-end}
+  #tab-cheques .erp-checks-filters>*{min-width:0!important}
+  #tab-cheques .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #tab-documentos_empresas .erp-docs-filters{grid-template-columns:1fr}
+  #tab-combustivel_rudnick .cbx-kpis,#tab-combustivel_rudnick .cbx-g4,#tab-combustivel_rudnick .cbx-g2{grid-template-columns:1fr}
+  #tab-viagem_motorista [style*="grid-template-columns:repeat(4,1fr)"],
+  #tab-viagem_motorista [style*="grid-template-columns:repeat(5,1fr)"]{grid-template-columns:1fr!important}
+  #tab-coordenacao [style*="grid-template-columns:1fr 1fr 1fr 1fr"]{grid-template-columns:1fr!important}
+}
+@media print{
+  #app-screen .tcard{border:1px solid #ddd;box-shadow:none}
+  #app-screen .content{background:#fff!important}
+  #tab-cheques .erp-checks-toolbar,#tab-cheques .erp-checks-filters{display:none!important}
+}
+
+/* Grupos do menu: cabeçalho e opções devem ser percebidos como níveis diferentes. */
+#app-screen .sidebar .sb-group:not(.sb-standalone){
+  margin:11px 8px 0;
+  border:1px solid #355442;
+  border-radius:8px;
+  background:#193627;
+  overflow:hidden;
+}
+#app-screen .sidebar .sb-group:not(.sb-standalone) .sb-group-hdr{
+  min-height:40px;
+  padding:11px 10px;
+  gap:9px;
+  background:#244331;
+  border-bottom:1px solid transparent;
+  color:#d6e5d8;
+  font-size:.7rem;
+  font-weight:800;
+  letter-spacing:.065em;
+}
+#app-screen .sidebar .sb-group.open:not(.sb-standalone) .sb-group-hdr{
+  border-bottom-color:#355442;
+}
+#app-screen .sidebar .sb-group:not(.sb-standalone) .sb-items{
+  padding:5px 3px 7px;
+  background:#193627;
+}
+#app-screen .sidebar .sb-group:not(.sb-standalone) .nav-tab{
+  margin:2px 2px;
+  padding:9px 8px 9px 11px;
+  min-height:35px;
+  border-radius:5px;
+  border-left:2px solid transparent;
+  line-height:1.28;
+  gap:10px;
+}
+#app-screen .sidebar .sb-group:not(.sb-standalone) .nav-tab:hover{
+  background:#294938;
+}
+#app-screen .sidebar .sb-group:not(.sb-standalone) .nav-tab.active{
+  border-left-color:#e2cc7f;
+  background:#31523e;
+}
+#app-screen .sidebar .sb-standalone{
+  margin:6px 8px 10px;
+  padding-bottom:9px;
+  border-bottom:1px solid #355442;
+}
+#app-screen .sidebar .sb-standalone .nav-tab{
+  margin:2px 0;
+  border-radius:5px;
+  padding:10px 12px;
+}
+#app-screen .sidebar.collapsed .sb-group:not(.sb-standalone){margin:6px 2px}
+#app-screen .sidebar.collapsed .sb-group:not(.sb-standalone) .sb-group-hdr{padding:10px 13px}
+#app-screen .sidebar.collapsed .sb-group:not(.sb-standalone) .sb-items{display:none!important}
+#app-screen .sidebar.collapsed .sb-standalone{margin:4px 2px;padding:0}
+
+/* Subnavegação funcional: preserva inputs, eventos e IDs das telas originais. */
+#app-screen .erp-workspace-nav{
+  display:flex;
+  align-items:center;
+  background:#fff;
+  border:1px solid #dce5de;
+  border-radius:8px;
+  margin:0 0 18px;
+  padding:0 12px;
+  min-height:48px;
+}
+#app-screen .erp-workspace-buttons{display:flex;flex-wrap:wrap;gap:3px;align-items:stretch}
+#app-screen .erp-workspace-tab{
+  appearance:none;
+  font:650 .85rem 'Inter',system-ui,sans-serif;
+  color:#627369;
+  background:transparent;
+  padding:14px 18px;
+  border:0;
+  border-bottom:2px solid transparent;
+  margin-bottom:-1px;
+  transition:background .15s,color .15s;
+}
+#app-screen .erp-workspace-tab:hover{background:#f2f6f2;color:#254d35}
+#app-screen .erp-workspace-tab.is-active{
+  color:#1c5036;
+  border-bottom-color:#1c5036;
+  background:#f5f9f5;
+  font-weight:750;
+}
+#app-screen .erp-workspace-tab:focus-visible{outline:2px solid #27754e;outline-offset:-4px}
+#app-screen .erp-workspace-panel[hidden]{display:none!important}
+#app-screen .erp-workspace-panel>.tcard{margin:0 0 16px!important}
+#app-screen .erp-workspace-panel>.tcard:last-child{margin-bottom:0!important}
+
+/* Controle de ponto: totais objetivos, tabela de lançamentos e importação em páginas distintas. */
+#tab-ponto .kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}
+#tab-ponto .kpi{padding:12px 15px;border-radius:7px;min-height:85px}
+#tab-ponto .kpi-val{font-size:1.25rem;line-height:1.3}
+#tab-ponto .kpi-sub{font-size:.72rem}
+#tab-ponto .erp-workspace-panel .tcard-hdr{min-height:58px}
+#tab-ponto .erp-workspace-panel .tcard{
+  min-width:0;
+  overflow:hidden;
+}
+#tab-ponto .erp-point-table-scroll{width:100%;overflow-x:auto}
+#tab-ponto .erp-point-table-scroll table{width:100%;min-width:890px;table-layout:auto}
+#tab-ponto .erp-point-table-scroll :is(th,td){padding:11px 14px;white-space:nowrap}
+#tab-ponto .erp-workspace-panel .btn-import-pdf{background:#1d4933!important;border:1px solid #1d4933!important}
+#tab-ponto #ponto-cartao-host{max-width:100%;overflow:auto}
+#tab-ponto #ponto-cartao-host:empty{min-height:48px}
+
+/* Viagem motorista: o registro deixa de competir com histórico e relatório anual. */
+#tab-viagem_motorista .erp-workspace-panel{min-width:0}
+#tab-viagem_motorista .erp-workspace-panel>.kpi-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px;
+}
+#tab-viagem_motorista .erp-workspace-panel>.kpi-grid .kpi{padding:12px 15px;min-height:90px}
+#tab-viagem_motorista .phase2-trip-card{overflow:visible!important}
+#tab-viagem_motorista .phase2-trip-card>.tcard-hdr{min-height:58px}
+#tab-viagem_motorista .phase2-trip-card>.phase2-step{
+  margin:19px 0 11px;
+  padding-bottom:8px;
+  border-bottom:1px solid #e4ebe6;
+  font-size:.85rem;
+  font-weight:750;
+  color:#2a4635;
+}
+#tab-viagem_motorista .phase2-trip-card>.phase2-step>b{display:none}
+#tab-viagem_motorista .phase2-trip-card>.phase2-step>span{font-weight:750}
+#tab-viagem_motorista .phase2-trip-card>div[style*="grid-template-columns:repeat(4,1fr)"],
+#tab-viagem_motorista .phase2-trip-card>div[style*="grid-template-columns:repeat(5,1fr)"]{
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr))!important;
+  gap:14px!important;
+  margin-bottom:15px!important;
+}
+#tab-viagem_motorista .phase2-trip-meals,
+#tab-viagem_motorista .erp-trip-expenses{border:1px solid #dce5de;border-radius:7px;background:#fff;margin:12px 0}
+#tab-viagem_motorista .phase2-trip-meals>summary,
+#tab-viagem_motorista .erp-trip-expenses>summary{
+  display:flex;align-items:center;gap:10px;
+  padding:13px 16px;
+  font-size:.84rem;font-weight:750;color:#324e3b;
+  list-style:none;cursor:pointer;
+}
+#tab-viagem_motorista .phase2-trip-meals>summary::-webkit-details-marker,
+#tab-viagem_motorista .erp-trip-expenses>summary::-webkit-details-marker{display:none}
+#tab-viagem_motorista .phase2-trip-meals>summary>b{display:none}
+#tab-viagem_motorista .phase2-trip-meals>summary>span{font-weight:750}
+#tab-viagem_motorista .phase2-trip-meals>summary>small{display:none}
+#tab-viagem_motorista .phase2-trip-meals>summary::after,
+#tab-viagem_motorista .erp-trip-expenses>summary::after{
+  content:'⌄';margin-left:auto;color:#587260;font-size:1.1rem;line-height:1;
+}
+#tab-viagem_motorista .phase2-trip-meals[open]>summary,
+#tab-viagem_motorista .erp-trip-expenses[open]>summary{background:#f7faf8;border-bottom:1px solid #e5ebe6}
+#tab-viagem_motorista .phase2-trip-meals[open]>summary::after,
+#tab-viagem_motorista .erp-trip-expenses[open]>summary::after{transform:rotate(180deg)}
+#tab-viagem_motorista .erp-trip-expenses-fields{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px 16px;padding:16px;
+}
+#tab-viagem_motorista .erp-trip-expenses-fields>div{min-width:0;max-width:100%}
+#tab-viagem_motorista .erp-trip-expenses-fields :is(label,input){display:block!important;margin:0!important}
+#tab-viagem_motorista .erp-trip-expenses-fields label{margin-bottom:7px!important}
+#tab-viagem_motorista .erp-trip-expenses-fields input{width:100%!important;max-width:100%!important;height:37px}
+#tab-viagem_motorista .erp-trip-expenses-fields .phase1-trip-extra{padding:0;border:0;background:transparent;display:flex;flex-direction:column;gap:6px}
+#tab-viagem_motorista .erp-trip-expenses-fields .phase1-trip-extra small{font-size:.7rem;color:#76857b}
+#tab-viagem_motorista .erp-trip-expenses-fields #vg-troco-show{align-self:end;min-height:37px}
+#tab-viagem_motorista .phase2-trip-summary{
+  grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px;margin:14px 0;
+}
+#tab-viagem_motorista .phase2-trip-summary>div{padding:12px;border-radius:6px}
+#tab-viagem_motorista .phase2-trip-summary small{font-size:.67rem}
+#tab-viagem_motorista .phase2-trip-summary b{font-size:.9rem}
+#tab-viagem_motorista .phase2-trip-history-list{padding:14px;gap:10px}
+#tab-viagem_motorista .phase2-trip-history-item{padding:13px 14px;border-radius:7px}
+#tab-viagem_motorista .phase2-trip-secondary{opacity:1}
+#tab-viagem_motorista #vg-limite-alim{background:#fff}
+#tab-viagem_motorista .erp-workspace-panel[data-empty]{min-height:0}
+
+@media(max-width:1050px){
+  #tab-ponto .kpi-grid,#tab-viagem_motorista .erp-workspace-panel>.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:650px){
+  #app-screen .erp-workspace-nav{padding:0 6px}
+  #app-screen .erp-workspace-tab{padding:12px 10px;font-size:.75rem}
+  #tab-ponto .kpi-grid,#tab-viagem_motorista .erp-workspace-panel>.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #tab-viagem_motorista .erp-trip-expenses-fields{grid-template-columns:1fr}
+  #tab-ponto .tcard-hdr{align-items:flex-start}
+}
+@media print{
+  #app-screen .erp-workspace-nav{display:none!important}
+  #app-screen .erp-workspace-panel[hidden]{display:block!important}
+}

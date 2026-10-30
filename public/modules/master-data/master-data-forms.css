@@ -1,0 +1,40 @@
+.phase4-master-modal{width:min(1480px,96vw)!important;max-width:1480px!important;max-height:94vh!important;padding:0!important;overflow:auto!important;background:#f5f8f6!important;border-radius:13px!important}
+.phase4-master-modal *{box-sizing:border-box}
+.phase4-master-modal button{cursor:pointer}
+.phase4-master-head{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:18px;padding:18px 22px;background:#fff;border-bottom:1px solid #dde6e0;box-shadow:0 3px 12px rgba(16,50,31,.05)}
+.phase4-master-head h2{margin:0;color:#173d2a;font-size:1.18rem}.phase4-master-head p{margin:4px 0 0;color:#748179;font-size:.78rem}
+.phase4-master-actions,.phase4-master-bottom{display:flex;justify-content:flex-end;gap:9px;align-items:center}
+.phase4-master-outline,.phase4-master-save,.phase4-master-secondary{min-height:36px;border-radius:7px;padding:8px 15px;font-weight:800;font-size:.78rem}
+.phase4-master-outline{background:#fff;color:#1a5235;border:1px solid #94aa9d}.phase4-master-save{background:#1a5e36;color:#fff;border:1px solid #1a5e36}.phase4-master-secondary{background:#edf5ef;color:#1a5e36;border:1px solid #b9d0c0}
+.phase4-master-section{margin:14px 18px;background:#fff;border:1px solid #dfe7e2;border-radius:11px;overflow:hidden}
+.phase4-master-section>header{padding:13px 16px;border-bottom:1px solid #e9eeeb;background:#fbfcfb}.phase4-master-section h4{margin:0;color:#243b2f;font-size:.94rem}.phase4-master-section p{margin:3px 0 0;color:#89938e;font-size:.72rem}
+.phase4-master-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:16px}
+.phase4-master-field{display:grid;align-content:start;gap:5px}.phase4-master-field.span-2,.phase4-master-grid>.span-2{grid-column:span 2}.phase4-master-field span,.phase4-master-subtitle{font-size:.68rem;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#68766f}
+.phase4-master-field input,.phase4-master-field select,.phase4-master-field textarea{width:100%;min-height:38px;border:1px solid #cbd6cf;border-radius:7px;background:#fff;padding:8px 10px;color:#21352a;font:inherit;outline:none}.phase4-master-field textarea{resize:vertical;min-height:70px}
+.phase4-master-field input:focus,.phase4-master-field select:focus,.phase4-master-field textarea:focus{border-color:#2f7b4d;box-shadow:0 0 0 3px rgba(47,123,77,.09)}
+.phase4-master-field input[readonly]{background:#f1f4f2;color:#758079}
+.phase4-master-muted{opacity:.5}.phase4-master-bank-action,.phase4-master-alert-action{display:flex;align-items:flex-end}.phase4-master-bank-hint{display:block;padding:9px 10px;border-radius:7px;background:#f6f8f7;color:#849089;font-size:.75rem}
+.phase4-master-alert-summary{padding:10px 12px;border-radius:8px;background:#fff9e8;border:1px solid #ead99b;color:#79631f;font-size:.78rem}
+.phase4-master-bottom{padding:4px 18px 20px}
+@media(max-width:1000px){.phase4-master-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.phase4-master-head{align-items:flex-start;flex-direction:column}.phase4-master-actions{width:100%;justify-content:flex-end}}
+@media(max-width:650px){.phase4-master-grid{grid-template-columns:1fr}.phase4-master-field.span-2,.phase4-master-grid>.span-2{grid-column:span 1}.phase4-master-actions{flex-wrap:wrap}.phase4-master-modal{width:98vw!important;max-height:96vh!important}}
+
+/* Tela de cadastros: histórico e formulário no mesmo módulo, sem modal. */
+.phase4-master-workspace{display:grid;gap:14px;width:100%;min-width:0}
+.phase4-master-workspace *{box-sizing:border-box}
+.phase4-master-workspace-title{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.phase4-master-workspace-title h2{margin:0;font-size:1.25rem;color:var(--primary,#193d2b)}
+.phase4-master-workspace-title p{margin:4px 0 0;color:#718078;font-size:.82rem}
+.phase4-master-workspace-tabs,.phase4-master-workspace-views{display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border,#dfe5e1);padding-bottom:8px}
+.phase4-master-workspace-tabs button,.phase4-master-workspace-views button{border:1px solid #d6dfd8;border-radius:8px;background:#fff;color:#53655a;padding:10px 17px;cursor:pointer;font-weight:800;font-size:.84rem}
+.phase4-master-workspace-tabs button.active,.phase4-master-workspace-views button.active{color:#155630;background:#e7f2ea;border-color:#40965b}
+.phase4-master-workspace-tabs button:disabled{opacity:.4;cursor:not-allowed}
+.phase4-master-listing[hidden],.phase4-master-inline-editor[hidden]{display:none!important}
+.phase4-master-inline-editor.phase4-master-modal{width:100%!important;max-width:none!important;max-height:none!important;overflow:visible!important;border:1px solid #d9e5dc;border-radius:12px!important;box-shadow:none!important;background:#f5f8f6!important}
+.phase4-master-inline-editor .phase4-master-head{position:static;box-shadow:none;border-radius:12px 12px 0 0}
+.phase4-master-inline-editor .phase4-master-section{margin:12px 16px}
+.phase4-master-inline-editor .phase4-master-field input,.phase4-master-inline-editor .phase4-master-field select,.phase4-master-inline-editor .phase4-master-field textarea{max-width:100%}
+@media(max-width:650px){.phase4-master-workspace-tabs button,.phase4-master-workspace-views button{flex:1;padding:9px 10px}.phase4-master-inline-editor .phase4-master-section{margin:10px 8px}}
+
+/* Documento desabilitado permanece legível, mas não editável. */
+.phase4-master-field input:disabled{background:#eef2ef;color:#77857b;cursor:not-allowed;border-color:#d8e1da}

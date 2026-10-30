@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Arquivo demonstrativo: NÃO É DOCUMENTO FISCAL AUTORIZADO PELA SEFAZ -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe versao="4.00" Id="NFeEXEMPLO">
+      <ide><mod>55</mod><nNF>1350</nNF><dhEmi>2026-10-28T08:00:00-03:00</dhEmi></ide>
+      <emit><xNome>FORNECEDOR TESTE HML</xNome></emit>
+      <dest><xNome>MANUELA METAIS LTDA</xNome></dest>
+      <det nItem="1"><prod><xProd>COBRE MISTO</xProd><uCom>KG</uCom><qCom>20.500</qCom><vProd>250.00</vProd></prod></det>
+      <total><ICMSTot><vNF>250.00</vNF></ICMSTot></total>
+    </infNFe>
+  </NFe>
+</nfeProc>

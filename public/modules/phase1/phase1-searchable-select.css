@@ -1,0 +1,20 @@
+/* Pesquisa integrada ao seletor, com lista limitada a oito opções por página. */
+.erp-search-select{position:relative;width:100%;min-width:0;box-sizing:border-box}
+.erp-search-select-native{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;overflow:hidden!important;clip-path:inset(50%)!important}
+.erp-search-select-input{width:100%!important;min-width:0!important;height:42px!important;padding:9px 34px 9px 12px!important;box-sizing:border-box!important;border:1.5px solid #c9d7ce!important;border-radius:8px!important;background:#fff!important;color:#183d2d!important;font-size:.86rem!important;line-height:1.35!important}
+.erp-search-select-input:focus{outline:2px solid rgba(19,92,61,.18)!important;border-color:#197149!important}
+.erp-search-select-arrow{position:absolute;right:13px;top:9px;font-size:1.1rem;color:#4d6858;pointer-events:none}
+.erp-search-select.open .erp-search-select-arrow{transform:rotate(180deg)}
+.erp-search-select-popover{position:absolute;top:calc(100% + 3px);left:0;right:0;z-index:12005;min-width:100%;max-height:340px;overflow:hidden;background:#fff;border:1px solid #b8cdc0;border-radius:9px;box-shadow:0 10px 26px #092d1b24;box-sizing:border-box;padding:4px}
+.erp-search-select-results{max-height:235px;overflow-y:auto;overscroll-behavior:contain}
+.erp-search-select-popover[hidden]{display:none!important}
+.erp-search-select-option{display:block;width:100%;text-align:left;white-space:normal;word-break:break-word;background:transparent;border:0;border-radius:6px;color:#244434;font-weight:600;font-size:.85rem;line-height:1.4;padding:9px 10px;cursor:pointer}
+.erp-search-select-option:hover,.erp-search-select-option.active{background:#e9f5ed!important;color:#104d2a!important}
+.erp-search-select-option[aria-selected="true"]{font-weight:800;background:#f4f9f6}
+.erp-search-select-empty{margin:0;padding:12px;font-size:.82rem;color:#60766a}
+.erp-search-select-footer{display:flex;align-items:center;justify-content:space-between;gap:6px;border-top:1px solid #e7efe9;padding:8px 6px 4px;flex-wrap:wrap}
+.erp-search-select-footer small{font-size:.72rem;color:#60776b}
+.erp-search-select-nav{display:flex;gap:5px}
+.erp-search-select-nav button{padding:5px 8px;border:1px solid #d1e1d7;border-radius:6px;background:#f6faf7;color:#24563a;font-size:.73rem;font-weight:700;cursor:pointer}
+.erp-search-select-nav button:disabled{opacity:.45;cursor:default}
+@media(max-width:640px){.erp-search-select-results{max-height:175px}.erp-search-select-footer{align-items:flex-start}}

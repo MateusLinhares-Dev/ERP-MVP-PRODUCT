@@ -1,0 +1,80 @@
+#tab-matriz_capacitacao,#tab-help_center{padding:18px;min-width:0}
+.ops-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 16px}.ops-head h2,.ops-head h3{margin:0 0 6px;color:#173c2b}.ops-head p,.ops-card p{color:#607568;font-size:.85rem;margin:4px 0 13px}.ops-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;border-bottom:1px solid #dce6dd;padding-bottom:10px}.ops-tabs button{border:1px solid #d8e6dc;color:#28523b;background:white;padding:10px 13px;border-radius:7px;cursor:pointer}.ops-tabs button.selected{background:#194b34;color:white}.ops-split{display:grid;grid-template-columns:minmax(300px,430px) minmax(0,1fr);gap:14px}.ops-card{background:#fff;border:1px solid #dce7df;border-radius:12px;padding:17px;min-width:0;margin-bottom:12px}.ops-card h3{margin:0 0 14px}.ops-card label,.ops-form label{display:grid;gap:5px;font-size:.78rem;font-weight:700;margin-bottom:11px}.ops-card input:not([type=checkbox]),.ops-card select,.ops-card textarea{box-sizing:border-box;width:100%;border:1px solid #cbdacf;background:#fff;border-radius:7px;padding:9px;font-size:.86rem;min-width:0}.ops-card textarea{min-height:67px}.ops-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.ops-inline{display:flex!important;align-items:center;gap:8px}.ops-primary,.ops-report button{background:#194b34;color:#fff;border:0;border-radius:7px;padding:10px 15px;cursor:pointer;font-weight:700}.ops-list>div{display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap;padding:10px 4px;border-bottom:1px solid #e8efea}.ops-list span{color:#526c5d;font-size:.79rem;flex:1}.ops-list button,.ops-head button{background:#fff;border:1px solid #b7cdbc;border-radius:7px;padding:7px 12px;cursor:pointer}.ops-list [hidden]{display:none!important}.ops-message{font-size:.83rem;color:#a4342d}.ops-report{display:flex;align-items:end;flex-wrap:wrap;gap:12px;background:#fff;border:1px solid #dce7df;border-radius:10px;padding:14px;margin-bottom:12px}.ops-report label{display:grid;gap:5px;font-size:.79rem;font-weight:700}.ops-report input,.ops-report select{padding:8px;border:1px solid #cbdacf;border-radius:7px;min-width:145px}.ops-help-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}.ops-help-list summary{cursor:pointer;font-weight:750;color:#174b32}.ops-help-list p{margin-top:13px;line-height:1.65}#ops-help-search{padding:12px;border:1px solid #cadace;border-radius:8px;width:min(490px,100%)}#mm-training-notice{position:fixed;right:16px;bottom:16px;background:#fff;border:1px solid #b9cfbe;border-left:4px solid #bf8634;box-shadow:0 8px 28px #153b2926;padding:14px;border-radius:9px;z-index:1010;max-width:330px}#mm-training-notice[hidden]{display:none!important}#mm-training-notice p{margin:8px 0;font-size:.83rem}#mm-training-notice button{cursor:pointer;border:0;border-radius:6px;padding:5px 12px;background:#e8f1ea}@media(max-width:760px){.ops-split,.ops-help-list{grid-template-columns:1fr}.ops-head{align-items:start;flex-direction:column}.ops-two{grid-template-columns:1fr}}
+
+/* Capacitações: formulário de vínculo e anexação separados e opções legíveis. */
+#tab-matriz_capacitacao .ops-training-documents{max-width:100%;}
+#tab-matriz_capacitacao .ops-training-documents .ops-head{align-items:start;}
+#tab-matriz_capacitacao .ops-training-documents h4{font-size:.95rem;margin:0 0 12px;color:#173c2b;}
+#tab-matriz_capacitacao .ops-training-documents select{appearance:auto!important;-webkit-appearance:menulist!important;display:block;width:100%;height:42px;color:#173c2b;background:#fff;opacity:1;line-height:normal;}
+#tab-matriz_capacitacao .ops-training-documents select option{background:#fff;color:#173c2b;padding:6px;}
+#tab-matriz_capacitacao .ops-training-documents select:disabled{background:#f4f6f4;color:#66776b;cursor:not-allowed;}
+#tab-matriz_capacitacao .ops-training-documents button:disabled{opacity:.5;cursor:not-allowed;}
+#tab-matriz_capacitacao .ops-training-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:12px;align-items:end;}
+#tab-matriz_capacitacao .ops-training-fields label{min-width:0;margin:0;}
+#tab-matriz_capacitacao .ops-training-fields button{min-height:42px;white-space:nowrap;}
+#tab-matriz_capacitacao .ops-training-empty{background:#f7faf7;border:1px solid #d5e6d8;padding:15px;border-radius:8px;margin-bottom:15px;}
+#tab-matriz_capacitacao .ops-training-empty p{margin:7px 0 0;line-height:1.5;}
+#tab-matriz_capacitacao .ops-training-link-box{padding:16px;border:1px solid #e1e9e2;border-radius:9px;margin-bottom:20px;}
+#tab-matriz_capacitacao .ops-training-documents .ops-form{border-top:1px solid #e5ece6;padding-top:18px;margin-top:10px;}
+#tab-matriz_capacitacao .ops-doc-count{font-size:.8rem;white-space:nowrap;color:#526c5d;background:#f4f7f4;border-radius:99px;padding:6px 12px;}
+#tab-matriz_capacitacao .ops-hint,#tab-contratos .ops-hint{color:#64796b;font-size:.8rem;margin:10px 0;line-height:1.5;}
+#tab-contratos .ops-contract-summary{display:flex;flex-wrap:wrap;gap:12px;margin:9px 0 0;}
+#tab-contratos .ops-contract-summary span{background:#f6f8f6;border:1px solid #e2e9e3;padding:6px 10px;border-radius:7px;color:#526b5a;font-size:.81rem;}
+#tab-contratos .ops-contract-summary strong{color:#173c2b;font-size:.98rem;}
+#tab-contratos #kpi-cont-status{font-variant-numeric:tabular-nums;}
+#tab-contratos #kpi-cont-status.ops-contract-has-overdue{color:#b44b35;}
+@media(max-width:780px){#tab-matriz_capacitacao .ops-training-fields{grid-template-columns:1fr;}#tab-matriz_capacitacao .ops-training-fields button{width:100%;}}
+
+/* Seleção de capacitação sem popup nativo: nomes completos, acessibilidade e rolagem. */
+#tab-matriz_capacitacao .ops-training-enroll-picker{min-width:0;margin:0 0 14px}
+#tab-matriz_capacitacao .ops-training-enroll-picker>label{display:block;font-weight:700;font-size:.8rem;margin-bottom:7px}
+#tab-matriz_capacitacao .ops-training-enroll-picker>input{display:block;width:100%;box-sizing:border-box;margin-bottom:9px}
+#tab-matriz_capacitacao .ops-training-enroll-list{border:1px solid #cdded2;border-radius:9px;max-height:220px;overflow-y:auto;overflow-x:hidden;background:#fff;padding:5px;display:grid;gap:3px;min-width:0}
+#tab-matriz_capacitacao .ops-training-enroll-list .ops-training-enroll-item{display:flex;align-items:center;gap:12px;min-width:0;cursor:pointer;padding:10px 12px;margin:0!important;border-radius:7px;font-size:.87rem}
+#tab-matriz_capacitacao .ops-training-enroll-list .ops-training-enroll-item:hover{background:#f2f7f3}
+#tab-matriz_capacitacao .ops-training-enroll-list .ops-training-enroll-item:has(input:checked){background:#eaf4ed;outline:1px solid #8dbb9b}
+#tab-matriz_capacitacao .ops-training-enroll-list .ops-training-enroll-item[hidden]{display:none!important}
+#tab-matriz_capacitacao .ops-training-enroll-list input[type="radio"]{appearance:auto;width:17px;height:17px;flex:0 0 17px;accent-color:#18543a;margin:0}
+#tab-matriz_capacitacao .ops-training-enroll-list span{display:grid;gap:3px;min-width:0;line-height:1.35;overflow-wrap:anywhere}
+#tab-matriz_capacitacao .ops-training-enroll-list strong{color:#193d2a}
+#tab-matriz_capacitacao .ops-training-enroll-list small{font-size:.8rem;color:#607669}
+
+/* Busca com escolha sob demanda: no máximo 8 itens no DOM em cada página. */
+#tab-matriz_capacitacao .ops-training-current{border:1px solid #dbe6de;border-radius:8px;background:#f6f9f7;color:#607568;padding:10px 12px;margin-bottom:8px;font-size:.86rem;overflow-wrap:anywhere}
+#tab-matriz_capacitacao .ops-training-current.is-picked{background:#eaf4ed;color:#1a5135;border-color:#b7d9c1;font-weight:700}
+#tab-matriz_capacitacao .ops-training-picker-toggle{width:100%;min-height:40px;text-align:left;background:#fff;color:#174d32;border:1px solid #a9c9b4;border-radius:8px;padding:9px 12px;cursor:pointer;font-size:.85rem;font-weight:700}
+#tab-matriz_capacitacao .ops-training-picker-panel{border:1px solid #dbe6de;border-radius:9px;background:#fff;padding:12px;margin-top:8px;min-width:0}
+#tab-matriz_capacitacao .ops-training-picker-panel[hidden]{display:none!important}
+#tab-matriz_capacitacao .ops-training-picker-panel>label{display:block;margin:0 0 6px;font-size:.77rem;font-weight:650}
+#tab-matriz_capacitacao .ops-training-picker-panel #ops-training-enroll-search{margin-bottom:10px}
+#tab-matriz_capacitacao .ops-training-enroll-list{max-height:340px;overflow-y:auto}
+#tab-matriz_capacitacao .ops-training-enroll-list:empty{display:none}
+/* Agenda e tabela paginadas sem perder as ações por índice do legado. */
+#tab-contratos #tb-contratos tr[hidden]{display:none!important}
+#tab-contratos .ops-contract-row{display:grid;grid-template-columns:minmax(220px,1fr) 100px 155px auto;gap:12px;align-items:end}
+#tab-contratos .ops-contract-description{display:flex;min-width:0;flex-direction:column;gap:5px}
+#tab-contratos .ops-contract-description span{flex:initial;line-height:1.4;overflow-wrap:anywhere}
+#tab-contratos .ops-contract-row label{display:flex;flex-direction:column;gap:6px;font-size:.72rem;color:#607568;font-weight:700;min-width:0;margin:0}
+#tab-contratos .ops-contract-row select,#tab-contratos .ops-contract-row input{width:100%;min-height:37px;box-sizing:border-box;padding:7px 8px;border:1px solid #cbdacf;border-radius:7px;background:white}
+#tab-contratos .ops-contract-row button{min-height:37px;white-space:nowrap}
+.ops-pagination{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin:12px 0 2px;color:#64786b;font-size:.78rem}
+.ops-pagination[hidden]{display:none!important}
+.ops-pagination button{min-height:34px;background:#fff;border:1px solid #c3d6c9;border-radius:7px;color:#174a31;padding:6px 12px;cursor:pointer;font-weight:650}
+.ops-pagination button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:1000px){#tab-contratos .ops-contract-row{grid-template-columns:minmax(190px,1fr) 100px 160px}#tab-contratos .ops-contract-row button{grid-column:3}}
+@media(max-width:650px){#tab-contratos .ops-contract-row{grid-template-columns:1fr 1fr}#tab-contratos .ops-contract-description{grid-column:1/-1}#tab-contratos .ops-contract-row button{grid-column:1/-1}#tab-matriz_capacitacao .ops-training-picker-panel{padding:9px}}
+
+/* Feedback de upload com trava de clique e progresso real do Firebase Storage. */
+#tab-matriz_capacitacao .ops-training-upload-feedback{display:grid;gap:7px;margin:12px 0 0;padding:11px 12px;border:1px solid #c6dfcc;border-radius:8px;background:#f4f9f5;color:#24513a;font-size:.83rem;font-weight:650}
+#tab-matriz_capacitacao .ops-training-upload-feedback[hidden]{display:none!important}
+#tab-matriz_capacitacao .ops-training-upload-feedback progress{width:100%;height:9px;accent-color:#194b34}
+#tab-matriz_capacitacao #ops-upload-doc button:disabled{opacity:.64;cursor:wait}
+
+/* Consulta histórica de colaboradores inativos — controles de RH */
+.erp-employee-history-filters { display:flex; align-items:flex-end; flex-wrap:wrap; gap:10px 16px; padding:12px 14px; margin:0 0 12px; border-bottom:1px solid #e1ebe5; background:#f8faf8; }
+.erp-employee-history-filters label { display:flex; flex-direction:column; gap:5px; font-size:.78rem; font-weight:700; color:#254939; }
+.erp-employee-history-filters input,.erp-employee-history-filters select,#folha-situacao { border:1px solid #cbdcd0; border-radius:7px; padding:8px 10px; background:white; color:#173d2d; max-width:100%; }
+.erp-employee-history-filters span { flex:1 1 230px; font-size:.78rem; color:#607568; }
+.erp-historico-nota { border:1px solid #e5d9b3; background:#fff9e7; color:#6d561c; border-radius:8px; padding:10px 14px; font-size:.84rem; }
+.erp-historico-inativo { background:#fbfafc; }
+.erp-historico-inativo small { display:block; font-weight:500; color:#86639b; }

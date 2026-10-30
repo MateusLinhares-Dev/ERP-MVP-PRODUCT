@@ -31,7 +31,7 @@ export default async function handler(req,res){
     assertSameOrigin(req,{required:true});
     assertJsonBody(req,{maxBytes:4608});
     const session=await requireIdentity(req,{admin:true});
-    if(session.erpUser!=='elaine'){
+    if(session.erpUser!=='elaine' && session.engineer!==true){
       const e=new Error('Somente Elaine pode alterar os dados institucionais.');
       e.status=403;
       throw e;

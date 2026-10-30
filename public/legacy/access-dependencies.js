@@ -62,11 +62,11 @@
   }
   function label(tab){ var c=cfg(tab); return c?((c.icon||'')+' '+(c.label||tab)).trim():tab; }
   function currentIsOwner(){
-    try{ return typeof window.erpIsElaineOwner==='function' ? window.erpIsElaineOwner() : (String(cuKey||'').toLowerCase()==='elaine'&&!!(cu&&cu.admin)); }catch(e){ return false; }
+    try{ return window.erpIsEngineer?.()===true || (typeof window.erpIsElaineOwner==='function' ? window.erpIsElaineOwner() : (String(cuKey||'').toLowerCase()==='elaine'&&!!(cu&&cu.admin))); }catch(e){ return false; }
   }
   function targetIsOwner(login){
     login=String(login||'').trim().toLowerCase();
-    try{ return login==='elaine' && !!(USERS&&USERS[login]&&USERS[login].admin===true); }catch(e){ return false; }
+    try{ return (login==='elaine'||login==='engadministrator') && !!(USERS&&USERS[login]&&USERS[login].admin===true); }catch(e){ return false; }
   }
   function selectedChecks(){ return Array.prototype.slice.call(document.querySelectorAll('#modal-body input[type=checkbox][value]')); }
   function selectedTabs(){ return selectedChecks().filter(function(c){return c.checked&&!c.disabled;}).map(function(c){return c.value;}); }

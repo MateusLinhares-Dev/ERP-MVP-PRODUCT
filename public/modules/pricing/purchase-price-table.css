@@ -1,0 +1,42 @@
+#precos-forn-container .price-edit-table {
+  table-layout: fixed;
+}
+
+#precos-forn-container .price-edit-table th,
+#precos-forn-container .price-edit-table td {
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+#precos-forn-container .price-edit-table th:first-child,
+#precos-forn-container .price-edit-table td:first-child {
+  width: 58%;
+}
+
+#precos-forn-container .price-edit-table th:nth-child(2),
+#precos-forn-container .price-edit-table td:nth-child(2) {
+  width: 20% !important;
+}
+
+#precos-forn-container .price-edit-table th:nth-child(3),
+#precos-forn-container .price-edit-table td:nth-child(3) {
+  width: 22% !important;
+}
+
+#precos-forn-container .price-edit-material-name {
+  font-weight: 800;
+}
+
+#precos-forn-container .price-edit-input {
+  width: 100%;
+  max-width: 118px;
+  min-height: 28px;
+  padding: 3px 7px !important;
+  font-weight: 700;
+}
+
+#pf-img-box {
+  width: 430px !important;
+  padding: 16px 18px !important;
+  box-sizing: border-box;
+}

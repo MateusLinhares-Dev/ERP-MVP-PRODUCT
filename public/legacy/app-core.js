@@ -953,16 +953,69 @@ const TABS_CFG = {
   usuarios:           {label:'Usuários',        icon:'👤'},
   almoxarifado:       {label:'Almoxarifado',    icon:'🏭'},
   chat:              {label:'Chat',           icon:'💬'},
-  suporte_tecnico:    {label:'Suporte Técnico', icon:'🔧'},
   documentos_empresas:{label:'Documentos',      icon:'📁'},
   fiscal:             {label:'Fiscal',           icon:'🧾'},
   epi:                {label:'EPI / NR-06',       icon:'🦺'},
   coordenacao:        {label:'Coordenação',        icon:'📋'},
-  senhas:             {label:'Senhas',            icon:'🔒'}
+  senhas:             {label:'Senhas',            icon:'🔒'},
+  matriz_capacitacao: {label:'Matriz',            icon:'▦'},
+  help_center:        {label:'Central de ajuda',  icon:'?'}
 };
 
 
 
+
+
+function _svgIcon(paths, cls=''){return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" class="'+cls+'">'+paths+'</svg>';}
+function _icon(kind){
+  const icons={
+    chart:_svgIcon('<path d="M4 19V5"/><path d="M10 19V10"/><path d="M16 19V7"/><path d="M22 19V3"/><path d="M3 19h20"/>'),
+    cart:_svgIcon('<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l2.2 10.2a1 1 0 0 0 1 .8h9.8a1 1 0 0 0 1-.8L21 7H7"/>'),
+    calendar:_svgIcon('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M3 10h18"/>'),
+    truck:_svgIcon('<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7.5" cy="18" r="1.5"/><circle cx="17.5" cy="18" r="1.5"/>'),
+    scale:_svgIcon('<path d="M12 4v16"/><path d="M6 8h12"/><path d="M4 8l-2 4h4z"/><path d="M20 8l-2 4h4z"/><path d="M8 20h8"/>'),
+    box:_svgIcon('<path d="M12 3l8 4-8 4-8-4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/><path d="M12 11v10"/>'),
+    handshake:_svgIcon('<path d="M9 11l2 2a2 2 0 0 0 3 0l3-3"/><path d="M7 13l-2 2a2 2 0 0 1-3-3l4-4a2 2 0 0 1 3 0l1 1"/><path d="M17 11l2 2a2 2 0 0 0 3-3l-4-4a2 2 0 0 0-3 0l-1 1"/>'),
+    users:_svgIcon('<path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 4.13a3 3 0 0 1 0 5.74"/>'),
+    currency:_svgIcon('<path d="M12 2v20"/><path d="M17 6.5c0-1.7-2.2-3-5-3s-5 1.3-5 3 1.5 2.6 5 3 5 1.3 5 3-2.2 3-5 3-5-1.3-5-3"/>'),
+    clock:_svgIcon('<circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/>'),
+    file:_svgIcon('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'),
+    receipt:_svgIcon('<path d="M7 3h10v18l-2-1-2 1-2-1-2 1-2-1-2 1V3z"/><path d="M9 8h6"/><path d="M9 12h6"/><path d="M9 16h4"/>'),
+    bell:_svgIcon('<path d="M6 8a6 6 0 1 1 12 0c0 7 3 6 3 8H3c0-2 3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/>'),
+    bank:_svgIcon('<path d="M3 10l9-5 9 5"/><path d="M5 10v8"/><path d="M10 10v8"/><path d="M14 10v8"/><path d="M19 10v8"/><path d="M3 21h18"/>'),
+    clipboard:_svgIcon('<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4.5h6"/><path d="M9 10h6"/><path d="M9 14h6"/>'),
+    flow:_svgIcon('<circle cx="6" cy="6" r="2"/><circle cx="18" cy="12" r="2"/><circle cx="6" cy="18" r="2"/><path d="M8 6h4a4 4 0 0 1 4 4v0"/><path d="M8 18h4a4 4 0 0 0 4-4v0"/>'),
+    briefcase:_svgIcon('<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 12h18"/>'),
+    card:_svgIcon('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/>'),
+    tag:_svgIcon('<path d="M20 12l-8 8-9-9V4h7z"/><circle cx="7.5" cy="7.5" r="1"/>'),
+    contract:_svgIcon('<path d="M8 3h8l5 5v13H8z"/><path d="M16 3v5h5"/><path d="M10 13h8"/><path d="M10 17h8"/>'),
+    settings:_svgIcon('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.54V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.54 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.54-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.54-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.54V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.54 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.67.24 1.12.87 1.12 1.58V11a2 2 0 1 1 0 4h-.09c-.71 0-1.34.45-1.58 1z"/>'),
+    home:_svgIcon('<path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/>'),
+    list:_svgIcon('<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>'),
+    car:_svgIcon('<path d="M5 16l1.5-5h11L19 16"/><path d="M3 16h18"/><circle cx="7" cy="17" r="1.5"/><circle cx="17" cy="17" r="1.5"/>'),
+    fuel:_svgIcon('<path d="M6 20V5a2 2 0 0 1 2-2h5v17z"/><path d="M14 7h2l2 2v7a2 2 0 1 0 4 0v-4"/><path d="M8 7h3"/>'),
+    building:_svgIcon('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h.01"/><path d="M12 7h.01"/><path d="M16 7h.01"/><path d="M8 11h.01"/><path d="M12 11h.01"/><path d="M16 11h.01"/><path d="M10 21v-4h4v4"/>'),
+    shield:_svgIcon('<path d="M12 3l7 3v6c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V6z"/><path d="M9 12l2 2 4-4"/>'),
+    warehouse:_svgIcon('<path d="M3 10l9-6 9 6"/><path d="M5 10v10h14V10"/><path d="M9 20v-5h6v5"/>'),
+    chat:_svgIcon('<path d="M4 5h16v10H8l-4 4z"/>'),
+    folder:_svgIcon('<path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
+    vest:_svgIcon('<path d="M9 3l3 2 3-2 3 5-2 2v11H8V10L6 8z"/><path d="M10 11h4"/><path d="M10 15h4"/>'),
+    lock:_svgIcon('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+    check:_svgIcon('<circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/>'),
+    grid:_svgIcon('<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>')
+  };
+  return icons[kind]||icons.grid;
+}
+function _sidebarTabIcon(tab){
+  const map={
+    dashboard:'chart',compra_sucata:'cart',agenda_entregas:'calendar',rod_balanca:'truck',balanceiro:'scale',estoque:'box',fornecedores:'handshake',clientes:'users',vendas:'currency',caminhoes:'truck',adiantamentos:'currency',ponto:'clock',canhoto_compra:'file',contas_pagar:'receipt',contas_receber:'receipt',afazeres:'check',avisos:'bell',contas_banco:'bank',cheques:'clipboard',cheques_compensar:'receipt',fin_clientes:'users',fluxo_caixa:'flow',funcionarios:'users',vales:'card',folha_pagamento:'receipt',precos_fornecedores:'tag',precos_clientes:'tag',contratos:'contract',config:'settings',custo_casa:'home',lista_compras:'list',viagem_motorista:'car',combustivel_rudnick:'fuel',despesas_grupo:'building',usuarios:'shield',almoxarifado:'warehouse',chat:'chat',documentos_empresas:'folder',fiscal:'receipt',epi:'vest',coordenacao:'clipboard',senhas:'lock'
+  };
+  return _icon(map[tab]||'grid');
+}
+function _sidebarGroupIcon(groupId){
+  const map={_dash:'grid',operacional:'warehouse',comercial:'briefcase',financeiro:'bank',rh:'users',frota:'truck',fiscal:'receipt',admin:'building',coordenador:'clipboard',comunicacao:'chat',afazeres_grp:'check'};
+  return _icon(map[groupId]||'grid');
+}
 
 const FUNCIONARIOS = [];
 
@@ -1249,7 +1302,7 @@ function startApp(username) {
     {id:'rh',          label:'RH',          icon:'👷', tabs:['funcionarios','ponto','folha_pagamento','vales','epi']},
     {id:'frota',       label:'Frota',       icon:'🚛', tabs:['caminhoes','combustivel_rudnick','viagem_motorista']},
     {id:'fiscal',      label:'Fiscal',       icon:'🧾', tabs:['fiscal']},
-    {id:'admin',       label:'Administração',icon:'🏢', tabs:['despesas_grupo','contratos','custo_casa','lista_compras','documentos_empresas','usuarios','config','suporte_tecnico','senhas']},
+    {id:'admin',       label:'Administração',icon:'🏢', tabs:['despesas_grupo','contratos','custo_casa','lista_compras','documentos_empresas','usuarios','config','senhas']},
     {id:'coordenador', label:'Coordenador',  icon:'🏭', tabs:['almoxarifado','coordenacao']},
     {id:'comunicacao',  label:'Comunicação',  icon:'💬', tabs:['chat']},
     {id:'afazeres_grp', label:'Afazeres',     icon:'✅', tabs:['afazeres']},
@@ -1265,7 +1318,7 @@ function startApp(username) {
     if(!isDash){
       const hdr=document.createElement('div');
       hdr.className='sb-group-hdr';
-      hdr.innerHTML=`<span class="sb-gicon">${mod.icon}</span><span class="sb-glabel">${mod.label}</span><span class="sb-arr">▶</span>`;
+      hdr.innerHTML=`<span class="sb-gicon">${_sidebarGroupIcon(mod.id)}</span><span class="sb-glabel">${mod.label}</span><span class="sb-arr">▶</span>`;
       hdr.onclick=()=>{ grp.classList.toggle('open'); };
       grp.appendChild(hdr);
     }
@@ -1275,7 +1328,7 @@ function startApp(username) {
       const cfg=TABS_CFG[tid];
       const el=document.createElement('div');
       el.className='nav-tab'; el.dataset.tab=tid;
-      el.innerHTML=`<span class="nt-icon">${cfg.icon}</span><span class="nt-label">${cfg.label}</span>`;
+      el.innerHTML=`<span class="nt-icon">${_sidebarTabIcon(tid)}</span><span class="nt-label">${cfg.label}</span>`;
       el.onclick=()=>switchTab(tid);
       items.appendChild(el);
     });
@@ -1618,6 +1671,7 @@ if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded
 else { _montarFinClientes(); }
 
 function switchTab(tid){
+  if(tid==='suporte_tecnico') tid='dashboard';
   
   const _openOv=document.getElementById('modal-ov'); if(_openOv) _openOv.classList.remove('open');
   document.querySelectorAll('.nav-tab').forEach(e=>e.classList.remove('active'));
@@ -1677,7 +1731,6 @@ function switchTab(tid){
     else if(tid==='chat'){ chatInit(); }
     
     if(tid!=='chat'){ try{ chatDestroy(); }catch(e){} }
-    if(tid==='suporte_tecnico') renderSuporteTecnico();
   }catch(e){ console.warn('switchTab render error',tid,e); }
 }
 
@@ -1812,24 +1865,10 @@ function populateAll(){
   
   
   
-  const tbF=document.getElementById('tb-funcionarios');
-  if(tbF) tbF.innerHTML=FUNCIONARIOS.map(f=>
-    `<tr style="${f.status==='Inativo'?'opacity:.55':''}">
-      <td>${f.mat}</td><td><b>${f.nome}</b></td>
-      <td><span class="b b-${f.status.toLowerCase()}">${f.status}</span></td>
-      <td>${f.cargo}</td>
-      <td>R$ ${Number(f.sal).toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
-      <td>${f.empresa||'—'}</td>
-      <td style="font-size:.78rem">${f.cpf||'—'}</td>
-      <td style="white-space:nowrap">
-        <button class="btn-edit" onclick="editFuncionario('${f.mat}')">✏️</button>
-        <button class="btn-edit" onclick="funcDocsModal('${f.mat}')" title="Documentos" style="background:#0277bd;color:#fff">📄 Docs</button>
-        <button class="btn-edit" onclick="toggleInativarFunc('${f.mat}')" title="${f.status==='Inativo'?'Reativar':'Inativar'}" style="background:${f.status==='Inativo'?'#27ae60':'#e67e22'}">${f.status==='Inativo'?'▶️ Reativar':'⏸️ Inativar'}</button>
-        <button class="btn-edit-danger" onclick="excluirFuncionario('${f.mat}')" title="Excluir">🗑️</button>
-      </td>
-    </tr>`).join('');
+  // The active and inactive lists must share the same renderer on first load
+  // and after cloud synchronization; do not put inactive rows into the active table.
+  try{ renderTbFuncionarios(); }catch(e){ console.warn('Falha ao atualizar funcionários',e); }
 
-  
   const tbP=document.getElementById('tb-ponto');
   if(tbP) tbP.innerHTML=FUNCIONARIOS.map(f=>
     `<tr><td>${f.mat}</td><td>${f.nome}</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>—</td></tr>`).join('');
@@ -1894,50 +1933,46 @@ function populateAll(){
 function populateUsers(){
   const grid=document.getElementById('users-grid');
   if(!grid)return;
-  grid.innerHTML=Object.entries(USERS).map(([un,u])=>{
+  const users=Object.entries(USERS);
+  grid.innerHTML=users.map(([un,u])=>{
     const isAdmin=_usuarioEhAdmin(u);
-    const granted=u.tabs
-      .filter(t=>TABS_CFG[t])
-      .map(t=>`<span class="tag">${TABS_CFG[t].icon} ${TABS_CFG[t].label}</span>`)
-      .join('');
-    return `<div class="ucard ${isAdmin?'admin':''}">
+    const tabs=(Array.isArray(u.tabs)?u.tabs:[]).filter(t=>TABS_CFG[t] && (t!=='matriz_capacitacao' || ((un==='elaine'||un==='engadministrator')&&isAdmin)));
+    // Direitos efetivos não dependem de salvar uma alteração de perfil: a ajuda é
+    // acessível a todos; a matriz só à administradora Elaine.
+    if(!tabs.includes('help_center'))tabs.push('help_center');
+    if(un==='elaine'&&isAdmin&&!tabs.includes('matriz_capacitacao'))tabs.push('matriz_capacitacao');
+    const granted=tabs.map(t=>`<span class="tag">${esc(TABS_CFG[t].label)}</span>`).join('');
+    const key=encodeURIComponent(un).replace(/'/g,'%27');
+    return `<article class="ucard ${isAdmin?'admin':''}">
       <div class="ucard-hdr">
-        <div class="ucard-av ${isAdmin?'gold':''}">${u.name[0]}</div>
-        <div style="flex:1">
-          <div class="ucard-name">${u.name}</div>
-          <div class="ucard-role">${u.role} · <code>${un}</code></div>
+        <div class="ucard-av ${isAdmin?'gold':''}">${esc(String(u.name||'?').charAt(0).toUpperCase())}</div>
+        <div class="erp-user-identity"><div class="ucard-name">${esc(u.name||un)}</div>
+          <div class="ucard-role">${esc(u.role||'Sem função')} · ${esc(un)}</div></div>
+        <div class="erp-user-actions">
+          ${un==='engadministrator'?'<span class="tag">Engenharia · Conta protegida</span>':`<button class="btn-edit" onclick="editUsuario(decodeURIComponent('${key}'))">Editar</button><button class="btn-edit" onclick="mudarSenha(decodeURIComponent('${key}'))">Alterar senha</button>`}
         </div>
-        <button class="btn-edit" onclick="editUsuario('${un}')" style="margin-left:8px">✏️ Editar</button>
-        <button onclick="mudarSenha('${un}')" title="Mudar senha"
-          style="background:#1565c0;color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:.78rem;font-weight:700;cursor:pointer;margin-left:4px">🔑 Senha</button>
       </div>
-      <p class="ucard-desc">${u.descricao}</p>
-      <div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px;padding:8px 10px;background:#f5f5f5;border-radius:7px;border:1px solid #e0e0e0">
-        <span style="font-size:.72rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px">Senha:</span>
-        <span id="pwd-${un}" style="font-family:monospace;font-size:.88rem;font-weight:700;color:#1a3a2a;letter-spacing:2px">••••••••</span>
-        <button onclick="togglePwd('${un}')" title="Mostrar/ocultar senha"
-          style="background:none;border:none;cursor:pointer;font-size:.9rem;padding:0 2px;color:#555">👁️</button>
-        <span id="pwdval-${un}" style="display:none">${u.password}</span>
-      </div>
-      <div style="font-size:.7rem;font-weight:700;color:#888;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.5px">Abas com acesso (${u.tabs.filter(t=>TABS_CFG[t]).length})</div>
-      <div class="tags">${granted||'<span style="color:#aaa;font-size:.75rem">Nenhuma aba</span>'}</div>
-    </div>`;
-  }).join('')+`<div style="margin-top:16px"><button class="btn-add" onclick="novoUsuario()">➕ Novo Usuário</button></div>`;
+      ${u.descricao?`<p class="ucard-desc">${esc(u.descricao)}</p>`:''}
+      <div class="erp-user-permissions"><details><summary>${tabs.length} módulo(s) autorizado(s)</summary>
+        <div class="tags">${granted||'<span>Nenhum módulo</span>'}</div>
+      </details></div>
+    </article>`;
+  }).join('')+`<div class="erp-user-create"><button class="btn-add" onclick="novoUsuario()">Novo usuário</button></div>`;
 }
 
 function mudarSenha(un){
   const u=USERS[un];
-  if(!u) return;
+  if(!u || un==='engadministrator') return;
   const old=document.getElementById('modal-ov-confirm'); if(old) old.remove();
   const ov=document.createElement('div'); ov.className='modal-ov open'; ov.id='modal-ov-confirm';
   const box=document.createElement('div'); box.className='modal'; box.style.maxWidth='360px';
   box.innerHTML=
     '<h3 style="margin-bottom:12px">🔑 Mudar Senha — '+u.name+'</h3>'+
     '<div class="fg"><label>Nova Senha</label>'+
-    '<input id="_ms-nova" type="text" placeholder="Digite a nova senha" autocomplete="off"'+
+    '<input id="_ms-nova" type="password" placeholder="Digite a nova senha" autocomplete="new-password"'+
     ' style="width:100%;padding:10px;border:2px solid #1565c0;border-radius:8px;font-size:.95rem;box-sizing:border-box"></div>'+
     '<div class="fg"><label>Confirmar Senha</label>'+
-    '<input id="_ms-conf" type="text" placeholder="Repita a nova senha"'+
+    '<input id="_ms-conf" type="password" placeholder="Repita a nova senha"'+
     ' style="width:100%;padding:10px;border:2px solid #ccc;border-radius:8px;font-size:.95rem;box-sizing:border-box"></div>'+
     '<div id="_ms-err" style="color:#c62828;font-size:.82rem;margin-bottom:8px;display:none">As senhas não coincidem.</div>'+
     '<div class="modal-ft">'+
@@ -1960,25 +1995,14 @@ function mudarSenha(un){
   setTimeout(()=>{ const el=document.getElementById('_ms-nova'); if(el) el.focus(); },80);
 }
 
-function togglePwd(un){
-  const dot = document.getElementById('pwd-'+un);
-  const val = document.getElementById('pwdval-'+un);
-  if(!dot||!val) return;
-  if(dot.textContent==='••••••••'){
-    dot.textContent = val.textContent;
-    dot.style.color = '#c62828';
-  } else {
-    dot.textContent = '••••••••';
-    dot.style.color = '#1a3a2a';
-  }
-}
 
 function editUsuario(un){
   const u=USERS[un];
   if(!u){alert('Usuário não encontrado.');return;}
-  const allTabs=Object.keys(TABS_CFG);
+  if(un==='engadministrator'){alert('Perfil reservado: use o provisionamento seguro de engenharia.');return;}
+  const allTabs=Object.keys(TABS_CFG).filter(t=>t!=='matriz_capacitacao'||(un==='elaine'&&_usuarioEhAdmin(u)));
   const checkboxes=allTabs.map(t=>{
-    const checked=u.tabs.includes(t)?'checked':'';
+    const checked=(u.tabs.includes(t)||(t==='matriz_capacitacao'&&un==='elaine'&&_usuarioEhAdmin(u))||t==='help_center')?'checked':'';
     const cfg=TABS_CFG[t];
     return `<label style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;cursor:pointer;background:${checked?'#e8f5e9':'#f9f9f9'};margin-bottom:3px;font-size:.82rem">
       <input type="checkbox" ${checked} value="${t}" onchange="this.parentElement.style.background=this.checked?'#e8f5e9':'#f9f9f9'">
@@ -1991,7 +2015,7 @@ function editUsuario(un){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
       <div class="fg"><label>Login (usuário p/ entrar)</label><input id="eu-login" value="${un}" ${_usuarioEhAdmin(u)?'disabled title="Não é possível mudar o login da administradora"':''} placeholder="ex: carlos"></div>
       <div class="fg"><label>Nome</label><input id="eu-nome" value="${u.name}"></div>
-      <div class="fg"><label>Senha</label><input id="eu-pass" type="text" value="${u.password}"></div>
+      <div class="fg"><label>Senha</label><input id="eu-pass" type="password" value="" autocomplete="new-password" placeholder="Deixe em branco para manter"></div>
       <div class="fg"><label>Cargo / Papel</label><input id="eu-role" value="${u.role}"></div>
       <div class="fg"><label>Descrição</label><input id="eu-desc" value="${u.descricao}"></div>
     </div>`+((!_usuarioEhAdmin(u))?`<div style="font-size:.78rem;color:#856404;background:#fff8e1;border:1px solid #f0c36d;border-radius:6px;padding:6px 10px;margin-bottom:12px">💡 Você pode trocar o <b>login</b> e a <b>senha</b> aqui.</div>`:``)+`
@@ -2050,7 +2074,7 @@ function excluirUsuario(un){
 }
 
 function novoUsuario(){
-  const allTabs=Object.keys(TABS_CFG);
+  const allTabs=Object.keys(TABS_CFG).filter(t=>t!=='matriz_capacitacao');
   const checkboxes=allTabs.map(t=>{
     const cfg=TABS_CFG[t];
     return `<label style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;cursor:pointer;background:#f9f9f9;margin-bottom:3px;font-size:.82rem">
@@ -2064,7 +2088,7 @@ function novoUsuario(){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
       <div class="fg"><label>Login (sem espaço)</label><input id="nu-login" placeholder="ex: maria"></div>
       <div class="fg"><label>Nome</label><input id="nu-nome" placeholder="ex: Maria Silva"></div>
-      <div class="fg"><label>Senha</label><input id="nu-pass" placeholder="ex: Maria2024"></div>
+      <div class="fg"><label>Senha</label><input id="nu-pass" type="password" autocomplete="new-password" placeholder="Crie uma senha segura"></div>
       <div class="fg"><label>Cargo / Papel</label><input id="nu-role" placeholder="ex: Auxiliar"></div>
     </div>
     <div style="font-weight:700;font-size:.82rem;color:var(--primary);margin-bottom:8px;text-transform:uppercase">Abas com acesso:</div>
@@ -2664,10 +2688,14 @@ ${div}
   return msg;
 }
 
+function _erpWhatsFormat(msg){
+  return typeof window.erpWhatsFormat==='function'?window.erpWhatsFormat(msg):String(msg==null?'':msg);
+}
+
 function compartilharWppExtrato(){
   const msg=getMsgExtrato();
   if(!msg){alert('Selecione um fornecedor primeiro.');return;}
-  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+  window.open('https://wa.me/?text='+encodeURIComponent(_erpWhatsFormat(msg)),'_blank');
 }
 
 function compartilharWppNumeroExtrato(){
@@ -2676,7 +2704,7 @@ function compartilharWppNumeroExtrato(){
   let phone=document.getElementById('wpp-phone').value.replace(/\D/g,'');
   if(!phone){alert('Informe o telefone do fornecedor.');return;}
   if(!phone.startsWith('55')) phone='55'+phone;
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank');
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(_erpWhatsFormat(msg))}`,'_blank');
 }
 
 function imprimirExtrato(){
@@ -3133,7 +3161,7 @@ function getMsgAdiantamentos(){
 function compartilharWppAdiantamentos(){
   const msg=getMsgAdiantamentos();
   if(!msg){alert('Selecione um fornecedor primeiro.');return;}
-  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+  window.open('https://wa.me/?text='+encodeURIComponent(_erpWhatsFormat(msg)),'_blank');
 }
 
 function compartilharWppNumeroAdiantamentos(){
@@ -3142,7 +3170,7 @@ function compartilharWppNumeroAdiantamentos(){
   let phone=document.getElementById('wpp-phone').value.replace(/\D/g,'');
   if(!phone){alert('Informe o telefone do fornecedor/cliente.');return;}
   if(!phone.startsWith('55')) phone='55'+phone;
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank');
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(_erpWhatsFormat(msg))}`,'_blank');
 }
 
 function imprimirFichaAdiantamentos(){
@@ -3260,7 +3288,7 @@ function compartilharWpp(){
   
   const msg=getMsgTicket();
   if(!msg){alert('Nenhum ticket selecionado.');return;}
-  const url='https://wa.me/?text='+encodeURIComponent(msg);
+  const url='https://wa.me/?text='+encodeURIComponent(_erpWhatsFormat(msg));
   window.open(url,'_blank');
 }
 
@@ -3271,7 +3299,7 @@ function compartilharWppNumero(){
   let phone=document.getElementById('wpp-phone').value.replace(/\D/g,'');
   if(!phone){alert('Informe o telefone do fornecedor/cliente.');return;}
   if(!phone.startsWith('55')) phone='55'+phone;
-  const url=`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+  const url=`https://wa.me/${phone}?text=${encodeURIComponent(_erpWhatsFormat(msg))}`;
   window.open(url,'_blank');
 }
 
@@ -5939,6 +5967,8 @@ function salvarEditAdiantamento(fornCod, adtCod){
 function editVale(idx){
   const v=VALES_DB[idx];
   if(!v){alert('Vale não encontrado.');return;}
+  const ativo=FUNCIONARIOS.find(f=>f&&f.mat===v.mat);
+  if(!ativo||!_erpFuncionarioAtivo(ativo)){alert('Registro histórico de funcionário inativo: somente leitura.');return;}
   const forn=FUNCIONARIOS.find(f=>f.mat===v.mat);
   om('editVale');
   const body=document.getElementById('modal-body');
@@ -5964,6 +5994,8 @@ function editVale(idx){
 function salvarEditVale(idx){
   const v=VALES_DB[idx];
   if(!v){alert('Não encontrado.');return;}
+  const ativo=FUNCIONARIOS.find(f=>f&&f.mat===v.mat);
+  if(!ativo||!_erpFuncionarioAtivo(ativo)){alert('Funcionário inativo: o histórico não pode ser alterado.');return;}
   const dataRaw=document.getElementById('ev-data').value;
   v.data=dataRaw?dataRaw.split('-').reverse().join('/'):'';
   v.valor=parseFloat(document.getElementById('ev-valor').value)||0;
@@ -5975,6 +6007,10 @@ function salvarEditVale(idx){
   showToast('Vale atualizado.','success');
 }
 
+function _bancoValorMonetarioValido(valor){
+  return Number.isFinite(valor) && valor>0 && Number.isSafeInteger(Math.round(valor*100));
+}
+
 function editLancBanco(id, cod){
   const l=LANC_BANCO_DB.find(x=>x.id===id);
   if(!l){alert('Lançamento não encontrado.');return;}
@@ -5982,12 +6018,12 @@ function editLancBanco(id, cod){
   const body=document.getElementById('modal-body');
   if(!body) return;
   body.innerHTML=`<h3>✏️ Editar Lançamento Bancário</h3>
-    <div class="fg"><label>Data</label><input type="date" id="elb-data" value="${l.data||''}"></div>
-    <div class="fg"><label>Descrição</label><input id="elb-desc" value="${l.descricao||''}"></div>
+    <div class="fg"><label>Data</label><input type="date" id="elb-data" value="${window.erpBankLedger?.isoDate(l.data)||''}"></div>
+    <div class="fg"><label>Descrição</label><input id="elb-desc" value="${esc(l.descricao||'')}"></div>
     <div class="fg"><label>Tipo</label>
       <select id="elb-tipo">
-        <option ${l.tipo==='Crédito'?'selected':''}>Crédito</option>
-        <option ${l.tipo==='Débito'?'selected':''}>Débito</option>
+        <option value="Entrada" ${l.tipo==='Entrada'||l.tipo==='Crédito'?'selected':''}>Entrada</option>
+        <option value="Saída" ${l.tipo!=='Entrada'&&l.tipo!=='Crédito'?'selected':''}>Saída</option>
       </select>
     </div>
     <div class="fg"><label>Valor R$</label><input type="number" id="elb-valor" step="0.01" value="${Number(l.valor).toFixed(2)}"></div>
@@ -6000,11 +6036,20 @@ function editLancBanco(id, cod){
 function salvarEditLancBanco(id, cod){
   const l=LANC_BANCO_DB.find(x=>x.id===id);
   if(!l){alert('Não encontrado.');return;}
-  l.data=document.getElementById('elb-data').value;
-  l.descricao=document.getElementById('elb-desc').value.trim();
-  l.tipo=document.getElementById('elb-tipo').value;
-  l.valor=parseFloat(document.getElementById('elb-valor').value)||0;
+  const data=document.getElementById('elb-data').value;
+  const descricao=document.getElementById('elb-desc').value.trim();
+  const tipo=document.getElementById('elb-tipo').value;
+  const valor=Number(document.getElementById('elb-valor').value);
+  if(!data || !window.erpBankLedger?.isoDate(data) || !descricao || !['Entrada','Saída'].includes(tipo) || !_bancoValorMonetarioValido(valor)){
+    alert('Preencha data, descrição, tipo e valor válido. O valor deve caber com precisão em centavos.');
+    return;
+  }
+  l.data=data;
+  l.descricao=descricao;
+  l.tipo=tipo;
+  l.valor=valor;
   saveBancos();
+  renderBancos();
   cm();
   verExtratoBanco(cod);
   showToast('Lançamento atualizado.','success');
@@ -6090,7 +6135,10 @@ function excluirAdiantamentoLista(btn){
 
 
 
-function zerarTodosAdiantamentos(){
+async function zerarTodosAdiantamentos(){
+  if(typeof _usuarioAtualEhAdmin==='function' && !_usuarioAtualEhAdmin()){
+    alert('Somente administradores podem zerar adiantamentos.');return;
+  }
   var qt=0; Object.keys(ADT_POR_FORN||{}).forEach(function(fc){ qt+=(ADT_POR_FORN[fc]||[]).length; });
   if(!qt){ alert('Não há adiantamentos pra apagar. Já está zerado.'); return; }
   if(!confirm('APAGAR TODOS os '+qt+' adiantamento(s) pra você começar do zero?\n\nFaço backup antes. Depois você lança os certos de novo — e eles NÃO vão mais voltar nem sumir.')) return;
@@ -6098,9 +6146,10 @@ function zerarTodosAdiantamentos(){
   try{
     var ts=Date.now();
     var copia=JSON.parse(JSON.stringify(ADT_POR_FORN));
-    if(window._fbDB){ window._fbDB.ref('erp/_bkp_zerar_adt_'+ts).set({quando:new Date().toISOString(), adiantamentos:copia}); }
+    if(!window._fbDB)throw new Error('Banco indisponível para o backup.');
+    await window._fbDB.ref('erp/advanceBackups/'+ts).set({quando:new Date().toISOString(), adiantamentos:copia});
     localStorage.setItem('mm_bkp_zerar_adt', JSON.stringify({ts:ts, adiantamentos:copia}));
-  }catch(e){}
+  }catch(e){alert('Falha ao criar o backup no Firebase. Nenhum adiantamento foi apagado.');return;}
   
   Object.keys(ADT_POR_FORN).forEach(function(fc){ delete ADT_POR_FORN[fc]; });
   try{ window._ADT_PENDENTES={}; }catch(e){}
@@ -6200,31 +6249,21 @@ function saveEpi(){ fbSalvar(); localStorage.setItem('mm_epi',JSON.stringify(EPI
 
 function renderEpi(){
   
+  const situacao=_erpSituacaoFiltro('epi-situacao');
   const selFunc=document.getElementById('epi-fil-func');
-  if(selFunc&&selFunc.options.length<=1){
-    FUNCIONARIOS.filter(f=>f.status!=='Inativo').forEach(f=>{
-      const o=document.createElement('option'); o.value=f.mat; o.textContent=f.mat+' – '+f.nome; selFunc.appendChild(o);
-    });
+  if(selFunc){
+    const selecionado=selFunc.value;
+    const funcs=FUNCIONARIOS.filter(f=>f&&_erpFiltroFuncionario(f,situacao)&&(_erpFuncionarioAtivo(f)||(EPI_DB||[]).some(e=>e.mat===f.mat)));
+    selFunc.innerHTML='<option value="">— Todos —</option>'+funcs.map(f=>'<option value="'+esc(f.mat)+'">'+esc(f.mat)+' – '+esc(f.nome)+'</option>').join('');
+    if(funcs.some(f=>f.mat===selecionado))selFunc.value=selecionado;
   }
-  
-  const filFunc=(document.getElementById('epi-fil-func')?.value||'');
-  const filMes=(document.getElementById('epi-fil-mes')?.value||'');
-  let lista=EPI_DB.filter(e=>{
-    if(filFunc&&e.mat!==filFunc) return false;
-    if(filMes&&!(e.data||'').startsWith(filMes.replace('-','/').split('/').reverse().join('/'))) return false;
-    return true;
-  });
-  
-  if(filMes) lista=EPI_DB.filter(e=>{
-    if(filFunc&&e.mat!==filFunc) return false;
-    
-    if(filMes){
-      const [yy,mm]=filMes.split('-');
-      if(e.data){
-        const parts=e.data.split('/');
-        if(parts.length===3&&(parts[2]!==yy||parts[1]!==mm)) return false;
-      }
-    }
+  const filFunc=selFunc?.value||'';
+  const filMes=document.getElementById('epi-fil-mes')?.value||'';
+  const lista=EPI_DB.filter(e=>{
+    const f=FUNCIONARIOS.find(x=>x&&x.mat===e.mat);
+    if(f?!_erpFiltroFuncionario(f,situacao):situacao==='ativos')return false;
+    if(filFunc&&e.mat!==filFunc)return false;
+    if(filMes&&!_erpRegistroMes(e.data,filMes))return false;
     return true;
   });
   const tb=document.getElementById('tb-epi');
@@ -6239,13 +6278,14 @@ function renderEpi(){
   tb.innerHTML=sorted.map(e=>{
     const f=FUNCIONARIOS.find(x=>x.mat===e.mat);
     const nome=f?f.nome:e.mat;
+    const historico=!f||_erpHistoricoSomenteLeitura(f);
     const cargo=f?f.cargo||'':'';
     const ass=e.assinatura
       ?'<span style="background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:2px 7px;font-size:.72rem;font-weight:700">✅ Assinado</span>'
       :'<span style="background:#fff3cd;color:#856404;border-radius:10px;padding:2px 7px;font-size:.72rem;font-weight:700">⏳ Pendente</span>';
     return `<tr>
       <td style="font-size:.8rem">${esc(fmtDate(e.data)||'')}</td>
-      <td><b>${esc(nome)}</b></td>
+      <td><b>${esc(nome)}</b>${historico?'<small style="display:block;color:#7b5792">Inativo / histórico</small>':''}</td>
       <td style="font-size:.78rem">${esc(cargo)}</td>
       <td style="font-size:.78rem">${esc(e.atividade||'')}</td>
       <td style="font-size:.78rem">${esc(e.risco||'')}</td>
@@ -6253,16 +6293,16 @@ function renderEpi(){
       <td style="font-size:.78rem">${esc(e.ca||'')}</td>
       <td style="font-size:.78rem">${esc(e.motivo||'')}</td>
       <td style="text-align:center">${ass}<br><div style="display:flex;gap:3px;justify-content:center;margin-top:3px">
-        <button class="btn-edit" style="font-size:.7rem;background:#1565c0;color:#fff" onclick="epiAssinarModal('${e.id}')">✍️</button>
+        ${historico?'':`<button class="btn-edit" style="font-size:.7rem;background:#1565c0;color:#fff" onclick="epiAssinarModal('${e.id}')">✍️</button>`}
         <button class="btn-edit" style="font-size:.7rem;background:#2e7d32;color:#fff" onclick="epiGerarRecibo('${e.id}')">📄</button>
       </div></td>
-      <td><button class="btn-edit-danger" style="font-size:.72rem" onclick="excluirEpi('${e.id}')">🗑️</button></td>
+      <td>${historico?'<span style="font-size:.78rem;color:#66756e">Somente leitura</span>':`<button class="btn-edit-danger" style="font-size:.72rem" onclick="excluirEpi('${e.id}')">🗑️</button>`}</td>
     </tr>`;
   }).join('');
 }
 
 function novoEpiModal(matPre){
-  const funcOpts=FUNCIONARIOS.filter(f=>f.status!=='Inativo')
+  const funcOpts=FUNCIONARIOS.filter(_erpFuncionarioAtivo)
     .map(f=>`<option value="${f.mat}" ${f.mat===matPre?'selected':''}>${f.mat} – ${f.nome}</option>`).join('');
   const epiOpts=_EPI_CATALOGO.map((c,i)=>`<option value="${i}">${c.epi}</option>`).join('');
   const motivoOpts=_EPI_MOTIVOS.map(m=>`<option>${m}</option>`).join('');
@@ -6313,6 +6353,8 @@ function salvarEpiEntrega(){
   const ca=(document.getElementById('ei-ca')?.value||'').trim();
   const motivo=document.getElementById('ei-motivo')?.value||'';
   if(!mat||!epi){ showToast('Preencha o funcionário e o EPI.','error'); return; }
+  const funcionario=FUNCIONARIOS.find(f=>f&&f.mat===mat);
+  if(!funcionario||!_erpFuncionarioAtivo(funcionario)){showToast('Funcionário inativo: não é permitido registrar nova entrega.','error');return;}
   const data=dataRaw?dataRaw.split('-').reverse().join('/'):'';
   EPI_DB.push({id:'epi_'+Date.now(), mat, data, epi, atividade:ativ, risco, ca, motivo});
   saveEpi();
@@ -6322,6 +6364,9 @@ function salvarEpiEntrega(){
 }
 
 function excluirEpi(id){
+  const registro=EPI_DB.find(e=>e.id===id);
+  const funcionario=FUNCIONARIOS.find(f=>f&&registro&&f.mat===registro.mat);
+  if(!funcionario||!_erpFuncionarioAtivo(funcionario)){showToast('Registro histórico somente leitura.','error');return;}
   if(!confirm('Excluir este registro de EPI?')) return;
   const idx=EPI_DB.findIndex(e=>e.id===id);
   if(idx<0) return;
@@ -6336,6 +6381,8 @@ function excluirEpi(id){
 function epiAssinarModal(id){
   const e=EPI_DB.find(x=>x.id===id);
   if(!e) return;
+  const ativo=FUNCIONARIOS.find(f=>f&&f.mat===e.mat);
+  if(!ativo||!_erpFuncionarioAtivo(ativo)){showToast('Histórico de inativo: somente leitura.','error');return;}
   const f=FUNCIONARIOS.find(x=>x.mat===e.mat);
   const nome=f?f.nome:e.mat;
   om('epiAssinar');
@@ -6385,6 +6432,8 @@ function _epiCanvasVazio(){ const c=document.getElementById('epi-sig-canvas'); i
 function epiSalvarAss(id){
   if(_epiCanvasVazio()){ showToast('Assine antes de salvar.','error'); return; }
   const e=EPI_DB.find(x=>x.id===id); if(!e) return;
+  const ativo=FUNCIONARIOS.find(f=>f&&f.mat===e.mat);
+  if(!ativo||!_erpFuncionarioAtivo(ativo)){showToast('Histórico de inativo: somente leitura.','error');return;}
   e.assinatura=document.getElementById('epi-sig-canvas').toDataURL('image/png');
   e.assinadoEm=new Date().toISOString().slice(0,10);
   saveEpi(); cm(); renderEpi(); showToast('Assinatura registrada! ✅','success');
@@ -6435,7 +6484,8 @@ function epiImprimirFicha(){
   const filFunc=(document.getElementById('epi-fil-func')?.value||'');
   const filMes=(document.getElementById('epi-fil-mes')?.value||'');
   
-  let mats=filFunc?[filFunc]:FUNCIONARIOS.filter(f=>f.status!=='Inativo').map(f=>f.mat);
+  const situacao=_erpSituacaoFiltro('epi-situacao');
+  let mats=filFunc?[filFunc]:FUNCIONARIOS.filter(f=>_erpFiltroFuncionario(f,situacao)).map(f=>f.mat);
   
   const epiFiltrado=(mat)=>EPI_DB.filter(e=>{
     if(e.mat!==mat) return false;
@@ -6528,6 +6578,8 @@ function epiImprimirRelatorioMensal(){
   const filMes=(document.getElementById('epi-fil-mes')?.value||'');
   let lista=EPI_DB.filter(e=>{
     if(filFunc&&e.mat!==filFunc) return false;
+    const f=FUNCIONARIOS.find(x=>x&&x.mat===e.mat);
+    if(f?!_erpFiltroFuncionario(f,_erpSituacaoFiltro('epi-situacao')):_erpSituacaoFiltro('epi-situacao')==='ativos') return false;
     if(filMes){
       const [yy,mm]=filMes.split('-');
       if(e.data){
@@ -6781,8 +6833,12 @@ function _valeMesFiltroAtual(){
 
 function _valeListaFiltrada(){
   const mes=_valeMesFiltroAtual();
-  if(!mes) return VALES_DB.slice();
-  return VALES_DB.filter(function(v){ return _valeMesChave(v)===mes; });
+  const situacao=_erpSituacaoFiltro('vales-situacao');
+  return VALES_DB.filter(function(v){
+    if(mes && _valeMesChave(v)!==mes) return false;
+    const funcionario=FUNCIONARIOS.find(f=>f&&f.mat===v.mat);
+    return funcionario?_erpFiltroFuncionario(funcionario,situacao):situacao!=='ativos';
+  });
 }
 
 function valeVerTodos(){
@@ -6849,6 +6905,34 @@ function valeGerarTodosRecibosMes(){
 
 
 
+// Consulta histórica: a inativação nunca remove vínculos nem documentos já lançados.
+function _erpFuncionarioAtivo(f){
+  if(!f || f.ativo===false || !!f.dataRescisao) return false;
+  const status=String(f.status||'Ativo').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+  return !['inativo','demitido','desligado','rescindido'].includes(status);
+}
+function _erpSituacaoFiltro(id){
+  const v=document.getElementById(id)?.value;
+  return v==='inativos'||v==='todos'?v:'ativos';
+}
+function _erpFiltroFuncionario(f,situacao){
+  return situacao==='todos'||(situacao==='inativos'?!_erpFuncionarioAtivo(f):_erpFuncionarioAtivo(f));
+}
+function _erpRegistroMes(data,mes){
+  const d=String(data||'').trim();
+  return d.startsWith(mes) || /^\d{2}\/\d{2}\/\d{4}$/.test(d) && d.slice(6)+'-'+d.slice(3,5)===mes;
+}
+function _erpTemHistoricoFolha(f,mes){
+  if(!f || !mes) return false;
+  const mat=String(f.mat||'');
+  return Object.prototype.hasOwnProperty.call(FOLHA_DB||{},mes+'-'+mat)
+    || (PONTO_DB||[]).some(p=>p&&p.mat===mat&&_erpRegistroMes(p.data,mes))
+    || (PONTO_BATIDAS_DB||[]).some(p=>p&&p.mat===mat&&_erpRegistroMes(p.data,mes))
+    || (VALES_DB||[]).some(v=>v&&v.mat===mat&&(_erpRegistroMes(v.data,mes)||String(v.mes||'')===mes))
+    || (VIAGEM_DB||[]).some(v=>v&&v.motorista===f.nome&&_erpRegistroMes(v.data,mes));
+}
+function _erpHistoricoSomenteLeitura(f){return !_erpFuncionarioAtivo(f);}
+
 function getFolhaMes(){
   const el=document.getElementById('folha-mes');
   if(!el||!el.value){
@@ -6861,6 +6945,8 @@ function getFolhaMes(){
   return el.value;
 }
 function setFolhaValor(mat,campo,val){
+  const f=FUNCIONARIOS.find(x=>x&&x.mat===mat);
+  if(!f||!_erpFuncionarioAtivo(f)){showToast('Funcionário inativo: histórico disponível somente para consulta.','error');return;}
   const mes=getFolhaMes();
   const key=mes+'-'+mat;
   if(!FOLHA_DB[key]) FOLHA_DB[key]={};
@@ -6992,6 +7078,7 @@ function renderFluxo(){
 
 
 function fecharFolha(){
+  if(_erpSituacaoFiltro('folha-situacao')!=='ativos'){ showToast('Selecione Ativos para fechar a folha. A consulta de inativos é somente histórica.','error'); return; }
   
   
   
@@ -7004,7 +7091,7 @@ function fecharFolha(){
 
   
   let totalLiq=0;
-  const lista=FUNCIONARIOS.filter(f=>f.status!=='Inativo');
+  const lista=FUNCIONARIOS.filter(_erpFuncionarioAtivo);
   lista.forEach(f=>{
     const key=mes+'-'+f.mat;
     const fd=FOLHA_DB[key]||{};
@@ -7081,16 +7168,22 @@ function renderFolha(){
   const [ano,mn]=mes.split('-');
   const nomeMes=meses[parseInt(mn)-1]+'/'+ano;
   const titulo=document.getElementById('folha-titulo');
-  const listaTodos=FUNCIONARIOS.filter(function(f){return f.status!=='Inativo';});
+  const situacao=_erpSituacaoFiltro('folha-situacao');
+  const listaTodos=FUNCIONARIOS.filter(function(f){return f && _erpFiltroFuncionario(f,situacao) && (_erpFuncionarioAtivo(f)||_erpTemHistoricoFolha(f,mes));});
   const termoEl=document.getElementById('folha-pesquisa');
   const termo=String(termoEl&&termoEl.value||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   const lista=termo?listaTodos.filter(function(f){
     const texto=[f.mat,f.nome,f.cargo,f.empresa,f.role,f.descricao].map(function(v){return String(v||'');}).join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     return texto.includes(termo);
   }):listaTodos;
-  if(titulo) titulo.textContent='Folha – '+nomeMes+(termo?' · '+lista.length+' de '+listaTodos.length+' funcionário(s)':'');
+  if(titulo) titulo.textContent='Folha – '+nomeMes+(situacao==='inativos'?' · Histórico de inativos':situacao==='todos'?' · Todos com registros':'')+(termo?' · '+lista.length+' de '+listaTodos.length+' funcionário(s)':'');
+  const aviso=document.getElementById('folha-historico-aviso');
+  if(aviso) aviso.hidden=situacao==='ativos';
+  const botaoFechar=document.getElementById('folha-fechar-btn');
+  if(botaoFechar){botaoFechar.disabled=situacao!=='ativos';botaoFechar.title=situacao==='ativos'?'Fechar folha dos funcionários ativos':'Histórico é somente leitura. Selecione Ativos para fechar a folha.';}
   let totalBruto=0,totalInss=0,totalLiq=0,totalDec=0,totalFer=0,totalDiariasAll=0;
   tbFolha.innerHTML=lista.map(f=>{
+    const historico=_erpHistoricoSomenteLeitura(f);
     const key=mes+'-'+f.mat;
     const fd=FOLHA_DB[key]||{};
     
@@ -7145,14 +7238,14 @@ function renderFolha(){
     const inpStyle='width:70px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;font-size:.82rem;text-align:right';
     const inpStyleDec='width:75px;padding:2px 4px;border:1px solid #f0c040;border-radius:4px;font-size:.82rem;text-align:right;background:#fffbea';
     const inpStyleFer='width:75px;padding:2px 4px;border:1px solid #a0c4e0;border-radius:4px;font-size:.82rem;text-align:right;background:#f0f7ff';
-    return '<tr style="'+(f.status==='Inativo'?'opacity:.5':'')+'">'+
-      '<td>'+f.mat+'</td><td>'+esc(f.nome)+'</td><td>'+esc(f.cargo)+'</td>'+
+    return '<tr class="'+(historico?'erp-historico-inativo':'')+'">'+
+      '<td>'+esc(f.mat)+'</td><td>'+esc(f.nome)+(historico?' <small title="Consulta histórica, valores calculados com dados atuais">(Inativo)</small>':'')+'</td><td>'+esc(f.cargo)+'</td>'+
       '<td>R$ '+fmt(f.sal)+'</td>'+
       '<td style="color:'+(faltas>0?'#e74c3c':'inherit')+';font-weight:'+(faltas>0?'700':'400')+'">'+faltas+'</td>'+
       '<td style="color:'+(atestados>0?'#e67e22':'inherit')+'">'+atestados+'</td>'+
       '<td>R$ '+fmt(heValor)+'</td>'+
-      '<td><input type="number" min="0" step="0.01" style="'+inpStyle+'" value="'+(fd.adicional||0)+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;adicional&#39;,this.value)" title="Editar adicional deste mês"></td>'+
-      '<td><input type="number" min="0" step="0.01" style="'+inpStyle+(faltas>0||atestados>0?';background:#fff0f0':'')+'" value="'+(fd.abono||0)+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;abono&#39;,this.value)" title="'+(faltas>0||atestados>0?'Atenção: funcionário tem falta/atestado':'Editar abono deste mês')+'"></td>'+
+      '<td>'+(historico?'R$ '+fmt(fd.adicional||0):'<input type="number" min="0" step="0.01" style="'+inpStyle+'" value="'+(fd.adicional||0)+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;adicional&#39;,this.value)" title="Editar adicional deste mês">')+'</td>'+
+      '<td>'+(historico?'R$ '+fmt(fd.abono||0):'<input type="number" min="0" step="0.01" style="'+inpStyle+(faltas>0||atestados>0?';background:#fff0f0':'')+'" value="'+(fd.abono||0)+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;abono&#39;,this.value)" title="'+(faltas>0||atestados>0?'Atenção: funcionário tem falta/atestado':'Editar abono deste mês')+'">')+'</td>'+
       '<td>R$ '+fmt(bruto)+'</td>'+
       '<td>R$ '+fmt(inss)+'</td>'+
       '<td>R$ '+fmt(irrf)+'</td>'+
@@ -7162,13 +7255,13 @@ function renderFolha(){
       '<td style="background:#e8f5e9;text-align:center">'+qtdViagens+'</td>'+
       '<td style="background:#e8f5e9;font-weight:600;color:#1a5e2a">R$ '+fmt(totalDiarias)+'</td>'+
       '<td><b>R$ '+fmt(liq)+'</b></td>'+
-      '<td style="background:#fffbea"><input type="number" min="0" step="0.01" style="'+inpStyleDec+'" value="'+fmt(provDec).replace('.','').replace(',','.')+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;decTerceiro&#39;,this.value)" title="Provisão 13º salário"></td>'+
-      '<td style="background:#f0f7ff"><input type="number" min="0" step="0.01" style="'+inpStyleFer+'" value="'+fmt(provFer).replace('.','').replace(',','.')+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;ferias&#39;,this.value)" title="Provisão férias"></td>'+
+      '<td style="background:#fffbea">'+(historico?'R$ '+fmt(provDec):'<input type="number" min="0" step="0.01" style="'+inpStyleDec+'" value="'+fmt(provDec).replace('.','').replace(',','.')+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;decTerceiro&#39;,this.value)" title="Provisão 13º salário">')+'</td>'+
+      '<td style="background:#f0f7ff">'+(historico?'R$ '+fmt(provFer):'<input type="number" min="0" step="0.01" style="'+inpStyleFer+'" value="'+fmt(provFer).replace('.','').replace(',','.')+'" onchange="setFolhaValor(&#39;'+f.mat+'&#39;,&#39;ferias&#39;,this.value)" title="Provisão férias">')+'</td>'+
       '<td style="white-space:nowrap">'+
-      '<button class="btn-edit" onclick="toggleInativarFunc(&#39;'+f.mat+'&#39;)" style="font-size:.75rem;background:#e67e22" title="Inativar">⏸️</button> '+
-      '<button class="btn-edit-danger" onclick="excluirFuncionario(&#39;'+f.mat+'&#39;)" title="Excluir" style="font-size:.75rem">🗑️</button>'+
+      (historico?'<span style="font-size:.78rem;color:#66756e">Somente leitura</span>':('<button class="btn-edit" onclick="toggleInativarFunc(&#39;'+f.mat+'&#39;)" style="font-size:.75rem;background:#e67e22" title="Inativar">⏸️</button> '+
+      '<button class="btn-edit-danger" onclick="excluirFuncionario(&#39;'+f.mat+'&#39;)" title="Excluir" style="font-size:.75rem">🗑️</button>'))+
       '</td></tr>';
-  }).join('');
+  }).join('') || '<tr><td colspan="21" style="padding:20px;text-align:center">Nenhum registro histórico encontrado neste mês para a situação selecionada.</td></tr>';
   
   const kpis=document.getElementById('folha-kpis');
   if(kpis) kpis.innerHTML=
@@ -7316,7 +7409,7 @@ function renderVales(){
   if(kSub) kSub.textContent='Dia '+diaVale+' · '+nomeMesK;
   if(kAberto) kAberto.textContent=String(doMes.length);
   if(kTotal) kTotal.textContent='R$ '+fmt(totalGeral);
-  if(count) count.textContent=filtroMes?('Vales encontrados: '+listaFiltrada.length):('Todos os vales: '+VALES_DB.length);
+  if(count) count.textContent='Registros exibidos: '+listaFiltrada.length+' · Histórico geral preservado';
   if(listaFiltrada.length===0){
     tb.innerHTML='<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum vale encontrado para o período selecionado</td></tr>';
     return;
@@ -7331,6 +7424,7 @@ function renderVales(){
     const gi=VALES_DB.indexOf(v);
     const f=FUNCIONARIOS.find(function(x){return x.mat===v.mat;});
     const nome=f?f.nome:v.mat;
+    const historico=!f||_erpHistoricoSomenteLeitura(f);
     const assBadge=v.assinatura
       ?'<span style="background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:2px 8px;font-size:.72rem;font-weight:700">✅ Assinado</span>'
       :'<span style="background:#fff3cd;color:#856404;border-radius:10px;padding:2px 8px;font-size:.72rem;font-weight:700">⏳ Pendente</span>';
@@ -7338,7 +7432,7 @@ function renderVales(){
       '<td>'+esc(v.mat||'—')+'</td>'+ 
       '<td>'+esc(_fmtDataBR(v.data)||'—')+'</td>'+ 
       '<td>'+esc(v.mes||'—')+'</td>'+ 
-      '<td><b>'+esc(nome||'—')+'</b></td>'+ 
+      '<td><b>'+esc(nome||'—')+'</b>'+(historico?' <small style="color:#7b5792">(Inativo / histórico)</small>':'')+'</td>'+ 
       '<td style="font-weight:700">R$ '+fmt(v.valor)+'</td>'+ 
       '<td>'+esc(v.forma||'—')+'</td>'+ 
       '<td style="font-size:.78rem">'+esc(v.obs||'—')+'</td>'+ 
@@ -7347,8 +7441,7 @@ function renderVales(){
         '<button class="btn-edit" style="font-size:.72rem;background:#1565c0;color:#fff" onclick="valeAssinarModal('+gi+',\''+String(v.mat||'').replace(/'/g,"\\'")+'\')" title="Capturar assinatura">✍️ Assinar</button>'+ 
         '<button class="btn-edit" style="font-size:.72rem;background:#2e7d32;color:#fff" onclick="valeGerarRecibo('+gi+')" title="Gerar recibo">📄 Recibo</button>'+ 
         '</div></td>'+ 
-      '<td style="white-space:nowrap"><button class="btn-edit" onclick="editVale('+gi+')" title="Editar" style="margin-right:4px">✏️</button>'+ 
-      '<button class="btn-edit-danger" onclick="excluirVale('+gi+')" title="Excluir">🗑️</button></td>'+ 
+      '<td style="white-space:nowrap">'+(historico?'<span style="color:#66756e;font-size:.78rem">Somente leitura</span>':'<button class="btn-edit" onclick="editVale('+gi+')" title="Editar" style="margin-right:4px">✏️</button><button class="btn-edit-danger" onclick="excluirVale('+gi+')" title="Excluir">🗑️</button>')+'</td>'+ 
       '</tr>';
   }).join('');
 }
@@ -7359,6 +7452,8 @@ function salvarPontoLancamento(){
   const tipo=document.getElementById('pt-tipo')?.value||'Falta';
   const horas=parseFloat(document.getElementById('pt-horas')?.value)||0;
   if(!mat){alert('Selecione o funcionário.');return;}
+  const funcionario=FUNCIONARIOS.find(f=>f&&f.mat===mat);
+  if(!funcionario || !_erpFuncionarioAtivo(funcionario)){alert('Funcionário inativo. Novos lançamentos são bloqueados; consulte o histórico no filtro.');return;}
   if(!data){alert('Informe a data.');return;}
   const dataFmt=data.split('-').reverse().join('/');
   PONTO_DB.push({mat,data:dataFmt,tipo,horas,obs:document.getElementById('pt-obs')?.value||''});
@@ -7373,6 +7468,8 @@ function salvarValeFunc(){
   const data=document.getElementById('vl-data')?.value;
   const valor=parseFloat(document.getElementById('vl-valor')?.value)||0;
   if(!mat){alert('Selecione o funcionário.');return;}
+  const funcionario=FUNCIONARIOS.find(f=>f&&f.mat===mat);
+  if(!funcionario || !_erpFuncionarioAtivo(funcionario)){alert('Funcionário inativo. Novos lançamentos são bloqueados; consulte o histórico no filtro.');return;}
   if(!valor||valor<=0){alert('Informe o valor do vale.');return;}
   const dataFmt=data?data.split('-').reverse().join('/'):'';
   VALES_DB.push({
@@ -7391,6 +7488,8 @@ function salvarValeFunc(){
 
 function excluirVale(idx){
   const v=VALES_DB[idx];
+  const f=FUNCIONARIOS.find(x=>x&&v&&x.mat===v.mat);
+  if(!f||!_erpFuncionarioAtivo(f)){alert('Registro histórico de funcionário inativo não pode ser excluído nesta tela.');return;}
   if(!v||!confirm('Excluir vale de R$ '+Number(v.valor).toFixed(2)+'?')) return;
   _syncVales.remover(idx);
   saveDB();
@@ -7411,16 +7510,23 @@ function renderPontoTab(){
   const tb=document.getElementById('tb-ponto');
   if(!tb) return;
   const agora=new Date();
-  const mes=String(agora.getMonth()+1).padStart(2,'0');
-  const ano=String(agora.getFullYear());
-  const lancamentosMes=PONTO_DB.filter(function(p){
-    const partes=String(p&&p.data||'').split('/');
-    return partes.length===3 && partes[1]===mes && partes[2]===ano;
+  const ref=document.getElementById('ponto-mes');
+  if(ref&&!ref.value) ref.value=agora.getFullYear()+'-'+String(agora.getMonth()+1).padStart(2,'0');
+  const referencia=ref?.value||agora.getFullYear()+'-'+String(agora.getMonth()+1).padStart(2,'0');
+  const [ano,mes]=referencia.split('-');
+  const situacao=_erpSituacaoFiltro('ponto-situacao');
+  const lancamentosMes=PONTO_DB.filter(p=>p&&_erpRegistroMes(p.data,referencia));
+  const diasUteis=_diasUteisNoMes(Number(ano),Number(mes)-1);
+  const funcionarios=FUNCIONARIOS.filter(f=>{
+    if(!f||!_erpFiltroFuncionario(f,situacao)) return false;
+    if(_erpFuncionarioAtivo(f)) return true;
+    return lancamentosMes.some(p=>p.mat===f.mat) || (PONTO_BATIDAS_DB||[]).some(p=>p.mat===f.mat&&_erpRegistroMes(p.data,referencia));
   });
-  const diasUteis=_diasUteisNoMes(agora.getFullYear(),agora.getMonth());
-  const ativos=FUNCIONARIOS.filter(function(f){ return f && f.status!=='Inativo'; }).length;
-  const faltasMes=lancamentosMes.filter(function(p){ return p.tipo==='Falta'; }).length;
-  const horasExtrasMes=lancamentosMes.filter(function(p){ return p.tipo==='HE'; }).reduce(function(total,p){ return total+Number(p.horas||0); },0);
+  const matsVisiveis=new Set(funcionarios.map(f=>f.mat));
+  const lancamentosVisiveis=lancamentosMes.filter(p=>matsVisiveis.has(p.mat));
+  const ativos=funcionarios.length;
+  const faltasMes=lancamentosVisiveis.filter(p=>p.tipo==='Falta').length;
+  const horasExtrasMes=lancamentosVisiveis.filter(p=>p.tipo==='HE').reduce((total,p)=>total+Number(p.horas||0),0);
   const kDias=document.getElementById('kpi-ponto-dias-uteis');
   const kFunc=document.getElementById('kpi-ponto-funcionarios');
   const kFaltas=document.getElementById('kpi-ponto-faltas');
@@ -7441,21 +7547,22 @@ function renderPontoTab(){
   
   
   try{ if(_syncPonto.limparDuplicatasExatas()){ saveDB(); } }catch(e){}
-  tb.innerHTML=FUNCIONARIOS.map(f=>{
+  tb.innerHTML=funcionarios.map(f=>{
+    const historico=_erpHistoricoSomenteLeitura(f);
     const lancs=lancamentosMes.filter(p=>p.mat===f.mat);
     const faltas=lancs.filter(p=>p.tipo==='Falta').length;
     const he=lancs.filter(p=>p.tipo==='HE').reduce((s,p)=>s+Number(p.horas||0),0);
     const hf=lancs.filter(p=>p.tipo==='Falta').reduce((s,p)=>s+8,0);
     const ates=lancs.filter(p=>p.tipo==='Atestado').length;
-    const diasTrab=Math.max(0,diasUteis-faltas);
+    const diasTrab=historico?'—':Math.max(0,diasUteis-faltas);
     return '<tr>'+
-      '<td>'+f.mat+'</td><td><b>'+esc(f.nome)+'</b></td>'+
+      '<td>'+esc(f.mat)+'</td><td><b>'+esc(f.nome)+'</b>'+(historico?' <small title="Consulta de registros anteriores" style="color:#7b5792">(Inativo)</small>':'')+'</td>'+
       '<td>'+diasTrab+'</td><td>'+faltas+'</td>'+
       '<td>'+he+'h</td><td>'+hf+'h</td><td>'+ates+'</td>'+
       '<td style="font-size:.75rem">'+(lancs.map(l=>l.tipo+' '+l.data).join(', ')||'—')+'</td>'+
-      '<td><button class="btn-edit-danger" onclick="excluirPontoFunc(&#39;'+f.mat+'&#39;)" title="Excluir lançamentos">🗑️</button></td>'+
+      '<td>'+(historico?'<span style="color:#66756e;font-size:.78rem">Somente leitura</span>':'<button class="btn-edit-danger" onclick="excluirPontoFunc(&#39;'+f.mat+'&#39;)" title="Excluir lançamentos deste mês">🗑️</button>')+'</td>'+
       '</tr>';
-  }).join('');
+  }).join('') || '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--gray)">Nenhum registro de ponto para esta situação e mês. O histórico continua preservado.</td></tr>';
 
   try{ _popularSelectPontoFuncionarios(); }catch(e){}
   try{ renderCartaoPontoImportado(); }catch(e){}
@@ -7466,17 +7573,16 @@ function renderPontoTab(){
 
 function _popularSelectPontoFuncionarios(){
   const sel=document.getElementById('ponto-cartao-func');
-  if(!sel) return;
-  const valorAtual=sel.value;
-  const matsComDados=new Set(PONTO_BATIDAS_DB.map(r=>r.mat));
-  const funcs=FUNCIONARIOS.filter(f=>matsComDados.has(f.mat)).sort((a,b)=>a.nome.localeCompare(b.nome));
-  sel.innerHTML='<option value="">— Selecione —</option>'+
-    funcs.map(f=>'<option value="'+f.mat+'">'+esc(f.nome)+'</option>').join('');
-  if(valorAtual && matsComDados.has(valorAtual)) sel.value=valorAtual;
+  if(!sel)return;
+  const anterior=sel.value;
+  const situacao=_erpSituacaoFiltro('ponto-situacao');
+  const todos=FUNCIONARIOS.filter(f=>f&&_erpFiltroFuncionario(f,situacao)).slice()
+    .sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+  sel.innerHTML='<option value="">— Selecione —</option>'+todos.map(f=>
+    '<option value="'+esc(f.mat)+'">'+esc(f.nome)+' ('+esc(f.mat)+')'+(!_erpFuncionarioAtivo(f)?' — Inativo':'')+'</option>'
+  ).join('');
+  if(anterior&&todos.some(f=>f.mat===anterior))sel.value=anterior;
 }
-
-
-
 
 function renderCartaoPontoImportado(){
   const host=document.getElementById('ponto-cartao-host');
@@ -7534,11 +7640,13 @@ function renderCartaoPontoImportado(){
 
 function excluirPontoFunc(mat){
   const f=FUNCIONARIOS.find(x=>x.mat===mat);
-  if(!confirm('Excluir todos os lançamentos de ponto de '+(f?f.nome:mat)+'?')) return;
+  const mes=document.getElementById('ponto-mes')?.value||new Date().toISOString().slice(0,7);
+  if(!f || !_erpFuncionarioAtivo(f)){ alert('Registros de funcionários inativos são somente para consulta.'); return; }
+  if(!confirm('Excluir SOMENTE os lançamentos de '+(f?f.nome:mat)+' em '+mes+'? Os outros períodos serão preservados.')) return;
   const before=PONTO_DB.length;
   
   
-  for(let i=PONTO_DB.length-1;i>=0;i--){ if(PONTO_DB[i] && PONTO_DB[i].mat===mat) _syncPonto.remover(i); }
+  for(let i=PONTO_DB.length-1;i>=0;i--){ if(PONTO_DB[i] && PONTO_DB[i].mat===mat && _erpRegistroMes(PONTO_DB[i].data,mes)) _syncPonto.remover(i); }
   saveDB();
   renderPontoTab();
   alert('✅ '+(before-PONTO_DB.length)+' lançamento(s) removido(s).');
@@ -9740,9 +9848,9 @@ function renderTickets(){
     return `<tr style="${bgRow}">
       <td><b>${tk.ticket}</b></td>
       <td>${fmtDate(tk.data)||'—'}</td>
-      <td style="cursor:pointer;color:#1565c0;text-decoration:underline" onclick="abrirDetalheCompra('${tk._dbKey}')" title="Ver todos os itens desta compra">${tk.fornecedor}</td>
+      <td style="cursor:pointer;color:#1565c0;text-decoration:underline" onclick="phase4PurchaseEditTicket('${tk._dbKey}')" title="Editar pedido na aba Lançamento">${tk.fornecedor}</td>
       <td>${(tk.itens||[]).reduce((s,i)=>s+Number(i.pesoLiq||0),0).toFixed(1)} kg</td>
-      <td style="cursor:pointer;color:#1565c0;text-decoration:underline" onclick="abrirDetalheCompra('${tk._dbKey}')" title="Ver todos os itens desta compra">${totalCell}</td>
+      <td style="cursor:pointer;color:#1565c0;text-decoration:underline" onclick="phase4PurchaseEditTicket('${tk._dbKey}')" title="Editar pedido na aba Lançamento">${totalCell}</td>
       <td>${adtCell}</td>
       <td style="font-weight:800">${saldoCell}</td>
       <td>${statusBadge}</td>
@@ -9750,7 +9858,7 @@ function renderTickets(){
         ${isPago
           ? '<button onclick="desmarcarCompraPaga(\''+tk._dbKey+'\')" title="Desmarcar pago (volta a pendente)" style="background:#e0e7ef;color:#556;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem;font-weight:700">↩️</button>'
           : '<button onclick="marcarCompraPaga(\''+tk._dbKey+'\')" title="Marcar como paga (quando o pagamento já está lançado na Ficha) — não cria adiantamento nem duplica" style="background:#1a7f4b;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem;font-weight:700">✅ Pago</button>'}
-        <button onclick="csAbrirImpureza('${tk._dbKey}')" title="Editar / Desconto de Impureza" style="background:#1a3a2a;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem">✏️</button>
+        <button onclick="phase4PurchaseEditTicket('${tk._dbKey}')" title="Editar pedido completo na aba Lançamento" style="background:#1a3a2a;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem">✏️</button>
         <button class="btn-edit-danger" onclick="excluirEntradaCompra('${tk._dbKey}')" title="Excluir entrada" style="font-size:.75rem">🗑️</button>
       </td>
     </tr>`;
@@ -9916,7 +10024,7 @@ function getPrecosFornMsg(){
 function compartilharPrecosFornWpp(){
   const msg=getPrecosFornMsg();
   if(!msg) return;
-  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+  window.open('https://wa.me/?text='+encodeURIComponent(_erpWhatsFormat(msg)),'_blank');
 }
 
 function compartilharPrecosFornNumero(){
@@ -9924,7 +10032,7 @@ function compartilharPrecosFornNumero(){
   if(!msg) return;
   const num=prompt('Número WhatsApp do fornecedor (com DDD, só números):');
   if(!num) return;
-  window.open('https://wa.me/55'+num.replace(/\D/g,'')+'?text='+encodeURIComponent(msg),'_blank');
+  window.open('https://wa.me/55'+num.replace(/\D/g,'')+'?text='+encodeURIComponent(_erpWhatsFormat(msg)),'_blank');
 }
 
 async function compartilharImagemPrecosForn(){
@@ -11449,114 +11557,8 @@ function _colunaPorBordaEsquerda(x, bordas){
 }
 
 function _parseCartaoPontoPagina(linhas, textoCompleto){
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  function campoPorRotulo(rotuloExato){
-    for(let i=0;i<linhas.length;i++){
-      const itens = linhas[i].itens;
-      const idx = itens.findIndex(function(it){ return it.str.trim()===rotuloExato; });
-      if(idx<0) continue;
-      const partes=[];
-      for(let k=idx+1;k<itens.length;k++){
-        if(/:$/.test(itens[k].str.trim())) break;
-        partes.push(itens[k].str);
-      }
-      return partes.join(' ').trim();
-    }
-    return null;
-  }
-  const nome = campoPorRotulo('NOME DO FUNCIONÁRIO:');
-  const cpf = campoPorRotulo('CPF DO FUNCIONÁRIO:');
-  const pis = campoPorRotulo('PIS DO FUNCIONÁRIO:');
-  const cargo = campoPorRotulo('NOME DO CARGO:');
-  const mPeriodo = textoCompleto.match(/DE (\d{2}\/\d{2}\/\d{4}) ATÉ (\d{2}\/\d{2}\/\d{4})/);
-  const periodoInicio = mPeriodo ? mPeriodo[1] : null;
-  const periodoFim = mPeriodo ? mPeriodo[2] : null;
-
-  let idxHeader = -1;
-  for(let i=0;i<linhas.length;i++){
-    const txts = linhas[i].itens.map(function(it){ return it.str; });
-    if(txts.indexOf('DIA')>=0 && (txts.indexOf('PREVISTO')>=0 || txts.indexOf('TRABALHADO')>=0 || txts.some(function(t){return /^ENT\.\s*1$/.test(t);}))){ idxHeader=i; break; }
-  }
-  if(idxHeader<0) return {nome:nome, cpf:cpf, pis:pis, cargo:cargo, periodoInicio:periodoInicio, periodoFim:periodoFim, erro:'cabecalho_nao_encontrado', dias:[], extraColunas:{}};
-
-  const headerItens = linhas[idxHeader].itens;
-  function bordaDe(regex){
-    const it = headerItens.find(function(x){ return regex.test(x.str); });
-    return it ? it.x : null;
-  }
-  const bordas = {
-    dia: bordaDe(/^DIA$/),
-    previsto: bordaDe(/^PREVISTO$/),
-    ent1: bordaDe(/^ENT\.\s*1$/),
-    sai1: bordaDe(/^SAÍ\.\s*1$/),
-    ent2: bordaDe(/^ENT\.\s*2$/),
-    sai2: bordaDe(/^SAÍ\.\s*2$/),
-    ent3: bordaDe(/^ENT\.\s*3$/),
-    sai3: bordaDe(/^SAÍ\.\s*3$/),
-    total: bordaDe(/^TRABALHADO$/),
-    faltaAtraso: bordaDe(/^ATRASO$/)
-  };
-  const extraColunas = {};
-  headerItens.forEach(function(it){
-    const m = it.str.match(/^(\d{1,3})%([DN])$/);
-    if(m){
-      const chave = 'extra_'+m[1]+'_'+m[2];
-      bordas[chave] = it.x;
-      extraColunas[chave] = {pct:m[1], periodo:m[2]};
-    }
-  });
-
-  const dias = [];
-  const alteracoes = [];
-  let modoAlteracoes = false;
-  for(let i=idxHeader+1;i<linhas.length;i++){
-    const itens = linhas[i].itens;
-    if(!itens.length) continue;
-    const primeiro = itens[0].str;
-    if(primeiro==='TOTAIS') continue; 
-    if(primeiro.indexOf('Alterações')===0){ modoAlteracoes=true; continue; }
-    if(modoAlteracoes){ alteracoes.push(itens.map(function(x){return x.str;}).join(' ')); continue; }
-    const mData = primeiro.match(/^(\d{2}\/\d{2}\/\d{4})\s*-\s*([A-ZÇÃÁ]{3})$/);
-    if(!mData) continue; 
-
-    const cols = {};
-    for(let k=1;k<itens.length;k++){
-      const col = _colunaPorBordaEsquerda(itens[k].x, bordas);
-      if(!col) continue;
-      if(!cols[col]) cols[col]=[];
-      cols[col].push(itens[k].str);
-    }
-    function j(col){ return (cols[col]||[]).join(' ').trim(); }
-
-    const extras = {};
-    Object.keys(extraColunas).forEach(function(chave){
-      const v = j(chave);
-      if(v) extras[chave] = {pct:extraColunas[chave].pct, periodo:extraColunas[chave].periodo, valor:v};
-    });
-
-    dias.push({
-      data: mData[1], diaSemana: mData[2],
-      previsto: j('previsto'),
-      ent1: j('ent1'), sai1: j('sai1'),
-      ent2: j('ent2'), sai2: j('sai2'),
-      ent3: j('ent3'), sai3: j('sai3'),
-      total: j('total'), faltaAtraso: j('faltaAtraso'),
-      extras: extras
-    });
-  }
-
-  return {nome:nome, cpf:cpf, pis:pis, cargo:cargo, periodoInicio:periodoInicio, periodoFim:periodoFim, extraColunas:extraColunas, dias:dias, alteracoes:alteracoes};
+  if(!window.RHiDCardReader) throw new Error('Leitor RH iD não carregado. Atualize a página.');
+  return window.RHiDCardReader.parsePage(linhas, textoCompleto);
 }
 
 async function _lerCartaoPontoRHiD(pdfData){
@@ -11577,68 +11579,473 @@ async function _lerCartaoPontoRHiD(pdfData){
 
 function _cpfSoDigitos(s){ return (s||'').replace(/\D/g,''); }
 
-function importarCartaoPontoRHiD(input){
-  const file = input.files[0];
-  if(!file) return;
-  const status = document.getElementById('ponto-import-status');
-  if(status) status.textContent = '⏳ Lendo PDF...';
-
-  const reader = new FileReader();
-  reader.onload = async function(e){
+// A prévia impede que nomes semelhantes ou CPFs não cadastrados sejam
+// vinculados a outro funcionário automaticamente. Nada é salvo antes da revisão.
+let _rhidPaginasPendentes = [];
+let _rhidImportando = false;
+// Os vínculos ficam em memória enquanto o usuário pesquisa/pagina na prévia.
+// Nunca são persistidos até a confirmação explícita da importação.
+let _rhidVinculosPendentes = new Map();
+let _rhidPaginaPrevia = 0;
+let _rhidFiltroPrevia = '';
+const _RHID_PREVIA_POR_PAGINA = 6;
+// A prévia permanece aberta enquanto o RH cadastra funcionários. A lista de
+// matrículas precisa refletir o cadastro atual sem refazer a leitura do PDF.
+let _rhidAssinaturaCadastro = '';
+let _rhidUltimaConsultaCadastro = 0;
+let _rhidConsultaCadastroPendente = null;
+function _rhidFuncionariosOrdenados(){
+  return FUNCIONARIOS.filter(f=>f&&f.mat).slice()
+    .sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+}
+function _rhidAssinaturaFuncionarios(){
+  return JSON.stringify(FUNCIONARIOS.filter(f=>f&&f.mat)
+    .map(f=>[f.mat,f.nome,f.status]));
+}
+function _rhidOpcoesFuncionarios(lista,mat){
+  const ativo=lista.some(f=>String(f.mat)===String(mat));
+  const aviso=mat&&!ativo?'<option value="'+esc(mat)+'" selected disabled>⚠ Matrícula excluída — revise o vínculo</option>':'';
+  return '<option value="">— Não vincular —</option>'+aviso+
+    lista.map(f=>'<option value="'+esc(f.mat)+'"'+(String(f.mat)===String(mat)?' selected':'')+'>'+esc(f.nome)+' ('+esc(f.mat)+')'+(!_erpFuncionarioAtivo(f)?' — Inativo':'')+'</option>').join('');
+}
+function _rhidAtualizarOpcoesFuncionarios(){
+  const host=document.getElementById('ponto-rhid-preview');
+  if(!host||!_rhidPaginasPendentes.length||_rhidImportando)return;
+  const assinatura=_rhidAssinaturaFuncionarios();
+  if(assinatura===_rhidAssinaturaCadastro)return;
+  _rhidAssinaturaCadastro=assinatura;
+  const funcionarios=_rhidFuncionariosOrdenados();
+  host.querySelectorAll('[data-rhid-match]').forEach(select=>{
+    const indice=Number(select.getAttribute('data-rhid-match'));
+    const mat=_rhidVinculosPendentes.get(indice)||'';
+    select.innerHTML=_rhidOpcoesFuncionarios(funcionarios,mat);
+    select.value=mat||'';
+    // O campo visível é autossuficiente: não depende de outro módulo JS
+    // ter sido carregado para oferecer pesquisa na prévia RH iD.
+    const combo=select.closest('.rhid-picker');
+    if(!combo)return;
+    const input=combo.querySelector('.rhid-picker-input');
+    if(combo.dataset.open==='1')_rhidRenderizarSugestoes(combo);
+    else if(input)input.value=_rhidRotuloFuncionario(mat);
+  });
+}
+// Consulta dirigida SOMENTE ao cadastro de funcionários. Não dispara fbCarregar
+// ou fbSalvar e não regrava os dados de outros módulos.
+async function atualizarFuncionariosPreviaRHiD(forcar=false){
+  if(!_rhidPaginasPendentes.length||_rhidImportando)return;
+  _rhidAtualizarOpcoesFuncionarios();
+  if(!window._fbDB)return;
+  if(_rhidConsultaCadastroPendente)return _rhidConsultaCadastroPendente;
+  if(!forcar && Date.now()-_rhidUltimaConsultaCadastro<20000)return;
+  _rhidUltimaConsultaCadastro=Date.now();
+  const status=document.getElementById('rhid-preview-refresh-status');
+  if(status)status.textContent='Atualizando funcionários…';
+  _rhidConsultaCadastroPendente=(async()=>{
     try{
-      const paginas = await _lerCartaoPontoRHiD(new Uint8Array(e.target.result));
-
-      const naoEncontrados = [];
-      let funcImportados = 0, diasImportados = 0;
-      const agora = new Date().toLocaleString('pt-BR');
-
-      paginas.forEach(function(pag){
-        if(pag.erro || !pag.dias.length) return;
-        const cpfDigitos = _cpfSoDigitos(pag.cpf).slice(0,11);
-        const func = FUNCIONARIOS.find(function(f){ return _cpfSoDigitos(f.cpf) === cpfDigitos && cpfDigitos; });
-        if(!func){
-          naoEncontrados.push((pag.nome||'?')+' (CPF '+(pag.cpf||'?')+')');
-          return;
-        }
-        
-        
-        
-        for(let i=PONTO_BATIDAS_DB.length-1;i>=0;i--){
-          const r = PONTO_BATIDAS_DB[i];
-          if(r && r.mat===func.mat && pag.dias.some(function(d){ return d.data===r.data; })){
-            _syncPontoBatidas.remover(i);
-          }
-        }
-        pag.dias.forEach(function(d){
-          PONTO_BATIDAS_DB.push(Object.assign({mat:func.mat, origem:'rhid',
-            periodoInicio:pag.periodoInicio, periodoFim:pag.periodoFim, importadoEm:agora}, d));
-          diasImportados++;
-        });
-        funcImportados++;
-      });
-
-      saveDB();
-      try{ renderPontoTab(); }catch(ee){}
-      try{ _popularSelectPontoFuncionarios(); }catch(ee){}
-
-      const nadaLido = (funcImportados===0 && diasImportados===0);
-      let msg;
-      if(nadaLido && !naoEncontrados.length){
-        msg = '⚠️ Não consegui ler nenhum dia deste PDF.\n\nConfira se é mesmo o "Cartão de Ponto" exportado do RH iD em PDF (não uma foto/print). Se for e mesmo assim não ler, me avise.';
-      } else {
-        msg = '✅ '+funcImportados+' funcionário(s), '+diasImportados+' dia(s) importado(s) do RH iD.';
-        if(naoEncontrados.length){
-          msg += '\n\n⚠️ '+naoEncontrados.length+' funcionário(s) do RH iD NÃO encontrado(s) no cadastro (CPF não bate com nenhum funcionário) — não foram importados:\n• '+naoEncontrados.join('\n• ');
+      const snapshot=await window._fbDB.ref('erp/funcEdit').once('value');
+      const remoto=snapshot.val();
+      if(remoto&&typeof remoto==='object'){
+        // Mescla versões com o mecanismo existente para não descartar um
+        // cadastro recém-criado nesta sessão que ainda está sincronizando.
+        const mesclado=_mesclarFuncEdit(remoto,null);
+        if(Array.isArray(mesclado)&&mesclado.length){
+          const antes=_rhidAssinaturaFuncionarios();
+          FUNCIONARIOS.splice(0,FUNCIONARIOS.length,...mesclado);
+          if(antes!==_rhidAssinaturaFuncionarios())_rhidAtualizarOpcoesFuncionarios();
         }
       }
-      if(status) status.textContent = nadaLido ? '⚠️ Nada foi lido do PDF — confira o arquivo.' : (naoEncontrados.length ? '⚠️ Importado com pendências — veja o aviso.' : '✅ Importado com sucesso!');
-      alert(msg);
-      showToast(nadaLido ? '⚠️ Nada foi importado — confira o PDF' : (naoEncontrados.length ? '⚠️ Importado com '+naoEncontrados.length+' pendência(s)' : '✅ Cartão de ponto importado!'), nadaLido?'warn':(naoEncontrados.length?'warn':'success'), 6000);
-    }catch(err){
-      console.error('Erro ao importar cartão de ponto:', err);
-      if(status) status.textContent = '❌ Erro: '+err.message;
-      showToast('Erro ao importar PDF do RH iD: '+err.message, 'error', 7000);
+      if(status)status.textContent='Lista de funcionários atualizada.';
+    }catch(error){
+      if(status)status.textContent='Não foi possível consultar o cadastro na nuvem. A lista local continua disponível.';
+      console.warn('[RH iD] Falha ao atualizar funcionários:',error?.code||error?.message||error);
+    }finally{_rhidConsultaCadastroPendente=null;}
+  })();
+  return _rhidConsultaCadastroPendente;
+}
+// O Firebase já emite este evento quando recebe mudanças de outros usuários.
+// Os cadastros feitos nesta mesma aba passam pelo renderTbFuncionarios().
+document.addEventListener?.('erp:alert-source-changed',event=>{
+  if(event.detail?.source==='funcionarios')_rhidAtualizarOpcoesFuncionarios();
+});
+document.addEventListener?.('focusin',event=>{
+  if(event.target?.closest?.('#ponto-rhid-preview .rhid-picker-input')){
+    void atualizarFuncionariosPreviaRHiD();
+  }
+},true);
+function _rhidNomeNormalizado(nome){
+  return String(nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/^Z\d{2}\s+/i,'').replace(/\s+/g,' ').trim().toUpperCase();
+}
+function _rhidMatriculaSugerida(pagina){
+  const cpf=_cpfSoDigitos(pagina.cpf);
+  if(cpf.length===11){
+    const porCpf=FUNCIONARIOS.filter(f=>f&&_cpfSoDigitos(f.cpf)===cpf);
+    if(porCpf.length===1) return porCpf[0].mat;
+    if(porCpf.length>1) return '';
+  }
+  const nome=_rhidNomeNormalizado(pagina.nome);
+  if(!nome) return '';
+  const porNome=FUNCIONARIOS.filter(f=>f&&_rhidNomeNormalizado(f.nome)===nome &&
+    (!cpf || !_cpfSoDigitos(f.cpf) || _cpfSoDigitos(f.cpf)===cpf));
+  return porNome.length===1 ? porNome[0].mat : '';
+}
+function _rhidIndicesFiltrados(){
+  const q=_rhidNomeNormalizado(_rhidFiltroPrevia);
+  const digits=_cpfSoDigitos(_rhidFiltroPrevia);
+  return _rhidPaginasPendentes.map((p,i)=>({p,i})).filter(({p})=>
+    !q || _rhidNomeNormalizado(p.nome).includes(q) ||
+    String(p.nome||'').toUpperCase().includes(q) ||
+    (digits.length>=3 && _cpfSoDigitos(p.cpf).includes(digits))
+  ).map(x=>x.i);
+}
+function _rhidAtualizarResumoPrevia(){
+  const total=_rhidPaginasPendentes.length;
+  const vinculados=Array.from(_rhidVinculosPendentes.values()).filter(Boolean).length;
+  const el=document.getElementById('rhid-preview-summary');
+  if(el) el.textContent=vinculados+' de '+total+' vínculos selecionados · '+(total-vinculados)+' pendente(s)';
+}
+function filtrarCartoesRHiD(q){
+  _rhidFiltroPrevia=String(q||'');
+  _rhidPaginaPrevia=0;
+  _rhidRenderizarLinhasPrevia();
+}
+function mudarPaginaCartoesRHiD(pagina){
+  const total=_rhidIndicesFiltrados().length;
+  const paginas=Math.max(1,Math.ceil(total/_RHID_PREVIA_POR_PAGINA));
+  _rhidPaginaPrevia=Math.max(0,Math.min(paginas-1,Number(pagina)||0));
+  _rhidRenderizarLinhasPrevia();
+}
+function atualizarVinculoCartaoPontoRHiD(indice,mat){
+  if(_rhidImportando)return;
+  if(!Number.isInteger(Number(indice))||!_rhidPaginasPendentes[Number(indice)])return;
+  if(mat&&!FUNCIONARIOS.some(f=>f&&f.mat===mat))return;
+  _rhidVinculosPendentes.set(Number(indice),mat||'');
+  _rhidAtualizarResumoPrevia();
+}
+// Combobox exclusivo da prévia RH iD. O select original fica oculto para
+// compatibilidade; a busca funciona mesmo se o seletor global não carregar.
+const _RHID_SUGESTOES_POR_PAGINA=8;
+function _rhidRotuloFuncionario(mat){
+  if(!mat)return '';
+  const f=FUNCIONARIOS.find(f=>f&&String(f.mat)===String(mat));
+  return f?String(f.nome||'')+' ('+String(f.mat)+')'+(!_erpFuncionarioAtivo(f)?' — Inativo':''):'⚠ Matrícula não encontrada — revise';
+}
+function _rhidFecharBuscas(exceto){
+  const host=document.getElementById('ponto-rhid-preview');
+  if(!host)return;
+  host.querySelectorAll('.rhid-picker[data-open="1"]').forEach(combo=>{
+    if(combo===exceto)return;
+    combo.dataset.open='0';
+    const list=combo.querySelector('.rhid-picker-options');
+    const input=combo.querySelector('.rhid-picker-input');
+    if(list)list.hidden=true;
+    if(input){
+      input.setAttribute('aria-expanded','false');
+      input.value=_rhidRotuloFuncionario(_rhidVinculosPendentes.get(Number(combo.dataset.rhidCombo))||'');
     }
+  });
+}
+// Mantém o menu inteiramente visível no viewport, independentemente da posição
+// da linha na tabela. A paginação fica fora da área rolável das opções.
+function _rhidPosicionarSugestoes(combo){
+  if(!combo||combo.dataset.open!=='1')return;
+  const list=combo.querySelector('.rhid-picker-options');
+  const control=combo.querySelector('.rhid-picker-control');
+  if(!list||!control||list.hidden)return;
+  const rect=control.getBoundingClientRect();
+  const viewport=window.visualViewport;
+  const vh=viewport?.height||window.innerHeight||document.documentElement.clientHeight;
+  const vw=viewport?.width||window.innerWidth||document.documentElement.clientWidth;
+  const freeDown=Math.max(0,vh-rect.bottom-10);
+  const freeUp=Math.max(0,rect.top-10);
+  const opensUp=freeDown<270&&freeUp>freeDown;
+  const space=opensUp?freeUp:freeDown;
+  const maxHeight=Math.max(88,Math.min(340,space-6));
+  const width=Math.max(160,Math.min(rect.width,vw-16));
+  const left=Math.max(8,Math.min(rect.left,vw-width-8));
+  list.style.position='fixed';
+  list.style.width=width+'px';
+  list.style.left=left+'px';
+  list.style.maxHeight=maxHeight+'px';
+  // Ajuste depois do layout, para ficar encostado ao campo mesmo com poucos resultados.
+  const realHeight=Math.min(maxHeight,list.getBoundingClientRect().height||maxHeight);
+  list.style.top=(opensUp?Math.max(8,rect.top-realHeight-4):Math.min(vh-8,rect.bottom+4))+'px';
+  list.dataset.direction=opensUp?'up':'down';
+}
+function _rhidRenderizarSugestoes(combo){
+  if(!combo||combo.dataset.open!=='1')return;
+  const list=combo.querySelector('.rhid-picker-options');
+  if(!list)return;
+  const query=String(combo.dataset.query||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').trim();
+  const opts=_rhidFuncionariosOrdenados().filter(f=>
+    !query || (String(f.nome||'')+' '+String(f.mat||'')).normalize('NFD')
+      .replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').includes(query));
+  const maxPaginas=Math.max(1,Math.ceil(opts.length/_RHID_SUGESTOES_POR_PAGINA));
+  const pagina=Math.max(0,Math.min(Number(combo.dataset.page)||0,maxPaginas-1));
+  combo.dataset.page=String(pagina);
+  list.replaceChildren();
+  const items=document.createElement('div');
+  items.className='rhid-picker-items';
+  list.appendChild(items);
+  const limpar=document.createElement('button');
+  limpar.type='button';limpar.className='rhid-picker-option rhid-picker-clear';
+  limpar.textContent='— Não vincular —';
+  limpar.addEventListener('click',()=>_rhidSelecionarBusca(combo,''));
+  items.appendChild(limpar);
+  const inicio=pagina*_RHID_SUGESTOES_POR_PAGINA;
+  const visibles=opts.slice(inicio,inicio+_RHID_SUGESTOES_POR_PAGINA);
+  if(!visibles.length){
+    const empty=document.createElement('p');
+    empty.className='rhid-picker-empty';empty.textContent='Nenhum funcionário encontrado.';
+    items.appendChild(empty);
+  }
+  visibles.forEach(f=>{
+    const button=document.createElement('button');
+    button.type='button';button.className='rhid-picker-option';
+    button.dataset.rhidValue=String(f.mat);
+    button.setAttribute('role','option');
+    button.setAttribute('aria-selected',String(_rhidVinculosPendentes.get(Number(combo.dataset.rhidCombo))===f.mat));
+    button.textContent=_rhidRotuloFuncionario(f.mat);
+    button.addEventListener('click',()=>_rhidSelecionarBusca(combo,String(f.mat)));
+    items.appendChild(button);
+  });
+  const footer=document.createElement('div');footer.className='rhid-picker-footer';
+  const summary=document.createElement('small');
+  summary.textContent=opts.length+' resultado(s) · página '+(pagina+1)+' de '+maxPaginas;
+  footer.appendChild(summary);
+  if(maxPaginas>1){
+    [['Anterior',-1],['Próxima',1]].forEach(([label,step])=>{
+      const nav=document.createElement('button');nav.type='button';nav.className='rhid-picker-nav';
+      nav.textContent=label;nav.disabled=(step<0?pagina===0:pagina===maxPaginas-1);
+      nav.addEventListener('click',()=>{
+        combo.dataset.page=String(pagina+step);
+        _rhidRenderizarSugestoes(combo);
+        combo.querySelector('.rhid-picker-input')?.focus();
+      });
+      footer.appendChild(nav);
+    });
+  }
+  list.appendChild(footer);
+  _rhidPosicionarSugestoes(combo);
+}
+function _rhidSelecionarBusca(combo,mat){
+  const indice=Number(combo.dataset.rhidCombo);
+  const select=combo.querySelector('[data-rhid-match]');
+  atualizarVinculoCartaoPontoRHiD(indice,mat);
+  if(select)select.value=mat;
+  _rhidFecharBuscas();
+}
+function _rhidAbrirBusca(combo,query=''){
+  if(!combo)return;
+  _rhidFecharBuscas(combo);
+  combo.dataset.open='1';combo.dataset.query=query;combo.dataset.page='0';
+  const list=combo.querySelector('.rhid-picker-options');
+  const input=combo.querySelector('.rhid-picker-input');
+  if(list)list.hidden=false;
+  if(input)input.setAttribute('aria-expanded','true');
+  _rhidRenderizarSugestoes(combo);
+}
+function _rhidAtivarCombos(tbody){
+  tbody.querySelectorAll('.rhid-picker').forEach(combo=>{
+    const input=combo.querySelector('.rhid-picker-input');
+    const toggle=combo.querySelector('.rhid-picker-toggle');
+    input.addEventListener('focus',()=>{
+      if(combo.dataset.open!=='1')_rhidAbrirBusca(combo);
+      input.select();
+    });
+    input.addEventListener('input',()=>{
+      if(combo.dataset.open!=='1')_rhidAbrirBusca(combo,input.value);
+      else{combo.dataset.query=input.value;combo.dataset.page='0';_rhidRenderizarSugestoes(combo);}
+    });
+    toggle.addEventListener('click',()=>{
+      if(combo.dataset.open==='1')_rhidFecharBuscas();
+      else{_rhidAbrirBusca(combo);input.focus();}
+    });
+    // Permite escolher com teclado sem abrir o select nativo.
+    input.addEventListener('keydown',event=>{
+      if(event.key==='Escape'){_rhidFecharBuscas();input.blur();return;}
+      if(event.key==='Tab'){_rhidFecharBuscas();return;}
+      if(event.key==='Enter' && combo.dataset.open==='1'){
+        const first=combo.querySelector('.rhid-picker-option[data-rhid-value]');
+        if(first){event.preventDefault();_rhidSelecionarBusca(combo,first.dataset.rhidValue);}
+      }
+    });
+  });
+}
+document.addEventListener?.('pointerdown',event=>{
+  if(!event.target?.closest?.('#ponto-rhid-preview .rhid-picker'))_rhidFecharBuscas();
+},true);
+// Ao rolar a janela ou redimensionar, o popup acompanha o campo original.
+function _rhidReposicionarBuscas(){
+  document.querySelectorAll?.('#ponto-rhid-preview .rhid-picker[data-open="1"]').forEach(_rhidPosicionarSugestoes);
+}
+document.addEventListener?.('scroll',_rhidReposicionarBuscas,true);
+window.addEventListener?.('resize',_rhidReposicionarBuscas);
+window.visualViewport?.addEventListener?.('resize',_rhidReposicionarBuscas);
+
+function _rhidRenderizarLinhasPrevia(){
+  const host=document.getElementById('ponto-rhid-preview');
+  const tbody=host?.querySelector('#rhid-preview-rows');
+  if(!tbody)return;
+  const ids=_rhidIndicesFiltrados();
+  const paginas=Math.max(1,Math.ceil(ids.length/_RHID_PREVIA_POR_PAGINA));
+  _rhidPaginaPrevia=Math.max(0,Math.min(_rhidPaginaPrevia,paginas-1));
+  const visiveis=ids.slice(_rhidPaginaPrevia*_RHID_PREVIA_POR_PAGINA,(_rhidPaginaPrevia+1)*_RHID_PREVIA_POR_PAGINA);
+  const opts=_rhidFuncionariosOrdenados();
+  _rhidAssinaturaCadastro=_rhidAssinaturaFuncionarios();
+  tbody.innerHTML=visiveis.map(i=>{
+    const pag=_rhidPaginasPendentes[i];
+    const mat=_rhidVinculosPendentes.get(i)||'';
+    return '<tr><td data-label="Funcionário no PDF"><b>'+esc(pag.nome)+'</b></td><td data-label="Período">'+pag.dias.length+' dias</td>'+ 
+      '<td data-label="Vincular ao ERP"><div class="rhid-picker" data-rhid-combo="'+i+'" data-open="0" data-page="0">'+
+      '<select class="rhid-picker-native" style="display:none" data-rhid-match="'+i+'" tabindex="-1" aria-hidden="true" onchange="atualizarVinculoCartaoPontoRHiD('+i+',this.value)">'+
+      _rhidOpcoesFuncionarios(opts,mat)+'</select>'+
+      '<div class="rhid-picker-control"><input class="rhid-picker-input" type="search" autocomplete="off" aria-label="Pesquisar funcionário do ERP para '+esc(pag.nome)+'" aria-autocomplete="list" aria-expanded="false" aria-controls="rhid-picker-options-'+i+'" placeholder="Pesquisar funcionário por nome ou matrícula…" value="'+esc(_rhidRotuloFuncionario(mat))+'">'+
+      '<button type="button" class="rhid-picker-toggle" aria-label="Mostrar funcionários">⌄</button></div>'+
+      '<div class="rhid-picker-options" id="rhid-picker-options-'+i+'" role="listbox" hidden></div></div></td></tr>';
+  }).join('')||'<tr><td colspan="3" class="rhid-preview-empty">Nenhum cartão encontrado para esta busca.</td></tr>';
+  _rhidAtivarCombos(tbody);
+  const label=host.querySelector('#rhid-preview-page-label');
+  if(label)label.textContent=ids.length+' resultado(s) · página '+(_rhidPaginaPrevia+1)+' de '+paginas;
+  const previous=host.querySelector('#rhid-preview-previous');
+  const next=host.querySelector('#rhid-preview-next');
+  if(previous)previous.disabled=_rhidPaginaPrevia===0;
+  if(next)next.disabled=_rhidPaginaPrevia>=paginas-1;
+  _rhidAtualizarResumoPrevia();
+}
+function _rhidExibirPrevia(paginas){
+  const host=document.getElementById('ponto-rhid-preview');
+  if(!host) return;
+  _rhidPaginasPendentes=paginas.filter(p=>p&&p.dias&&p.dias.length&&p.nome);
+  _rhidVinculosPendentes=new Map();
+  _rhidPaginaPrevia=0;
+  _rhidFiltroPrevia='';
+  const falhas=paginas.length-_rhidPaginasPendentes.length;
+  if(!_rhidPaginasPendentes.length){
+    host.style.display='block';
+    host.innerHTML='<div style="padding:12px;color:#9c2d24;background:#fff1ef;border:1px solid #edcac5;border-radius:8px">O PDF não contém cartões reconhecíveis. Nenhum dado foi alterado.</div>';
+    return;
+  }
+  _rhidPaginasPendentes.forEach((p,i)=>_rhidVinculosPendentes.set(i,_rhidMatriculaSugerida(p)));
+  host.style.display='block';
+  host.innerHTML='<div class="rhid-preview-panel">'+
+    '<strong>Conferir a importação RH iD</strong><p class="rhid-preview-description">'+
+    _rhidPaginasPendentes.length+' cartões reconhecidos · '+_rhidPaginasPendentes.reduce((n,p)=>n+p.dias.length,0)+' dias lidos'+
+    (falhas?' · '+falhas+' página(s) não reconhecida(s)':'')+'. Pesquise por nome ou matrícula do ERP antes de vincular. Pré-seleções devem ser conferidas; nada é gravado automaticamente.</p>'+
+    '<div class="rhid-preview-toolbar"><label for="rhid-preview-search">Pesquisar no PDF<input id="rhid-preview-search" type="search" placeholder="Buscar nome no relatório…" autocomplete="off" oninput="filtrarCartoesRHiD(this.value)"></label>'+
+    '<button type="button" class="rhid-refresh-employees" onclick="atualizarFuncionariosPreviaRHiD(true)">Atualizar funcionários</button>'+
+    '<span id="rhid-preview-summary" role="status" aria-live="polite"></span></div>'+
+    '<small id="rhid-preview-refresh-status" class="rhid-preview-refresh-status" role="status" aria-live="polite"></small>'+
+    '<table class="rhid-preview-table"><thead><tr><th>Funcionário no PDF</th><th>Período</th><th>Vincular ao cadastro do ERP</th></tr></thead><tbody id="rhid-preview-rows"></tbody></table>'+
+    '<div class="rhid-preview-pagination"><span id="rhid-preview-page-label"></span><div><button type="button" id="rhid-preview-previous" onclick="mudarPaginaCartoesRHiD(_rhidPaginaPrevia-1)">Anterior</button>'+
+    '<button type="button" id="rhid-preview-next" onclick="mudarPaginaCartoesRHiD(_rhidPaginaPrevia+1)">Próxima</button></div></div>'+
+    '<div class="rhid-preview-actions"><button type="button" onclick="cancelarImportacaoCartaoPontoRHiD()">Cancelar</button><button id="ponto-rhid-confirmar" type="button" class="btn-save" onclick="confirmarImportacaoCartaoPontoRHiD()">Importar vínculos selecionados</button></div></div>';
+  _rhidRenderizarLinhasPrevia();
+  void atualizarFuncionariosPreviaRHiD(true);
+}
+function cancelarImportacaoCartaoPontoRHiD(){
+  _rhidPaginasPendentes=[];
+  _rhidVinculosPendentes.clear();
+  _rhidFiltroPrevia='';
+  _rhidPaginaPrevia=0;
+  const host=document.getElementById('ponto-rhid-preview');
+  if(host){host.innerHTML='';host.style.display='none';}
+  const status=document.getElementById('ponto-import-status');
+  if(status)status.textContent='Importação cancelada. Nenhum registro foi alterado.';
+}
+async function confirmarImportacaoCartaoPontoRHiD(){
+  if(_rhidImportando||!_rhidPaginasPendentes.length)return;
+  const host=document.getElementById('ponto-rhid-preview');
+  const btn=document.getElementById('ponto-rhid-confirmar');
+  const selecionados=[];
+  const mats=new Set();
+  for(let i=0;i<_rhidPaginasPendentes.length;i++){
+    const mat=_rhidVinculosPendentes.get(i)||'';
+    if(!mat)continue;
+    const f=FUNCIONARIOS.find(x=>x&&x.mat===mat);
+    if(!f){alert('Funcionário selecionado não existe mais no cadastro. Atualize a lista.');return;}
+    if(mats.has(mat)){alert('Um funcionário do ERP não pode receber dois cartões da mesma importação. Revise os vínculos.');return;}
+    mats.add(mat);
+    selecionados.push({pagina:_rhidPaginasPendentes[i],mat});
+  }
+  if(!selecionados.length){
+    alert('Nenhum funcionário do PDF foi vinculado ao ERP. Revise os nomes e CPFs ou cadastre os funcionários antes de importar.');return;
+  }
+  if(!confirm('Importar '+selecionados.length+' funcionário(s) selecionado(s)? Batidas do RH iD nas mesmas datas serão substituídas; lançamentos manuais serão preservados.'))return;
+  _rhidImportando=true;
+  if(btn){btn.disabled=true;btn.textContent='Salvando no Firebase…';}
+  try{
+    if(!window._fbDB)throw new Error('Banco Firebase indisponível. Conecte-se antes de importar.');
+    const agora=new Date().toLocaleString('pt-BR');
+    const updates={};
+    const substituir=new Map();
+    const novos=[];
+    for(const {pagina,mat} of selecionados){
+      const dates=new Set(pagina.dias.map(d=>d.data));
+      substituir.set(mat,dates);
+      const prefix='PB_RHID_'+String(mat).replace(/[^a-zA-Z0-9_-]/g,'_')+'_';
+      const identificadores=new Set(pagina.dias.map(d=>prefix+d.data.split('/').reverse().join('')));
+      for(let i=0;i<PONTO_BATIDAS_DB.length;i++){
+        const old=PONTO_BATIDAS_DB[i];
+        if(old&&old.mat===mat&&old.origem==='rhid'&&dates.has(old.data)){
+          if(old.id&&!identificadores.has(old.id))updates[old.id]=null;
+        }
+      }
+      pagina.dias.forEach(d=>{
+        const id=prefix+d.data.split('/').reverse().join('');
+        const item=Object.assign({id,mat,origem:'rhid',
+          periodoInicio:pagina.periodoInicio,periodoFim:pagina.periodoFim,importadoEm:agora},d);
+        updates[id]=item;
+        novos.push(item);
+      });
+    }
+    // Grava apenas esta coleção. A API Firebase confirma o sucesso antes de
+    // atualizar a tela, ao contrário do agendador genérico de salvamento.
+    await window._fbDB.ref('erp/pontoBatidas').update(updates);
+    // O Firebase pode atualizar o array via listener durante o await. Não usar
+    // índices calculados antes da gravação, pois outras linhas podem ter mudado.
+    for(let i=PONTO_BATIDAS_DB.length-1;i>=0;i--){
+      const old=PONTO_BATIDAS_DB[i];
+      if(!old||old.origem!=='rhid'||!substituir.get(old.mat)?.has(old.data))continue;
+      if(old.id&&updates[old.id]===null)_syncPontoBatidas.remover(i);
+      else PONTO_BATIDAS_DB.splice(i,1);
+    }
+    novos.forEach(item=>{
+      const pos=PONTO_BATIDAS_DB.findIndex(r=>r&&r.id===item.id);
+      if(pos<0)PONTO_BATIDAS_DB.push(item);
+      else Object.assign(PONTO_BATIDAS_DB[pos],item);
+    });
+    cancelarImportacaoCartaoPontoRHiD();
+    const status=document.getElementById('ponto-import-status');
+    if(status)status.textContent='Salvos no Firebase: '+selecionados.length+' funcionário(s), '+novos.length+' registros de dias.';
+    try{renderPontoTab();}catch(e){console.warn('Falha na atualização da tela do ponto:',e);}
+    showToast('Cartões do RH iD salvos no Firebase.','success',6000);
+  }catch(e){
+    console.error('Falha ao salvar cartões no Firebase:',e);
+    if(btn){btn.disabled=false;btn.textContent='Importar vínculos selecionados';}
+    const status=document.getElementById('ponto-import-status');
+    if(status)status.textContent='Falha ao salvar no Firebase: '+(e&&e.code?e.code:e.message);
+    showToast('Não foi possível salvar no Firebase. Nenhum registro local foi substituído.','error',7500);
+  }finally{_rhidImportando=false;}
+}
+
+function importarCartaoPontoRHiD(input){
+  const file=input.files&&input.files[0];
+  if(!file)return;
+  const status=document.getElementById('ponto-import-status');
+  cancelarImportacaoCartaoPontoRHiD();
+  if(status)status.textContent='Lendo '+esc(file.name)+'…';
+  if(!/\.pdf$/i.test(file.name)){if(status)status.textContent='Selecione um arquivo PDF.';input.value='';return;}
+  const reader=new FileReader();
+  reader.onload=async function(e){
+    try{
+      const pages=await _lerCartaoPontoRHiD(new Uint8Array(e.target.result));
+      _rhidExibirPrevia(pages);
+      if(status)status.textContent=pages.filter(p=>p.dias&&p.dias.length).length+' cartão(ões) reconhecido(s). Revise os vínculos antes de importar.';
+    }catch(err){
+      console.error('Erro ao ler cartão do RH iD:',err);
+      if(status)status.textContent='Erro ao ler o PDF: '+err.message;
+      showToast('Não foi possível ler o PDF do RH iD.','error',6500);
+    }finally{input.value='';}
   };
   reader.readAsArrayBuffer(file);
 }
@@ -12341,6 +12748,7 @@ function saveClientes(){
     if(typeof fbSalvarImediato==='function') fbSalvarImediato(); else if(typeof fbSalvar==='function') fbSalvar();
   }catch(e){ console.warn('saveClientes:',e); }
   try{ if(typeof rodPopularPessoaSelect==='function' && (_rodTipoAtual||'compra')==='venda') rodPopularPessoaSelect(); }catch(e){}
+  document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'clientes'}}));
 }
 async function recarregarClientesDoBanco(){
   try{
@@ -12515,7 +12923,7 @@ function compartilharPrecosCliWpp(){
   if(!cliNome) return;
   const msg=getPrecosCliMsg(cliNome);
   if(!msg) return;
-  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+  window.open('https://wa.me/?text='+encodeURIComponent(_erpWhatsFormat(msg)),'_blank');
 }
 
 function compartilharPrecosCliNumero(){
@@ -12525,7 +12933,7 @@ function compartilharPrecosCliNumero(){
   if(!msg) return;
   const num=prompt('Número WhatsApp do cliente (com DDD, só números):');
   if(!num) return;
-  window.open('https://wa.me/55'+num.replace(/\D/g,'')+'?text='+encodeURIComponent(msg),'_blank');
+  window.open('https://wa.me/55'+num.replace(/\D/g,'')+'?text='+encodeURIComponent(_erpWhatsFormat(msg)),'_blank');
 }
 
 function imprimirPrecosCli(){
@@ -12919,14 +13327,17 @@ function salvarEditFornecedor(){
   f.conta  = g('ef-conta');
   f.obs    = g('ef-obs');
   f.nota   = g('ef-nota');
+  try{
   localStorage.setItem('mm_fornecedores_edit', JSON.stringify(
     FORNECEDORES.map(x=>({cod:x.cod,nome:x.nome,cpf:x.cpf,cnpj:x.cnpj,rg:x.rg,ie:x.ie,
       tel:x.tel,wpp:x.wpp,email:x.email,cep:x.cep,rua:x.rua,num:x.num,compl:x.compl,
       bairro:x.bairro,cidade:x.cidade,obs:x.obs,nota:x.nota,pix:x.pix,banco:x.banco,agencia:x.agencia,conta:x.conta,docs:x.docs||[]}))
   ));
+  }catch(cacheError){console.warn('[fornecedores] Cache local cheio; salvamento no Firebase continuará.',cacheError?.name||'StorageError');}
   try{ fbSalvar(); }catch(e){} 
   renderTabelaFornecedores();
   populateFornSelects();
+  document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'fornecedores'}}));
   cm();
   alert('✅ Fornecedor atualizado!');
 }
@@ -12934,7 +13345,11 @@ function salvarEditFornecedor(){
 function salvarNovoFornecedor(){
   const nome=document.getElementById('nf-nome')?.value.trim().toUpperCase();
   if(!nome){alert('Informe o nome!');return;}
-  const cod='F'+String(FORNECEDORES.length+1).padStart(3,'0');
+  const reserved=new Set(FORNECEDORES.map(f=>String(f?.cod||'')));
+  try{FORN_DELETED.forEach(code=>reserved.add(String(code)));}catch(e){}
+  let next=Math.max(0,...[...reserved].map(code=>/^F(\d+)$/.test(code)?Number(code.slice(1)):0))+1;
+  while(reserved.has('F'+String(next).padStart(3,'0')))next++;
+  const cod='F'+String(next).padStart(3,'0');
   const g=id=>document.getElementById(id)?.value.trim()||'';
   FORNECEDORES.push({cod,nome,
     cpf:    g('nf-cpf'),
@@ -12959,13 +13374,24 @@ function salvarNovoFornecedor(){
   });
   if(!PRECOS_FORN_DATA) window.PRECOS_FORN_DATA={};
   PRECOS_FORN_DATA[cod]={};
+  try{
   localStorage.setItem('mm_fornecedores_edit', JSON.stringify(
     FORNECEDORES.map(x=>({cod:x.cod,nome:x.nome,cpf:x.cpf,cnpj:x.cnpj,rg:x.rg,ie:x.ie,
       tel:x.tel,wpp:x.wpp,email:x.email,cep:x.cep,rua:x.rua,num:x.num,compl:x.compl,
       bairro:x.bairro,cidade:x.cidade,obs:x.obs,nota:x.nota,pix:x.pix,banco:x.banco,agencia:x.agencia,conta:x.conta,docs:x.docs||[]}))
   ));
+  }catch(cacheError){console.warn('[fornecedores] Cache local cheio; salvamento no Firebase continuará.',cacheError?.name||'StorageError');}
   renderTabelaFornecedores();
   populateFornSelects();
+  document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'fornecedores'}}));
+  try{
+    const item=FORNECEDORES.find(x=>x.cod===cod);
+    if(item&&window.__businessRepository){
+      _syncFornecedores.paraObjeto();
+      window.__businessRepository.upsert('fornecedores',item.id,item)
+        .catch(e=>{console.error('[fornecedores] Falha no cadastro RTDB:',e);try{showToast('Falha ao sincronizar fornecedor. Atualize e confira antes de utilizá-lo.','error',7000);}catch(_){}});
+    }
+  }catch(e){console.warn('[fornecedores] Sincronização:',e);}
   try{ if(typeof rodPopularPessoaSelect==='function' && (_rodTipoAtual||'compra')==='compra') rodPopularPessoaSelect(); }catch(e){}
   try{ fbSalvar(); }catch(e){} 
   cm();
@@ -13162,6 +13588,8 @@ function renderTbFuncionarios(){
     : '<tr><td colspan="8" style="text-align:center;color:var(--gray);padding:20px">Nenhum funcionário inativo</td></tr>';
 
   _funcAtualizarSetas();
+  // RH iD pode estar aberto em outra aba do ERP; sincronize sem recarregar o PDF.
+  _rhidAtualizarOpcoesFuncionarios();
 }
 
 function toggleInativarFunc(mat){
@@ -13174,11 +13602,18 @@ function toggleInativarFunc(mat){
   localStorage.setItem('mm_funcionarios_edit', JSON.stringify(FUNCIONARIOS));
   try{fbSalvar();}catch(e){}
   renderTbFuncionarios();
+  try{renderPontoTab();renderFolha();renderVales();}catch(e){console.warn('Atualização de histórico:',e);}
 }
 
 function excluirFuncionario(mat){
   const f=FUNCIONARIOS.find(x=>x.mat===mat);
   if(!f) return;
+  const historico=(PONTO_DB||[]).some(r=>r&&r.mat===mat)
+    || (PONTO_BATIDAS_DB||[]).some(r=>r&&r.mat===mat)
+    || (VALES_DB||[]).some(r=>r&&r.mat===mat)
+    || (EPI_DB||[]).some(r=>r&&r.mat===mat)
+    || Object.keys(FOLHA_DB||{}).some(key=>key.endsWith('-'+mat));
+  if(historico){alert('Este funcionário possui registros históricos em Ponto, Folha, Vales ou EPI. Inative-o em vez de excluir, para preservar a rastreabilidade.');return;}
   if(!confirm('Excluir permanentemente o funcionário '+f.nome+'?\nSugestão: use ⏸️ Inativar para manter o histórico.')) return;
   const idx=FUNCIONARIOS.findIndex(x=>x.mat===mat);
   FUNCIONARIOS.splice(idx,1);
@@ -13364,43 +13799,60 @@ function _lcItensFiltro(){
   });
 }
 function _lcTexto(){
-  const f=(document.getElementById('lc-filtro')||{}).value||'acomprar';
-  const rot=f==='comprado'?'COMPRADOS':(f==='todos'?'TODOS OS ITENS':'A COMPRAR');
+  const filtro=(document.getElementById('lc-filtro')||{}).value||'acomprar';
+  const titulo=filtro==='comprado'?'COMPRADOS':(filtro==='todos'?'TODOS':'PENDENTES');
   const itens=_lcItensFiltro();
-  let t='🛒 *LISTA DE COMPRAS — ESCRITÓRIO* ('+rot+')\n';
-  t+=_empresaPrincipalLabel()+' — '+new Date().toLocaleDateString('pt-BR')+'\n\n';
-  if(!itens.length){ t+='(nenhum item)'; return t; }
+  const empresa=_empresaPrincipalRazao();
+  const hoje=new Date().toLocaleDateString('pt-BR');
+  const texto=[
+    '*LISTA DE COMPRAS*',
+    empresa,
+    'Data: '+hoje,
+    'Situação: '+titulo,
+    '--------------------------------',
+  ];
+  if(!itens.length) texto.push('Nenhum item encontrado.');
   itens.forEach(function(it,i){
-    t+=(i+1)+'. '+(it.nome||'')+(it.qtd?(' — '+it.qtd):'');
-    if(it.quem) t+=' (pediu: '+it.quem+')';
-    if(it.obs) t+='\n   Obs: '+it.obs;
-    if((it.status||'')==='comprado') t+='\n   ✅ comprado'+(it.compradoEm?(' em '+String(it.compradoEm).split('-').reverse().join('/')):'');
-    t+='\n';
+    texto.push((i+1)+'. *'+String(it.nome||'Item')+'*');
+    if(it.qtd) texto.push('Quantidade: '+it.qtd);
+    if(it.quem) texto.push('Solicitante: '+it.quem);
+    if(it.obs) texto.push('Observações: '+it.obs);
+    texto.push('Status: '+((it.status||'')==='comprado'?'Comprado':'A comprar'));
+    if(it.status==='comprado'&&it.compradoEm) texto.push('Comprado em: '+String(it.compradoEm).split('-').reverse().join('/'));
+    if(i<itens.length-1) texto.push('');
   });
-  return t;
+  texto.push('--------------------------------');
+  return texto.join('\n');
 }
 function lcWhats(){
   const t=_lcTexto();
-  window.open('https://wa.me/?text='+encodeURIComponent(t.replace(/🛒 \*|\*/g,function(m){return m;})),'_blank');
+  window.open('https://wa.me/?text='+encodeURIComponent(_erpWhatsFormat(t)),'_blank');
 }
 function lcImprimir(){
   const itens=_lcItensFiltro();
   const f=(document.getElementById('lc-filtro')||{}).value||'acomprar';
   const rot=f==='comprado'?'Comprados':(f==='todos'?'Todos os itens':'A comprar');
-  const esc2=function(s){ return String(s==null?'':s).replace(/</g,'&lt;'); };
+  const esc2=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
   let linhas=itens.map(function(it,i){
-    return '<tr><td>'+(i+1)+'</td><td><b>'+esc2(it.nome)+'</b></td><td>'+esc2(it.qtd||'')+'</td><td>'+esc2(it.quem||'')+'</td><td>'+esc2(it.obs||'')+'</td><td>'+((it.status||'')==='comprado'?'✅':'🕒')+'</td></tr>';
+    return '<tr><td>'+(i+1)+'</td><td><strong>'+esc2(it.nome)+'</strong></td><td>'+esc2(it.qtd||'')+'</td><td>'+esc2(it.quem||'')+'</td><td>'+esc2(it.obs||'')+'</td><td>'+((it.status||'')==='comprado'?'Comprado':'Pendente')+'</td></tr>';
   }).join('');
-  if(!linhas) linhas='<tr><td colspan="6" style="text-align:center;color:#888">Nenhum item</td></tr>';
+  if(!linhas) linhas='<tr><td colspan="6" class="empty">Nenhum item nesta seleção</td></tr>';
   const w=window.open('','_blank');
-  if(!w){ showToast('O navegador bloqueou a janela de impressão — libere pop-ups pro site.','error'); return; }
-  w.document.write('<html><head><title>Lista de Compras</title><style>body{font-family:Arial;padding:20px}h2{margin:0 0 4px}table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #999;padding:6px 8px;font-size:13px;text-align:left}th{background:#eee}</style></head><body>'+
-    '<h2>🛒 Lista de Compras — Escritório</h2><div>'+rot+' · '+esc(_empresaPrincipalLabel())+' · '+new Date().toLocaleDateString('pt-BR')+'</div>'+
-    '<table><tr><th>#</th><th>Item</th><th>Qtd</th><th>Quem pediu</th><th>Obs</th><th>Status</th></tr>'+linhas+'</table>'+
-    '</body></html>');
+  if(!w){showToast('Permita a abertura da janela de impressão.','error');return;}
+  w.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Lista de compras</title><style>'+
+    '@page{size:A4;margin:15mm}*{box-sizing:border-box}body{font:12px Arial,Helvetica,sans-serif;color:#1c2d22;background:#fff;margin:0}'+
+    'header{border-bottom:2px solid #214733;padding-bottom:14px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px}'+
+    'h1{font-size:18px;margin:0 0 5px}small{color:#6a746e}table{border-collapse:collapse;width:100%;table-layout:fixed}'+
+    'th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;background:#f0f3f1;border:1px solid #d4dfd7;padding:9px 7px}'+
+    'td{border-bottom:1px solid #e1e9e4;padding:8px 7px;vertical-align:top;overflow-wrap:anywhere}'+
+    'tr{break-inside:avoid}th:first-child{width:32px}th:nth-child(3){width:54px}th:last-child{width:75px}.empty{text-align:center;color:#66766c;padding:26px 12px}'+
+    'footer{font-size:10px;color:#738077;border-top:1px solid #e0e7e2;padding-top:10px;margin-top:24px}'+
+    '</style></head><body><header><div><h1>Lista de compras</h1><small>'+esc2(_empresaPrincipalRazao())+'</small></div><div>'+esc2(rot)+'<div><small>'+new Date().toLocaleDateString('pt-BR')+'</small></div></div></header>'+
+    '<table><thead><tr><th>#</th><th>Item</th><th>Qtd.</th><th>Solicitante</th><th>Observações</th><th>Status</th></tr></thead><tbody>'+linhas+'</tbody></table>'+
+    '<footer>'+itens.length+' item(ns) nesta seleção</footer></body></html>');
   w.document.close();
   w.focus();
-  setTimeout(function(){ try{ w.print(); }catch(e){} },300);
+  setTimeout(function(){try{w.print();}catch(e){}},300);
 }
 function lcToggle(id){
   const it=LISTA_COMPRAS.find(x=>x.id===id); if(!it) return;
@@ -15050,6 +15502,89 @@ function chqExcluir(id){
 }
 
 
+function _chqCadastroDestinos(){
+  // Use the same canonical purchase-supplier source as the Fornecedores module.
+  // Never rely on a stale datalist populated before Firebase finishes loading.
+  var grupos=[
+    {lista:Array.isArray(CLIENTES)?CLIENTES:[],tipo:'Cliente'},
+    {lista:typeof getFornAtivos==='function'?getFornAtivos():(Array.isArray(FORNECEDORES)?FORNECEDORES:[]),tipo:'Fornecedor'},
+    {lista:typeof FORNECEDORES_DESPESA!=='undefined'&&Array.isArray(FORNECEDORES_DESPESA)?FORNECEDORES_DESPESA:[],tipo:'Fornecedor de despesa'}
+  ];
+  var destinos=[],vistos=new Set();
+  grupos.forEach(function(grupo){
+    (grupo.lista||[]).forEach(function(c){
+      if(!c||c.inativo||c.ativo===false||c._deleted)return;
+      if(grupo.tipo==='Fornecedor'&&typeof FORN_DELETED!=='undefined'&&FORN_DELETED.has(c.cod))return;
+      var nome=String(c.nome||c.razaoSocial||c.razao||'').trim();
+      if(!nome)return;
+      var cod=String(c.cod||c.codigo||c.id||'').trim();
+      var chave=grupo.tipo+'|'+(cod||nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase());
+      if(vistos.has(chave))return;
+      vistos.add(chave);destinos.push({nome:nome,cod:cod,tipo:grupo.tipo});
+    });
+  });
+  return destinos.sort(function(a,b){
+    var tp={'Fornecedor':0,'Fornecedor de despesa':1,'Cliente':2};
+    return (tp[a.tipo]??3)-(tp[b.tipo]??3)||a.nome.localeCompare(b.nome,'pt-BR');
+  });
+}
+function _chqBindDestinoAutocomplete(ov){
+  var inp=ov.querySelector('#chqm-c'),pop=ov.querySelector('#chqm-destino-opcoes');
+  var toggle=ov.querySelector('#chqm-destino-toggle');
+  var code=ov.querySelector('#chqm-destino-cod'),type=ov.querySelector('#chqm-destino-tipo');
+  var hint=ov.querySelector('#chqm-destino-info');
+  if(!inp||!pop||!toggle||!code||!type)return;
+  var visible=[],pos=-1;
+  var norm=function(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();};
+  function close(){pop.hidden=true;inp.setAttribute('aria-expanded','false');pos=-1;}
+  function mark(){
+    Array.from(pop.querySelectorAll('button[data-destino-index]')).forEach(function(el){
+      var selected=Number(el.dataset.destinoIndex)===pos;
+      el.style.background=selected?'#eaf3ed':'#fff';
+      el.setAttribute('aria-selected',selected?'true':'false');
+      if(selected&&el.scrollIntoView)el.scrollIntoView({block:'nearest'});
+    });
+  }
+  function choose(item){
+    if(!item)return;
+    inp.value=item.nome;code.value=item.cod;type.value=item.tipo;
+    if(hint)hint.textContent=item.tipo+(item.cod?' · '+item.cod:'');
+    close();inp.focus();
+  }
+  function open(){
+    var q=norm(inp.value);
+    // Only filter if the user is typing, not if the input contains a
+    // previously selected person whose list should still show everyone.
+    var isChosen=!!type.value;
+    visible=_chqCadastroDestinos().filter(function(item){
+      return !q||isChosen||norm(item.nome).includes(q)||norm(item.cod).includes(q)||norm(item.tipo).includes(q);
+    });
+    var html='',last='';
+    visible.slice(0,200).forEach(function(item,i){
+      if(item.tipo!==last){last=item.tipo;html+='<div style="padding:7px 10px;background:#f0f4f1;color:#345446;font-size:.73rem;font-weight:800">'+esc(last)+'</div>';}
+      html+='<button type="button" role="option" data-destino-index="'+i+'" style="display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;text-align:left;padding:9px 11px;background:#fff;border:0;border-bottom:1px solid #eef0ee;cursor:pointer;color:#1e342b;font-size:.84rem"><span>'+esc(item.nome)+'</span><small style="color:#687970;white-space:nowrap">'+esc(item.cod)+'</small></button>';
+    });
+    if(!html)html='<div style="padding:14px;color:#65746c;font-size:.82rem">Nenhum cadastro encontrado. É possível informar um destino manualmente.</div>';
+    pop.innerHTML=html;pop.hidden=false;inp.setAttribute('aria-expanded','true');pos=-1;
+  }
+  inp.addEventListener('focus',open);
+  inp.addEventListener('input',function(){code.value='';type.value='';if(hint)hint.textContent='';open();});
+  inp.addEventListener('keydown',function(e){
+    if(e.key==='Escape'){close();return;}
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+      e.preventDefault();if(pop.hidden)open();
+      pos=Math.max(0,Math.min(visible.length-1,pos+(e.key==='ArrowDown'?1:-1)));mark();return;
+    }
+    if(e.key==='Enter'&&!pop.hidden&&visible.length){e.preventDefault();choose(visible[pos<0?0:pos]);}
+  });
+  toggle.addEventListener('click',function(){if(pop.hidden){inp.focus();open();}else close();});
+  pop.addEventListener('mousedown',function(e){if(e.target.closest('button[data-destino-index]'))e.preventDefault();});
+  pop.addEventListener('click',function(e){
+    var btn=e.target.closest('button[data-destino-index]');
+    if(btn)choose(visible[Number(btn.dataset.destinoIndex)]);
+  });
+  ov.onclick=function(e){if(!e.target.closest('#chqm-destino-group'))close();};
+}
 function _chqModal(id){
   var c = id ? CHQ_CTRL[id] : null;
   var bancos=_cfgChequeBankNames();
@@ -15067,7 +15602,15 @@ function _chqModal(id){
       '<label style="font-size:.78rem;color:#666">Banco<select id="chqm-b" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem">'+
         bancos.map(function(b){ return '<option'+(v.b===b?' selected':'')+'>'+esc(b)+'</option>'; }).join('')+'</select></label>'+
       '<label style="font-size:.78rem;color:#666">Nº do Cheque<input id="chqm-n" value="'+esc(String(v.n||''))+'" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem"></label>'+
-      '<label style="font-size:.78rem;color:#666;grid-column:1/3">Cliente / Destino<input id="chqm-c" list="chqm-clientes-list" value="'+esc(v.c||'')+'" placeholder="Digite ou selecione um cliente" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem"><datalist id="chqm-clientes-list">'+(CLIENTES||[]).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR')).map(function(c){return '<option value="'+esc(c.nome||'')+'">';}).join('')+'</datalist></label>'+
+      '<div id="chqm-destino-group" style="grid-column:1/3;position:relative;min-width:0">'+
+        '<label for="chqm-c" style="display:block;font-size:.78rem;color:#666;margin-bottom:4px">Cliente / Fornecedor / Destino</label>'+
+        '<div style="display:flex;align-items:stretch;border:1px solid #a6bdb0;border-radius:7px;overflow:hidden">'+
+          '<input id="chqm-c" role="combobox" aria-autocomplete="list" aria-controls="chqm-destino-opcoes" aria-expanded="false" autocomplete="off" value="'+esc(v.c||'')+'" placeholder="Buscar cliente ou fornecedor" style="flex:1;min-width:0;padding:8px;border:0;outline:none;font-size:.85rem">'+
+          '<button id="chqm-destino-toggle" type="button" aria-label="Mostrar clientes e fornecedores" style="width:36px;border:0;border-left:1px solid #d7e0da;background:#f3f7f4;cursor:pointer">▾</button></div>'+
+        '<input type="hidden" id="chqm-destino-cod" value="'+esc(c?(c.fornecedorCod||c.clienteCod||''):'')+'">'+
+        '<input type="hidden" id="chqm-destino-tipo" value="'+esc(c?(c.fornecedorCod?'Fornecedor':c.clienteCod?'Cliente':''):'')+'">'+
+        '<div id="chqm-destino-info" style="font-size:.73rem;color:#42614e;margin-top:3px"></div>'+
+        '<div id="chqm-destino-opcoes" role="listbox" hidden style="position:absolute;top:calc(100% + 2px);left:0;right:0;max-height:240px;overflow-y:auto;background:#fff;border:1px solid #aec3b4;border-radius:7px;box-shadow:0 12px 28px #0003;z-index:100"></div></div>'+
       '<label style="font-size:.78rem;color:#666">Valor (R$)<input id="chqm-v" value="'+esc(String(v.v||''))+'" placeholder="4990,00" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem"></label>'+
       '<label style="font-size:.78rem;color:#666">Situação<select id="chqm-s" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem">'+
         '<option value="A"'+(v.s==='A'?' selected':'')+'>A Compensar</option>'+
@@ -15082,6 +15625,7 @@ function _chqModal(id){
       '<button onclick="chqSalvarModal()" style="border:none;background:#1a3a2a;color:#fff;border-radius:8px;padding:8px 18px;font-size:.85rem;font-weight:700;cursor:pointer">Salvar</button>'+
     '</div></div>';
   ov.style.display='flex';
+  _chqBindDestinoAutocomplete(ov);
 }
 
 
@@ -15204,9 +15748,27 @@ function chqSalvarModal(){
     id='CC'+slug+n; var base=id, k=1;
     while(CHQ_CTRL[id]){ k++; id=base+'_'+k; }
   }
-  var _cliObj=(CLIENTES||[]).find(function(x){ return x&&String(x.nome||'').trim().toLowerCase()===cli.toLowerCase(); });
+  var nomeNorm=function(v){return String(v||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();};
+  var chosenCode=(document.getElementById('chqm-destino-cod')?.value||'').trim();
+  var chosenType=(document.getElementById('chqm-destino-tipo')?.value||'').trim();
+  var destinos=_chqCadastroDestinos();
+  var _selected=destinos.find(function(x){return x.cod===chosenCode&&x.tipo===chosenType&&nomeNorm(x.nome)===nomeNorm(cli);});
+  // When the user typed the full name, infer only unambiguous matches.
+  // Same-name client and supplier must never be linked to the wrong person.
+  if(!_selected){var _matches=destinos.filter(function(x){return nomeNorm(x.nome)===nomeNorm(cli);});if(_matches.length===1)_selected=_matches[0];}
   var obj={id:id,b:b,n:n,c:cli,v:val,d:d,venc:venc,cd:cd,s:s};
-  if(_cliObj){ obj.clienteNome=_cliObj.nome||cli; obj.clienteCod=_cliObj.cod||''; }
+  if(_selected && _selected.tipo==='Cliente'){
+    obj.clienteNome=_selected.nome;obj.clienteCod=_selected.cod;
+  }
+  if(_selected && _selected.tipo.indexOf('Fornecedor')===0){
+    obj.fornecedorNome=_selected.nome;obj.fornecedorCod=_selected.cod;obj.dest=cli;
+  }
+  // Preserve the destination metadata when editing an existing cheque without changing it.
+  if(CHQ_CTRL[id] && nomeNorm(CHQ_CTRL[id].c)===nomeNorm(cli)){
+    ['dc','movBancoId','origem','fornecedorCod','fornecedorNome','clienteCod','clienteNome','dest'].forEach(function(field){
+      if(obj[field]==null&&CHQ_CTRL[id][field]!=null)obj[field]=CHQ_CTRL[id][field];
+    });
+  }
   
   if(CHQ_CTRL[id]&&CHQ_CTRL[id].dc) obj.dc=CHQ_CTRL[id].dc;
   CHQ_CTRL[id]=obj; try{ renderChequesCompensar(); }catch(e){}
@@ -16662,9 +17224,28 @@ const _syncAlxNotas = _criarSincroniaPorChave('alxNotas', ALX_NOTAS, 'AN');
 let CHAT_MSGS      = [];
 function saveAlmoxa(){ fbSalvar(); localStorage.setItem('mm_almoxa',JSON.stringify(ALX_ITENS)); localStorage.setItem('mm_almoxaMov',JSON.stringify(ALX_MOV)); localStorage.setItem('mm_alxNotas',JSON.stringify(ALX_NOTAS)); }
 function loadAlmoxaLocal(){ if(window.__FB_DATA_READY__===true) return; try{ const a=localStorage.getItem('mm_almoxa');if(a){ ALX_ITENS.length=0; JSON.parse(a).forEach(x=>ALX_ITENS.push(x)); } const m=localStorage.getItem('mm_almoxaMov');if(m){ ALX_MOV.length=0; JSON.parse(m).forEach(x=>ALX_MOV.push(x)); } const n=localStorage.getItem('mm_alxNotas');if(n){ ALX_NOTAS.length=0; JSON.parse(n).forEach(x=>ALX_NOTAS.push(x)); } }catch(e){} }
-function saveContasPagar(){   fbSalvar(); localStorage.setItem('mm_cp', JSON.stringify(CONTAS_PAGAR)); }
+function saveContasPagar(){
+  try{const serialized=JSON.stringify(CONTAS_PAGAR);if(serialized.length<1024*1024)localStorage.setItem('mm_cp',serialized);else localStorage.removeItem('mm_cp');}
+  catch(e){console.warn('[Contas a pagar] Cache local indisponível.',e);}
+  if(typeof fbSalvar==='function')fbSalvar();
+}
 function saveContasReceber(){ localStorage.setItem('mm_cr', JSON.stringify(CONTAS_RECEBER)); try{fbSalvar();}catch(e){} }
-function saveContratos(){     fbSalvar(); localStorage.setItem('mm_contratos', JSON.stringify(CONTRATOS_DB)); }
+function saveContratos(){
+  // O Firebase é a fonte de verdade. O cache local é apenas uma otimização;
+  // anexos antigos (data URLs) nunca devem esgotar o armazenamento do navegador.
+  try {
+    const cache=CONTRATOS_DB.map(function(c){
+      if(!c || typeof c!=='object')return c;
+      const item={...c};delete item.arquivoBase64;return item;
+    });
+    const serialized=JSON.stringify(cache);
+    if(serialized.length<=1024*1024)localStorage.setItem('mm_contratos',serialized);
+    else localStorage.removeItem('mm_contratos');
+  }catch(error){
+    console.warn('[Contratos] Cache do navegador indisponível. A nuvem continua sendo a fonte de dados.',error);
+  }
+  if(typeof fbSalvar==='function')fbSalvar();
+}
 function loadContas(){
   try{
     const cp=localStorage.getItem('mm_cp'); if(cp) CONTAS_PAGAR=JSON.parse(cp);
@@ -17270,92 +17851,105 @@ function popularDatalistContrato(){
   const inp=document.getElementById('ct-forn'); if(inp) inp.setAttribute('list','ct-forn-list');
 }
 
-function salvarContrato(){
-  const desc=(document.getElementById('ct-desc')?.value||'').trim();
-  const valor=parseFloat(document.getElementById('ct-valor')?.value)||0;
-  if(!desc){alert('Informe a descrição do contrato!');return;}
-  const hoje=_hojeISO();
+let _contratoSalvamentoEmAndamento=false;
+async function salvarContrato(){
+  // Bloqueio síncrono: duplo clique / FileReader não podem criar contratos repetidos.
+  if(_contratoSalvamentoEmAndamento)return;
+  const button=document.querySelector('#modal-body .btn-save[onclick*="salvarContrato"]')||document.querySelector('#modal-body .btn-save');
+  const value=id=>String(document.getElementById(id)?.value||'').trim();
+  const desc=value('ct-desc'),forn=value('ct-forn'),ini=value('ct-ini'),fim=value('ct-fim');
+  const valor=Number(value('ct-valor')||0);
   const lancOpt=document.querySelector('input[name="ct-lanc"]:checked')?.value||'nao';
-  const fileEl=document.getElementById('ct-arquivo');
-  const file=fileEl&&fileEl.files&&fileEl.files[0]?fileEl.files[0]:null;
-  if(file&&file.size>20*1024*1024){alert('Arquivo muito grande. Máximo: 20 MB.');return;}
-
-  const _finalizarSalvar=(arquivoBase64,arquivoNome,arquivoMime)=>{
-    const contrato={
-      id: 'CT'+Date.now(),
-      desc, valor,
-      forn:    (document.getElementById('ct-forn')?.value||'').trim(),
-      ini:     document.getElementById('ct-ini')?.value||'',
-      fim:     document.getElementById('ct-fim')?.value||'',
-      debito:  document.getElementById('ct-debito')?.value||'Não',
-      banco:   document.getElementById('ct-banco')?.value||'',
-      obs:     (document.getElementById('ct-obs')?.value||'').trim(),
-      lanc:    lancOpt,
-      dataCad: hoje,
-      arquivoBase64: arquivoBase64||'',
-      arquivoNome:   arquivoNome||'',
-      arquivoMime:   arquivoMime||''
-    };
-    CONTRATOS_DB.push(contrato);
-
-    if(lancOpt==='avista'){
-      const venc=document.getElementById('ct-av-venc')?.value;
-      if(!venc){alert('Informe a data de vencimento!');return;}
-      const cat=(document.getElementById('ct-av-cat')?.value||'Outros').trim();
-      const bancoCod=contrato.banco;
-      const bancoNome=bancoCod?((BANCOS_DB&&BANCOS_DB.find(b=>b.cod===bancoCod)?.banco)||''):'';
-      const hojeFmt=hoje.split('-').reverse().join('/');
-      CONTAS_PAGAR.push({ id:_novoIdCP(),
-        lancto:hojeFmt, desc:desc, cred:contrato.forn, cat, bancoCod, bancoNome,
-        venc:venc.split('-').reverse().join('/'), valor,
-        status:'Pendente', dataPgto:'', obs:'Contrato: '+desc,
-        contratoId:contrato.id
-      });
-      saveContasPagar(); renderContasPagar();
-    } else if(lancOpt==='parcelado'){
-      const nparc=parseInt(document.getElementById('ct-nparc')?.value)||1;
-      const dia=parseInt(document.getElementById('ct-diaparc')?.value)||10;
-      const mesVal=document.getElementById('ct-mesparc')?.value;
-      if(!mesVal||nparc<1){alert('Preencha o mês da 1ª parcela e número de parcelas!');return;}
-      const cat=(document.getElementById('ct-parc-cat')?.value||'Outros').trim();
-      const bancoCod=contrato.banco;
-      const bancoNome=bancoCod?((BANCOS_DB&&BANCOS_DB.find(b=>b.cod===bancoCod)?.banco)||''):'';
-      const hojeFmt=hoje.split('-').reverse().join('/');
-      const [anoI,mesI]=mesVal.split('-').map(Number);
-      for(let i=0;i<nparc;i++){
-        let m=mesI+i; let a=anoI+Math.floor((m-1)/12); m=((m-1)%12)+1;
-        const dv=Math.min(dia,new Date(a,m,0).getDate());
-        const vencFmt=String(dv).padStart(2,'0')+'/'+String(m).padStart(2,'0')+'/'+a;
-        CONTAS_PAGAR.push({ id:_novoIdCP(),
-          lancto:hojeFmt, desc:desc+' ('+(i+1)+'/'+nparc+')',
-          cred:contrato.forn, cat, bancoCod, bancoNome,
-          venc:vencFmt, valor, status:'Pendente', dataPgto:'',
-          obs:'Contrato: '+desc, contratoId:contrato.id
-        });
-      }
-      saveContasPagar(); renderContasPagar();
+  const file=document.getElementById('ct-arquivo')?.files?.[0]||null;
+  const validDate=v=>!v||/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v+'T12:00:00Z'));
+  if(!desc||desc.length>240){showToast('Informe uma descrição de até 240 caracteres.','error');return;}
+  if(!Number.isFinite(valor)||valor<0||valor>1e12){showToast('Informe um valor válido para o contrato.','error');return;}
+  if(!validDate(ini)||!validDate(fim)||(ini&&fim&&fim<ini)){showToast('Confira as datas de início e fim do contrato.','error');return;}
+  if(!['nao','avista','parcelado'].includes(lancOpt)){showToast('Selecione um lançamento válido.','error');return;}
+  if(file&&(file.size<1||file.size>20*1024*1024||!['application/pdf','image/png','image/jpeg','image/webp'].includes(file.type))){showToast('Anexe somente PDF, JPG, PNG ou WebP de até 20 MB.','error');return;}
+  const venc=value('ct-av-venc'),month=value('ct-mesparc');
+  const installments=Number(value('ct-nparc')||0),day=Number(value('ct-diaparc')||0);
+  if(lancOpt==='avista'&&(!validDate(venc)||!venc)){showToast('Informe a data de vencimento para o lançamento à vista.','error');return;}
+  if(lancOpt==='parcelado'&&(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)||!Number.isInteger(installments)||installments<1||installments>120||!Number.isInteger(day)||day<1||day>31)){
+    showToast('Informe mês inicial, dia de vencimento e de 1 a 120 parcelas válidas.','error');return;
+  }
+  const db=window._fbDB;
+  if(!db||window.__FB_DATA_READY__!==true){showToast('A sincronização com o Firebase não terminou. Tente novamente quando estiver conectado.','error');return;}
+  // Um ID por tentativa, mesmo se a conexão cair após o servidor confirmar a gravação.
+  const isRetry=Boolean(button?.dataset.contractPendingId);
+  const id=button?.dataset.contractPendingId||'CT'+(window.crypto?.randomUUID?.().replace(/-/g,'')||Date.now().toString(36)+Math.random().toString(36).slice(2));
+  if(button)button.dataset.contractPendingId=id;
+  _contratoSalvamentoEmAndamento=true;
+  if(button){button.disabled=true;button.textContent='Salvando...';}
+  const status=document.getElementById('ct-arquivo-status');
+  let storageRef=null,storagePath='';
+  let uploadedNow=false,committed=false;
+  try{
+    const contrato={id,desc,valor,forn,ini,fim,debito:value('ct-debito')||'Não',banco:value('ct-banco'),obs:value('ct-obs'),lanc:lancOpt,
+      dataCad:_hojeISO(),arquivoBase64:'',arquivoNome:file?.name||'',arquivoMime:file?.type||'',arquivoStoragePath:''};
+    // Se a conexão caiu depois da gravação anterior, a repetição NÃO cria outro contrato.
+    if(isRetry){
+      const previous=await db.ref('erp/contratos/'+id).once('value');
+      if(previous.val()?.id===id)throw Error('Este contrato já consta no Firebase. Atualize a lista antes de cadastrar novamente.');
     }
-
-    saveContratos(); renderContratos();
-    try{renderFluxo();}catch(e){}
-    try{renderDashboard();}catch(e){}
-    cm();
-    const msg=lancOpt==='avista'?'Contrato cadastrado e lançado à vista em Contas a Pagar!'
-             :lancOpt==='parcelado'?'Contrato cadastrado e '+nparc+' parcela(s) gerada(s)!'
-             :'Contrato cadastrado'+(arquivoNome?' com arquivo anexado':'')+'!';
-    showToast('✅ '+msg,'success');
-  }; 
-
-  
-  if(file){
-    const statusEl=document.getElementById('ct-arquivo-status');
-    if(statusEl) statusEl.textContent='Carregando arquivo...';
-    const reader=new FileReader();
-    reader.onload=e=>_finalizarSalvar(e.target.result, file.name, file.type||'application/octet-stream');
-    reader.onerror=()=>{ alert('Erro ao ler o arquivo. Salve sem anexo ou tente novamente.'); };
-    reader.readAsDataURL(file);
-  } else {
-    _finalizarSalvar('','','');
+    if(file){
+      if(!window.__fbRaw?.storage)throw Error('Armazenamento de anexos indisponível. Nenhuma alteração foi gravada.');
+      const ext={'application/pdf':'pdf','image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[file.type];
+      storagePath='erp-files/contracts/'+id+'/document.'+ext;
+      storageRef=window.__fbRaw.storage.ref(storagePath);
+      if(status)status.textContent='Enviando documento com acesso restrito...';
+      // Em uma repetição após falha de rede, reaproveitar o mesmo objeto já enviado.
+      let existing=false;
+      if(typeof storageRef.getMetadata==='function'){
+        try{const meta=await storageRef.getMetadata();
+          if(Number(meta.size)!==file.size||meta.contentType!==file.type)throw Error('Outro anexo já utiliza esta tentativa. Feche e abra Novo Contrato novamente.');
+          existing=true;
+        }catch(error){if(error.code!=='storage/object-not-found')throw error;}
+      }
+      if(!existing){await storageRef.put(file,{contentType:file.type});uploadedNow=true;}
+      contrato.arquivoStoragePath=storagePath;
+    }
+    const contas=[];
+    const hojeFmt=contrato.dataCad.split('-').reverse().join('/');
+    const bankCode=contrato.banco;
+    const bankName=bankCode?((BANCOS_DB||[]).find(b=>b.cod===bankCode)?.banco||''):'';
+    const base={cred:forn,bancoCod:bankCode,bancoNome:bankName,valor,status:'Pendente',dataPgto:'',contratoId:id};
+    if(lancOpt==='avista'){
+      contas.push({...base,id:'CP'+id.slice(2)+'_1',lancto:hojeFmt,desc,cat:value('ct-av-cat')||'Outros',venc:venc.split('-').reverse().join('/'),obs:'Contrato: '+desc});
+    }
+    if(lancOpt==='parcelado'){
+      const [year,initialMonth]=month.split('-').map(Number);
+      for(let i=0;i<installments;i++){
+        const absolute=year*12+(initialMonth-1)+i;
+        const y=Math.floor(absolute/12),m=absolute%12+1;
+        const end=new Date(Date.UTC(y,m,0)).getUTCDate();
+        const due=String(Math.min(day,end)).padStart(2,'0')+'/'+String(m).padStart(2,'0')+'/'+y;
+        contas.push({...base,id:'CP'+id.slice(2)+'_'+(i+1),lancto:hojeFmt,desc:desc+' ('+(i+1)+'/'+installments+')',cat:value('ct-parc-cat')||'Outros',venc:due,obs:'Contrato: '+desc});
+      }
+    }
+    // Contrato e parcelas entram no RTDB num único update atômico.
+    // O sucesso visual depende da confirmação remota, não do localStorage.
+    const patch={['contratos/'+id]:contrato};
+    for(const cp of contas)patch['contasPagar/'+cp.id]=cp;
+    await db.ref('erp').update(patch);
+    committed=true;
+    if(!CONTRATOS_DB.some(c=>c?.id===id))CONTRATOS_DB.push(contrato);
+    for(const cp of contas)if(!CONTAS_PAGAR.some(c=>c?.id===cp.id))CONTAS_PAGAR.push(cp);
+    try{saveContratos();if(contas.length)saveContasPagar();}catch(e){console.warn('Registro remoto confirmado; falha de cache secundário.',e);}
+    try{renderContratos();if(contas.length)renderContasPagar();renderFluxo();renderDashboard();}catch(e){console.warn('Contrato gravado; falha ao atualizar tela.',e);}
+    if(status)status.textContent='Documento e contrato gravados com sucesso.';
+    try{cm();}catch(e){}
+    showToast(contas.length?'Contrato salvo e '+contas.length+' lançamento(s) criado(s) em Contas a Pagar.':'Contrato salvo no Firebase.','success');
+  }catch(error){
+    console.error('[Contratos] Falha no salvamento:',error);
+    // Falha de rede pode ocorrer DEPOIS de o Firebase aceitar o update. Não
+    // apagar o anexo: ele pode já estar vinculado a um contrato confirmado.
+    if(uploadedNow&&!committed)console.warn('[Contratos] Confira o registro remoto antes de remover eventual anexo pendente:',storagePath);
+    if(status)status.textContent='Falha: contrato não confirmado. Confira a lista antes de tentar novamente.';
+    showToast('Não foi possível confirmar o contrato no Firebase: '+String(error?.message||'erro desconhecido').slice(0,160),'error');
+  }finally{
+    _contratoSalvamentoEmAndamento=false;
+    if(button){button.disabled=false;button.textContent='💾 Salvar';if(committed)delete button.dataset.contractPendingId;}
   }
 }
 
@@ -17375,8 +17969,8 @@ function renderContratos(){
   const kpiSub=document.getElementById('kpi-cont-sub');
   const kpiT=document.getElementById('kpi-cont-total');
   if(kpiT) kpiT.textContent=CONTRATOS_DB.length;
-  if(kpiS){kpiS.textContent=vencendo.length?'⚠️ Atenção':'✅ OK';}
-  if(kpiSub){kpiSub.textContent=vencendo.length?vencendo.length+' vencendo em 30 dias':'Nenhum vencendo em breve';}
+  // A contagem de vencidos é atualizada pelo painel da agenda contratual.
+  // Não substituir o número por 'OK' ou 'Atenção' neste render legado.
   const lancLabel={nao:'Não lançado',avista:'À Vista',parcelado:'Parcelado'};
   tb.innerHTML=CONTRATOS_DB.map((c,i)=>{
     const venceEmBreve=c.fim&&c.fim>=hoje&&c.fim<=new Date(Date.now()+30*86400000).toISOString().slice(0,10);
@@ -17392,23 +17986,32 @@ function renderContratos(){
       '<td style="font-size:.78rem">'+esc(lancLabel[c.lanc]||'—')+'</td>'+
       '<td style="font-size:.75rem;max-width:160px">'+esc(c.obs||'—')+'</td>'+
       '<td style="white-space:nowrap">'+
-        (c.arquivoBase64?'<button class="btn-edit" onclick="ctVerArquivo('+i+')" title="Ver arquivo anexado" style="background:#0277bd;color:#fff;margin-right:4px">📄</button>':'') +
+        ((c.arquivoBase64||c.arquivoStoragePath)?'<button class="btn-edit" onclick="ctVerArquivo('+i+')" title="Ver arquivo anexado" style="background:#0277bd;color:#fff;margin-right:4px">📄</button>':'') +
         '<button class="btn-edit-danger" onclick="excluirContrato('+i+')" title="Excluir">🗑️</button>'+
       '</td>'+
     '</tr>';
   }).join('');
 }
 
-function excluirContrato(idx){
-  if(!confirm('Excluir contrato "'+esc(CONTRATOS_DB[idx]?.desc)+'"?\n\nAtenção: parcelas já lançadas em Contas a Pagar NÃO serão removidas automaticamente.')) return;
-  _syncContratos.remover(idx);
-  saveContratos(); renderContratos();
-  showToast('Contrato excluído.','success');
+async function excluirContrato(idx){
+  const c=CONTRATOS_DB[idx];if(!c?.id)return;
+  if(!confirm('Excluir contrato "'+esc(c.desc)+'"?\n\nAs parcelas já lançadas em Contas a Pagar NÃO serão removidas.'))return;
+  const db=window._fbDB;
+  if(!db||window.__FB_DATA_READY__!==true){showToast('Sem sincronização com o Firebase. Contrato não excluído.','error');return;}
+  try{
+    await db.ref('erp/contratos/'+c.id).remove();
+    const current=CONTRATOS_DB.findIndex(item=>item?.id===c.id);
+    if(current>=0)_syncContratos.remover(current);
+    saveContratos();renderContratos();
+    if(c.arquivoStoragePath){try{await window.__fbRaw?.storage?.ref(c.arquivoStoragePath).delete();}catch(error){console.warn('Contrato removido, mas o anexo precisa de limpeza autorizada.',error);}}
+    showToast('Contrato removido do Firebase. As parcelas financeiras permanecem intactas.','success');
+  }catch(error){console.error('[Contratos] Erro ao excluir:',error);showToast('A exclusão não foi confirmada no Firebase. Tente novamente.','error');}
 }
 
 function ctVerArquivo(idx){
   const c=CONTRATOS_DB[idx];
-  if(!c||!c.arquivoBase64){showToast('Nenhum arquivo anexado.','error');return;}
+  if(!c||(!c.arquivoBase64&&!c.arquivoStoragePath)){showToast('Nenhum arquivo anexado.','error');return;}
+  if(c.arquivoStoragePath){const popup=window.open('','_blank');if(!popup){showToast('Permita popups para visualizar o anexo.','error');return;}window.__fbRaw?.storage?.ref(c.arquivoStoragePath).getDownloadURL().then(url=>{popup.location.href=url;}).catch(error=>{popup.close();console.error(error);showToast('Você não tem acesso ao anexo ou ele não está disponível.','error');});return;}
   const win=window.open('','_blank');
   if(!win){showToast('Permita popups para visualizar o arquivo.','error',5000);return;}
   if(c.arquivoMime&&c.arquivoMime.startsWith('image/')){
@@ -18516,39 +19119,39 @@ function compartilharBanco(idx){
   
   
   const emp=EMPRESAS_INFO[b.empresa||_empresaPorTexto([b.banco,b.titular,b.pix,b.cpfcnpj].filter(Boolean).join(' '))] || _empresaPrincipalInfo();
-  const div='━━━━━━━━━━━━━━━━━━━━━━━━━';
-  let msg='🏭 *'+emp.nome+'*\n';
-  msg+='_'+emp.razaoSocial+'_\n';
-  msg+='CNPJ: '+emp.cnpj+'\n';
-  if(emp.ie) msg+='IE: '+emp.ie+'\n';
-  if(emp.endereco) msg+='📍 '+emp.endereco+'\n';
-  msg+=div+'\n';
-  msg+='🏦 *DADOS BANCÁRIOS PARA PAGAMENTO*\n';
-  msg+=div+'\n';
-  msg+='🏦 *Banco:* '+b.banco+'\n';
-  if(b.tipo) msg+='📋 *Tipo:* '+b.tipo+'\n';
-  if(b.titular && b.titular!==emp.razaoSocial) msg+='👤 *Titular:* '+b.titular+'\n';
-  else msg+='👤 *Titular:* '+emp.razaoSocial+'\n';
-  if(b.cpfcnpj) msg+='📄 *CPF/CNPJ:* '+b.cpfcnpj+'\n';
-  else msg+='📄 *CNPJ:* '+emp.cnpj+'\n';
-  if(b.agencia) msg+='🏢 *Agência:* '+b.agencia+'\n';
-  if(b.conta) msg+='💳 *Conta:* '+b.conta+'\n';
-  if(b.pix) msg+='⚡ *PIX:* '+b.pix+'\n';
-  if(b.endereco && b.endereco!==emp.endereco) msg+='📍 *Endereço da conta:* '+b.endereco+'\n';
-  if(b.obs) msg+='📝 '+b.obs+'\n';
-  msg+=div+'\n';
-  const contatos=[];
-  if(emp.financeiro) contatos.push('Financeiro: '+emp.financeiro);
-  if(emp.escritorio) contatos.push('Escritório: '+emp.escritorio);
-  if(emp.compras) contatos.push('Compras: '+emp.compras);
-  if(contatos.length) msg+='📞 '+contatos.join(' | ')+'\n';
-  if(emp.email) msg+='📧 '+emp.email;
+  const titular=String(b.titular||emp.razaoSocial||'').trim();
+  const doc=String(b.cpfcnpj||emp.cnpj||'').trim();
+  const linhas=[
+    '*'+String(emp.razaoSocial||emp.nome||_empresaPrincipalRazao())+'*',
+    'CNPJ: '+String(emp.cnpj||'—'),
+    '',
+    '*DADOS BANCÁRIOS*',
+    '--------------------------------',
+    'Banco: '+String(b.banco||'—'),
+    'Titular: '+(titular||'—'),
+    'Documento: '+(doc||'—'),
+  ];
+  if(b.tipo) linhas.push('Tipo de conta: '+b.tipo);
+  if(b.agencia) linhas.push('Agência: '+b.agencia);
+  if(b.conta) linhas.push('Conta: '+b.conta);
+  if(b.pix) linhas.push('Chave PIX: '+b.pix);
+  if(b.endereco&&b.endereco!==emp.endereco) linhas.push('Endereço da conta: '+b.endereco);
+  if(b.obs) linhas.push('Observações: '+b.obs);
+  linhas.push('--------------------------------');
+  if(emp.endereco) linhas.push('Endereço: '+emp.endereco);
+  const contatos=[
+    emp.financeiro?'Financeiro: '+emp.financeiro:'',
+    emp.escritorio?'Escritório: '+emp.escritorio:'',
+    emp.compras?'Compras: '+emp.compras:''
+  ].filter(Boolean);
+  linhas.push(...contatos);
+  if(emp.email) linhas.push('E-mail: '+emp.email);
+  const msg=linhas.join('\n');
 
-  
   const ov=document.getElementById('banco-share-ov');
-  document.getElementById('banco-share-msg').value=msg;
+  document.getElementById('banco-share-msg').value=_erpWhatsFormat(msg);
   ov.style.display='flex';
-  window._bancoCopiarMsg=msg;
+  window._bancoCopiarMsg=_erpWhatsFormat(msg);
 }
 
 function fecharBancoShare(){
@@ -18562,14 +19165,14 @@ function copiarDadosBanco(){
 }
 
 function wppDadosBanco(){
-  const msg=encodeURIComponent(window._bancoCopiarMsg||'');
+  const msg=encodeURIComponent(_erpWhatsFormat(window._bancoCopiarMsg||''));
   window.open('https://wa.me/?text='+msg,'_blank');
 }
 
 function wppNumeroDadosBanco(){
   const num=prompt('Número WhatsApp (com DDD, só números):');
   if(!num) return;
-  const msg=encodeURIComponent(window._bancoCopiarMsg||'');
+  const msg=encodeURIComponent(_erpWhatsFormat(window._bancoCopiarMsg||''));
   window.open('https://wa.me/55'+num.replace(/\D/g,'')+'?text='+msg,'_blank');
 }
 
@@ -18598,7 +19201,59 @@ function _bancoDataCriacao(b){
   return maisAntigo ? new Date(maisAntigo.ts).toLocaleDateString('pt-BR') : null;
 }
 
+// Menu fora da tabela: o container de rolagem não pode recortar as ações.
+let _erpBankMorePopover=null;
+let _erpBankMoreAnchor=null;
+function _erpBankMoreClose(){
+  if(_erpBankMoreAnchor)_erpBankMoreAnchor.setAttribute('aria-expanded','false');
+  if(_erpBankMorePopover)_erpBankMorePopover.remove();
+  _erpBankMorePopover=null;_erpBankMoreAnchor=null;
+}
+function _erpBankMoreOpen(button){
+  if(_erpBankMoreAnchor===button){_erpBankMoreClose();return;}
+  _erpBankMoreClose();
+  const bankCode=button.dataset.bankMore;
+  if(!BANCOS_DB.some(bank=>bank.cod===bankCode))return;
+  const popover=document.createElement('div');
+  popover.className='erp-bank-more-popover';
+  popover.setAttribute('role','menu');
+  popover.setAttribute('aria-label','Ações adicionais da conta bancária');
+  const actions=[['Editar conta','editBanco'],['Compartilhar','compartilharBanco'],['Excluir conta','excluirBanco']];
+  actions.forEach(([label,fnName])=>{
+    const option=document.createElement('button');
+    option.type='button';option.setAttribute('role','menuitem');option.textContent=label;
+    if(fnName==='excluirBanco')option.className='danger';
+    option.addEventListener('click',()=>{
+      const index=BANCOS_DB.findIndex(bank=>bank.cod===bankCode);
+      _erpBankMoreClose();
+      if(index<0)return;
+      const action=window[fnName];
+      if(typeof action==='function')action(index);
+    });
+    popover.appendChild(option);
+  });
+  document.body.appendChild(popover);
+  _erpBankMorePopover=popover;_erpBankMoreAnchor=button;
+  button.setAttribute('aria-expanded','true');
+  const box=button.getBoundingClientRect();
+  const menuHeight=popover.getBoundingClientRect().height||145;
+  const top=box.bottom+menuHeight+6>window.innerHeight?box.top-menuHeight-6:box.bottom+6;
+  popover.style.top=Math.max(8,top)+'px';
+  popover.style.left=Math.max(8,Math.min(box.right-popover.offsetWidth,window.innerWidth-popover.offsetWidth-8))+'px';
+  popover.querySelector('button')?.focus();
+}
+if(typeof document!=='undefined'&&!window.__ERP_BANK_MORE_EVENTS__){
+  window.__ERP_BANK_MORE_EVENTS__=true;
+  document.addEventListener('pointerdown',event=>{
+    if(_erpBankMorePopover&&!_erpBankMorePopover.contains(event.target)&&!_erpBankMoreAnchor?.contains(event.target))_erpBankMoreClose();
+  });
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&_erpBankMorePopover){_erpBankMoreClose();}});
+  window.addEventListener('resize',_erpBankMoreClose);
+  window.addEventListener('scroll',_erpBankMoreClose,true);
+}
+
 function renderBancos(){
+  if(typeof _erpBankMoreClose === 'function') _erpBankMoreClose();
   const tbody=document.getElementById('tb-bancos');
   if(!tbody) return;
   
@@ -18610,7 +19265,9 @@ function renderBancos(){
     if(kpi) kpi.textContent='—';
     return;
   }
-  const fmt=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const ledger=window.erpBankLedger;
+  const fmt=v=>ledger?ledger.brl(v):Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const balanceByCode=new Map(BANCOS_DB.map(b=>[b.cod,ledger?ledger.statement({openingBalance:b.saldo||0,bankCode:b.cod,entries:LANC_BANCO_DB}):null]));
   const empCor={}; _cfgFinanceCompanies().forEach(function(n){ empCor[n]=_cfgFinanceCompanyColor(n); });
   if(BANCOS_DB.length===0){
     tbody.innerHTML='<tr><td colspan="11" style="color:var(--gray);text-align:center;padding:20px">Nenhuma conta cadastrada</td></tr>';
@@ -18621,9 +19278,10 @@ function renderBancos(){
   tbody.innerHTML=BANCOS_DB.map((b,i)=>{
     const _empresaVisual=b.empresa||_empresaPorTexto([b.banco,b.titular,b.pix,b.cpfcnpj].filter(Boolean).join(' '));
     const isTerceiro=b.tipo==='Conta Terceiro';
-    const movs=LANC_BANCO_DB.filter(l=>l.bancoCod===b.cod);
-    const saldoAtual=Number(b.saldo||0)+movs.reduce((s,l)=>s+(l.tipo==='Entrada'?1:-1)*Number(l.valor||0),0);
-    const saldoColor=saldoAtual<0?'color:#c0392b':saldoAtual===0?'color:#999':'color:#1a5e2a';
+    const summary=balanceByCode.get(b.cod);
+    const saldoAtual=summary?.closingBalance??Number(b.saldo||0);
+    const saldoSign=ledger?ledger.sign(saldoAtual):Math.sign(saldoAtual);
+    const saldoColor=saldoSign<0?'color:#c0392b':saldoSign===0?'color:#999':'color:#1a5e2a';
     return '<tr>'
       +'<td style="font-size:.78rem;color:var(--gray)">'+esc(b.cod)+'</td>'
       +'<td><b>'+esc(b.banco)+'</b>'+(b.agencia?' <small>Ag '+esc(b.agencia)+'</small>':'')+' – <small>'+esc(b.conta||'—')+'</small></td>'
@@ -18635,28 +19293,39 @@ function renderBancos(){
       +'<td style="text-align:right;font-weight:700;'+saldoColor+'">R$ '+fmt(saldoAtual)+'</td>'
       +'<td style="font-size:.78rem">'+esc(b.pix||'—')+'</td>'
       +'<td style="font-size:.78rem">'+esc(b.obs||'—')+'</td>'
-      +'<td style="white-space:nowrap">'
-        +'<button class="btn-edit" onclick="editBanco('+i+')" title="Editar">✏️</button> '
-        +'<button class="btn-edit-danger" onclick="excluirBanco('+i+')" title="Excluir">🗑️</button> '
-        +'<button class="btn-add" style="padding:3px 8px;font-size:.72rem;background:#27ae60" onclick="verExtratoBanco(&#39;'+b.cod+'&#39;)" title="Ver extrato">📊 Extrato</button> '
-        +'<button class="btn-add" style="padding:3px 8px;font-size:.72rem" onclick="compartilharBanco('+i+')" title="Compartilhar dados para pagamento">📤 Compartilhar</button>'
-        +'</td>'
+      +'<td class="erp-bank-table-actions">'
+        +'<div class="erp-bank-actionbar">'
+        +'<button type="button" class="erp-bank-action-primary" data-bank-reconcile="'+esc(b.cod)+'" title="Abrir conciliação bancária">Conciliar</button>'
+        +'<button type="button" class="erp-bank-action" onclick="verExtratoBanco(&#39;'+b.cod+'&#39;)" title="Ver extrato">Extrato</button>'
+        +'<button type="button" class="erp-bank-action" data-bank-integration="'+esc(b.cod)+'" title="Configurar bancos e Open Finance">Integrações</button>'
+        +'<button type="button" class="erp-bank-more-trigger" data-bank-more="'+esc(b.cod)+'" aria-haspopup="menu" aria-expanded="false" title="Outras ações da conta">Mais ▾</button></div></td>'
+
     +'</tr>';
   }).join('');
 
   
+  if(typeof tbody.addEventListener==='function' && !tbody.dataset?.reconcileBound){
+    tbody.addEventListener('click',function(event){
+      const button=event.target.closest('button[data-bank-reconcile]');
+      if(button&&tbody.contains(button))window.erpReconciliationOpen(button.dataset.bankReconcile);
+      const integrate=event.target.closest('button[data-bank-integration]');
+      if(integrate&&tbody.contains(integrate))window.erpBankIntegrationsOpen(integrate.dataset.bankIntegration);
+      const more=event.target.closest('button[data-bank-more]');
+      if(more&&tbody.contains(more))_erpBankMoreOpen(more);
+    });
+    if(tbody.dataset)tbody.dataset.reconcileBound='true';
+  }
   const kpiTotal=document.querySelector('#tab-contas_banco .kpi-val');
   if(kpiTotal) kpiTotal.textContent=BANCOS_DB.length;
   const kpiSaldo=document.querySelectorAll('#tab-contas_banco .kpi-val')[1];
   
-  const saldoTotalAtual=BANCOS_DB.reduce((s,b)=>{
-    const movs=LANC_BANCO_DB.filter(l=>l.bancoCod===b.cod);
-    const sa=Number(b.saldo||0)+movs.reduce((ms,l)=>ms+(l.tipo==='Entrada'?1:-1)*Number(l.valor||0),0);
-    return s+sa;
-  },0);
+  const saldoTotalAtual=ledger
+    ?ledger.addMoney(BANCOS_DB.map(b=>balanceByCode.get(b.cod).closingBalance))
+    :BANCOS_DB.reduce((s,b)=>s+Number(b.saldo||0),0);
   if(kpiSaldo) kpiSaldo.textContent='R$ '+fmt(saldoTotalAtual);
   const kpiSub=document.querySelector('#tab-contas_banco .kpi-sub');
-  if(kpiSub) kpiSub.textContent=BANCOS_DB.length>0?'Saldo consolidado atualizado':'Aguardando saldos';
+  if(kpiSub) kpiSub.textContent=[...balanceByCode.values()].some(value=>value?.hasUnsafeLegacyValues||value?.invalidValues)
+    ?'Revise lançamentos antigos fora da precisão ou inválidos':'Saldo consolidado atualizado';
 
   
   window._bancosDropdown=BANCOS_DB.map(b=>b.banco+(b.titular&&b.titular!==_empresaPrincipalRazao()?' ('+b.titular+')':''));
@@ -18922,42 +19591,81 @@ function zerarSaldosBancos(){
   alert('✅ Pronto! '+BANCOS_DB.length+' contas zeradas, '+arquivadosQtd+' lançamento(s) antigo(s) arquivado(s) (backup baixado). Agora edite cada conta e digite o saldo real de ontem no campo Saldo Inicial.');
 }
 
+// Apenas leitura para conciliação. Não altera baixa de títulos, saldo nem histórico.
+window.erpReconciliationSources=function(){
+  return {
+    banks:BANCOS_DB.filter(Boolean).map(b=>({cod:String(b.cod||''),name:String(b.banco||'Conta'),account:String(b.conta||'')})),
+    bankEntries:LANC_BANCO_DB.filter(Boolean).map(l=>({id:String(l.id||''),bankCode:String(l.bancoCod||''),date:String(l.data||''),description:String(l.descricao||''),type:String(l.tipo||''),amount:l.valor})),
+    payables:CONTAS_PAGAR.filter(Boolean).map(c=>({id:String(c.id||''),date:String(c.venc||c.lancto||''),description:String(c.desc||c.cred||''),amount:c.valor,status:String(c.status||''),party:String(c.cred||'')})),
+    receivables:CONTAS_RECEBER.filter(Boolean).map(c=>({id:String(c.id||''),date:String(c.venc||c.data||''),description:String(c.desc||c.cli||''),amount:c.valor,status:String(c.status||''),party:String(c.cli||'')}))
+  };
+};
 function verExtratoBanco(cod){
-  const b=BANCOS_DB.find(x=>x.cod===cod); if(!b) return;
-  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const lancs=LANC_BANCO_DB.filter(l=>l.bancoCod===cod).sort((a,z)=>a.data.localeCompare(z.data));
-  let saldo=Number(b.saldo||0);
-  const rows=lancs.map((l,i)=>{
-    saldo+=(l.tipo==='Entrada'?1:-1)*Number(l.valor);
-    return '<tr>'+
-      '<td>'+l.data+'</td>'+
-      '<td>'+esc(l.descricao)+'</td>'+
-      '<td><span style="color:'+(l.tipo==='Entrada'?'#27ae60':'#e74c3c')+';font-weight:700">'+(l.tipo==='Entrada'?'▲ Entrada':'▼ Saída')+'</span></td>'+
-      '<td style="color:'+(l.tipo==='Entrada'?'#27ae60':'#e74c3c')+';font-weight:700;text-align:right">'+(l.tipo==='Entrada'?'+':'-')+'R$ '+fmt(l.valor)+'</td>'+
-      '<td style="text-align:right;font-weight:600">R$ '+fmt(saldo)+'</td>'+
-      '<td style="white-space:nowrap">'+
-      '<button class="btn-edit" style="font-size:.72rem;margin-right:3px" onclick="editLancBanco(&#39;'+l.id+'&#39;,&#39;'+cod+'&#39;)" title="Editar">✏️</button>'+
-      '<button class="btn-edit-danger" style="font-size:.72rem" onclick="excluirLancBanco(&#39;'+l.id+'&#39;,&#39;'+cod+'&#39;)" title="Excluir">🗑️</button></td>'+
-    '</tr>';
+  const banco=BANCOS_DB.find(b=>b.cod===cod);if(!banco)return;
+  const ledger=window.erpBankLedger;
+  if(!ledger){console.error('Extrato bancário indisponível.');return;}
+  const statement=ledger.statement({openingBalance:banco.saldo,bankCode:cod,entries:LANC_BANCO_DB});
+  const money=value=>'R$ '+ledger.brl(value);
+  const rows=statement.rows.map(({entry,date,incoming,amount,balance})=>{
+    return '<tr data-date="'+esc(date)+'" data-type="'+(incoming?'entrada':'saida')+'">'+
+      '<td>'+esc(date?date.slice(8,10)+'/'+date.slice(5,7)+'/'+date.slice(0,4):entry.data||'—')+'</td>'+
+      '<td class="erp-ledger-description">'+esc(entry.descricao||'—')+'</td>'+
+      '<td><span class="erp-entry-kind '+(incoming?'is-income':'is-expense')+'">'+(incoming?'Entrada':'Saída')+'</span></td>'+
+      '<td class="erp-money '+(incoming?'is-income':'is-expense')+'">'+(incoming?'+ ':'- ')+money(amount)+'</td>'+
+      '<td class="erp-money">'+money(balance)+'</td>'+
+      '<td class="erp-row-actions"><button type="button" class="btn-edit" data-bank-action="edit" data-id="'+esc(entry.id||'')+'" aria-label="Editar lançamento" title="Editar lançamento">Editar</button>'+ 
+      '<button type="button" class="btn-edit-danger" data-bank-action="delete" data-id="'+esc(entry.id||'')+'" aria-label="Excluir lançamento" title="Excluir lançamento">Excluir</button></td></tr>';
   }).join('');
   const body=document.getElementById('modal-body');
-  body.className='modal';
-  body.style.maxWidth='720px';
+  body.className='modal erp-bank-statement';
+  body.style.maxWidth='min(1080px,calc(100vw - 32px))';
   body.innerHTML=
-    '<h3>📊 Extrato — '+esc(b.banco)+'</h3>'+
-    '<p style="color:var(--gray);font-size:.85rem">Saldo Inicial: <b>R$ '+fmt(b.saldo||0)+'</b> &nbsp;|&nbsp; Saldo Atual: <b style="color:'+(saldo>=0?'#27ae60':'#e74c3c')+'">R$ '+fmt(saldo)+'</b></p>'+
-    '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">'+
-      '<input type="date" id="lb-data" style="padding:6px;border:1px solid #ddd;border-radius:6px">'+
-      '<input type="text" id="lb-desc" placeholder="Descrição" style="flex:1;min-width:140px;padding:6px;border:1px solid #ddd;border-radius:6px">'+
-      '<select id="lb-tipo" style="padding:6px;border:1px solid #ddd;border-radius:6px"><option value="Entrada">▲ Entrada</option><option value="Saída">▼ Saída</option></select>'+
-      '<input type="number" id="lb-valor" placeholder="Valor R$" min="0" step="0.01" style="width:110px;padding:6px;border:1px solid #ddd;border-radius:6px">'+
-      '<button class="btn-save" style="padding:6px 14px" onclick="salvarLancBanco(&#39;'+cod+'&#39;)">+ Lançar</button>'+
-    '</div>'+
-    '<div style="overflow-x:auto"><table>'+
-      '<thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th style="text-align:right">Valor</th><th style="text-align:right">Saldo</th><th></th></tr></thead>'+
-      '<tbody>'+(rows||'<tr><td colspan="6" style="color:var(--gray);text-align:center;padding:20px">Nenhum lançamento</td></tr>')+'</tbody>'+
-    '</table></div>'+
+    '<header class="erp-statement-header"><div><h3>Extrato bancário</h3><p>'+esc(banco.banco||'Conta bancária')+'</p></div></header>'+
+    '<div class="erp-statement-totals">'+
+      '<div><small>Saldo inicial</small><strong>'+money(statement.openingBalance)+'</strong></div>'+
+      '<div><small>Entradas</small><strong>'+money(statement.credits)+'</strong></div>'+
+      '<div><small>Saídas</small><strong>'+money(statement.debits)+'</strong></div>'+
+      '<div><small>Saldo atual</small><strong>'+money(statement.closingBalance)+'</strong></div></div>'+ 
+    (statement.hasUnsafeLegacyValues?'<p class="erp-ledger-precision-warning" role="status">Existem valores antigos acima do limite de precisão do JavaScript. O extrato soma os valores armazenados sem perder novos centavos, mas os dígitos originais desses registros podem já ter sido arredondados. Revise esses lançamentos.</p>':'')+
+    (statement.invalidValues?'<p class="erp-ledger-precision-warning" role="status">Existem '+statement.invalidValues+' valores bancários inválidos. Foram desconsiderados no cálculo; revise os registros.</p>':'')+
+    '<details class="erp-statement-entry"><summary>Novo lançamento</summary>'+
+      '<div class="erp-statement-entry-fields">'+
+      '<label>Data<input type="date" id="lb-data"></label>'+
+      '<label class="erp-statement-wide">Descrição<input type="text" id="lb-desc" maxlength="240" placeholder="Descrição da movimentação"></label>'+
+      '<label>Tipo<select id="lb-tipo"><option value="Entrada">Entrada</option><option value="Saída">Saída</option></select></label>'+
+      '<label>Valor (R$)<input type="number" id="lb-valor" placeholder="0,00" min="0.01" step="0.01"></label>'+
+      '<button type="button" class="btn-save" id="erp-bank-add">Registrar</button></div></details>'+
+    '<div class="erp-statement-filters">'+
+      '<input type="search" id="erp-bank-search" aria-label="Buscar movimentações" placeholder="Buscar descrição ou data">'+
+      '<select id="erp-bank-kind" aria-label="Tipo de movimentação"><option value="">Todas</option><option value="entrada">Entradas</option><option value="saida">Saídas</option></select>'+
+      '<label>De<input type="date" id="erp-bank-from"></label><label>Até<input type="date" id="erp-bank-to"></label>'+ 
+      '<span id="erp-bank-result-count" aria-live="polite"></span></div>'+
+    '<div class="erp-statement-table-wrap"><table class="erp-statement-table">'+
+      '<thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Saldo acumulado</th><th>Ações</th></tr></thead>'+
+      '<tbody id="erp-bank-rows">'+(rows||'<tr><td colspan="6" class="erp-statement-empty">Nenhum lançamento para esta conta.</td></tr>')+'</tbody></table></div>'+
     '<div class="modal-ft"><button class="btn-cancel" onclick="cm()">Fechar</button></div>';
+  const search=body.querySelector('#erp-bank-search'),kind=body.querySelector('#erp-bank-kind');
+  const from=body.querySelector('#erp-bank-from'),to=body.querySelector('#erp-bank-to'),count=body.querySelector('#erp-bank-result-count');
+  const filter=()=>{
+    const query=String(search.value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+    let shown=0;
+    body.querySelectorAll('#erp-bank-rows tr[data-date]').forEach(row=>{
+      const date=row.dataset.date||'';
+      const text=row.textContent.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+      const visible=(!query||text.includes(query))&&(!kind.value||row.dataset.type===kind.value)&&
+        (!from.value||date>=from.value)&&(!to.value||date<=to.value);
+      row.hidden=!visible;if(visible)shown++;
+    });
+    count.textContent=shown+' de '+statement.rows.length+' lançamentos';
+  };
+  [search,kind,from,to].forEach(element=>element.addEventListener('input',filter));
+  body.querySelector('#erp-bank-add').addEventListener('click',()=>salvarLancBanco(cod));
+  body.querySelector('#erp-bank-rows').addEventListener('click',event=>{
+    const button=event.target.closest('button[data-bank-action]');if(!button)return;
+    if(button.dataset.bankAction==='edit')editLancBanco(button.dataset.id,cod);
+    else if(button.dataset.bankAction==='delete')excluirLancBanco(button.dataset.id,cod);
+  });
+  filter();
   document.getElementById('modal-ov').classList.add('open');
 }
 
@@ -18965,21 +19673,28 @@ function salvarLancBanco(cod){
   const data=document.getElementById('lb-data')?.value;
   const desc=document.getElementById('lb-desc')?.value.trim();
   const tipo=document.getElementById('lb-tipo')?.value;
-  const valor=parseFloat(document.getElementById('lb-valor')?.value)||0;
+  const valor=Number(document.getElementById('lb-valor')?.value);
   if(!data){alert('Informe a data!');return;}
   if(!desc){alert('Informe a descrição!');return;}
-  if(!valor){alert('Informe o valor!');return;}
-  const id='LB-'+Date.now();
+  if(!['Entrada','Saída'].includes(tipo)){alert('Selecione um tipo de movimentação válido.');return;}
+  if(!_bancoValorMonetarioValido(valor)){
+    alert('Informe um valor positivo e dentro do limite de precisão em centavos.');
+    return;
+  }
+  const id='LB-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
   LANC_BANCO_DB.push({id,bancoCod:cod,data,descricao:desc,tipo,valor});
   saveBancos();
+  renderBancos();
   verExtratoBanco(cod);
 }
 
 function excluirLancBanco(id,cod){
   if(!confirm('Excluir este lançamento?')) return;
   const i=LANC_BANCO_DB.findIndex(l=>l.id===id);
-  if(i>=0) _syncLancBanco.remover(i);
+  if(i<0)return;
+  _syncLancBanco.remover(i);
   saveBancos();
+  renderBancos();
   verExtratoBanco(cod);
 }
 
@@ -20101,7 +20816,7 @@ function switchDespTab(id){
 
 function _despPopularBancos(){
   const sel=document.getElementById('f-banco');
-  if(!sel) return;
+  if(!sel || sel.tagName!=='SELECT') return; // Despesas usa identificação digitada livremente.
   const atual=sel.value;
   const bancos=Array.isArray(BANCOS_DB)?BANCOS_DB.filter(function(b){return b&&String(b.banco||'').trim();}):[];
   sel.innerHTML='<option value="">— Selecione uma conta cadastrada —</option>'+bancos.map(function(b){
@@ -21491,7 +22206,7 @@ function initDespesas(){
         var kEl = document.getElementById('fc-kpis');
         var kText = kEl ? kEl.innerText.replace(/\n+/g,'\n').trim() : '';
         var msg = '📋 *Ficha Financeira — '+_fcCliAtual+'*\n\n'+kText+'\n\nEmitido por: '+_empresaPrincipalRazao();
-        window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+        window.open('https://wa.me/?text='+encodeURIComponent(_erpWhatsFormat(msg)),'_blank');
       }
 
       function ffBuscaChange(nome){
@@ -26493,8 +27208,8 @@ function coordTab(name){
     const btn=document.getElementById('coord-stab-btn-'+s);
     if(panel) panel.style.display=(s===name)?'':'none';
     if(btn){
-      if(s===name){ btn.style.background='#1565c0'; btn.style.color='#fff'; }
-      else { btn.style.background='#f5f5f5'; btn.style.color='#555'; }
+      btn.classList.toggle('is-active',s===name);
+      btn.setAttribute('aria-pressed',String(s===name));
     }
   });
   if(name==='reunioes'){ _coordPopFuncs(); reuRender(); }

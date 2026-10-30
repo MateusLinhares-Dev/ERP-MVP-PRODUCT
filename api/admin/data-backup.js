@@ -8,7 +8,7 @@ export default async function handler(req,res){
   try{
     assertMethod(req,'POST');assertSameOrigin(req,{required:true});assertJsonBody(req,{maxBytes:2500000});
     const identity=await requireIdentity(req,{admin:true});
-    if(identity.erpUser!=='elaine'){const e=new Error('Apenas Elaine pode exportar/restaurar dados.');e.status=403;throw e;}
+    if(identity.erpUser!=='elaine' && identity.engineer!==true){const e=new Error('Apenas Elaine pode exportar/restaurar dados.');e.status=403;throw e;}
     const {db}=getFirebaseAdmin();
     if(Buffer.byteLength(JSON.stringify(req.body),'utf8')>2500000){const e=new Error('Arquivo excede o tamanho aceito pela interface.');e.status=413;throw e;}
     if(req.body.action==='export'){

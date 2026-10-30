@@ -15,6 +15,14 @@ function loadClassic(src) {
   });
 }
 
+function loadStyle(href) {
+  if (document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = href;
+  document.head.appendChild(link);
+}
+
 function showFatal(error) {
   console.error(error);
   const login = document.getElementById('login-screen');
@@ -50,15 +58,43 @@ function setText(selector, value) {
   document.querySelectorAll(selector).forEach((el) => { el.textContent = value || ''; });
 }
 
+function buildBrandLogoMarkup(branding = {}, company = {}, placement = 'header') {
+  const isLogin = placement === 'login';
+  const wrapper = document.createDocumentFragment();
+  const image = document.createElement('img');
+  image.className = 'brand-logo-img';
+  image.src = isLogin
+    ? '/assets/branding/manuela-metais-logo.webp'
+    : '/assets/branding/manuela-metais-symbol.png';
+  image.alt = company.nome || company.razaoSocial || 'Manuela Metais';
+  image.decoding = 'async';
+
+  const text = document.createElement('span');
+  text.className = 'brand-logo-text';
+  const prefix = branding.logoPrefix || company.nome || 'Manuela Metais';
+  const accent = branding.logoAccent || '';
+  text.append(document.createTextNode(prefix));
+  if (accent) {
+    const highlight = document.createElement('span');
+    highlight.className = 'brand-logo-accent';
+    highlight.textContent = accent;
+    text.appendChild(highlight);
+  }
+
+  image.addEventListener('error', () => {
+    image.hidden = true;
+    if (isLogin) text.style.display = 'inline-flex';
+  });
+  wrapper.append(image, text);
+  return wrapper;
+}
+
 function applyPublicBranding(publicConfig) {
   const branding = publicConfig?.branding || {};
   const company = publicConfig?.company || {};
   document.querySelectorAll('[data-brand-logo]').forEach((el) => {
-    const prefix = branding.logoPrefix || '';
-    const accent = branding.logoAccent || '';
     el.textContent = '';
-    el.append(document.createTextNode(prefix));
-    const span = document.createElement('span'); span.textContent = accent; el.appendChild(span);
+    el.appendChild(buildBrandLogoMarkup(branding, company, el.classList.contains('login-logo') ? 'login' : 'header'));
   });
   setText('[data-brand-tagline]', branding.tagline);
   setText('[data-brand-cnpj]', company.cnpj);
@@ -108,6 +144,13 @@ async function main() {
   const publicResponse = await fetch('/api/public-config', { credentials: 'same-origin' });
   if (publicResponse.ok) applyPublicBranding(await publicResponse.json());
   installRestUrl(runtimeConfig);
+  const policyResponse = await fetch('/app/rtdb-collection-policy.json', { credentials: 'same-origin' });
+  if (!policyResponse.ok) throw new Error('Política de acesso ao Realtime Database indisponível.');
+  const collectionPolicy = await policyResponse.json();
+  if (collectionPolicy.version !== 1 || !collectionPolicy.nodes || !collectionPolicy.nodes.tickets) {
+    throw new Error('Política de acesso ao Realtime Database inválida.');
+  }
+  window.__ERP_RTD_COLLECTION_POLICY__ = collectionPolicy;
 
   const { auth, db, storage } = await loadFirebaseCompat(runtimeConfig);
   window.secureAuth = createSecureAuthClient(auth);
@@ -117,7 +160,15 @@ async function main() {
 
   await loadClassic('/legacy/audit-trail.js');
   await loadClassic('/legacy/firebase-sync.js');
+  await loadClassic('/legacy/whatsapp-format.js');
+  await loadClassic('/modules/banking/bank-ledger.js');
+  await loadClassic('/modules/banking/reconciliation-domain.js');
+  loadStyle('/modules/banking/reconciliation.css');
+  loadStyle('/modules/banking/bank-integrations.css');
+  await loadClassic('/modules/phase1/rhid-card-reader.js');
   await loadClassic('/legacy/app-core.js');
+  await loadClassic('/modules/banking/reconciliation-ui.js');
+  await loadClassic('/modules/banking/bank-integrations-ui.js');
   await loadClassic('/legacy/module-access-guard.js');
   await loadClassic('/legacy/app-agenda.js');
   await loadClassic('/legacy/app-avisos.js');
@@ -127,7 +178,70 @@ async function main() {
   await loadClassic('/legacy/chat-read-sync.js');
   await loadClassic('/legacy/access-dependencies.js');
 
+  loadStyle('/modules/weighing/road-weighing-flow.css');
+  await loadClassic('/modules/weighing/road-weighing-domain.js');
+  await loadClassic('/modules/weighing/road-weighing-view.js');
+  await loadClassic('/modules/weighing/road-weighing-flow.js');
+
+  loadStyle('/modules/pricing/purchase-price-table.css');
+  await loadClassic('/modules/pricing/purchase-price-table.js');
+
+  loadStyle('/modules/phase1/phase1-purchase.css');
+  loadStyle('/modules/phase1/phase1-agenda.css');
+  loadStyle('/modules/phase1/phase1-searchable-select.css');
+  loadStyle('/modules/phase1/rhid-preview.css');
+  loadStyle('/modules/phase1/phase1-alerts.css');
+  loadStyle('/modules/phase1/phase1-commercial.css');
+  loadStyle('/modules/phase1/phase1-usability.css');
+  loadStyle('/modules/phase1/phase1-finance.css');
+  loadStyle('/modules/phase1/phase1-operations.css');
+  loadStyle('/modules/phase1/phase1-fiscal-admin.css');
+  loadStyle('/modules/phase2/phase2-feedback.css');
+
+  await loadClassic('/modules/phase1/phase1-requirements.js');
+  await loadClassic('/modules/phase1/phase1-store.js');
+  await loadClassic('/modules/phase1/phase1-dom.js');
+  await loadClassic('/modules/phase1/phase1-purchase.js');
+  await loadClassic('/modules/phase1/phase1-searchable-select.js');
+  await loadClassic('/modules/phase1/phase1-agenda.js');
+  await loadClassic('/modules/phase1/phase1-alerts.js');
+  await loadClassic('/modules/phase1/phase1-commercial.js');
+  await loadClassic('/modules/phase1/phase1-usability.js');
+  await loadClassic('/modules/phase1/phase1-finance.js');
+  await loadClassic('/modules/phase1/phase1-operations.js');
+  await loadClassic('/modules/phase1/phase1-fiscal-admin.js');
+  await loadClassic('/modules/phase2/phase2-feedback.js');
+
+  loadStyle('/modules/phase3/phase3-homologation.css');
+  await loadClassic('/modules/phase3/phase3-homologation.js');
+
+  loadStyle('/modules/master-data/master-data-forms.css');
+  await loadClassic('/modules/master-data/master-data-forms.js');
+
+  loadStyle('/modules/purchase-order/purchase-order.css');
+  await loadClassic('/modules/purchase-order/purchase-order.js');
+  window.__PHASE1_READY__ = true;
+  window.__PHASE2_FEEDBACK_READY__ = true;
+  window.__PHASE3_HOMOLOGATION_READY__ = true;
+  window.__MASTER_DATA_FORMS_READY__ = true;
+  window.__PURCHASE_ORDER_LAYOUT_READY__ = true;
+
   initProfilePhoto({ auth, db, storage });
+
+  // A folha visual deve ser a última para prevalecer sobre estilos de módulos legados.
+  const uiStylesheet = document.querySelector('link[href="/legacy/professional-ui.css"]');
+  if (uiStylesheet) document.head.appendChild(uiStylesheet);
+  loadStyle('/legacy/operations-polish.css');
+  await loadClassic('/legacy/operations-polish.js');
+  loadStyle('/legacy/design-system-v2.css');
+  await loadClassic('/legacy/workspace-navigation.js');
+
+  loadStyle('/modules/help-center/help-center.css');
+  await loadClassic('/modules/help-center/help-center.js');
+  loadStyle('/modules/final-ops/final-ops.css');
+  await loadClassic('/modules/final-ops/final-ops.js');
+  loadStyle('/modules/engineering/engineering.css');
+  await loadClassic('/modules/engineering/engineering.js');
 
   document.dispatchEvent(new CustomEvent('erp:ready'));
 }

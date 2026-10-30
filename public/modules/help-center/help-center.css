@@ -1,0 +1,105 @@
+/* Manuela Metais · Central de conhecimento — estilos isolados da operação do ERP */
+#tab-help_center.mm-help-root{padding:24px clamp(16px,2.5vw,36px) 56px;min-width:0;background:#f4f7f5;color:#1a3528;font-family:Inter,system-ui,-apple-system,sans-serif}
+#tab-help_center.mm-help-root *{box-sizing:border-box}
+#tab-help_center .mm-help-hero{position:relative;display:flex;align-items:center;justify-content:space-between;gap:24px;overflow:hidden;padding:clamp(24px,3vw,44px);border:1px solid #164a34;border-radius:19px;background:linear-gradient(111deg,#103923 0%,#185039 67%,#23694b 100%);box-shadow:0 12px 25px rgba(15,56,35,.11);color:#fff}
+#tab-help_center .mm-help-hero::after{content:"";position:absolute;width:340px;height:340px;right:-90px;top:-180px;border:1px solid rgba(255,255,255,.13);border-radius:50%;pointer-events:none}
+#tab-help_center .mm-help-hero-copy{position:relative;z-index:1;flex:1;max-width:850px;min-width:0}
+#tab-help_center .mm-help-eyebrow{font-size:11px;letter-spacing:.13em;font-weight:750;color:#bde3c5}
+#tab-help_center h1{font-size:clamp(25px,2.3vw,35px);letter-spacing:-.04em;line-height:1.2;margin:13px 0 10px;font-weight:800;color:inherit}
+#tab-help_center .mm-help-hero p{font-size:14px;line-height:1.65;color:#d4e9dc;max-width:650px;margin:0 0 24px}
+#tab-help_center .mm-help-searchbox{display:flex;align-items:center;gap:11px;min-height:52px;width:100%;max-width:760px;background:#fff;color:#658071;border:1px solid #fff;border-radius:11px;padding:0 15px;box-shadow:0 4px 18px rgba(0,0,0,.1)}
+#tab-help_center .mm-help-searchbox svg{flex:0 0 20px;width:20px;height:20px;stroke-width:2}
+#tab-help_center .mm-help-searchbox input{flex:1;min-width:0;width:auto!important;margin:0;padding:14px 0!important;border:0!important;background:transparent!important;box-shadow:none!important;outline:0!important;color:#173e2b!important;font:inherit;font-size:13px!important}
+#tab-help_center .mm-help-searchbox:focus-within{outline:3px solid #a4d8b8;outline-offset:2px}
+#tab-help_center .mm-help-searchbox input::placeholder{color:#728779}
+#tab-help_center .mm-help-searchbox kbd{font-size:11px;border:1px solid #e2e9e3;padding:2px 6px;border-radius:4px;color:#819285}
+#tab-help_center .mm-help-quick{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:17px;font-size:12px;color:#b8ddc7}
+#tab-help_center .mm-help-quick button{cursor:pointer;border-radius:100px;border:1px solid rgba(210,240,221,.35);background:rgba(255,255,255,.09);color:#fff;padding:7px 12px;font:inherit;font-weight:600}
+#tab-help_center .mm-help-quick button:hover{background:rgba(255,255,255,.18)}
+#tab-help_center .mm-help-hero-illustration{position:relative;flex:0 0 210px;align-self:stretch;display:flex;align-items:center;justify-content:center}
+#tab-help_center .mm-help-hero-circle{display:grid;place-items:center;width:164px;height:164px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.07);border-radius:50%;box-shadow:0 0 0 22px rgba(255,255,255,.035)}
+#tab-help_center .mm-help-hero-circle svg{width:75px;height:75px;color:#c4e7ce;stroke-width:1.2}
+#tab-help_center .mm-help-mini{position:absolute;bottom:0;right:0;display:flex;gap:9px;align-items:center;background:#fff;border:1px solid #e1ece3;border-radius:11px;padding:11px 13px;color:#264b36;font-weight:700;font-size:11px;box-shadow:0 8px 25px #001c0e35;white-space:nowrap}
+#tab-help_center .mm-help-mini span:first-child{display:grid;place-items:center;width:24px;height:24px;border-radius:100px;background:#e6f6e9;color:#256d42}
+#tab-help_center .mm-help-mini svg{width:14px;height:14px}
+#tab-help_center .mm-help-home-content{max-width:1440px;margin:0 auto}
+#tab-help_center .mm-help-section-heading{display:flex;align-items:end;justify-content:space-between;gap:14px;margin:33px 0 17px}
+#tab-help_center .mm-help-kicker{display:block;font-size:10px;font-weight:800;letter-spacing:.13em;color:#528365;text-transform:uppercase}
+#tab-help_center .mm-help-section-heading h2{margin:6px 0;font-size:21px;letter-spacing:-.025em;color:#183d2b;font-weight:800}
+#tab-help_center .mm-help-section-heading p{margin:0;color:#698073;font-size:12px;line-height:1.6}
+#tab-help_center .mm-help-count{border-radius:100px;background:#e9f1eb;border:1px solid #d9e7dc;padding:8px 12px;color:#376647;font-size:11px;font-weight:700;white-space:nowrap}
+#tab-help_center .mm-help-category-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+#tab-help_center .mm-help-category{display:flex;gap:13px;align-items:center;text-align:left;min-width:0;min-height:116px;border:1px solid #dde9df;background:#fff;border-radius:13px;padding:18px 15px;cursor:pointer;transition:border .16s,transform .16s,box-shadow .16s;color:#1b4230;font-family:inherit}
+#tab-help_center .mm-help-category:hover{border-color:#8dbba0;transform:translateY(-2px);box-shadow:0 10px 22px #103d2310}
+#tab-help_center .mm-help-category-icon,.mm-help-article-icon{display:grid;place-items:center;flex:0 0 43px;width:43px;height:43px;border-radius:11px;background:#edf6ef;color:#267045}
+#tab-help_center .mm-help-category-icon svg,#tab-help_center .mm-help-article-icon svg{width:22px;height:22px}
+#tab-help_center .mm-help-category>span:nth-child(2){display:grid;min-width:0;gap:6px;flex:1}
+#tab-help_center .mm-help-category strong{font-size:13px;line-height:1.3;font-weight:800}
+#tab-help_center .mm-help-category small{font-size:11px;color:#698073;line-height:1.5}
+#tab-help_center .mm-help-category>svg{width:15px;height:15px;color:#839d8b;flex-shrink:0}
+#tab-help_center .mm-help-recommend-title{margin-top:36px}
+#tab-help_center .mm-help-recommend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#tab-help_center .mm-help-article{display:flex;align-items:center;gap:13px;text-align:left;min-width:0;background:#fff;border:1px solid #e1e9e2;border-radius:11px;padding:15px;cursor:pointer;font-family:inherit;color:#1b3e2b;transition:background .12s,border-color .12s}
+#tab-help_center .mm-help-article:hover,#tab-help_center .mm-help-article.selected{border-color:#9bc6a5;background:#f0f8f2}
+#tab-help_center .mm-help-article-icon{flex-basis:38px;width:38px;height:38px;border-radius:10px}
+#tab-help_center .mm-help-article-icon svg{width:19px;height:19px}
+#tab-help_center .mm-help-article-text{display:grid;gap:5px;min-width:0;flex:1}
+#tab-help_center .mm-help-article-type{font-size:10px;letter-spacing:.035em;text-transform:uppercase;font-weight:800;color:#568169}
+#tab-help_center .mm-help-article strong{font-size:13px;line-height:1.4;font-weight:750}
+#tab-help_center .mm-help-article small{color:#677b6e;font-size:11px;line-height:1.5}
+#tab-help_center .mm-help-article>svg{color:#719982;width:15px;height:15px;flex-shrink:0}
+#tab-help_center .mm-help-support{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:32px 0 5px;padding:22px 25px;border-radius:12px;background:#eaf1ec;border:1px solid #d6e5da}
+#tab-help_center .mm-help-support strong{font-size:14px;color:#214733}
+#tab-help_center .mm-help-support p{font-size:12px;color:#637e6b;line-height:1.6;margin:7px 0 0;max-width:720px}
+#tab-help_center .mm-help-support button{display:flex;align-items:center;justify-content:center;gap:7px;background:#1c5037;border:1px solid #1c5037;border-radius:8px;color:white;padding:11px 13px;cursor:pointer;white-space:nowrap;font-size:12px;font-weight:700}
+#tab-help_center .mm-help-support button svg{width:15px;height:15px}
+#tab-help_center .mm-help-results-head{background:#fff;border:1px solid #dfeae1;border-radius:15px;padding:23px 26px;margin-bottom:16px}
+#tab-help_center .mm-help-back{display:inline-flex;align-items:center;gap:7px;background:none;border:0;padding:0;color:#3f7754;font-size:12px;font-weight:750;cursor:pointer}
+#tab-help_center .mm-help-back svg{width:16px;height:16px}
+#tab-help_center .mm-help-results-header{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:20px 0}
+#tab-help_center .mm-help-results-header h1{font-size:25px;color:#173c2b;margin:7px 0}
+#tab-help_center .mm-help-results-header p{color:#657c6c;font-size:12px;margin:0}
+#tab-help_center .mm-help-results-count{white-space:nowrap;font-size:11px;color:#657b6a;background:#f0f5f1;border-radius:30px;padding:8px 12px}
+#tab-help_center .mm-help-searchbox-light{box-shadow:none;background:#f9fbf9;border-color:#d2e3d6;max-width:none}
+#tab-help_center .mm-help-filters{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px}
+#tab-help_center .mm-help-filters button{background:#fff;border:1px solid #dde8df;border-radius:8px;color:#567260;padding:8px 11px;font:inherit;font-size:11px;cursor:pointer}
+#tab-help_center .mm-help-filters button.selected,#tab-help_center .mm-help-filters button:hover{background:#185039;border-color:#185039;color:#fff}
+#tab-help_center .mm-help-result-layout{display:grid;grid-template-columns:minmax(275px,.85fr) minmax(0,1.5fr);gap:15px;align-items:start}
+#tab-help_center .mm-help-results-list{display:grid;gap:9px}
+#tab-help_center .mm-help-results-list .mm-help-article{padding:14px}
+#tab-help_center .mm-help-detail{min-width:0;min-height:320px;background:#fff;border:1px solid #dfe9e1;border-radius:13px;padding:25px 28px;position:sticky;top:14px}
+#tab-help_center .mm-help-detail-intro{display:flex;min-height:270px;align-items:center;justify-content:center;flex-direction:column;text-align:center;gap:10px;color:#637c6a}
+#tab-help_center .mm-help-detail-intro>svg{width:52px;height:52px;stroke-width:1.4;color:#7dae8d}
+#tab-help_center .mm-help-detail-intro h3{font-size:16px;margin:0;color:#224731}
+#tab-help_center .mm-help-detail-intro p{font-size:12px;line-height:1.65;max-width:340px;margin:0}
+#tab-help_center .mm-help-detail-head{border-bottom:1px solid #e7efe9;padding-bottom:20px}
+#tab-help_center .mm-help-detail-head h2{font-size:23px;color:#193f2d;letter-spacing:-.03em;line-height:1.27;margin:9px 0 8px}
+#tab-help_center .mm-help-detail-head p{font-size:13px;color:#6a8071;line-height:1.6;margin:0}
+#tab-help_center .mm-help-guide h3{font-size:14px;color:#224b36;margin:23px 0 15px}
+#tab-help_center .mm-help-guide ol{margin:0;padding-left:0;list-style:none;counter-reset:help-step;display:grid;gap:16px}
+#tab-help_center .mm-help-guide li{position:relative;counter-increment:help-step;padding-left:38px;min-height:28px;font-size:13px;line-height:1.65;color:#425a49}
+#tab-help_center .mm-help-guide li::before{content:counter(help-step);position:absolute;left:0;top:0;display:grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#edf6ef;color:#246844;font-size:11px;font-weight:800}
+#tab-help_center .mm-help-note,#tab-help_center .mm-help-warning{margin-top:22px;background:#edf6f0;border:1px solid #cfe4d4;border-radius:9px;padding:14px 15px;color:#2d6340}
+#tab-help_center .mm-help-warning{background:#fff8e9;border-color:#f1dfad;color:#8b6320}
+#tab-help_center .mm-help-note strong,#tab-help_center .mm-help-warning strong{font-size:12px}
+#tab-help_center .mm-help-note p,#tab-help_center .mm-help-warning p{margin:6px 0 0;font-size:12px;line-height:1.6;color:inherit}
+#tab-help_center .mm-help-detail-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-top:1px solid #e9efe9;padding-top:19px;margin-top:23px}
+#tab-help_center .mm-help-detail-actions button{padding:11px 14px;border-radius:8px;font-size:12px;font-weight:750;cursor:pointer}
+#tab-help_center .mm-help-open-module{display:inline-flex;align-items:center;gap:8px;background:#194b34;color:#fff;border:1px solid #194b34}
+#tab-help_center .mm-help-open-module svg{width:15px;height:15px}
+#tab-help_center .mm-help-copy{border:1px solid #c8dbc9;background:#fff;color:#29573b}
+#tab-help_center .mm-help-footnote{font-size:11px;line-height:1.55;color:#7b8c7e;margin:17px 0 0}
+#tab-help_center .mm-help-copy-state{font-size:11px;color:#2f7742;margin:9px 0 0}
+#tab-help_center .mm-help-pager{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap;margin-top:13px;color:#627b6d;font-size:12px}
+#tab-help_center .mm-help-pager>div{display:flex;align-items:center;gap:10px}
+#tab-help_center .mm-help-pager button,#tab-help_center .mm-help-empty button{background:#fff;color:#215d3c;border:1px solid #cbded0;border-radius:7px;padding:8px 11px;font:inherit;font-weight:700;cursor:pointer}
+#tab-help_center .mm-help-pager button:disabled{cursor:default;opacity:.45}
+#tab-help_center .mm-help-empty{text-align:center;background:#fff;border:1px solid #dce8df;border-radius:11px;padding:30px;color:#607a6b}
+#tab-help_center .mm-help-empty>svg{width:28px;height:28px;color:#729d7d}
+#tab-help_center .mm-help-empty h3{color:#1e4431;font-size:15px}
+#tab-help_center .mm-help-empty p{font-size:12px;line-height:1.6}
+#tab-help_center button:focus-visible{outline:3px solid #6bb684;outline-offset:3px}
+@media(max-width:1250px){#tab-help_center .mm-help-category-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#tab-help_center .mm-help-hero-illustration{flex-basis:155px}#tab-help_center .mm-help-hero-circle{width:132px;height:132px}#tab-help_center .mm-help-mini{display:none}}
+@media(max-width:900px){#tab-help_center .mm-help-result-layout{grid-template-columns:minmax(0,1fr)}#tab-help_center .mm-help-detail{position:static}#tab-help_center .mm-help-hero-illustration{display:none}}
+@media(max-width:650px){#tab-help_center.mm-help-root{padding:14px 10px 30px}#tab-help_center .mm-help-hero{padding:25px 19px;border-radius:12px}#tab-help_center .mm-help-category-grid,#tab-help_center .mm-help-recommend-grid{grid-template-columns:1fr}#tab-help_center .mm-help-category{min-height:86px}#tab-help_center .mm-help-section-heading{align-items:start;flex-direction:column}#tab-help_center .mm-help-support{align-items:stretch;flex-direction:column;padding:18px}#tab-help_center .mm-help-results-head{padding:18px 14px}#tab-help_center .mm-help-results-header{align-items:start;flex-direction:column}#tab-help_center .mm-help-detail{padding:20px 16px}}
+@media(prefers-reduced-motion:reduce){#tab-help_center .mm-help-category{transition:none}#tab-help_center .mm-help-category:hover{transform:none}}
