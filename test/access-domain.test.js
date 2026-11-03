@@ -6,6 +6,11 @@ import {buildSecurityClaims} from '../server/domain/access.js';
 test('claims por área distinguem RH, financeiro, comercial e compras',()=>{
   const finance=buildSecurityClaims({tabs:['contas_pagar']});
   assert.equal(finance.canFinance,true);
+  const advances=buildSecurityClaims({tabs:['adiantamentos']});
+  assert.equal(advances.canAdvances,true);
+  assert.equal(advances.canBanking,false);
+  assert.equal(advances.canFinance,false);
+  assert.equal(advances.canPartyBanks,false);
   assert.equal(finance.canPayroll,false);
   assert.equal(finance.canSales,false);
   const human=buildSecurityClaims({tabs:['ponto']});

@@ -51,7 +51,6 @@ export function buildSecurityClaims(
         'bancos',
         'contas_pagar',
         'contas_receber',
-        'adiantamentos',
       ]),
 
     canCalendar:
@@ -99,7 +98,8 @@ export function buildSecurityClaims(
     canInventory: isAdmin || hasAny(tabs, ['estoque','compra_sucata','vendas']),
     canCustomers: isAdmin || hasAny(tabs, ['clientes','fin_clientes','precos_clientes']),
     canSuppliers: isAdmin || hasAny(tabs, ['fornecedores','precos_fornecedores','compra_sucata']),
-    canFinance: isAdmin || hasAny(tabs, ['contas_pagar','contas_receber','fluxo_caixa','adiantamentos','cheques','cheques_compensar','contas_banco']),
+    canAdvances: isAdmin || tabs.has('adiantamentos'),
+    canFinance: isAdmin || hasAny(tabs, ['contas_pagar','contas_receber','fluxo_caixa','cheques','cheques_compensar','contas_banco']),
     canBanking: isAdmin || hasAny(tabs, ['contas_banco','bancos']),
     canPayroll: isAdmin || tabs.has('folha_pagamento'),
     canHR: isAdmin || hasAny(tabs, ['funcionarios','ponto','folha_pagamento','vales']),

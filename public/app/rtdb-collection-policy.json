@@ -1263,7 +1263,8 @@
       "read": {
         "mode": "claims",
         "claims": [
-          "canFinance"
+          "canFinance",
+          "canAdvances"
         ]
       },
       "write": {

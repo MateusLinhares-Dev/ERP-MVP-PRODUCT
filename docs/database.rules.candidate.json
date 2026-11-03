@@ -495,8 +495,8 @@
         ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
       },
       "adiantamentos": {
-        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true || auth.token.canAdvances == true)",
+        ".write": "auth != null && auth.token.erpAccess == true && auth.token.canFinance == true"
       },
       "cheques": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
