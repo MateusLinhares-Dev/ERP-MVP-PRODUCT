@@ -15,7 +15,18 @@
   function _accountList(f){
     if(!f) return [];
     var out=[];
-    var candidates=[f.contas, f.contasBancarias, f.contas_bancarias, f.contasPix, f.dadosBancarios];
+    // partyBanks e a fonte oficial quando o fornecedor ja possui cadastro multibanco.
+    // Contas legadas so participam quando NAO ha registro canonico: caso contrario,
+    // uma conta removida no editor reapareceria no modal PIX.
+    var canonical=false, candidates=[];
+    try{
+      var api=window.ERPPartyBanks;
+      if(api && typeof api.hasCanonical==='function' && api.hasCanonical('fornecedor',String(f.cod||''))){
+        canonical=true;
+        candidates=[api.list('fornecedor',String(f.cod||''))];
+      }
+    }catch(error){ console.warn('[fornecedores] consulta das contas oficiais:',error); }
+    if(!canonical) candidates=[f.contas, f.contasBancarias, f.contas_bancarias, f.contasPix, f.dadosBancarios];
     candidates.forEach(function(src){
       if(!src) return;
       var arr=[];
@@ -37,7 +48,7 @@
       });
     });
 
-    if(f.pix || f.banco || f.agencia || f.conta){
+    if(!canonical && (f.pix || f.banco || f.agencia || f.conta)){
       out.push({
         banco:f.banco||'', agencia:f.agencia||'', conta:f.conta||'', pix:f.pix||'',
         cpfcnpj:f.cnpj||f.cpf||'', titular:f.nome||''
