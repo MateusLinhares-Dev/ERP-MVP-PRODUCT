@@ -134,6 +134,28 @@ thead .phase2-purchase-history-obs{position:sticky!important;top:0!important;rig
   cursor:pointer;
 }
 
-/* Nao permitir que alertas de sequencia dominem a tela de cheques. */
+
+/* Contas pessoais: agrupamento por imóvel e subtotais mensais */
+#phase2-owner-bills .p3-owner-property-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0 14px}
+#phase2-owner-bills .p3-owner-property-total{background:#fff;border:1px solid #dce7df;border-top:3px solid #1c7048;border-radius:11px;padding:14px 16px;display:flex;flex-direction:column;gap:5px;min-width:0}
+#phase2-owner-bills .p3-owner-property-total small{font-size:.76rem;font-weight:800;color:#426653}
+#phase2-owner-bills .p3-owner-property-total b{color:#153e2a;font-size:1.24rem;font-variant-numeric:tabular-nums}
+#phase2-owner-bills .p3-owner-property-total span{font-size:.72rem;color:#63766b}
+#phase2-owner-bills .p3-owner-property-total.grand{border-top-color:#c89d38;background:#f8fbf9}
+#phase2-owner-bills .p3-owner-unassigned-notice{background:#fff8e9;border:1px solid #e9d6a5;border-radius:8px;padding:10px 12px;color:#71561d;font-size:.8rem;margin:4px 0 12px}
+#phase2-owner-bills .p3-owner-groups{display:flex;flex-direction:column;gap:14px;margin-top:16px}
+#phase2-owner-bills .p3-owner-group{background:#fff;border:1px solid #dce7df;border-radius:12px;padding:14px 16px;min-width:0;box-shadow:0 2px 7px #0c382810}
+#phase2-owner-bills .p3-owner-group-head{display:flex;align-items:center;justify-content:space-between;gap:14px}
+#phase2-owner-bills .p3-owner-group-head h3{font-size:1.06rem;margin:0;color:#1b4c34}
+#phase2-owner-bills .p3-owner-group-head small{display:block;color:#71837a;font-size:.72rem;margin-top:3px}
+#phase2-owner-bills .p3-owner-group-head button{padding:7px 10px;border:1px solid #b9d4c3;background:#ecf7ef;border-radius:7px;color:#165433;font-weight:750;cursor:pointer;white-space:nowrap}
+#phase2-owner-bills .p3-owner-group-summary{display:flex;gap:18px;flex-wrap:wrap;padding:10px 0 12px;margin:8px 0 2px;border-bottom:1px solid #e5ece8;color:#607368;font-size:.77rem}
+#phase2-owner-bills .p3-owner-group-summary b{color:#193f2a;margin-left:5px;font-variant-numeric:tabular-nums}
+#phase2-owner-bills .p3-owner-group .p3-owner-calendar{margin-top:8px}
+#phase2-owner-bills .p3-owner-group .p3-empty{color:#708278;padding:20px 8px;text-align:center;font-size:.83rem}
+@media(max-width:900px){#phase2-owner-bills .p3-owner-property-totals{grid-template-columns:1fr}#phase2-owner-bills .p3-owner-group{padding:12px 9px}}
+@media(max-width:550px){#phase2-owner-bills .p3-owner-group-head{align-items:flex-start;flex-direction:column}#phase2-owner-bills .p3-owner-group .p3-owner-calendar article{grid-template-columns:50px 1fr;gap:6px}#phase2-owner-bills .p3-owner-calendar article>strong{grid-column:2}#phase2-owner-bills .p3-owner-calendar article .badge,#phase2-owner-bills .p3-owner-calendar article .actions{grid-column:2}}
+
+/* Proteção contra listas extensas de lacunas de cheques */
 #phase3-cheque-gaps{max-height:108px;overflow-y:auto}
 #phase3-cheque-gaps>div{max-width:100%;overflow-wrap:anywhere;line-height:1.35}

@@ -9,33 +9,44 @@ const core=read('public/legacy/app-core.js');
 const matrix=read('public/modules/final-ops/final-ops.js');
 const backend=read('api/training/matrix.js');
 
-function birthdayHarness(){
-  const source=avisos.slice(avisos.indexOf('  function _birthdayId('),avisos.indexOf('  window.avisosBirthdayDone='));
-  const staff=[{mat:'F007',nome:'EVELIN NATALIA HENRIQUE',nascimento:'1998-11-02'}];
+function birthdayHarness(day=3){
+  const source=avisos.slice(avisos.indexOf('  function _isLegacyBirthdayTask('),avisos.indexOf('  function _fimExperiencia()'));
+  const staff=[
+    {mat:'F007',nome:'EVELIN NATALIA HENRIQUE',nascimento:'1998-11-02'},
+    {mat:'F008',nome:'MARIANA',nascimento:'2000-11-03'},
+    {mat:'F009',nome:'RODRIGO',nascimento:'1990-11-12'}
+  ];
   const tasks=[];let saves=0;
   const context={window:{__FB_DATA_READY__:true},AFAZERES_DB:tasks,
     _canRH:()=>true,_canAfazeres:()=>true,_fA:()=>staff,
     _parseNasc:s=>{const [y,m,d]=s.split('-').map(Number);return {y,m,d};},
-    _hojeD:()=>({y:2026,m:11,d:3}),saveAfazeres:()=>{saves++;},
+    _hojeD:()=>({y:2026,m:11,d:day}),saveAfazeres:()=>{saves++;},
     console};
-  vm.runInNewContext(source+'\nthis.ensureBirthdayAgenda=_ensureBirthdayAgenda;this.birthdayTask=_birthdayTask;',context);
+  vm.runInNewContext(source+'\nthis.ensureBirthdayAgenda=_ensureBirthdayAgenda;this.getBirthdays=_aniversariantes;this.isLegacyBirthday=_isLegacyBirthdayTask;',context);
   return {context,staff,tasks,getSaves:()=>saves};
 }
 
-test('aniversário de ontem é agendado para baixa com data real e ID estável',()=>{
-  const h=birthdayHarness();
+test('aniversário de ontem desaparece automaticamente, sem exigir baixa',()=>{
+  const h=birthdayHarness(3);
   h.context.ensureBirthdayAgenda();h.context.ensureBirthdayAgenda();
-  assert.equal(h.tasks.length,1);
-  assert.equal(h.tasks[0].data,'2026-11-02');
-  assert.equal(h.tasks[0].feito,false);
-  assert.equal(h.tasks[0].id,'AFBIRTH_2026_F007');
-  assert.equal(h.getSaves(),1);
+  assert.equal(h.tasks.length,0);
+  assert.equal(h.getSaves(),0);
+  const list=h.context.getBirthdays();
+  assert.equal(list.mes.some(x=>x.nome==='EVELIN NATALIA HENRIQUE'),false);
+  assert.equal(list.hoje.length,1);
+  assert.equal(list.hoje[0].nome,'MARIANA');
+  assert.equal(list.mes.length,2);
 });
 
-test('aniversário não é gerado antes da hidratação Firebase',()=>{
-  const h=birthdayHarness();h.context.window.__FB_DATA_READY__=false;
-  h.context.ensureBirthdayAgenda();
-  assert.equal(h.tasks.length,0);assert.equal(h.getSaves(),0);
+test('aniversário é exibido no dia certo e desaparece no seguinte; tarefas antigas são reconhecidas',()=>{
+  const yesterday=birthdayHarness(2),today=birthdayHarness(3);
+  assert.equal(yesterday.context.getBirthdays().hoje[0].nome,'EVELIN NATALIA HENRIQUE');
+  assert.equal(today.context.getBirthdays().hoje.some(x=>x.nome==='EVELIN NATALIA HENRIQUE'),false);
+  assert.equal(today.context.isLegacyBirthday({id:'AFBIRTH_2026_F007'}),true);
+  assert.equal(today.context.isLegacyBirthday({tipo:'aniversario'}),true);
+  assert.equal(today.context.isLegacyBirthday({id:'AF123',tipo:'servico'}),false);
+  assert.match(core,/function _afBirthdayOld\(a\)/);
+  assert.match(core,/afVisiveis=AFAZERES_DB.filter\(a=>a&&!_afBirthdayOld\(a\)\)/);
 });
 
 async function stockHarness({claims={erpAccess:true,canInventory:true},entries=0,fail=false}={}){
