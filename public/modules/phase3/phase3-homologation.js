@@ -128,26 +128,59 @@ function decoratePartyBanks(){[['#tb-fornecedores','fornecedor'],['#tb-clientes-
 global.phase3OpenPartyBanks=function(kind,key,name){
   const list=bankList(kind,key);
   $('#phase3-bank-ov')?.remove();
-  const ov=document.createElement('div');ov.id='phase3-bank-ov';ov.className='phase3-overlay';
-  ov.innerHTML=`<div class="phase3-modal banks" style="max-width:850px;width:min(96vw,850px)"><header><div><h3>🏦 Contas bancárias e PIX</h3><small>${esc(name)} · ${kind==='fornecedor'?'Fornecedor':'Cliente'}</small></div><button type="button" onclick="document.getElementById('phase3-bank-ov').remove()">✕</button></header>
-  <div class="phase3-bank-help">Cadastre cada conta e seu verdadeiro titular. O titular pode ser diferente do fornecedor. Os dados serão usados no PIX e no WhatsApp.</div>
-  <div id="phase3-bank-rows" style="max-height:55vh;overflow:auto"></div>
-  <button type="button" class="p3-secondary" onclick="phase3BankAdd()">＋ Adicionar conta</button>
-  <footer><button type="button" onclick="document.getElementById('phase3-bank-ov').remove()">Cancelar</button><button type="button" class="p3-primary" onclick="phase3BankSave('${esc(kind)}','${esc(key)}')">Salvar contas</button></footer></div>`;
-  document.body.appendChild(ov);(list.length?list:[{}]).forEach(x=>phase3BankAdd(x));
+  const ov=document.createElement('div');
+  ov.id='phase3-bank-ov';ov.className='phase3-overlay';
+  ov.innerHTML=`<div class="phase3-modal banks phase3-bank-editor" role="dialog" aria-modal="true" aria-labelledby="phase3-bank-title">
+    <header class="phase3-bank-header">
+      <div><h3 id="phase3-bank-title">Contas bancárias e PIX</h3><small>${esc(name)} · ${kind==='fornecedor'?'Fornecedor':'Cliente'}</small></div>
+      <button type="button" class="phase3-bank-close" aria-label="Fechar cadastro bancário" onclick="document.getElementById('phase3-bank-ov')?.remove()">✕</button>
+    </header>
+    <div class="phase3-bank-help">Gerencie os dados de cada conta e informe o <strong>titular verdadeiro</strong>, mesmo quando for diferente do cadastro. Essas informações serão usadas na consulta PIX e no WhatsApp.</div>
+    <div id="phase3-bank-rows" class="phase3-bank-rows"></div>
+    <footer class="phase3-bank-footer">
+      <button type="button" class="phase3-bank-add" onclick="phase3BankAdd()"><span aria-hidden="true">＋</span> Adicionar conta</button>
+      <div class="phase3-bank-footer-actions">
+        <button type="button" class="phase3-bank-cancel" onclick="document.getElementById('phase3-bank-ov')?.remove()">Cancelar</button>
+        <button type="button" class="p3-primary phase3-bank-save" onclick="phase3BankSave('${esc(kind)}','${esc(key)}')">Salvar alterações</button>
+      </div>
+    </footer>
+  </div>`;
+  document.body.appendChild(ov);
+  (list.length?list:[{}]).forEach(x=>phase3BankAdd(x));
+  ov.querySelector('.phase3-bank-close')?.focus({preventScroll:true});
+};
+function phase3BankRenumber(){
+  $$('#phase3-bank-rows .phase3-bank-row').forEach((row,i)=>{
+    const label=row.querySelector('.phase3-bank-sequence');
+    if(label)label.textContent='Conta '+String(i+1).padStart(2,'0');
+    const remove=row.querySelector('.phase3-bank-remove');
+    if(remove)remove.setAttribute('aria-label','Remover conta '+(i+1)+' do formulário');
+  });
+}
+global.phase3BankRemove=function(button){
+  const row=button?.closest('.phase3-bank-row');
+  if(!row)return;
+  row.remove();phase3BankRenumber();
+  // A exclusão só acontece no Firebase quando o usuário clicar em Salvar alterações.
 };
 global.phase3BankAdd=function(v={}){
   const box=$('#phase3-bank-rows');if(!box)return;
-  const a=canonicalBank(v),row=document.createElement('div');row.className='phase3-bank-row phase3-bank-expanded';
-  row.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:12px;margin-bottom:10px;border:1px solid #d5e6dc;border-radius:10px;align-items:end';
-  const field=(key,label,placeholder='')=>`<label style="display:block;font-size:.8rem;font-weight:700;min-width:0">${label}<input data-f="${key}" placeholder="${esc(placeholder)}" value="${esc(a[key]||'')}" maxlength="150" style="width:100%;box-sizing:border-box;margin-top:4px"></label>`;
-  row.innerHTML=field('bank','Banco / instituição','Ex.: Banco do Brasil, Nubank, Itaú')+
-    `<label style="display:block;font-size:.8rem;font-weight:700">País do banco<select data-f="country" style="width:100%;margin-top:4px"><option value="BR" ${a.country==='BR'?'selected':''}>Brasil</option><option value="OUTRO" ${a.country==='OUTRO'?'selected':''}>Outro país</option></select></label>`+
-    `<label style="display:block;font-size:.8rem;font-weight:700">Tipo de conta<select data-f="accountType" style="width:100%;margin-top:4px"><option value="" ${!a.accountType?'selected':''}>Não informado</option><option value="Corrente" ${a.accountType==='Corrente'?'selected':''}>Corrente</option><option value="Poupança" ${a.accountType==='Poupança'?'selected':''}>Poupança</option><option value="Pagamento" ${a.accountType==='Pagamento'?'selected':''}>Pagamento</option><option value="Outro" ${a.accountType==='Outro'?'selected':''}>Outro</option></select></label>`+
-    field('agency','Agência','Ex.: 0001')+field('account','Número da conta','Conta + dígito')+field('pix','Chave PIX','CPF, CNPJ, e-mail, celular ou aleatória')+
-    field('holderName','Nome completo do titular','Nome do titular desta conta')+field('holderDocument','CPF/CNPJ do titular','Documento do titular (opcional)')+
-    `<button type="button" style="grid-column:1/-1;justify-self:end" class="p3-secondary" onclick="this.parentElement.remove()">Excluir esta conta</button>`;
-  box.appendChild(row);
+  const a=canonicalBank(v),row=document.createElement('section');
+  row.className='phase3-bank-row phase3-bank-expanded';
+  const field=(key,label,placeholder='')=>`<label class="phase3-bank-field"><span>${label}</span><input data-f="${key}" placeholder="${esc(placeholder)}" value="${esc(a[key]||'')}" maxlength="150" autocomplete="off"></label>`;
+  row.innerHTML=`<div class="phase3-bank-row-head"><div><strong class="phase3-bank-sequence">Conta</strong><small>Dados bancários e identificação do titular</small></div><button type="button" class="phase3-bank-remove" onclick="phase3BankRemove(this)" aria-label="Remover conta do formulário">✕ <span>Remover</span></button></div>
+    <div class="phase3-bank-fields">`+
+    field('bank','Banco / instituição','Ex.: Banco do Brasil, Nubank, Itaú')+
+    `<label class="phase3-bank-field"><span>País do banco</span><select data-f="country"><option value="BR" ${a.country==='BR'?'selected':''}>Brasil</option><option value="OUTRO" ${a.country==='OUTRO'?'selected':''}>Outro país</option></select></label>`+
+    `<label class="phase3-bank-field"><span>Tipo de conta</span><select data-f="accountType"><option value="" ${!a.accountType?'selected':''}>Não informado</option><option value="Corrente" ${a.accountType==='Corrente'?'selected':''}>Corrente</option><option value="Poupança" ${a.accountType==='Poupança'?'selected':''}>Poupança</option><option value="Pagamento" ${a.accountType==='Pagamento'?'selected':''}>Pagamento</option><option value="Outro" ${a.accountType==='Outro'?'selected':''}>Outro</option></select></label>`+
+    field('agency','Agência','Ex.: 0001')+
+    field('account','Número da conta','Conta + dígito')+
+    field('pix','Chave PIX','CPF, CNPJ, e-mail, celular ou aleatória')+
+    field('holderName','Nome completo do titular','Titular desta conta')+
+    field('holderDocument','CPF/CNPJ do titular','Documento do titular (opcional)')+
+    `</div>`;
+  box.appendChild(row);phase3BankRenumber();
+  if(Object.keys(v).length===0)row.querySelector('input[data-f="bank"]')?.focus({preventScroll:true});
 };
 global.phase3BankSave=async function(kind,key){
   if(!store){notify('Repositório bancário indisponível.','error');return;}
@@ -163,6 +196,7 @@ global.phase3BankSave=async function(kind,key){
     const identity=[r.bank.trim().toLowerCase(),r.agency.trim().toLowerCase(),r.account.trim().toLowerCase(),/^\+?[\d\s().-]+$/.test(r.pix)?r.pix.replace(/\D/g,''):r.pix.toLowerCase() ].join('|');
     if(seen.has(identity)){notify('Uma conta foi repetida. Revise antes de salvar.','error');return;}seen.add(identity);
   }
+  if(!rows.length && !window.confirm('Todas as contas serão removidas deste cadastro. Confirmar?'))return;
   const button=$('#phase3-bank-ov .p3-primary');if(button?.disabled)return;
   if(button){button.disabled=true;button.textContent='Salvando...';}
   try{
@@ -178,7 +212,7 @@ global.phase3BankSave=async function(kind,key){
     notify('Contas atualizadas e confirmadas no Firebase.','success');
     document.dispatchEvent(new CustomEvent('erp:party-banks-updated',{detail:{kind,key}}));
   }catch(error){console.error('[phase3] erro ao salvar contas:',error);notify('Não foi possível salvar as contas. Nenhuma mudança foi confirmada: '+(error.message||error),'error',7000);}
-  finally{if(button?.isConnected){button.disabled=false;button.textContent='Salvar contas';}}
+  finally{if(button?.isConnected){button.disabled=false;button.textContent='Salvar alterações';}}
 };
 global.ERPPartyBanks=Object.freeze({
   hasCanonical:hasCanonicalBankList,

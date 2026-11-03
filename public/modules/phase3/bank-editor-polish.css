@@ -1,0 +1,43 @@
+/* Editor bancário v4 — ações consistentes e rodapé fixo, sem alterar outros modais. */
+#phase3-bank-ov .phase3-bank-editor{display:flex;flex-direction:column;gap:0;padding:0;width:min(860px,96vw)!important;max-width:860px!important;max-height:min(90vh,850px);overflow:hidden!important;border-radius:16px;background:#fff}
+#phase3-bank-ov .phase3-bank-header{display:flex;align-items:center;justify-content:space-between;margin:0;padding:20px 24px 16px;border-bottom:1px solid #e0e9e3;flex-shrink:0}
+#phase3-bank-ov .phase3-bank-header h3{margin:0 0 5px;font-size:1.15rem;line-height:1.25;color:#183e2b}
+#phase3-bank-ov .phase3-bank-header small{color:#68776e;font-size:.83rem}
+#phase3-bank-ov .phase3-bank-close{width:36px;height:36px;border:1px solid #e1e8e3!important;border-radius:9px!important;background:#f8faf9!important;color:#52645a;font-size:1.1rem;display:grid;place-items:center;cursor:pointer;flex:0 0 auto}
+#phase3-bank-ov .phase3-bank-close:hover{background:#eef4f0!important;color:#143d2a}
+#phase3-bank-ov .phase3-bank-help{padding:12px 24px;margin:0;font-size:.82rem;line-height:1.45;color:#5a6f61;background:#f6faf7;border-bottom:1px solid #e3ece5}
+#phase3-bank-ov .phase3-bank-rows{padding:16px 24px 8px;overflow-y:auto;overscroll-behavior:contain;min-height:0;flex:1;max-height:none!important}
+#phase3-bank-ov .phase3-bank-row{display:block!important;border:1px solid #d6e6dc!important;border-radius:12px!important;padding:0!important;margin:0 0 14px!important;background:#fff;box-shadow:0 1px 3px #123a2610}
+#phase3-bank-ov .phase3-bank-row-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 15px;background:#f6faf7;border-radius:12px 12px 0 0;border-bottom:1px solid #dce9e0}
+#phase3-bank-ov .phase3-bank-row-head>div{display:flex;flex-direction:column;gap:2px}
+#phase3-bank-ov .phase3-bank-sequence{font-size:.85rem;color:#174b32}
+#phase3-bank-ov .phase3-bank-row-head small{font-size:.72rem;color:#798980}
+#phase3-bank-ov .phase3-bank-remove{display:inline-flex!important;gap:6px;align-items:center;justify-content:center;background:#fff2f2!important;border:1px solid #f1cece!important;border-radius:8px!important;color:#9d3030!important;font-size:.77rem;font-weight:700!important;height:34px;min-width:92px;padding:0 11px!important;cursor:pointer}
+#phase3-bank-ov .phase3-bank-remove:hover{background:#ffe5e5!important;border-color:#e5a9a9!important}
+#phase3-bank-ov .phase3-bank-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px 16px;padding:15px}
+#phase3-bank-ov .phase3-bank-field{display:flex!important;flex-direction:column!important;align-items:stretch;gap:6px;min-width:0;margin:0;color:#2f4236;font-weight:700;font-size:.78rem}
+#phase3-bank-ov .phase3-bank-field>span{line-height:1.2}
+#phase3-bank-ov .phase3-bank-field input,#phase3-bank-ov .phase3-bank-field select{display:block!important;width:100%!important;min-width:0!important;height:40px!important;margin:0!important;box-sizing:border-box!important;border:1px solid #cdded3!important;border-radius:8px!important;background:#fff!important;color:#1c2e23!important;font-size:.83rem!important;padding:0 11px!important;font-weight:500!important}
+#phase3-bank-ov .phase3-bank-field input:focus,#phase3-bank-ov .phase3-bank-field select:focus{border-color:#268659!important;outline:3px solid #d7f0df!important}
+#phase3-bank-ov .phase3-bank-footer{position:relative;display:flex!important;align-items:center;justify-content:space-between!important;gap:12px;flex-wrap:wrap;margin:0!important;padding:14px 24px!important;border-top:1px solid #e0e9e3;background:#fff;box-shadow:0 -6px 16px #183c2910;flex-shrink:0}
+#phase3-bank-ov .phase3-bank-footer-actions{display:flex;align-items:center;gap:9px;margin-left:auto}
+#phase3-bank-ov .phase3-bank-footer button{display:inline-flex;align-items:center;justify-content:center;min-height:39px;padding:9px 15px!important;border-radius:9px!important;line-height:1.15;white-space:nowrap;font-size:.83rem!important;font-weight:750!important;cursor:pointer!important;transition:background-color .15s,border-color .15s}
+#phase3-bank-ov .phase3-bank-add{background:#edf7f0!important;border:1px solid #b6d4c0!important;color:#1b603d!important}
+#phase3-bank-ov .phase3-bank-add:hover{background:#dff0e4!important}
+#phase3-bank-ov .phase3-bank-cancel{background:#fff!important;color:#52635a!important;border:1px solid #ceddd3!important}
+#phase3-bank-ov .phase3-bank-cancel:hover{background:#f4f7f5!important}
+#phase3-bank-ov .phase3-bank-save{background:#174d34!important;color:#fff!important;border:1px solid #174d34!important;min-width:150px}
+#phase3-bank-ov .phase3-bank-save:hover{background:#0e3925!important}
+#phase3-bank-ov button:focus-visible{outline:3px solid #96ceb0!important;outline-offset:2px}
+#phase3-bank-ov button:disabled{opacity:.65;cursor:progress!important}
+@media(max-width:660px){
+ #phase3-bank-ov.phase3-overlay{padding:8px!important}
+ #phase3-bank-ov .phase3-bank-editor{width:100%!important;max-height:95vh}
+ #phase3-bank-ov .phase3-bank-header{padding:16px}
+ #phase3-bank-ov .phase3-bank-help{padding:10px 16px}
+ #phase3-bank-ov .phase3-bank-rows{padding:12px 14px 4px}
+ #phase3-bank-ov .phase3-bank-fields{grid-template-columns:1fr;padding:12px}
+ #phase3-bank-ov .phase3-bank-footer{padding:12px 14px!important}
+ #phase3-bank-ov .phase3-bank-footer-actions{width:100%;justify-content:stretch}
+ #phase3-bank-ov .phase3-bank-footer-actions>button{flex:1}
+}

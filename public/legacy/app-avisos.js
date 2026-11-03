@@ -21,6 +21,41 @@
   function _fmtBR(v){ try{ return Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2}); }catch(e){ return v; } }
   function _diasEntre(a,b){ return Math.round((b - a)/86400000); }
 
+  // Aniversários viram tarefas anuais em Afazeres, com ID estável por matrícula/ano.
+  // São geradas somente depois que os cadastros foram carregados do Firebase.
+  function _birthdayId(f,year){
+    var key=String(f.mat||f.cpf||f.nome||'').replace(/[^A-Za-z0-9_-]/g,'_').slice(0,70);
+    return 'AFBIRTH_'+year+'_'+key;
+  }
+  function _birthdayTask(f,year){
+    var p=_parseNasc(f.nascimento);if(!p)return null;
+    var last=new Date(year,p.m,0).getDate(),day=Math.min(p.d,last),z=function(n){return String(n).padStart(2,'0');};
+    return {id:_birthdayId(f,year),texto:'🎂 Aniversário de '+f.nome,feito:false,data:year+'-'+z(p.m)+'-'+z(day),tipo:'aniversario',mat:String(f.mat||''),criadoEm:'Agendado automaticamente',feitoEm:'',autor:'Sistema'};
+  }
+  function _ensureBirthdayAgenda(){
+    if(!_canRH()||!_canAfazeres()||window.__FB_DATA_READY__!==true)return;
+    if(typeof AFAZERES_DB==='undefined'||!Array.isArray(AFAZERES_DB)||typeof saveAfazeres!=='function')return;
+    var h=_hojeD(),added=0;
+    _fA().forEach(function(f){
+      var n=_parseNasc(f.nascimento);if(!n||n.m!==h.m)return;
+      var item=_birthdayTask(f,h.y);if(!item)return;
+      if(AFAZERES_DB.some(function(a){return a&&a.id===item.id;}))return;
+      AFAZERES_DB.push(item);added++;
+    });
+    if(added)try{saveAfazeres();}catch(e){console.error('[Aniversários] Falha ao registrar lembretes:',e);}
+  }
+  window.avisosBirthdayDone=function(id){
+    try{
+      var a=(typeof AFAZERES_DB!=='undefined'?AFAZERES_DB:[]).find(function(x){return x&&x.id===id&&x.tipo==='aniversario';});
+      if(!a)return;
+      if(typeof afazerToggle==='function')afazerToggle(id);
+      window.renderAvisos?.();
+      window.avisosAtualizarBadge?.();
+    }catch(e){console.error('[Aniversários] Não foi possível dar baixa:',e);}
+  };
+  var _legacyRenderAfazeres=window.renderAfazeres;
+  if(typeof _legacyRenderAfazeres==='function')window.renderAfazeres=function(){_ensureBirthdayAgenda();return _legacyRenderAfazeres.apply(this,arguments);};
+
   function _aniversariantes(){
     var h=_hojeD(); var hoje=[], mes=[];
     _fA().forEach(function(f){
@@ -108,6 +143,7 @@
 
   window.renderAvisos=function(){
     var box=document.getElementById('tab-avisos'); if(!box) return;
+    _ensureBirthdayAgenda();
     var a=_aniversariantes(), exp=_fimExperiencia();
     var vtList=_fA().filter(function(f){ return Number(f.valeTransporte||0)>0; });
 
@@ -128,7 +164,14 @@
     if(_canRH()){
       var anivBody='';
       if(a.hoje.length){ anivBody+='<div style="background:#fff8e1;border:1px solid #f0c36d;border-radius:9px;padding:10px 12px;margin-bottom:10px;font-weight:700">🎉 Hoje: '+a.hoje.map(function(x){ return x.nome+' ('+x.idade+' anos)'; }).join(', ')+'</div>'; }
-      if(a.mes.length){ anivBody+='<div style="font-size:.9rem">'+a.mes.map(function(x){ return '<div style="padding:4px 0;border-bottom:1px solid #f0f0f0">🎂 dia '+String(x.dia).padStart(2,'0')+' — <b>'+x.nome+'</b> ('+x.idade+' anos)</div>'; }).join('')+'</div>'; }
+      if(a.mes.length){ anivBody+='<div style="font-size:.9rem">'+a.mes.map(function(x){
+        var emp=_fA().find(function(f){return f.nome===x.nome;});
+        var id=emp?_birthdayId(emp,_hojeD().y):'';
+        var task=(typeof AFAZERES_DB!=='undefined'?AFAZERES_DB:[]).find(function(t){return t&&t.id===id;});
+        var status=task?(task.feito?'✓ Concluído':'Pendente de baixa'):'Abra Meus Afazeres para agendar';
+        var button=task?'<button type="button" onclick="avisosBirthdayDone('+JSON.stringify(id).replace(/"/g,'&quot;')+')" style="border:1px solid #b9d3c1;border-radius:7px;padding:5px 9px;margin-left:8px;cursor:pointer">'+(task.feito?'Reabrir':'Dar baixa')+'</button>':'';
+        return '<div style="padding:6px 0;border-bottom:1px solid #f0f0f0">🎂 dia '+String(x.dia).padStart(2,'0')+' — <b>'+esc(x.nome)+'</b> ('+x.idade+' anos) · '+status+button+'</div>';
+      }).join('')+'</div>'; }
       else { anivBody+='<div style="color:#888;font-size:.88rem">Nenhum aniversário neste mês (ou datas ainda não cadastradas).</div>'; }
       html+=card('<h3 style="margin:0 0 10px;color:#e67e22">🎂 Aniversários do mês</h3>', anivBody);
 
