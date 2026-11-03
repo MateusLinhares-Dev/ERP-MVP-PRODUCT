@@ -105,20 +105,20 @@ function renderExtraList(){
   host.innerHTML=extras.map((x,i)=>`<div class="phase1-purchase-extra-row"><span>${esc(x.obs)}</span><b>+ R$ ${money(x.v)}</b><button onclick="phase1PurchaseRemoveExtra(${i})">✕</button></div>`).join('');
 }
 if(typeof original.loadSupplier==='function')global.csCarregarForn=function(){const result=original.loadSupplier.apply(this,arguments);setTimeout(enhancePurchaseForm,0);return result;};
-if(typeof original.confirmPurchase==='function')global.csConfirmarEntrada=function(fornNome){
+if(typeof original.confirmPurchase==='function')global.csConfirmarEntrada=async function(fornNome){
   const body=document.getElementById('cs-lanc-body');const before=new Set(Object.keys(tickets()));let extras=[],discount=0,items=[];
   if(body){
     items=sourceItems(body);document.querySelectorAll('.phase1-purchase-item-obs').forEach(input=>{const i=Number(input.dataset.index);if(items[i])items[i].obs=String(input.value||'').trim();});body.dataset.itensData=JSON.stringify(items);
     try{extras=JSON.parse(body.dataset.phase1Extras||'[]');}catch(e){}discount=Math.max(0,parseBR(document.getElementById('phase1-purchase-discount')?.value));
   }
-  const result=original.confirmPurchase.apply(this,arguments);
+  const result=await original.confirmPurchase.apply(this,arguments);
   const created=Object.keys(tickets()).filter(key=>!before.has(key));const key=created[created.length-1];const t=key?tickets()[key]:null;
   if(t){
     (t.itens||[]).forEach((it,i)=>{it.mat=normalizeMaterial(it.matBase||it.mat);it.matBase=it.mat;it.ident='';it.obs=items[i]?.obs||it.obs||'';it.pesoBruto=Number(items[i]?.pesoBruto||it.pesoBruto||it.pesoLiq||0);it.total=Number(it.subtotal!=null?it.subtotal:(Number(it.pesoLiq||0)*Number(it.preco||0)));});
     const base=(t.itens||[]).reduce((sum,it)=>sum+Number(it.total||0),0);const extraTotal=extras.reduce((sum,x)=>sum+Number(x.v||0),0);
     t.descontoCompra=discount;t.acrescimos=extras.slice();t.acrescimo=extraTotal-discount;t.totalGeral=Math.max(0,base-discount+extraTotal);t.saldoPagar=Math.max(0,t.totalGeral-Number(t.adiantamento||0));t.status=t.saldoPagar<=0.01?'Pago':'Pendente';
     try{const cp=CONTAS_PAGAR.find(x=>x.ticket===t.ticket&&x.status!=='Pago');if(cp){cp.valor=t.saldoPagar;cp.obs=[cp.obs,discount?`Desconto R$ ${money(discount)}`:'',...extras.map(x=>`${x.obs}: R$ ${money(x.v)}`)].filter(Boolean).join(' | ');}}catch(e){}
-    saveAll();try{if(typeof renderTickets==='function')renderTickets();}catch(e){}
+    if(!global.__ERP_PURCHASE_IN_PROGRESS__){ saveAll();try{if(typeof renderTickets==='function')renderTickets();}catch(e){} }
   }
   return result;
 };

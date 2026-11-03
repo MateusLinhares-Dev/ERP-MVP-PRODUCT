@@ -236,6 +236,7 @@ async function main() {
   loadStyle('/legacy/operations-polish.css');
   await loadClassic('/legacy/operations-polish.js');
   loadStyle('/legacy/design-system-v2.css');
+  loadStyle('/legacy/erp-selects-polish.css');
   await loadClassic('/legacy/workspace-navigation.js');
 
   loadStyle('/modules/help-center/help-center.css');

@@ -25766,7 +25766,8 @@ function csCalc(){
   if(saldoEl){ saldoEl.textContent='R$ '+fmt(Math.abs(saldo)); saldoEl.style.color=saldo<=0?'#4caf50':'#ef5350'; saldoEl.title=saldo<0?'Crédito a favor do fornecedor':''; }
 }
 
-function csConfirmarEntrada(fornNome){
+async function csConfirmarEntrada(fornNome){
+  const __integratedPurchase=window.__ERP_PURCHASE_IN_PROGRESS__===true;
   const body=document.getElementById('cs-lanc-body'); if(!body) return;
   const n=parseInt(body.dataset.itensCount)||0;
   const itens=JSON.parse(body.dataset.itensData||'[]');
@@ -25856,14 +25857,17 @@ function csConfirmarEntrada(fornNome){
       obs:itensFinal.map(it=>it.mat+' '+it.pesoLiq.toFixed(1)+'kg×R$'+fmt(it.preco)).join(' | '),
       ticket:ticketNum
     });
-    saveContasPagar();
+    if(!__integratedPurchase) saveContasPagar();
   }
+  if(__integratedPurchase) return ticketNum;
+  if(typeof window.__ERP_PURCHASE_COMMIT_TICKET__!=='function') throw new Error('Módulo de persistência de pedidos não foi carregado.');
+  await window.__ERP_PURCHASE_COMMIT_TICKET__(ticketNum,TICKETS_DB[ticketNum],{create:true});
   saveDB();
   body.dataset.itensCount='0';
   csTab('pesagens');
   try{renderDashboard();}catch(e){}
   try{renderContasPagar();}catch(e){}
-  showToast('✅ Entrada '+ticketNum+' confirmada!'+(saldoPagar>0?' Conta a Pagar: R$ '+fmt(saldoPagar):''),'success',7000);
+  showToast('✅ Entrada '+ticketNum+' confirmada no Firebase!'+(saldoPagar>0?' Conta a Pagar: R$ '+fmt(saldoPagar):''),'success',7000);
 }
 
 

@@ -562,7 +562,7 @@ function syncPayable(ticket,state,totals){
       const index=CONTAS_PAGAR.indexOf(cp);
       if(index>=0)CONTAS_PAGAR.splice(index,1);
     }
-    if(typeof saveContasPagar==='function')saveContasPagar();
+    if(!global.__ERP_PURCHASE_IN_PROGRESS__ && typeof saveContasPagar==='function')saveContasPagar();
     if(typeof renderContasPagar==='function')renderContasPagar();
   }catch(e){console.warn('[purchase-order] contas a pagar',e);}
 }
@@ -638,12 +638,133 @@ function patchCreatedTicket(key,state,legacyItems,totals){
   syncPayable(ticket,state,totals);
   syncSupplierCredit(ticket,state,totals);
   syncPrices(state);
-  try{saveDB();}catch(e){}
-  try{if(typeof fbSalvarImediato==='function')fbSalvarImediato();}catch(e){}
+  if(!global.__ERP_PURCHASE_IN_PROGRESS__){
+    try{saveDB();}catch(e){}
+    try{if(typeof fbSalvarImediato==='function')fbSalvarImediato();}catch(e){}
+  }
   try{if(typeof renderTickets==='function')renderTickets();}catch(e){}
   try{if(typeof renderDashboard==='function')renderDashboard();}catch(e){}
   return ticket;
 }
+// Server acknowledgement is mandatory before the purchase screen reports success.
+// A printed PDF is not evidence that an RTDB write completed.
+// Pause legacy debounced writes while a purchase waits for the server transaction.
+// A failed purchase must not be silently pushed later by the generic save queue.
+const legacyFbSalvar=typeof global.fbSalvar==='function'?global.fbSalvar.bind(global):null;
+const legacyFbSalvarImediato=typeof global.fbSalvarImediato==='function'?global.fbSalvarImediato.bind(global):null;
+if(legacyFbSalvar)global.fbSalvar=function(){
+  if(global.__ERP_PURCHASE_IN_PROGRESS__){global.__ERP_PURCHASE_DEFERRED_SAVE__=true;return;}
+  return legacyFbSalvar(...arguments);
+};
+if(legacyFbSalvarImediato)global.fbSalvarImediato=function(){
+  if(global.__ERP_PURCHASE_IN_PROGRESS__){global.__ERP_PURCHASE_DEFERRED_SAVE__=true;return;}
+  return legacyFbSalvarImediato(...arguments);
+};
+function finishPurchaseDeferredSave(success){
+  global.__ERP_PURCHASE_IN_PROGRESS__=false;
+  const deferred=global.__ERP_PURCHASE_DEFERRED_SAVE__===true;
+  global.__ERP_PURCHASE_DEFERRED_SAVE__=false;
+  if(success&&deferred&&legacyFbSalvar)legacyFbSalvar();
+}
+
+const purchasePendingKeys=global.__ERP_PURCHASE_PENDING_KEYS__ instanceof Set
+  ?global.__ERP_PURCHASE_PENDING_KEYS__:new Set();
+global.__ERP_PURCHASE_PENDING_KEYS__=purchasePendingKeys;
+function purchaseCloudRef(key){
+  if(!/^[A-Za-z0-9_-]{1,72}$/.test(String(key||'')))throw new Error('Identificador inválido do pedido.');
+  if(!global._fbDB || typeof global._fbDB.ref!=='function')throw new Error('Firebase indisponível. Nenhum pedido foi confirmado.');
+  if(!global.firebase?.auth?.()?.currentUser)throw new Error('Sessão Firebase expirada. Entre novamente antes de salvar.');
+  return global._fbDB.ref('erp/tickets/'+key);
+}
+async function purchaseConfirmCloud(key,ticket,options={}){
+  const id=String(key||'').trim();
+  const ref=purchaseCloudRef(id);
+  const create=options.create===true;
+  if(!ticket || (create && String(ticket.ticket||id)!==id) || !Array.isArray(ticket.itens) || !ticket.itens.length)
+    throw new Error('Pedido incompleto; não foi enviado ao Firebase.');
+  const payload=JSON.parse(JSON.stringify(ticket));
+  if(create){
+    if(typeof TICKETS_DELETED!=='undefined' && TICKETS_DELETED.has(id))
+      throw new Error('Este número está marcado como excluído. Não é seguro reutilizá-lo.');
+    const removed=await global._fbDB.ref('erp/ticketsDeletedV2/'+id).once('value');
+    if(removed?.val?.())throw new Error('Este número está excluído na nuvem. Use outro identificador.');
+  }
+  const expected=options.expected||null;
+  const tx=await ref.transaction(function(current){
+    if(create){if(current!==null&&current!==undefined)return;return payload;}
+    if(!current || typeof current!=='object')return;
+    if(expected && (Math.abs(Number(current.totalGeral||0)-Number(expected.totalGeral||0))>0.01
+      || Math.abs(Number(current.saldoPagar||0)-Number(expected.saldoPagar||0))>0.01))return;
+    return payload;
+  },undefined,false);
+  if(!tx || tx.committed!==true)throw new Error(create
+    ?'Número de pedido já existe no Firebase. Nenhum pedido existente foi substituído.'
+    :'O pedido foi alterado em outra sessão. Reabra o histórico antes de editar.');
+  const verified=await ref.once('value');
+  const saved=verified?.val?.();
+  if(!saved || String(saved.ticket||'')!==String(payload.ticket||id)
+     || Math.abs(Number(saved.totalGeral||0)-Number(payload.totalGeral||0))>0.01
+     || String(saved.fornecedorCod||'')!==String(payload.fornecedorCod||''))
+     throw new Error('O Firebase ainda não confirmou o conteúdo do pedido. Verifique o número na nuvem antes de tentar novamente.');
+  try{
+    if(typeof TICKETS_DB!=='undefined')TICKETS_DB[id]=Object.assign({},saved);
+    if(typeof _ticketsAtualizarSnapshot==='function')_ticketsAtualizarSnapshot();
+  }catch(e){}
+  return saved;
+}
+global.__ERP_PURCHASE_COMMIT_TICKET__=purchaseConfirmCloud;
+
+// Read-only lookup for documents that were printed but are not visible in history.
+async function purchaseFindCloudTicket(){
+  const input=document.getElementById('phase4-ticket-lookup-id');
+  const out=document.getElementById('phase4-ticket-lookup-result');
+  const id=String(input?.value||'').trim().toUpperCase();
+  if(!/^T[0-9]{1,12}$/.test(id)){if(out)out.textContent='Informe um ticket válido, ex.: T049.';return;}
+  if(out)out.textContent='Consultando o Firebase (somente leitura)...';
+  try{
+    const ref=purchaseCloudRef(id);
+    const snap=await ref.once('value');
+    const ticket=snap?.val?.();
+    if(!ticket){
+      let deleted=false;
+      try{const mark=await global._fbDB.ref('erp/ticketsDeletedV2/'+id).once('value');deleted=!!mark?.val?.();}catch(e){}
+      if(!deleted)try{const mark=await global._fbDB.ref('erp/ticketsDeleted').once('value');deleted=Array.isArray(mark?.val?.())&&mark.val().includes(id);}catch(e){}
+      if(out)out.textContent=deleted
+        ?'O ticket '+id+' está marcado como excluído no Firebase. Não foi reativado; revise o histórico de exclusão.'
+        :'O ticket '+id+' não foi encontrado em erp/tickets. Não recrie automaticamente: confira o financeiro antes.';
+      return;
+    }
+    if(typeof TICKETS_DELETED!=='undefined'&&TICKETS_DELETED.has(id)){
+      if(out)out.textContent='O ticket existe na nuvem, mas está marcado como excluído. Necessário revisar a exclusão; não foi reativado.';
+      return;
+    }
+    TICKETS_DB[id]=Object.assign({},ticket);
+    try{if(typeof _ticketsAtualizarSnapshot==='function')_ticketsAtualizarSnapshot();}catch(e){}
+    try{
+      const ids=['filt-compra-status','filt-compra-forn','filt-compra-de','filt-compra-ate'];
+      ids.forEach(function(name){const field=document.getElementById(name);if(field)field.value=name==='filt-compra-status'?'todos':'';});
+      if(typeof renderTickets==='function')renderTickets();
+    }catch(e){}
+    if(out)out.textContent='Encontrado no Firebase: '+String(ticket.fornecedor||'Fornecedor')+' · R$ '+money(ticket.totalGeral||0)+'. Carregado no histórico local sem alterar a nuvem.';
+  }catch(error){
+    if(out)out.textContent='Consulta não concluída: '+String(error?.code||error?.message||'Erro de permissão/rede')+'. Verifique a sessão e as regras.';
+  }
+}
+global.phase4PurchaseFindCloudTicket=purchaseFindCloudTicket;
+function ensurePurchaseLookup(){
+  const host=document.getElementById('cst-historico');
+  if(!host||document.getElementById('phase4-ticket-lookup'))return;
+  const node=document.createElement('div');
+  node.id='phase4-ticket-lookup';
+  node.className='phase4-ticket-lookup';
+  node.innerHTML='<label for="phase4-ticket-lookup-id">Localizar pedido no Firebase</label>'
+   +'<input id="phase4-ticket-lookup-id" inputmode="text" maxlength="13" placeholder="Ex.: T049" aria-label="Número do pedido">'
+   +'<button type="button" class="phase4-po-outline" onclick="phase4PurchaseFindCloudTicket()">Consultar</button>'
+   +'<span id="phase4-ticket-lookup-result" role="status"></span>';
+  host.insertBefore(node,host.firstChild);
+}
+
+
 function sourceSignature(keys){
   return (keys||[]).map(String).filter(Boolean).sort().join('|');
 }
@@ -690,7 +811,7 @@ function finishPurchaseSave(body,key,ticket,totals){
   if(typeof global.csTab==='function')global.csTab('historico');
   try{showToast('Pedido '+String(ticket?.numeroPedido||ticket?.ticket||key)+' salvo e fechado. Total R$ '+money(totals.total)+'.','success',6000);}catch(e){}
 }
-global.phase4PurchaseSave=function(){
+global.phase4PurchaseSave=async function(){
   if(saving)return;
   const body=document.getElementById('cs-lanc-body');if(!body)return;
   const state=currentState(body);
@@ -704,15 +825,24 @@ global.phase4PurchaseSave=function(){
   state.notes=readOrderNotes(state);
   if(state.editKey){
     setSaving(true);
+    global.__ERP_PURCHASE_IN_PROGRESS__=true;
+    let editCommitted=false;
     try{
       const totals=global.phase4PurchaseRecalc();
       const ticket=saveEditedTicket(state,totals);
+      purchasePendingKeys.add(String(state.editKey));
+      try{ await purchaseConfirmCloud(String(state.editKey),ticket,{expected:{totalGeral:state.originalTotal,saldoPagar:state.originalBalance}}); }
+      finally{ purchasePendingKeys.delete(String(state.editKey)); }
+      global.__ERP_PURCHASE_IN_PROGRESS__=false;
+      try{if(typeof saveContasPagar==='function')saveContasPagar();}catch(e){}
+      try{saveDB();}catch(e){}
+      editCommitted=true;
       resetOrderState(body);
       manualMode=false;
       if(typeof global.csTab==='function')global.csTab('historico');
-      try{showToast('Pedido '+String(ticket.ticket||state.editKey)+' atualizado.','success');}catch(e){}
+      try{showToast('Pedido '+String(ticket.ticket||state.editKey)+' atualizado e confirmado.','success');}catch(e){}
     }catch(error){try{showToast(error.message||'Erro ao atualizar pedido.','error',7000);}catch(e){}}
-    finally{setSaving(false);}
+    finally{finishPurchaseDeferredSave(editCommitted);setSaving(false);}
     return;
   }
   let prepared;
@@ -726,18 +856,27 @@ global.phase4PurchaseSave=function(){
   const totals=global.phase4PurchaseRecalc();
   const before=new Set(Object.keys(tickets()));
   setSaving(true);
+  global.__ERP_PURCHASE_IN_PROGRESS__=true;
+  let purchaseCommitted=false;
   try{
-    const result=legacy.confirmPurchase.call(global,prepared.supplier.nome);
+    const result=await legacy.confirmPurchase.call(global,prepared.supplier.nome);
     const created=Object.keys(tickets()).filter(function(key){return !before.has(key);});
     const key=created[created.length-1];
     if(!key)throw new Error('O pedido não foi criado. Nenhuma alteração foi aplicada à fila.');
     const ticket=patchCreatedTicket(key,state,prepared.legacyItems,totals);
+    purchasePendingKeys.add(String(key));
+    try{await purchaseConfirmCloud(key,ticket,{create:true});}
+    finally{purchasePendingKeys.delete(String(key));}
+    try{if(typeof saveContasPagar==='function')saveContasPagar();}catch(e){}
+    try{if(typeof saveDB==='function')saveDB();}catch(e){}
+    purchaseCommitted=true;
     finishPurchaseSave(body,key,ticket,totals);
     return result;
   }catch(error){
     console.error('[purchase-order] salvar',error);
-    try{showToast(error.message||'Não foi possível salvar o pedido.','error',7000);}catch(e){}
+    try{showToast('Pedido NÃO confirmado: '+(error.message||'Falha de gravação')+'. Confira o número no Firebase antes de tentar novamente.','error',10000);}catch(e){}
   }finally{
+    finishPurchaseDeferredSave(purchaseCommitted);
     setSaving(false);
   }
 };
@@ -885,9 +1024,9 @@ function saveEditedTicket(state,totals){
     }else if(cp && !cp.valorPago && !(cp.pagamentos||[]).length){
       const index=CONTAS_PAGAR.indexOf(cp);if(index>=0)CONTAS_PAGAR.splice(index,1);
     }
-    if(typeof saveContasPagar==='function')saveContasPagar();
+    if(!global.__ERP_PURCHASE_IN_PROGRESS__ && typeof saveContasPagar==='function')saveContasPagar();
   }catch(e){console.warn('[purchase-order] conta vinculada',e);throw new Error('Não foi possível atualizar a conta a pagar do pedido.');}
-  try{saveDB();}catch(e){throw new Error('Não foi possível persistir a edição.');}
+  try{if(!global.__ERP_PURCHASE_IN_PROGRESS__)saveDB();}catch(e){throw new Error('Não foi possível persistir a edição.');}
   try{if(typeof fbSalvarImediato==='function')fbSalvarImediato();}catch(e){}
   try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Pedido editado',String(ticket.ticket||state.editKey),ticket,{ticket:ticket.ticket||state.editKey});}catch(e){}
   ['renderTickets','renderContasPagar','renderEstoque','renderDashboard','renderFluxo'].forEach(function(name){try{if(typeof global[name]==='function')global[name]();}catch(e){}});
@@ -1010,6 +1149,7 @@ if(typeof legacy.loadSupplier==='function'){
 if(typeof legacy.tab==='function'){
   global.csTab=function(tab){
     const result=legacy.tab.apply(this,arguments);
+    if(tab==='historico')setTimeout(ensurePurchaseLookup,0);
     if(tab==='lancamento'){
       setTimeout(function(){
         const body=document.getElementById('cs-lanc-body');
