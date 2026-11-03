@@ -18,7 +18,7 @@ function bankHarness({saved, failSave = false} = {}) {
  };
  const errors=[], savedOps=[], notices=[];
  let renderCount = 0;
- const rows = [{inputs:[{dataset:{f:'bank'},value:'ITAU'}, {dataset:{f:'agency'},value:'8413'}, {dataset:{f:'account'},value:'23655'}, {dataset:{f:'pix'},value:'PIX-ATUAL'}]}];
+ const rows = [{inputs:[{dataset:{f:'bank'},value:'ITAU'}, {dataset:{f:'agency'},value:'8413'}, {dataset:{f:'account'},value:'23655'}, {dataset:{f:'pix'},value:'PIX-ATUAL'}, {dataset:{f:'holderName'},value:'NOME DO TITULAR'}, {dataset:{f:'holderDocument'},value:'12345678900'}]}];
  const saveButton = {disabled:false,isConnected:true};
  const overlay = {remove(){}};
  const context = {
@@ -26,11 +26,12 @@ function bankHarness({saved, failSave = false} = {}) {
    setTimeout,
    FORNECEDORES:[supplier], CLIENTES:[],
    $: (sel)=>sel==='#phase3-bank-ov .p3-primary'?saveButton:sel==='#phase3-bank-ov'?overlay:null,
-   $$: (sel,row)=>sel==='#phase3-bank-rows .phase3-bank-row'?rows:sel==='input'?row.inputs:[],
+   $$: (sel,row)=>sel==='#phase3-bank-rows .phase3-bank-row'?rows:(sel==='input'||sel==='[data-f]')?row.inputs:[],
    esc:(v)=>String(v),
    notify:(msg,type)=>notices.push({msg,type}),
    saveFornecedores(){}, saveClientes(){}, fbSalvar(){},
-   document:{createElement(){return {}},body:{appendChild(){}}},
+   document:{createElement(){return {}},body:{appendChild(){}},dispatchEvent(){}},
+   CustomEvent:class CustomEvent{constructor(type,init){this.type=type;this.detail=init?.detail;}},
    store:{
      async load(){return saved||{};},
      async save(collection,id,value){
@@ -122,4 +123,22 @@ test('erro Firebase mantém contas antigas e não informa sucesso',async()=>{
  assert.equal(h.renders,0);
  assert.equal(h.notices.at(-1).type,'error');
  assert.equal(h.saveButton.disabled,false);
+});
+
+test('PIX deduplica contas equivalentes e usa o titular de cada conta no WhatsApp',()=>{
+ const api={hasCanonical(){return true;},list(){return [
+  {bank:'BRASIL',agency:'4221-8',account:'24754-5',pix:'47 9 9904 6075',holderName:'FILHO DO FORNECEDOR',holderDocument:'12345678901',country:'BR'},
+  {bank:'BRASIL',agency:'4221-8',account:'24754-5',pix:'47999046075',holderName:'FILHO DO FORNECEDOR',holderDocument:'12345678901',country:'BR'}
+ ];}};
+ const h=supplierHarness(api);
+ h.context.window.fornAbrirPix('F008');
+ const html=h.nodes.find(node=>node.innerHTML.includes('Contas / PIX'))?.innerHTML||'';
+ assert.match(html,/1 conta\(s\) cadastrada\(s\)/);
+ assert.match(html,/FILHO DO FORNECEDOR/);
+ let outgoing='';h.context.window.open=url=>{outgoing=url;};
+ h.context.window.fornPixWhatsapp('F008',0);
+ const decoded=decodeURIComponent(outgoing);
+ assert.match(decoded,/Titular da conta: FILHO DO FORNECEDOR/);
+ assert.match(decoded,/CPF\/CNPJ do titular: 12345678901/);
+ assert.match(decoded,/Banco: BRASIL/);
 });
