@@ -511,14 +511,20 @@ function checkCalendarPopups(){
 const legacyAvisos=global.renderAvisos,legacyBadge=global.avisosAtualizarBadge;
 function injectCalendarAvisos(){
   const box=$('#tab-avisos');if(!box)return;
-  $('#phase3-calendar-alerts')?.remove();
-  const list=myUpcoming(),card=document.createElement('div');card.id='phase3-calendar-alerts';card.className='p3-alert-card';
-  card.innerHTML=`<h3>📅 Meus compromissos</h3>${list.length?list.map(e=>`<div><b>${esc(e.title)}</b><span>${toBR(e.date)} · ${dateDiff(today(),e.date)} dia(s)</span></div>`).join(''):'<p>Nenhum compromisso seu nos próximos 5 dias.</p>'}`;
-  (box.querySelector('div')||box).prepend(card);
+  const list=myUpcoming();
+  const html=`<h3>📅 Meus compromissos</h3>${list.length?list.map(e=>`<div><b>${esc(e.title)}</b><span>${toBR(e.date)} · ${dateDiff(today(),e.date)} dia(s)</span></div>`).join(''):'<p>Nenhum compromisso seu nos próximos 5 dias.</p>'}`;
+  let card=$('#phase3-calendar-alerts');
+  if(!card){
+    card=document.createElement('div');card.id='phase3-calendar-alerts';card.className='p3-alert-card';
+    (box.querySelector('div')||box).prepend(card);
+  }
+  // Atualizar apenas quando o calendário mudou, sem destacar/repiscar
+  // a tela inteira a cada evento do Firebase/observador de DOM.
+  if(card.innerHTML!==html)card.innerHTML=html;
 }
 function refreshAvisos(){try{global.avisosAtualizarBadge?.();if($('#tab-avisos')?.classList.contains('active'))global.renderAvisos?.();}catch(e){}}
 if(typeof legacyAvisos==='function')global.renderAvisos=function(){const r=legacyAvisos.apply(this,arguments);setTimeout(injectCalendarAvisos,0);return r;};
-if(typeof legacyBadge==='function')global.avisosAtualizarBadge=function(){const r=legacyBadge.apply(this,arguments);setTimeout(()=>{const el=$('.nav-tab[data-tab="avisos"] .nt-label');if(!el)return;const old=el.querySelector('.p3-aviso-count');if(old)old.remove();const extra=myUpcoming().length;if(extra){const s=document.createElement('span');s.className='p3-aviso-count';s.textContent=String(extra);el.appendChild(document.createTextNode(' '));el.appendChild(s);}},0);return r;};
+if(typeof legacyBadge==='function')global.avisosAtualizarBadge=function(){const r=legacyBadge.apply(this,arguments);setTimeout(()=>{const el=$('.nav-tab[data-tab="avisos"] .nt-label');if(!el)return;const old=el.querySelector('.p3-aviso-count');const extra=myUpcoming().length;if(!extra){if(old)old.remove();return;}if(old){if(old.textContent!==String(extra))old.textContent=String(extra);return;}const s=document.createElement('span');s.className='p3-aviso-count';s.textContent=String(extra);el.appendChild(document.createTextNode(' '));el.appendChild(s);},0);return r;};
 
 /* Cheques: explicação, contagem consistente e limpeza do controle */
 // Usa apenas numeros efetivamente cadastrados (O(n log n)); nunca percorre todos os faltantes.
