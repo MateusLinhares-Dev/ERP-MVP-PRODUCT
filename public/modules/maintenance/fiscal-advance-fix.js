@@ -128,37 +128,64 @@
     return named.length ? named : result;
   }
 
+  // A transação DEVE ocorrer no filho exato, nunca no array inteiro do fornecedor.
+  // Uma transação do pai pode ser cancelada por operações de sincronização de outros adiantamentos.
+  const stable = value => {
+    if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']';
+    if (value && typeof value === 'object') return '{' + Object.keys(value).sort()
+      .map(k => JSON.stringify(k) + ':' + stable(value[k])).join(',') + '}';
+    return JSON.stringify(value);
+  };
+  const entries = value => value && typeof value === 'object'
+    ? Object.entries(value).filter(([,record]) => record && typeof record === 'object') : [];
+
   async function deleteAdvance(supplierCode, advanceCode, button) {
     const key = supplierCode + '::' + advanceCode;
     if (deleting.has(key)) return false;
     const local = (typeof ADT_POR_FORN !== 'undefined' ? ADT_POR_FORN[supplierCode] : null);
     const record = (local || []).find(a => String(a?.cod) === String(advanceCode));
     if (!record) { alertUser('Adiantamento não encontrado na lista atual. Atualize a página.'); return false; }
-    if (!global.confirm(`Excluir o adiantamento ${advanceCode} de ${supplierCode}?\nEsta ação só será confirmada após a gravação no Firebase.`)) return false;
+    if (!global.confirm(`Excluir o adiantamento ${advanceCode} de ${supplierCode}?\nA exclusão será confirmada diretamente no Firebase.`)) return false;
     deleting.add(key);
     const previous = button?.textContent;
     if (button) { button.disabled = true; button.textContent = 'Excluindo…'; }
     try {
       if (!global._fbDB) throw new Error('Firebase não está conectado. Verifique a sessão.');
       if (typeof global.firebase?.auth === 'function' && !global.firebase.auth().currentUser) throw new Error('Sessão Firebase expirada. Entre novamente.');
-      const ref = global._fbDB.ref('erp/adiantamentos/' + supplierCode);
-      const initial = (await ref.once('value')).val();
-      const values = initial && typeof initial === 'object' ? Object.values(initial).filter(Boolean) : [];
-      if (!values.some(a => String(a.cod) === String(advanceCode))) throw new Error('O registro não existe mais no Firebase. Atualize a tela antes de continuar.');
-      if (values.filter(a => String(a.cod) === String(advanceCode)).length > 1) throw new Error('Há códigos duplicados nesse fornecedor. A exclusão foi bloqueada para não apagar vários registros.');
-      const transaction = await ref.transaction(current => {
-        if (!current || typeof current !== 'object') return; // não remover lista inexistente
-        const list = Array.isArray(current) ? current : Object.values(current).filter(Boolean);
-        if (list.filter(a => String(a?.cod) === String(advanceCode)).length !== 1) return;
-        const next = list.filter(a => String(a?.cod) !== String(advanceCode));
-        return next.length ? next : null;
-      }, undefined, false);
-      if (!transaction.committed) throw new Error('A exclusão não foi confirmada. O registro pode ter sido alterado por outro usuário.');
-      const remaining = transaction.snapshot?.val();
-      if (remaining && Object.values(remaining).some(a => a && String(a.cod) === String(advanceCode))) {
-        throw new Error('O Firebase ainda retornou o adiantamento. Não foi possível confirmar a exclusão.');
+      const supplierRef = global._fbDB.ref('erp/adiantamentos/' + supplierCode);
+      const initial = (await supplierRef.once('value')).val();
+      const targets = entries(initial).filter(([,a]) => String(a.cod) === String(advanceCode));
+      if (targets.length === 0) throw new Error('O registro não está mais no Firebase. Atualize a tela antes de continuar.');
+      if (targets.length !== 1) throw new Error('Existem lançamentos com o mesmo código nesse fornecedor. Exclusão bloqueada para evitar perda de dados.');
+      const [remoteKey, remoteRecord] = targets[0];
+      const originalFingerprint = stable(remoteRecord);
+      const childRef = supplierRef.child(remoteKey);
+      let removed = false;
+      // O SDK pode chamar update(null) usando o cache inicial, mesmo após once('value').
+      // Retornar null (em vez de undefined) evita abortar prematuramente; a operação
+      // continua restrita a UM filho e o servidor reexecuta a função com os dados atuais.
+      for (let attempt = 0; attempt < 2 && !removed; attempt++) {
+        const result = await childRef.transaction(current => {
+          if (current == null) return null; // não reintroduzir dados nem abortar por cache frio
+          if (String(current.cod) !== String(advanceCode) || stable(current) !== originalFingerprint) return;
+          return null;
+        }, undefined, false);
+        if (result?.committed) {
+          const remaining = (await supplierRef.once('value')).val();
+          if (!entries(remaining).some(([,a]) => String(a.cod) === String(advanceCode))) removed = true;
+        }
+        if (!removed && attempt === 0) {
+          // Só repetir se o registro ainda estiver EXATAMENTE igual; não ultrapassar
+          // edições de outra sessão ou apagar por posição após uma reordenação.
+          const check = (await supplierRef.once('value')).val();
+          const matches = entries(check).filter(([,a]) => String(a.cod) === String(advanceCode));
+          if (matches.length !== 1 || matches[0][0] !== remoteKey || stable(matches[0][1]) !== originalFingerprint) break;
+        }
       }
-      // Somente após confirmação remota: atualizar memória, cache, tombstone e histórico.
+      if (!removed) {
+        throw new Error('O Firebase não confirmou a remoção deste registro. Nenhum outro adiantamento foi alterado. Atualize e tente novamente.');
+      }
+      // Somente após confirmação remota: atualizar memória e persistência local.
       ADT_POR_FORN[supplierCode] = (ADT_POR_FORN[supplierCode] || []).filter(a => String(a?.cod) !== String(advanceCode));
       try { if (global._ADT_PENDENTES) delete global._ADT_PENDENTES[key]; } catch (_) {}
       try {
@@ -168,18 +195,15 @@
         }
         localStorage.setItem('mm_adt', JSON.stringify(ADT_POR_FORN));
       } catch (e) { console.warn('[Adiantamentos] Cache local:', e); }
-      // Somente movimento bancário com vínculo explícito: não procurar por valor/descrição parecida.
-      if (record.movBancoId && typeof _removerMovBancoDeAdiantamento === 'function') {
-        try { _removerMovBancoDeAdiantamento(supplierCode, record); }
-        catch (error) { console.warn('[Adiantamentos] Conferir movimento bancário vinculado:', error); }
-      }
+      // Não remover movimentos bancários automaticamente: a baixa financeira deve
+      // ser avaliada em seu módulo de origem, com conferência dos vínculos.
       try { if (typeof registrarHistorico === 'function') registrarHistorico('Adiantamento', 'Excluído',
         `${supplierCode} ${advanceCode} — R$ ${Number(record.valor || 0).toFixed(2)} (${record.data || ''})`,
         record, {fornCod: supplierCode}); } catch (error) { console.warn('[Adiantamentos] Histórico:', error); }
       try { if (typeof saveDB === 'function') saveDB(); } catch (error) { console.warn('[Adiantamentos] Sincronia após exclusão:', error); }
       try { if (typeof global.renderAdiantamentos === 'function') global.renderAdiantamentos(); } catch (e) { console.warn(e); }
       try { if (typeof global.onCanhotFornChange === 'function') global.onCanhotFornChange(); } catch (_) {}
-      alertUser('Adiantamento excluído e confirmado no Firebase.', 'success');
+      alertUser('Adiantamento excluído e remoção confirmada no Firebase.', 'success');
       return true;
     } catch (error) {
       console.error('[Adiantamentos] Exclusão não confirmada:', error);

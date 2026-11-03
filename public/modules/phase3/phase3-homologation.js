@@ -110,7 +110,9 @@ function partyEntity(kind,key){try{return kind==='fornecedor'?(FORNECEDORES||[])
 function bankKey(kind,key){return `${kind}-${key}`;}
 function bankList(kind,key){
   const a=partyBanks[bankKey(kind,key)];
-  if(Array.isArray(a)&&a.length)return a;
+  // [] salvo significa que todas as contas foram removidas. Nao recuperar
+  // automaticamente a conta principal legada neste caso.
+  if(Array.isArray(a))return a;
   const entity=partyEntity(kind,key);
   if(!entity)return [];
   const primary={bank:String(entity.banco||'').trim(),agency:String(entity.agencia||'').trim(),account:String(entity.conta||'').trim(),pix:String(entity.pix||'').trim()};
@@ -119,8 +121,40 @@ function bankList(kind,key){
 function decoratePartyBanks(){[['#tb-fornecedores','fornecedor'],['#tb-clientes-list','cliente']].forEach(([sel,kind])=>{const body=$(sel);if(!body)return;Array.from(body.rows||[]).forEach(row=>{if(row.querySelector('.phase1-party-bank-btn')||row.querySelector('.phase3-bank-btn'))return;const key=String(row.cells?.[kind==='fornecedor'?1:0]?.textContent||'').trim();const name=String(row.cells?.[kind==='fornecedor'?2:1]?.textContent||'').trim();const cell=row.cells?.[row.cells.length-1];if(!key||!name||!cell)return;const b=document.createElement('button');b.className='phase3-bank-btn';b.type='button';b.textContent='🏦 Bancos';b.onclick=e=>{e.stopPropagation();phase3OpenPartyBanks(kind,key,name);};cell.prepend(b);});});}
 global.phase3OpenPartyBanks=function(kind,key,name){const list=bankList(kind,key);$('#phase3-bank-ov')?.remove();const ov=document.createElement('div');ov.id='phase3-bank-ov';ov.className='phase3-overlay';ov.innerHTML=`<div class="phase3-modal banks"><header><div><h3>🏦 Contas bancárias</h3><small>${esc(name)} · ${kind==='fornecedor'?'Fornecedor':'Cliente'}</small></div><button onclick="document.getElementById('phase3-bank-ov').remove()">✕</button></header><div class="phase3-bank-help">Cadastre quantas contas forem necessárias. A primeira conta é considerada a principal e continua disponível para os módulos antigos.</div><div id="phase3-bank-rows"></div><button class="p3-secondary" onclick="phase3BankAdd()">＋ Adicionar conta</button><footer><button onclick="document.getElementById('phase3-bank-ov').remove()">Cancelar</button><button class="p3-primary" onclick="phase3BankSave('${esc(kind)}','${esc(key)}')">Salvar contas</button></footer></div>`;document.body.appendChild(ov);(list.length?list:[{}]).forEach(x=>phase3BankAdd(x));};
 global.phase3BankAdd=function(v={}){const box=$('#phase3-bank-rows');if(!box)return;const row=document.createElement('div');row.className='phase3-bank-row';row.innerHTML=`<input data-f="bank" placeholder="Banco" value="${esc(v.bank||'')}"><input data-f="agency" placeholder="Agência" value="${esc(v.agency||'')}"><input data-f="account" placeholder="Conta" value="${esc(v.account||'')}"><input data-f="pix" placeholder="PIX" value="${esc(v.pix||'')}"><button title="Remover" onclick="this.parentElement.remove()">✕</button>`;box.appendChild(row);};
-global.phase3BankSave=async function(kind,key){if(!store)return;const rows=$$('#phase3-bank-rows .phase3-bank-row').map(row=>{const o={};$$('input',row).forEach(i=>o[i.dataset.f]=i.value.trim());return o;}).filter(x=>Object.values(x).some(Boolean));partyBanks[bankKey(kind,key)]=rows;await store.save('partyBanks',bankKey(kind,key),rows);const e=partyEntity(kind,key),p=rows[0]||{};if(e){e.banco=p.bank||'';e.agencia=p.agency||'';e.conta=p.account||'';e.pix=p.pix||'';try{kind==='fornecedor'?saveFornecedores():saveClientes();}catch(_e){}try{fbSalvar();}catch(_e){}}$('#phase3-bank-ov')?.remove();notify('Contas bancárias salvas.','success');};
-global.ERPPartyBanks=Object.freeze({list:(kind,key)=>bankList(kind,key).slice(),primary:(kind,key)=>bankList(kind,key)[0]||null});
+global.phase3BankSave=async function(kind,key){
+  if(!store)return;
+  const rows=$$('#phase3-bank-rows .phase3-bank-row').map(row=>{
+    const o={};$$('input',row).forEach(i=>o[i.dataset.f]=i.value.trim());return o;
+  }).filter(x=>Object.values(x).some(Boolean));
+  const id=bankKey(kind,key),saveButton=$('#phase3-bank-ov .p3-primary');
+  if(saveButton?.disabled)return;
+  if(saveButton)saveButton.disabled=true;
+  try{
+    // So muda o estado local apos o Firebase confirmar a gravacao.
+    await store.save('partyBanks',id,rows);
+    partyBanks[id]=rows;
+    const e=partyEntity(kind,key),p=rows[0]||{};
+    if(e){
+      e.banco=p.bank||'';e.agencia=p.agency||'';e.conta=p.account||'';e.pix=p.pix||'';
+      try{kind==='fornecedor'?saveFornecedores():saveClientes();}catch(error){console.warn('[partyBanks] sincronizacao de conta principal:',error);}
+      try{fbSalvar();}catch(error){console.warn('[partyBanks] sincronizacao complementar:',error);}
+    }
+    if(kind==='fornecedor'&&typeof global.renderTabelaFornecedores==='function'){
+      try{global.renderTabelaFornecedores();}catch(error){console.warn('[partyBanks] atualizacao de fornecedores:',error);}
+    }
+    $('#phase3-bank-ov')?.remove();
+    notify('Contas bancárias salvas.','success');
+  }catch(error){
+    console.error('[partyBanks] nao foi possivel salvar:',error);
+    notify('Não foi possível salvar as contas bancárias. Confira a conexão e tente novamente.','error');
+  }finally{if(saveButton&&saveButton.isConnected)saveButton.disabled=false;}
+};
+global.ERPPartyBanks=Object.freeze({
+  list:(kind,key)=>bankList(kind,key).slice(),
+  primary:(kind,key)=>bankList(kind,key)[0]||null,
+  // Diferencia uma conta principal legada de um cadastro multibanco explicitamente salvo.
+  hasCanonical:(kind,key)=>Array.isArray(partyBanks[bankKey(kind,key)])
+});
 
 /* Preços: uma única pesquisa integrada à própria lista da entidade */
 function priceComboOptions(select,kind){
