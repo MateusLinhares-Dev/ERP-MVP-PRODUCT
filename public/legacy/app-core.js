@@ -17166,13 +17166,15 @@ function afazerFiltro(f){
   });
   renderAfazeres();
 }
+function _afBirthdayOld(a){ return !!a && (a.tipo==='aniversario'||String(a.id||'').startsWith('AFBIRTH_')); }
 function renderAfazeres(){
   const box=document.getElementById('af-lista'); if(!box) return;
   const esc2=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const feitos=AFAZERES_DB.filter(a=>a&&a.feito).length;
-  const fazer=AFAZERES_DB.filter(a=>a&&!a.feito).length;
+  const afVisiveis=AFAZERES_DB.filter(a=>a&&!_afBirthdayOld(a));
+  const feitos=afVisiveis.filter(a=>a.feito).length;
+  const fazer=afVisiveis.filter(a=>!a.feito).length;
   const setT=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
-  setT('af-kpi-fazer',fazer); setT('af-kpi-feito',feitos); setT('af-kpi-total',AFAZERES_DB.length);
+  setT('af-kpi-fazer',fazer); setT('af-kpi-feito',feitos); setT('af-kpi-total',afVisiveis.length);
 
   
   const di=document.getElementById('af-data'); if(di && !di.value) di.value=_afDiaSel;
@@ -17181,7 +17183,7 @@ function renderAfazeres(){
   const tit=document.getElementById('af-cal-titulo'); if(tit) tit.textContent=MES_NOME[am-1]+' de '+ay;
   
   const porDia={};
-  AFAZERES_DB.forEach(function(a){ if(!a) return; const iso=_afDataISO(a); if(!iso||iso.slice(0,7)!==_afMesAtual) return;
+  afVisiveis.forEach(function(a){ if(!a) return; const iso=_afDataISO(a); if(!iso||iso.slice(0,7)!==_afMesAtual) return;
     if(!porDia[iso]) porDia[iso]={fazer:0,feito:0}; if(a.feito) porDia[iso].feito++; else porDia[iso].fazer++; });
   const primeiro=new Date(ay,am-1,1);
   const diaSemInicio=primeiro.getDay(); 
@@ -17212,7 +17214,7 @@ function renderAfazeres(){
   
   const dtit=document.getElementById('af-dia-titulo');
   if(dtit){ const bg=_afDiaSel; dtit.textContent='Serviços de '+_afISOparaBR(_afDiaSel)+(_afDiaSel===hojeISO?' (hoje)':''); }
-  let lista=AFAZERES_DB.filter(a=>a&&_afDataISO(a)===_afDiaSel);
+  let lista=afVisiveis.filter(a=>_afDataISO(a)===_afDiaSel);
   if(_afFiltro==='fazer') lista=lista.filter(a=>a&&!a.feito);
   else if(_afFiltro==='feito') lista=lista.filter(a=>a&&a.feito);
   

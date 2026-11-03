@@ -545,12 +545,87 @@ const oldGap=$('#phase3-cheque-gaps');if(oldGap)oldGap.remove();}
 const legacyChequeRender=global.renderChequesCompensar;if(typeof legacyChequeRender==='function')global.renderChequesCompensar=function(){const r=legacyChequeRender.apply(this,arguments);setTimeout(decorateCheque,0);return r;};
 const legacyChequeDelete=global.chqExcluir;if(typeof legacyChequeDelete==='function')global.chqExcluir=function(id){const r=legacyChequeDelete.apply(this,arguments);setTimeout(()=>{try{renderChequesCompensar();}catch(e){}},350);return r;};
 
-/* Contas pessoais da dona */
-let ownerBills={};let ownerMonth=today().slice(0,7),ownerFilter='todos';
-async function loadOwnerBills(){if(!store)return;ownerBills=await store.load('ownerBills',{});Object.values(ownerBills).forEach(x=>{if(x&&x.dueDay==null)x.dueDay=Number(x.day||1);if(x&&!x.payments)x.payments={};});renderOwnerBillsV3();}
+/* Contas pessoais da Dona — separadas por imóvel, sem alterar pagamentos anteriores */
+let ownerBills={};
+let ownerMonth=today().slice(0,7),ownerFilter='todos';
+const OWNER_PROPERTIES=Object.freeze([
+  {id:'sitio',name:'Sítio',icon:'🌳'},
+  {id:'casa-gloria',name:'Casa Glória',icon:'🏡'},
+  {id:'sem-imovel',name:'Sem imóvel definido',icon:'📁'}
+]);
+function ownerPropertyId(b){
+  const raw=norm(b?.propertyId||b?.imovel||'');
+  if(raw==='sitio')return 'sitio';
+  if(raw==='casa-gloria'||raw==='casa gloria')return 'casa-gloria';
+  return 'sem-imovel'; // Não atribuir imóvel por suposição a contas antigas.
+}
+// Uma conta recorrente é um único registro com calendário calculado por competência.
+// Contas legadas (sem recurrenceMode) continuam mensais e ilimitadas.
+function ownerMonthNumber(value){
+  const m=String(value||'').match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  return m?Number(m[1])*12+Number(m[2])-1:null;
+}
+function ownerOccurs(b,month){
+  if(b?.payments?.[month]?.paid)return true; // nunca ocultar um pagamento histórico
+  const mode=b?.recurrenceMode||'monthly';
+  const target=ownerMonthNumber(month),start=ownerMonthNumber(b?.startMonth);
+  if(target===null)return false;
+  if(start===null)return mode==='monthly'; // compatibilidade com contas anteriores
+  const difference=target-start;
+  if(difference<0)return false;
+  if(mode==='once')return difference===0;
+  if(mode==='fixed')return difference<Number(b?.recurrenceMonths||0);
+  return mode==='monthly';
+}
+function ownerRecurrenceLabel(b,month){
+  const mode=b?.recurrenceMode||'monthly';
+  if(mode==='once')return 'Única';
+  if(mode==='fixed'){
+    const n=ownerMonthNumber(month)-ownerMonthNumber(b.startMonth)+1;
+    return 'Parcela '+n+'/'+Number(b.recurrenceMonths||0);
+  }
+  return 'Mensal';
+}
+function ownerTotals(items,month){
+  const expected=items.reduce((sum,b)=>sum+Number(b.value||0),0);
+  const paid=items.reduce((sum,b)=>sum+(ownerStatus(b,month)==='pago'?Number(b.payments?.[month]?.value??b.value??0):0),0);
+  return {expected,paid,pending:Math.max(0,expected-paid)};
+}
+async function loadOwnerBills(){
+  if(!store)return;
+  try{
+    ownerBills=await store.load('ownerBills',{});
+    Object.values(ownerBills).forEach(x=>{if(x&&x.dueDay==null)x.dueDay=Number(x.day||1);if(x&&!x.payments)x.payments={};});
+    renderOwnerBillsV3();
+  }catch(e){notify('Não foi possível carregar as contas pessoais.','error');}
+}
 function ownerDueDate(b,month){const [y,m]=month.split('-').map(Number),last=new Date(y,m,0).getDate();return `${month}-${String(Math.min(last,Math.max(1,Number(b.dueDay||1)))).padStart(2,'0')}`;}
 function ownerStatus(b,month){const p=b.payments?.[month];if(p?.paid)return 'pago';const due=ownerDueDate(b,month),now=today();return due<now?'atrasado':due===now?'hoje':'pendente';}
-function renderOwnerBillsV3(){const host=$('#phase2-owner-bills');if(!host)return;host.dataset.p3owner='1';const items=Object.values(ownerBills||{}).filter(x=>x&&x.active!==false).filter(x=>ownerFilter==='todos'||ownerStatus(x,ownerMonth)===ownerFilter);const total=items.reduce((s,x)=>s+Number(x.value||0),0),paid=items.filter(x=>ownerStatus(x,ownerMonth)==='pago').reduce((s,x)=>s+Number(x.value||0),0),over=items.filter(x=>ownerStatus(x,ownerMonth)==='atrasado').length,todayCount=items.filter(x=>ownerStatus(x,ownerMonth)==='hoje').length;host.innerHTML=`<div class="p3-owner-head"><div><h2>🏠 Contas pessoais da Dona</h2><p>Controle mensal de despesas pessoais recorrentes, vencimentos e pagamentos.</p></div><button class="p3-primary" onclick="phase3OwnerOpen()">＋ Nova conta</button></div><div class="p3-owner-toolbar"><input type="month" value="${ownerMonth}" onchange="phase3OwnerMonth(this.value)"><select onchange="phase3OwnerFilter(this.value)"><option value="todos">Todos</option><option value="pendente" ${ownerFilter==='pendente'?'selected':''}>Pendentes</option><option value="hoje" ${ownerFilter==='hoje'?'selected':''}>Vence hoje</option><option value="atrasado" ${ownerFilter==='atrasado'?'selected':''}>Atrasadas</option><option value="pago" ${ownerFilter==='pago'?'selected':''}>Pagas</option></select></div><div class="p3-owner-kpis"><div><small>Previsto</small><b>R$ ${money(total)}</b></div><div><small>Pago</small><b>R$ ${money(paid)}</b></div><div class="warn"><small>Atrasadas</small><b>${over}</b></div><div class="today"><small>Vence hoje</small><b>${todayCount}</b></div></div><div class="p3-owner-calendar">${items.length?items.sort((a,b)=>Number(a.dueDay)-Number(b.dueDay)).map(b=>{const st=ownerStatus(b,ownerMonth),due=ownerDueDate(b,ownerMonth);return `<article class="${st}"><div class="day"><small>Vence</small><b>${due.slice(-2)}</b></div><div class="main"><b>${esc(b.desc)}</b><small>${esc(b.category||'Sem categoria')} · ${toBR(due)}</small>${b.obs?`<p>${esc(b.obs)}</p>`:''}</div><strong>R$ ${money(b.value)}</strong><span class="badge">${st==='pago'?'Pago':st==='atrasado'?'Atrasada':st==='hoje'?'Vence hoje':'Pendente'}</span><div class="actions">${st==='pago'?`<button onclick="phase3OwnerReopen('${b.id}')">↩ Reabrir</button>`:`<button class="pay" onclick="phase3OwnerPay('${b.id}')">✓ Pagar</button>`}<button onclick="phase3OwnerOpen('${b.id}')">✏️</button><button onclick="phase3OwnerToggle('${b.id}')">Pausar</button></div></article>`;}).join(''):'<div class="p3-empty">Nenhuma conta neste filtro.</div>'}</div>`;}
+function ownerBillRow(b){
+  const st=ownerStatus(b,ownerMonth),due=ownerDueDate(b,ownerMonth);
+  const code=esc(JSON.stringify(String(b.id||'')));
+  return `<article class="${st}"><div class="day"><small>Vence</small><b>${due.slice(-2)}</b></div><div class="main"><b>${esc(b.desc)}</b><small>${esc(b.category||'Sem categoria')} · ${toBR(due)} · ${esc(ownerRecurrenceLabel(b,ownerMonth))}</small>${b.obs?`<p>${esc(b.obs)}</p>`:''}</div><strong>R$ ${money(b.value)}</strong><span class="badge">${st==='pago'?'Pago':st==='atrasado'?'Atrasada':st==='hoje'?'Vence hoje':'Pendente'}</span><div class="actions">${st==='pago'?`<button onclick="phase3OwnerReopen(${code})">↩ Reabrir</button>`:`<button class="pay" onclick="phase3OwnerPay(${code})">✓ Pagar</button>`}<button title="Editar conta" onclick="phase3OwnerOpen(${code})">✏️</button><button onclick="phase3OwnerToggle(${code})">Pausar</button></div></article>`;
+}
+function renderOwnerBillsV3(){
+  const host=$('#phase2-owner-bills');if(!host)return;host.dataset.p3owner='1';
+  const active=Object.values(ownerBills||{}).filter(x=>x&&x.active!==false&&ownerOccurs(x,ownerMonth));
+  const visible=active.filter(x=>ownerFilter==='todos'||ownerStatus(x,ownerMonth)===ownerFilter);
+  const totals=ownerTotals(active,ownerMonth);
+  const over=active.filter(x=>ownerStatus(x,ownerMonth)==='atrasado').length;
+  const todayCount=active.filter(x=>ownerStatus(x,ownerMonth)==='hoje').length;
+  const groups=OWNER_PROPERTIES.map(p=>{
+    const all=active.filter(x=>ownerPropertyId(x)===p.id);
+    const filtered=visible.filter(x=>ownerPropertyId(x)===p.id).sort((a,b)=>Number(a.dueDay)-Number(b.dueDay));
+    return {...p,all,filtered,totals:ownerTotals(all,ownerMonth)};
+  });
+  const unassigned=groups[2].all.length;
+  host.innerHTML=`<div class="p3-owner-head"><div><h2>🏠 Contas pessoais da Dona</h2><p>Despesas organizadas por imóvel. Os totais consideram o mês selecionado, independentemente do filtro de situação.</p></div><button class="p3-primary" onclick="phase3OwnerOpen()">＋ Nova conta</button></div>
+    <div class="p3-owner-toolbar"><input type="month" aria-label="Competência" value="${ownerMonth}" onchange="phase3OwnerMonth(this.value)"><select aria-label="Situação" onchange="phase3OwnerFilter(this.value)"><option value="todos">Todos</option><option value="pendente" ${ownerFilter==='pendente'?'selected':''}>Pendentes</option><option value="hoje" ${ownerFilter==='hoje'?'selected':''}>Vence hoje</option><option value="atrasado" ${ownerFilter==='atrasado'?'selected':''}>Atrasadas</option><option value="pago" ${ownerFilter==='pago'?'selected':''}>Pagas</option></select></div>
+    <div class="p3-owner-property-totals">${groups.slice(0,2).map(g=>`<div class="p3-owner-property-total"><small>${g.icon} ${g.name}</small><b>R$ ${money(g.totals.expected)}</b><span>Pago: R$ ${money(g.totals.paid)} · Pendente: R$ ${money(g.totals.pending)}</span></div>`).join('')}<div class="p3-owner-property-total grand"><small>∑ Total geral</small><b>R$ ${money(totals.expected)}</b><span>Pago: R$ ${money(totals.paid)} · Pendente: R$ ${money(totals.pending)}</span></div></div>
+    ${unassigned?`<p class="p3-owner-unassigned-notice">${unassigned} conta(s) sem imóvel definido. Abra <b>Editar</b> para classificá-las, sem perder o histórico.</p>`:''}
+    <div class="p3-owner-kpis"><div><small>Previsto (geral)</small><b>R$ ${money(totals.expected)}</b></div><div><small>Pago (geral)</small><b>R$ ${money(totals.paid)}</b></div><div class="warn"><small>Atrasadas</small><b>${over}</b></div><div class="today"><small>Vence hoje</small><b>${todayCount}</b></div></div>
+    <div class="p3-owner-groups">${groups.filter(g=>g.id!=='sem-imovel'||g.all.length).map(g=>`<section class="p3-owner-group" data-property="${g.id}"><div class="p3-owner-group-head"><div><h3>${g.icon} ${g.name}</h3><small>${g.all.length} conta(s) no mês · ${g.filtered.length} exibida(s)</small></div>${g.id!=='sem-imovel'?`<button type="button" onclick="phase3OwnerOpen('', '${g.id}')">＋ Nova conta</button>`:''}</div><div class="p3-owner-group-summary"><span>Previsto <b>R$ ${money(g.totals.expected)}</b></span><span>Pago <b>R$ ${money(g.totals.paid)}</b></span><span>Pendente <b>R$ ${money(g.totals.pending)}</b></span></div><div class="p3-owner-calendar">${g.filtered.length?g.filtered.map(ownerBillRow).join(''):`<div class="p3-empty">${g.all.length?'Nenhuma conta neste filtro.':'Nenhuma conta cadastrada para este imóvel.'}</div>`}</div></section>`).join('')}</div>`;
+}
 global.phase2OpenOwnerBills=function(){
   try{
     $$('.nav-tab').forEach(x=>x.classList.remove('active'));
@@ -560,10 +635,58 @@ global.phase2OpenOwnerBills=function(){
   }catch(e){}
   loadOwnerBills();
 };
-global.phase3OwnerMonth=v=>{ownerMonth=v||ownerMonth;renderOwnerBillsV3();};global.phase3OwnerFilter=v=>{ownerFilter=v;renderOwnerBillsV3();};
-global.phase3OwnerOpen=function(id=''){const b=id?ownerBills[id]:null,body=$('#modal-body');if(!body)return;body.className='modal';body.innerHTML=`<h3>${b?'✏️ Editar':'＋ Nova'} conta pessoal</h3><input type="hidden" id="p3ob-id" value="${esc(id)}"><div class="fg"><label>Descrição</label><input id="p3ob-desc" value="${esc(b?.desc||'')}"></div><div class="phase3-grid2"><div class="fg"><label>Categoria</label><input id="p3ob-cat" value="${esc(b?.category||'')}"></div><div class="fg"><label>Valor R$</label><input id="p3ob-value" inputmode="decimal" value="${b?money(b.value):''}"></div></div><div class="fg"><label>Vencimento mensal</label><input id="p3ob-due" type="date" value="${ownerDueDate(b||{dueDay:10},ownerMonth)}"><small class="p3-help">Será usada a mesma data/dia nos próximos meses.</small></div><div class="fg"><label>Observação</label><input id="p3ob-obs" value="${esc(b?.obs||'')}"></div><div class="modal-ft"><button onclick="cm()">Cancelar</button><button class="btn-save" onclick="phase3OwnerSave()">Salvar</button></div>`;$('#modal-ov')?.classList.add('open');};
-global.phase3OwnerSave=async function(){if(!store)return;const id=$('#p3ob-id')?.value||store.id('PESS'),desc=$('#p3ob-desc')?.value.trim(),value=parseBR($('#p3ob-value')?.value),due=$('#p3ob-due')?.value;if(!desc||!(value>0)||!due){notify('Informe descrição, valor e vencimento.','error');return;}const old=ownerBills[id]||{};const b={...old,id,desc,category:$('#p3ob-cat')?.value.trim()||'',value,dueDay:Number(due.slice(-2)),obs:$('#p3ob-obs')?.value.trim()||'',active:old.active!==false,payments:old.payments||{}};ownerBills[id]=b;await store.save('ownerBills',id,b);cm();renderOwnerBillsV3();};
-global.phase3OwnerPay=async id=>{const b=ownerBills[id];if(!b||!store)return;b.payments=b.payments||{};b.payments[ownerMonth]={paid:true,paidAt:today(),value:Number(b.value||0)};await store.save('ownerBills',id,b);renderOwnerBillsV3();};global.phase3OwnerReopen=async id=>{const b=ownerBills[id];if(!b||!store)return;b.payments=b.payments||{};delete b.payments[ownerMonth];await store.save('ownerBills',id,b);renderOwnerBillsV3();};global.phase3OwnerToggle=async id=>{const b=ownerBills[id];if(!b||!store)return;b.active=false;await store.save('ownerBills',id,b);renderOwnerBillsV3();};
+global.phase3OwnerMonth=v=>{ownerMonth=/^\d{4}-\d{2}$/.test(String(v||''))?v:ownerMonth;renderOwnerBillsV3();};
+global.phase3OwnerFilter=v=>{ownerFilter=['todos','pendente','hoje','atrasado','pago'].includes(v)?v:'todos';renderOwnerBillsV3();};
+global.phase3OwnerOpen=function(id='',property=''){
+  const b=id?ownerBills[id]:null,body=$('#modal-body');if(!body)return;
+  const chosen=b?ownerPropertyId(b):property;
+  body.className='modal';
+  body.innerHTML=`<h3>${b?'✏️ Editar':'＋ Nova'} conta pessoal</h3><input type="hidden" id="p3ob-id" value="${esc(id)}"><div class="fg"><label for="p3ob-property">Imóvel *</label><select id="p3ob-property"><option value="">— Selecione o imóvel —</option><option value="sitio" ${chosen==='sitio'?'selected':''}>🌳 Sítio</option><option value="casa-gloria" ${chosen==='casa-gloria'?'selected':''}>🏡 Casa Glória</option></select><small class="p3-help">As contas antigas sem classificação podem ser organizadas aqui sem alterar os pagamentos.</small></div><div class="fg"><label for="p3ob-desc">Descrição</label><input id="p3ob-desc" value="${esc(b?.desc||'')}"></div><div class="phase3-grid2"><div class="fg"><label for="p3ob-cat">Categoria</label><input id="p3ob-cat" value="${esc(b?.category||'')}"></div><div class="fg"><label for="p3ob-value">Valor R$</label><input id="p3ob-value" inputmode="decimal" value="${b?money(b.value):''}"></div></div><div class="fg"><label for="p3ob-due">Primeiro vencimento</label><input id="p3ob-due" type="date" value="${ownerDueDate(b||{dueDay:10},b?.startMonth||ownerMonth)}"><small class="p3-help">Para contas recorrentes, o vencimento se repete no mesmo dia (ou no último dia do mês).</small></div><div class="phase3-grid2 p3-owner-recurrence"><div class="fg"><label for="p3ob-recurrence">Repetição</label><select id="p3ob-recurrence" onchange="phase3OwnerRecurrenceChanged()"><option value="monthly" ${(b?.recurrenceMode||'monthly')==='monthly'?'selected':''}>Mensal — sem prazo final</option><option value="fixed" ${b?.recurrenceMode==='fixed'?'selected':''}>Mensal — quantidade de meses</option><option value="once" ${b?.recurrenceMode==='once'?'selected':''}>Somente uma vez</option></select></div><div class="fg"><label for="p3ob-recurrence-months">Número de meses</label><input type="number" id="p3ob-recurrence-months" min="1" max="120" step="1" value="${Number(b?.recurrenceMonths||12)}" ${(b?.recurrenceMode==='fixed')?'':'disabled'}><small class="p3-help">Ex.: 12 meses = 12 vencimentos, incluindo o primeiro.</small></div></div><div class="fg"><label for="p3ob-obs">Observação</label><input id="p3ob-obs" value="${esc(b?.obs||'')}"></div><div class="modal-ft"><button type="button" onclick="cm()">Cancelar</button><button type="button" class="btn-save" id="p3ob-save" onclick="phase3OwnerSave()">Salvar</button></div>`;
+  $('#modal-ov')?.classList.add('open');
+};
+global.phase3OwnerRecurrenceChanged=function(){
+  const months=$('#p3ob-recurrence-months'),mode=$('#p3ob-recurrence')?.value;
+  if(months)months.disabled=mode!=='fixed';
+};
+global.phase3OwnerSave=async function(){
+  if(!store)return;
+  const btn=$('#p3ob-save');if(btn?.disabled)return;
+  const propertyId=$('#p3ob-property')?.value||'',id=$('#p3ob-id')?.value||store.id('PESS');
+  const desc=$('#p3ob-desc')?.value.trim(),value=parseBR($('#p3ob-value')?.value),due=$('#p3ob-due')?.value;
+  if(!['sitio','casa-gloria'].includes(propertyId)){notify('Selecione Sítio ou Casa Glória.','error');return;}
+  if(!desc||!(value>0)||!/^\d{4}-\d{2}-\d{2}$/.test(due||'')){notify('Informe descrição, valor e vencimento.','error');return;}
+  const old=ownerBills[id]||{};
+  const recurrenceMode=$('#p3ob-recurrence')?.value||'monthly';
+  const monthsRaw=Number($('#p3ob-recurrence-months')?.value);
+  if(!['once','monthly','fixed'].includes(recurrenceMode)){
+    notify('Selecione uma recorrência válida.','error');return;
+  }
+  if(recurrenceMode==='fixed'&&(!Number.isInteger(monthsRaw)||monthsRaw<1||monthsRaw>120)){
+    notify('Informe de 1 a 120 meses para o parcelamento.','error');return;
+  }
+  // Edições das contas antigas mensais não alteram seu período anterior.
+  const startMonth=recurrenceMode==='monthly' && id && !old.startMonth && !old.recurrenceMode
+    ? '' : due.slice(0,7);
+  const b={...old,id,propertyId,desc,category:$('#p3ob-cat')?.value.trim()||'',value,
+    dueDay:Number(due.slice(-2)),startMonth,recurrenceMode,
+    recurrenceMonths:recurrenceMode==='fixed'?monthsRaw:null,
+    obs:$('#p3ob-obs')?.value.trim()||'',active:old.active!==false,payments:old.payments||{}};
+  if(btn){btn.disabled=true;btn.textContent='Salvando...';}
+  try{
+    await store.save('ownerBills',id,b);
+    ownerBills[id]=b;cm();renderOwnerBillsV3();notify('Conta salva com o imóvel definido.','success');
+  }catch(e){console.error('[Contas da Dona] Falha ao salvar',e);notify('Não foi possível salvar a conta. Tente novamente.','error');}
+  finally{if(btn){btn.disabled=false;btn.textContent='Salvar';}}
+};
+async function ownerSaveChange(id,update){
+  const previous=ownerBills[id];if(!previous||!store)return;
+  const changed=update({...previous,payments:{...(previous.payments||{})}});
+  try{await store.save('ownerBills',id,changed);ownerBills[id]=changed;renderOwnerBillsV3();}
+  catch(e){console.error('[Contas da Dona] Falha na atualização',e);notify('Não foi possível atualizar a conta. Nenhuma alteração foi confirmada.','error');}
+}
+global.phase3OwnerPay=id=>ownerSaveChange(id,b=>{b.payments[ownerMonth]={paid:true,paidAt:today(),value:Number(b.value||0)};return b;});
+global.phase3OwnerReopen=id=>ownerSaveChange(id,b=>{delete b.payments[ownerMonth];return b;});
+global.phase3OwnerToggle=id=>ownerSaveChange(id,b=>{b.active=false;return b;});
 
 /* Adiantamentos: ticket selecionável + recalcular compra */
 function supplierTicketOptions(fornCod,current=''){let arr=[];try{arr=Object.entries(TICKETS_DB||{}).filter(([k,t])=>!fornCod||t?.fornecedorCod===fornCod||(FORNECEDORES||[]).find(f=>f.cod===fornCod)?.nome===t?.fornecedor).map(([k,t])=>({key:k,ticket:t.ticket||k,total:t.totalGeral||0}));}catch(e){}const seen=new Set();return arr.filter(x=>!seen.has(x.ticket)&&seen.add(x.ticket)).sort((a,b)=>String(b.ticket).localeCompare(String(a.ticket))).map(x=>`<option value="${esc(x.ticket)}" ${String(current)===String(x.ticket)?'selected':''}>${esc(x.ticket)} · R$ ${money(x.total)}</option>`).join('');}
