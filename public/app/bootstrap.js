@@ -244,8 +244,9 @@ async function main() {
   await loadClassic('/modules/help-center/help-center.js');
   loadStyle('/modules/final-ops/final-ops.css');
   await loadClassic('/modules/final-ops/final-ops.js');
-  loadStyle('/modules/maintenance/fiscal-advance-fix.css');
-  await loadClassic('/modules/maintenance/fiscal-advance-fix.js');
+  loadStyle('/modules/fiscal/fiscal-stock-origins.css');
+  await loadClassic('/modules/fiscal/fiscal-stock-origins.js');
+  await loadClassic('/modules/finance/advance-actions.js');
   loadStyle('/modules/engineering/engineering.css');
   await loadClassic('/modules/engineering/engineering.js');
 

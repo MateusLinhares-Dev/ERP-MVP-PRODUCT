@@ -5,8 +5,9 @@ import {readFileSync} from 'node:fs';
 import {randomUUID} from 'node:crypto';
 import {changeAdvance} from '../server/application/finance-advances.js';
 
-const code=readFileSync(new URL('../public/modules/maintenance/fiscal-advance-fix.js',import.meta.url),'utf8');
-const identity={uid:'erp:thais',erpUser:'thais',erpAccess:true,canFinance:true,canBanking:false};
+const fiscalCode=readFileSync(new URL('../public/modules/fiscal/fiscal-stock-origins.js',import.meta.url),'utf8');
+const advanceCode=readFileSync(new URL('../public/modules/finance/advance-actions.js',import.meta.url),'utf8');
+const identity={uid:'erp:thais',erpUser:'thais',erpAccess:true,canFinance:false,canAdvances:true,canBanking:false};
 const codes=list=>Object.values(list||{}).filter(Boolean).map(item=>item.cod);
 
 function makeDb(initial){
@@ -81,20 +82,21 @@ function setup({mode='ok'}={}){
   };
   ctx.window=ctx;
   vm.createContext(ctx);
-  vm.runInContext(code,ctx,{filename:'fiscal-advance-fix.js'});
+  vm.runInContext(fiscalCode,ctx,{filename:'fiscal-stock-origins.js'});
+  vm.runInContext(advanceCode,ctx,{filename:'advance-actions.js'});
   return {ctx,db,calls};
 }
 
 test('saldo AS na Gratus é derivado somente das NFs da empresa',()=>{
   const {ctx}=setup();
-  const origins=ctx.ERPFiscalAdvanceFix.stockOrigins('AS');
+  const origins=ctx.ERPFiscalStockOrigins.stockOrigins('AS');
   assert.deepEqual(Array.from(origins,item=>item.number),['21','232']);
   assert.equal(origins.reduce((sum,item)=>sum+(item.source==='entradas'?item.amount:-item.amount),0),111);
 });
 
 test('exclusão usa API atômica e remove somente o adiantamento e seu movimento vinculado',async()=>{
   const {ctx,db,calls}=setup();
-  assert.equal(await ctx.ERPFiscalAdvanceFix.deleteAdvance('F001','ADT582451'),true);
+  assert.equal(await ctx.ERPAdvanceActions.deleteAdvance('F001','ADT582451'),true);
   assert.deepEqual(codes(db.state.erp.adiantamentos.F001),['ADT549529']);
   assert.deepEqual(codes(db.state.erp.adiantamentos.F002),['ADT582451']);
   assert.equal(db.state.erp.lancBanco['LB-ADV-1'],undefined);
@@ -111,14 +113,14 @@ test('exclusão usa API atômica e remove somente o adiantamento e seu movimento
 test('transação no servidor funciona sem acesso direto do browser a erp/adiantamentos',async()=>{
   const {ctx,db}=setup();
   ctx._fbDB={ref(){throw Error('A gravação deve ocorrer no servidor.');}};
-  assert.equal(await ctx.ERPFiscalAdvanceFix.deleteAdvance('F001','ADT582451'),true);
+  assert.equal(await ctx.ERPAdvanceActions.deleteAdvance('F001','ADT582451'),true);
   assert.equal(db.updates,1);
   assert.deepEqual(codes(db.state.erp.adiantamentos.F001),['ADT549529']);
 });
 
 test('negação de permissão mantém histórico, banco e cache local intactos',async()=>{
   const {ctx,db,calls}=setup({mode:'permission'});
-  assert.equal(await ctx.ERPFiscalAdvanceFix.deleteAdvance('F001','ADT582451'),false);
+  assert.equal(await ctx.ERPAdvanceActions.deleteAdvance('F001','ADT582451'),false);
   assert.deepEqual(codes(db.state.erp.adiantamentos.F001),['ADT582451','ADT549529']);
   assert.equal(db.state.erp.lancBanco['LB-ADV-1'].valor,114770);
   assert.equal(ctx.ADT_POR_FORN.F001.length,2);
@@ -129,7 +131,7 @@ test('negação de permissão mantém histórico, banco e cache local intactos',
 test('falha no update remoto não remove o adiantamento nem o movimento',async()=>{
   const {ctx,db,calls}=setup();
   db.failNext();
-  assert.equal(await ctx.ERPFiscalAdvanceFix.deleteAdvance('F001','ADT582451'),false);
+  assert.equal(await ctx.ERPAdvanceActions.deleteAdvance('F001','ADT582451'),false);
   assert.deepEqual(codes(db.state.erp.adiantamentos.F001),['ADT582451','ADT549529']);
   assert.equal(db.state.erp.lancBanco['LB-ADV-1'].valor,114770);
   assert.equal(ctx.ADT_POR_FORN.F001.length,2);
@@ -140,7 +142,7 @@ test('falha no update remoto não remove o adiantamento nem o movimento',async()
 test('registro ausente na nuvem não pode ser marcado como excluído',async()=>{
   const {ctx,db,calls}=setup();
   db.state.erp.adiantamentos.F001=[];
-  assert.equal(await ctx.ERPFiscalAdvanceFix.deleteAdvance('F001','ADT582451'),false);
+  assert.equal(await ctx.ERPAdvanceActions.deleteAdvance('F001','ADT582451'),false);
   assert.equal(ctx.ADT_POR_FORN.F001.length,2);
   assert.equal(calls.histories.length,0);
   assert.equal(db.updates,0);
@@ -149,7 +151,7 @@ test('registro ausente na nuvem não pode ser marcado como excluído',async()=>{
 test('edição concorrente bloqueia exclusão com snapshot desatualizado',async()=>{
   const {ctx,db,calls}=setup();
   db.state.erp.adiantamentos.F001[0].cod='ALTERADO';
-  assert.equal(await ctx.ERPFiscalAdvanceFix.deleteAdvance('F001','ADT582451'),false);
+  assert.equal(await ctx.ERPAdvanceActions.deleteAdvance('F001','ADT582451'),false);
   assert.equal(db.state.erp.adiantamentos.F001[0].cod,'ALTERADO');
   assert.equal(db.state.erp.lancBanco['LB-ADV-1'].valor,114770);
   assert.equal(ctx.ADT_POR_FORN.F001.length,2);
@@ -159,7 +161,7 @@ test('edição concorrente bloqueia exclusão com snapshot desatualizado',async(
 test('movimento bancário alterado por outra sessão bloqueia a exclusão',async()=>{
   const {ctx,db}=setup();
   db.state.erp.lancBanco['LB-ADV-1'].valor=500;
-  assert.equal(await ctx.ERPFiscalAdvanceFix.deleteAdvance('F001','ADT582451'),false);
+  assert.equal(await ctx.ERPAdvanceActions.deleteAdvance('F001','ADT582451'),false);
   assert.deepEqual(codes(db.state.erp.adiantamentos.F001),['ADT582451','ADT549529']);
   assert.equal(db.state.erp.lancBanco['LB-ADV-1'].valor,500);
   assert.equal(db.updates,0);
@@ -179,7 +181,7 @@ test('botão de exclusão desambigua o fornecedor mesmo com código repetido',as
 test('serviço financeiro indisponível não permite exclusão local',async()=>{
   const {ctx,db,calls}=setup();
   delete ctx._adtCommitTransacional;
-  assert.equal(await ctx.ERPFiscalAdvanceFix.deleteAdvance('F001','ADT582451'),false);
+  assert.equal(await ctx.ERPAdvanceActions.deleteAdvance('F001','ADT582451'),false);
   assert.equal(db.updates,0);
   assert.equal(calls.histories.length,0);
   assert.equal(ctx.ADT_POR_FORN.F001.length,2);

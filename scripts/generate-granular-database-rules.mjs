@@ -15,9 +15,10 @@ const groups={
   canPurchasing:`tickets ticketsDeleted adtPorFornDeleted chequesPorFornDeleted saldoDevedor saldoDevedorDeleted adtItensDeleted chequeItensDeleted historico historicoDeleted`,
   canSuppliers:`precosForn fornecedores fornecedoresDeleted fornDeleted fornVeiculos fornDespesa fornDespesaDeleted`,
   canCustomers:`precosCli clientes clientesDeleted`,
-  canFinance:`custosCasa contasPagar contasPagarDeleted contasReceber contasReceberDeleted saldos adiantamentos cheques fcSaldoIni fcSaldoIniDeleted fcLanc adtCli chequesCli`,
+  canFinance:`custosCasa contasPagar contasPagarDeleted contasReceber contasReceberDeleted saldos cheques fcSaldoIni fcSaldoIniDeleted fcLanc adtCli chequesCli`,
   canSales:`vendas vendasDeleted`,
   canBanking:`bancos bancosDeleted lancBanco lancBancoDeleted`,
+  canAdvances:`adiantamentos`,
   canHR:`funcEdit funcEditDel ponto pontoDeleted pontoBatidas pontoBatidasDeleted vales valesDeleted advertencias advertenciasDeleted epi epiDeleted`,
   canPayroll:`folha`,
   canFleet:`veicPess manutPess tanque tanqueDeleted tanqueDeletedV2 viagemLimite viagem viagemDeleted combustivel combustivelDeleted frota frotaDeleted manutencao manutencaoDeleted`,
@@ -142,6 +143,10 @@ for(const name of legacyNames){
     candidate.rules.erp[name]={'.read':sourceRule['.read'],'.write':sourceRule['.write']};
   }
 }
+candidate.rules.erp.adiantamentos={
+  '.read':`${auth} && (auth.token.canFinance == true || auth.token.canAdvances == true)`,
+  '.write':`${auth} && auth.token.canFinance == true`
+};
 // Protege também o marcador de versão usado pelo frontend, não coberto pelo array.
 candidate.rules.erp._appBuild={'.read':auth,'.write':`${auth} && auth.token.admin == true`};
 // Engenharia: recursos server-only e histórico restrito à identidade assinada.

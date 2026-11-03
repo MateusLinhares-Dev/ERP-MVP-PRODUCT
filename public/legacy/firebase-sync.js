@@ -1273,6 +1273,16 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         var claims=(tokenResult&&tokenResult.claims)||{};
         if(claims.erpAccess!==true) throw new Error('Sessão sem acesso ao ERP.');
         window.__ERP_RTD_CLAIMS__=claims;
+        if(claims.canBanking!==true){
+          try{if(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB))BANCOS_DB.splice(0);}catch(e){}
+          try{if(typeof LANC_BANCO_DB!=='undefined'&&Array.isArray(LANC_BANCO_DB))LANC_BANCO_DB.splice(0);}catch(e){}
+          try{
+            for(let i=localStorage.length-1;i>=0;i--){
+              const key=localStorage.key(i);
+              if(key&&/^mm_(bancos|lanc_banco)/.test(key))localStorage.removeItem(key);
+            }
+          }catch(e){}
+        }
         var keys=_ERP_NOS_SINCRONIZADOS.filter(function(no){
           return _rtdbPodeAcessar(no,'read',claims);
         });

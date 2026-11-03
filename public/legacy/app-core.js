@@ -803,7 +803,9 @@ function _fornBuscaResolverCod(buscaId, hiddenId){
   if(!inp||!hid) return;
   const norm=s=>(s||'').trim().toLowerCase();
   const digitado=norm(inp.value);
-  const forn=digitado?getFornAtivos().find(f=>norm(f.nome)===digitado):null;
+  const forAdvance=buscaId==='adt-forn-busca'||buscaId==='ea-forn-busca';
+  const permitted=forAdvance&&window.__ERP_ADVANCE_BANK_OPTIONS_UID__===firebase?.auth?.().currentUser?.uid?window.__ERP_ADVANCE_SUPPLIER_OPTIONS__||[]:[];
+  const forn=digitado?[...getFornAtivos(),...permitted].find(f=>norm(f.nome)===digitado):null;
   hid.value=forn?forn.cod:'';
 }
 
@@ -5854,7 +5856,7 @@ function editAdiantamento(fornCod, adtCod){
   om('editAdiantamento');
   const body=document.getElementById('modal-body');
   if(!body) return;
-  const _fornNomeAtual=(FORNECEDORES.find(f=>f.cod===fornCod)||{}).nome||'';
+  const _fornNomeAtual=([...FORNECEDORES,...(window.__ERP_ADVANCE_SUPPLIER_OPTIONS__||[])].find(f=>f.cod===fornCod)||{}).nome||'';
   body.innerHTML=`<h3>✏️ Editar Adiantamento</h3>
     <div class="fg"><label>Código</label><input id="ea-cod" value="${a.cod}" disabled style="background:#f5f5f5"></div>
     <div class="fg"><label>Fornecedor <span style="font-weight:400;color:#888;font-size:.78rem">(mude aqui se lançou no nome errado — move o adiantamento para o fornecedor certo)</span></label>
@@ -5887,9 +5889,10 @@ function editAdiantamento(fornCod, adtCod){
       <button class="btn-cancel" onclick="cm()">Cancelar</button>
     </div>`;
   _populateBancosSelects();
+  _adtCarregarContasPermitidas(true);
   const eaBancoEl=document.getElementById('ea-banco');
   if(eaBancoEl){
-    const selected=a.bancoCod||((window.__ERP_ADVANCE_BANK_OPTIONS__||BANCOS_DB).find(b=>b.banco===a.bancoNome)||{}).cod||'';
+    const selected=a.bancoCod||((window.__ERP_ADVANCE_BANK_OPTIONS__||[]).find(b=>b.banco===a.bancoNome)||{}).cod||'';
     if([...eaBancoEl.options].some(o=>o.value===selected))eaBancoEl.value=selected;
     else if(selected)eaBancoEl.dataset.pendingBankCode=selected;
   }
@@ -8446,7 +8449,7 @@ function renderAdiantamentos(){
   const empCor={}; _cfgFinanceCompanies().forEach(function(n){ empCor[n]=_cfgFinanceCompanyColor(n); });
   const all=[];
   Object.entries(ADT_POR_FORN).forEach(([cod,lista])=>{
-    const forn=FORNECEDORES.find(f=>f.cod===cod);
+    const forn=FORNECEDORES.find(f=>f.cod===cod)||window.__ERP_ADVANCE_SUPPLIER_OPTIONS__?.find(f=>f.cod===cod);
     lista.forEach(a=>all.push({...a,fornNome:forn?forn.nome:cod,fornCod:cod}));
   });
   
@@ -8775,52 +8778,82 @@ function _adtFormatValorPrincipal(){
   const n=_adtParseVal(raw);
   el.value=n>0?n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'0,00';
 }
-async function _adtCarregarContasPermitidas(){
+async function _adtCarregarContasPermitidas(force=false){
   if(window.__ERP_ADVANCE_BANK_OPTIONS_PROMISE__)return window.__ERP_ADVANCE_BANK_OPTIONS_PROMISE__;
+  const currentUser=firebase?.auth?.().currentUser;
+  if(!force&&window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__&&window.__ERP_ADVANCE_BANK_OPTIONS_UID__===currentUser?.uid)return true;
+  window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__=false;
+  window.__ERP_ADVANCE_BANK_OPTIONS_ERROR__='';
+  window.__ERP_ADVANCE_BANK_OPTIONS__=[];
   const task=(async function(){
-    const user=firebase?.auth?.().currentUser;
-    if(!user)return false;
-    const token=await user.getIdToken();
-    const response=await fetch('/api/finance/advance-banks',{method:'GET',headers:{Authorization:'Bearer '+token},credentials:'same-origin',cache:'no-store'});
+    if(!currentUser)throw new Error('Sua sessão expirou. Entre novamente no ERP.');
+    const token=await currentUser.getIdToken(true);
+    const response=await fetch('/api/finance/advance-banks',{method:'GET',headers:{Authorization:'Bearer '+token,Accept:'application/json'},credentials:'same-origin',cache:'no-store'});
+    const contentType=response.headers?.get?.('content-type')||'';
+    if(!contentType.includes('application/json'))throw new Error('Serviço de contas indisponível. Verifique se a API foi publicada na Vercel.');
     const data=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(data.message||'Não foi possível consultar as contas bancárias.');
-    if(firebase?.auth?.().currentUser?.uid!==user.uid)return false;
-    window.__ERP_ADVANCE_BANK_OPTIONS_UID__=user.uid;
-    window.__ERP_ADVANCE_BANK_OPTIONS__=Array.isArray(data.banks)?data.banks:[];
+    if(!response.ok)throw new Error(response.status===403?'Seu perfil não tem a permissão Adiantamentos no Firebase. Saia e entre novamente.':data.message||'Falha ao consultar contas bancárias ('+response.status+').');
+    if(firebase?.auth?.().currentUser?.uid!==currentUser.uid)return false;
+    const banks=Array.isArray(data.banks)?data.banks:[];
+    window.__ERP_ADVANCE_BANK_OPTIONS__=banks.filter(b=>b&&typeof b.cod==='string'&&typeof b.banco==='string'&&b.cod.trim()&&b.banco.trim()).map(b=>({cod:b.cod,banco:b.banco,empresa:String(b.empresa||'')}));
+    window.__ERP_ADVANCE_SUPPLIER_OPTIONS__=Array.isArray(data.suppliers)?data.suppliers.filter(f=>f&&typeof f.cod==='string'&&typeof f.nome==='string'&&f.cod.trim()&&f.nome.trim()).map(f=>({cod:f.cod,nome:f.nome})):[];
+    window.__ERP_ADVANCE_BANK_OPTIONS_UID__=currentUser.uid;
     window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__=true;
+    window.__ERP_ADVANCE_BANK_OPTIONS_ERROR__='';
+    _adtPopularFornecedoresPermitidos();
     _populateBancosSelects();
+    try{renderAdiantamentos();}catch(e){}
     return true;
   })();
   window.__ERP_ADVANCE_BANK_OPTIONS_PROMISE__=task;
+  _populateBancosSelects();
   try{return await task;}
   catch(error){
-    const el=document.getElementById('adt-banco')||document.getElementById('ea-banco');
-    if(el){el.innerHTML='<option value="">Não foi possível carregar as contas</option>';showToast(error.message,'error',6500);}
+    window.__ERP_ADVANCE_BANK_OPTIONS_ERROR__=error.message||'Falha na consulta de contas.';
+    _populateBancosSelects();
+    showToast(esc(window.__ERP_ADVANCE_BANK_OPTIONS_ERROR__),'error',6500);
     return false;
   }finally{window.__ERP_ADVANCE_BANK_OPTIONS_PROMISE__=null;}
 }
+function _adtPopularFornecedoresPermitidos(){
+  const users=window.__ERP_ADVANCE_SUPPLIER_OPTIONS__||[];
+  let dl=document.getElementById('dlist-forn-adiantamentos');
+  if(!dl){dl=document.createElement('datalist');dl.id='dlist-forn-adiantamentos';document.body.appendChild(dl);}
+  dl.innerHTML=users.map(f=>'<option value="'+esc(f.nome)+'"></option>').join('');
+  for(const id of ['adt-forn-busca','ea-forn-busca']){
+    const input=document.getElementById(id);
+    if(input)input.setAttribute('list','dlist-forn-adiantamentos');
+  }
+}
 function _populateBancosSelects(){
-  const currentBankUser=firebase?.auth?.().currentUser?.uid||'';
-  if(window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__&&window.__ERP_ADVANCE_BANK_OPTIONS_UID__!==currentBankUser){
+  const currentUser=firebase?.auth?.().currentUser?.uid||'';
+  if(window.__ERP_ADVANCE_BANK_OPTIONS_UID__&&window.__ERP_ADVANCE_BANK_OPTIONS_UID__!==currentUser){
     window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__=false;
+    window.__ERP_ADVANCE_BANK_OPTIONS_UID__='';
     window.__ERP_ADVANCE_BANK_OPTIONS__=[];
+    window.__ERP_ADVANCE_SUPPLIER_OPTIONS__=[];
   }
   const bancos=Array.isArray(BANCOS_DB)?BANCOS_DB.filter(b=>b&&String(b.banco||'').trim()):[];
-  const advanceBanks=window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__?(window.__ERP_ADVANCE_BANK_OPTIONS__||[]):bancos;
   const makeOptions=function(list){
     return '<option value="">— Selecione o banco —</option>'+list.map(function(b){
       const label=String(b.banco||'')+(b.empresa?' — '+b.empresa:'')+(b.tipo==='Conta Terceiro'&&b.titular?' 👤 '+b.titular:'');
       return '<option value="'+esc(String(b.cod||b.id||b.banco||''))+'">'+esc(label)+'</option>';
     }).join('')+(list.length?'':'<option value="" disabled>Nenhuma conta cadastrada em Bancos</option>');
   };
-  const standard=makeOptions(bancos),advance=makeOptions(advanceBanks);
+  const standard=makeOptions(bancos);
+  const advanced=window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__
+    ? makeOptions(window.__ERP_ADVANCE_BANK_OPTIONS__||[])
+    : '<option value="">'+esc(window.__ERP_ADVANCE_BANK_OPTIONS_ERROR__||'Carregando contas autorizadas...')+'</option>';
   ['adt-banco','ea-banco','cheq-banco','cp-banco','ct-banco','adtcli-banco','rcr-banco','ecr-banco'].forEach(function(id){
     const el=document.getElementById(id);if(!el)return;
-    const cur=el.value||el.dataset.pendingBankCode||'';
-    el.innerHTML=id==='adt-banco'||id==='ea-banco'?advance:standard;
-    if(cur&&[...el.options].some(o=>o.value===cur)){el.value=cur;delete el.dataset.pendingBankCode;}
+    const current=el.value||el.dataset.pendingBankCode||'';
+    const restricted=id==='adt-banco'||id==='ea-banco';
+    const html=restricted?advanced:standard;
+    if(el.innerHTML!==html)el.innerHTML=html;
+    if(current&&[...el.options].some(o=>o.value===current)){el.value=current;delete el.dataset.pendingBankCode;}
+    if(restricted)el.disabled=!window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__||!(window.__ERP_ADVANCE_BANK_OPTIONS__||[]).length;
   });
-  if((document.getElementById('adt-banco')||document.getElementById('ea-banco'))&&!window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__&&!window.__ERP_ADVANCE_BANK_OPTIONS_PROMISE__)
+  if((document.getElementById('adt-banco')||document.getElementById('ea-banco'))&&!window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__&&!window.__ERP_ADVANCE_BANK_OPTIONS_PROMISE__&&!window.__ERP_ADVANCE_BANK_OPTIONS_ERROR__)
     _adtCarregarContasPermitidas();
 }
 
@@ -10667,7 +10700,7 @@ async function salvarAdiantamento(){
   const _chqLista=_ehCheque?_adtChqLer():[];
   const bancoSel=document.getElementById('adt-banco');
   const bancoCod=bancoSel?.value||'';
-  const _bancosList=window.__ERP_ADVANCE_BANK_OPTIONS__||BANCOS_DB;
+  const _bancosList=window.__ERP_ADVANCE_BANK_OPTIONS__||[];
   const bancoNome=bancoCod?(_bancosList.find(b=>b.cod===bancoCod||b.banco===bancoCod)?.banco||bancoCod):'Não informado';
   const empresa=(document.getElementById('adt-empresa')?.value||'').trim();
   const ticket=document.getElementById('adt-ticket')?.value.trim()||'';
@@ -10686,139 +10719,59 @@ async function salvarAdiantamento(){
     return;
   }
   const dataFmt=data.split('-').reverse().join('/');
-  if(!_ehCheque){
-    if(!bancoCod){showToast('Selecione o banco de saída para registrar o adiantamento.','error',5500);return false;}
-    if(!window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__){
-      const loaded=await _adtCarregarContasPermitidas();
-      if(!loaded)return false;
-      if(!(window.__ERP_ADVANCE_BANK_OPTIONS__||[]).some(b=>b.cod===bancoCod)){
-        showToast('A conta selecionada não está mais disponível. Selecione novamente.','error',6000);
-        return false;
-      }
-    }
-    const button=document.querySelector('#modal-body .btn-save');
-    if(button?.disabled)return false;
-    if(button)button.disabled=true;
-    const opId=button?.dataset.operationId||(crypto.randomUUID?crypto.randomUUID():('00000000-0000-4000-8000-'+String(Date.now()).padStart(12,'0').slice(-12)));
-    if(button)button.dataset.operationId=opId;
-    try{
-      const user=firebase?.auth?.().currentUser;
-      if(!user)throw new Error('Sua sessão expirou. Entre novamente no sistema.');
-      const token=await user.getIdToken();
-      const response=await fetch('/api/finance/advances',{
-        method:'POST',credentials:'same-origin',
-        headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
-        body:JSON.stringify({operationId:opId,fornCod,data,valor,forma,bancoCod,empresa,ticket,obs})
-      });
-      const result=await response.json().catch(()=>({}));
-      if(!response.ok||!result.advance)throw new Error(result.message||'Não foi possível confirmar o lançamento no servidor.');
-      const records=Array.isArray(result.entries)?result.entries:null;
-      if(records)ADT_POR_FORN[fornCod]=records;
-      else{
-        if(!Array.isArray(ADT_POR_FORN[fornCod]))ADT_POR_FORN[fornCod]=[];
-        if(!ADT_POR_FORN[fornCod].some(a=>a.cod===result.advance.cod))ADT_POR_FORN[fornCod].push(result.advance);
-      }
-      if(typeof _fbAdiantamentoConfirmado==='function')_fbAdiantamentoConfirmado(fornCod,ADT_POR_FORN[fornCod]);
-      try{localStorage.setItem('mm_adt',JSON.stringify(ADT_POR_FORN));}catch(e){}
-      if(result.bankMovement&&Array.isArray(LANC_BANCO_DB)&&BANCOS_DB.some(b=>b.cod===result.bankMovement.bancoCod)){
-        if(!LANC_BANCO_DB.some(l=>l.id===result.bankMovement.id))LANC_BANCO_DB.push(result.bankMovement);
-      }
-      try{renderAdiantamentos();renderFluxo();renderDashboard();}catch(e){console.warn('Adiantamento confirmado, atualização visual pendente',e);}
-      try{
-        const nome=(FORNECEDORES.find(f=>f.cod===fornCod)||{}).nome||fornCod;
-        registrarHistorico('Adiantamento','Criado',nome+' — R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+' — '+dataFmt+' — '+result.advance.bancoNome,null,{fornCod,cod:result.advance.cod});
-      }catch(e){}
-      cm();
-      showToast('Adiantamento confirmado no Firebase! R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+' | '+result.advance.bancoNome,'success',6000);
-      return true;
-    }catch(error){
-      showToast('Não foi possível concluir o adiantamento: '+error.message,'error',8000);
-      return false;
-    }finally{if(button)button.disabled=false;}
+  if(!_ehCheque&&!bancoCod){showToast('Selecione o banco de saída para registrar o adiantamento.','error',5500);return false;}
+  if(!_ehCheque&&!window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__){
+    const loaded=await _adtCarregarContasPermitidas();
+    if(!loaded)return false;
   }
+  if(!_ehCheque&&!(window.__ERP_ADVANCE_BANK_OPTIONS__||[]).some(b=>b.cod===bancoCod)){
+    showToast('A conta selecionada não está mais disponível. Selecione novamente.','error',6000);
+    return false;
+  }
+  const button=document.querySelector('#modal-body .btn-save');
+  if(button?.disabled)return false;
+  if(button)button.disabled=true;
+  const opId=button?.dataset.operationId||(crypto.randomUUID?crypto.randomUUID():('00000000-0000-4000-8000-'+String(Date.now()).padStart(12,'0').slice(-12)));
+  if(button)button.dataset.operationId=opId;
   try{
-    const _listaExist = ADT_POR_FORN[fornCod]||[];
-    const _semelhante = _listaExist.find(function(a){
-      if(!a) return false;
-      if(Math.abs(Number(a.valor||0)-valor)>0.01) return false;
-      const _ai = a.data && String(a.data).indexOf('/')>=0 ? String(a.data).split('/').reverse().join('-') : (a.data||'');
-      if(!_ai || !data) return true; 
-      const _dif = Math.abs((new Date(_ai+'T12:00:00') - new Date(data+'T12:00:00'))/86400000);
-      return _dif<=20;
+    const user=firebase?.auth?.().currentUser;
+    if(!user)throw new Error('Sua sessão expirou. Entre novamente no sistema.');
+    const token=await user.getIdToken();
+    const response=await fetch('/api/finance/advances',{
+      method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+      body:JSON.stringify({operationId:opId,fornCod,data,valor,forma,bancoCod,empresa,ticket,obs,
+        ...(_ehCheque?{cheques:_chqLista,chequeSituation:_chqSit}:{})})
     });
-    if(_semelhante){
-      const _fn=(FORNECEDORES.find(function(f){return f.cod===fornCod;})||{}).nome||fornCod;
-      const _msg='⚠️ ATENÇÃO — possível DUPLICATA!\n\nJá existe um adiantamento de R$ '+Number(valor).toLocaleString('pt-BR',{minimumFractionDigits:2})+' pra '+_fn+' em '+(_semelhante.data||'?')+(_semelhante.ticket?' (Ticket '+_semelhante.ticket+')':'')+(_semelhante.obs?'\nObs: '+_semelhante.obs:'')+'.\n\nTem certeza que NÃO é o mesmo pagamento?\n\nOK = lançar assim mesmo   |   Cancelar = não lançar';
-      if(!confirm(_msg)){ showToast('Adiantamento NÃO lançado (evitou duplicata).','warn',3500); return; }
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||!result.advance)throw new Error(result.message||'Não foi possível confirmar o lançamento no servidor.');
+    const records=Array.isArray(result.entries)?result.entries:null;
+    if(records)ADT_POR_FORN[fornCod]=records;
+    else{
+      if(!Array.isArray(ADT_POR_FORN[fornCod]))ADT_POR_FORN[fornCod]=[];
+      if(!ADT_POR_FORN[fornCod].some(a=>a.cod===result.advance.cod))ADT_POR_FORN[fornCod].push(result.advance);
     }
-  }catch(e){}
-  const cod='ADT'+String(Date.now()).slice(-6);
-  if(!ADT_POR_FORN[fornCod]) ADT_POR_FORN[fornCod]=[];
-  ADT_POR_FORN[fornCod].push({cod,data:dataFmt,valor,status:'Pendente',ticket,forma,bancoCod,bancoNome,empresa,obs});
-  saveDB();
-  _adtSalvarNaNuvem(fornCod);   
-  renderAdiantamentos();
-  {
-    const _forn=FORNECEDORES.find(f=>f.cod===fornCod);
-    registrarHistorico('Adiantamento','Criado',
-      (_forn?_forn.nome:fornCod)+' — R$ '+Number(valor).toLocaleString('pt-BR',{minimumFractionDigits:2})+' — '+dataFmt+(bancoNome&&bancoNome!=='Não informado'?' — '+bancoNome:''),
-      null, {fornCod, cod});
-  }
-  
-  
-  
-  
-  if(!_ehCheque && bancoNome && bancoNome!=='Não informado'){
-    const forn=FORNECEDORES.find(f=>f.cod===fornCod);
-    const mov=registrarMovBanco(bancoNome, data, 'Adiantamento: '+(forn?forn.nome:fornCod)+(ticket?' Ticket '+ticket:''), 'Saida', valor);
-    if(mov){
-      const criado=ADT_POR_FORN[fornCod].find(a=>a.cod===cod);
-      if(criado){ criado.movBancoId=mov.id; saveDB(); _adtSalvarNaNuvem(fornCod); }
+    if(typeof _fbAdiantamentoConfirmado==='function')_fbAdiantamentoConfirmado(fornCod,ADT_POR_FORN[fornCod]);
+    try{localStorage.setItem('mm_adt',JSON.stringify(ADT_POR_FORN));}catch(e){}
+    if(result.bankMovement&&Array.isArray(LANC_BANCO_DB)&&BANCOS_DB.some(b=>b.cod===result.bankMovement.bancoCod)){
+      if(!LANC_BANCO_DB.some(l=>l.id===result.bankMovement.id))LANC_BANCO_DB.push(result.bankMovement);
     }
-  }
-  
-  
-  
-  
-  let _chqAdd=0, _chqPulou=0;
-  if(_ehCheque && _chqLista.length){
+    if(Array.isArray(result.cheques)&&typeof CHQ_CTRL!=='undefined'){
+      result.cheques.forEach(c=>{CHQ_CTRL[c.id]=c;});
+      try{renderChequesCompensar();}catch(e){}
+    }
+    try{renderAdiantamentos();renderFluxo();renderDashboard();}catch(e){console.warn('Adiantamento confirmado, atualização visual pendente',e);}
     try{
-      const _forn=FORNECEDORES.find(f=>f.cod===fornCod);
-      if(typeof CHQ_CTRL==='undefined') window.CHQ_CTRL={};
-      const cr=(typeof _chqRef==='function')?_chqRef():null;
-      const batch={};
-      const _isoBR=function(s){ return s? String(s).split('-').reverse().join('/') : ''; };
-      _chqLista.forEach(function(item){
-        const banco=item.b||_cfgChequeBanks().map(function(x){return x.name;})[0]||'';
-        const num=String(item.n||'').trim();
-        if(!num||!banco) return;
-        const slug=_cfgChequeBankSlug(banco);
-        
-        let jaExiste=false;
-        Object.keys(CHQ_CTRL).forEach(function(x){ var cc=CHQ_CTRL[x]; if(cc&&cc.b===banco&&String(cc.n)===num) jaExiste=true; });
-        if(jaExiste){ _chqPulou++; return; }
-        let cid='CC'+slug+num, base=cid, k=1;
-        while(CHQ_CTRL[cid]||batch[cid]){ k++; cid=base+'_'+k; }
-        const dLanc=_isoBR(item.d)||dataFmt;      
-        const dVenc=_isoBR(item.venc);            
-        const _fornNome=(_forn?_forn.nome:fornCod);
-        const _cli=(item.cli||'').trim();
-        
-        
-        const chqObj={id:cid,b:banco,n:num,c:(_cli?(_cli+' → '+_fornNome):_fornNome),emitente:_cli,dest:_fornNome,v:(item.v||0),d:dLanc,venc:dVenc,cd:(_chqSit==='C'?dLanc:''),s:_chqSit,dc:true};
-        if(empresa) chqObj.origem=empresa;
-        CHQ_CTRL[cid]=chqObj; batch[cid]=chqObj; _chqAdd++;
-      });
-      if(cr && _chqAdd){ cr.update(batch); }
-      try{ renderChequesCompensar(); }catch(e){}
-      if(_chqPulou && !_chqAdd){ showToast('Esse(s) número(s) já existem no Controle — não dupliquei.','info',6000); }
-    }catch(e){ console.warn('cheque adiantamento -> controle',e); }
-  }
-  renderFluxo();
-  renderDashboard();
-  cm();
-  const _chqMsg = _ehCheque&&_chqAdd ? (' | '+_chqAdd+' cheque'+(_chqAdd>1?'s':'')+' → Controle'+(_chqPulou?', '+_chqPulou+' já existia(m)':'')) : (bancoNome&&bancoNome!=='Não informado'?' | '+bancoNome:'');
-  showToast('Adiantamento salvo! R$ '+Number(valor).toLocaleString('pt-BR',{minimumFractionDigits:2})+_chqMsg,'success',6000);
+      const nome=(FORNECEDORES.find(f=>f.cod===fornCod)||window.__ERP_ADVANCE_SUPPLIER_OPTIONS__?.find(f=>f.cod===fornCod)||{}).nome||fornCod;
+      registrarHistorico('Adiantamento','Criado',nome+' — R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+' — '+dataFmt+' — '+(result.advance.bancoNome||forma),null,{fornCod,cod:result.advance.cod});
+    }catch(e){}
+    cm();
+    showToast('Adiantamento confirmado no Firebase! R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+' | '+(_ehCheque?result.cheques.length+' cheque(s)':result.advance.bancoNome),'success',6000);
+    return true;
+  }catch(error){
+    showToast('Não foi possível concluir o adiantamento: '+error.message,'error',8000);
+    return false;
+  }finally{if(button)button.disabled=false;}
 }
 
 
@@ -20801,7 +20754,7 @@ function om(k){
         }
       }catch(e){} },20);
       
-      setTimeout(()=>{ try{_populateBancosSelects();}catch(e){} },20);
+      setTimeout(()=>{ try{_populateBancosSelects();if(k==='adiantamento')_adtCarregarContasPermitidas(true);}catch(e){} },20);
       
       
       

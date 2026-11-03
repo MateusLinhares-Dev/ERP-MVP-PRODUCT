@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {listAdvanceBankOptions,createAdvance,changeAdvance} from '../server/application/finance-advances.js';
 
-const finance={uid:'erp:thais',erpUser:'thais',erpAccess:true,canFinance:true,canBanking:false};
+const finance={uid:'erp:thais',erpUser:'thais',erpAccess:true,canFinance:false,canAdvances:true,canBanking:false};
 const banking={uid:'erp:elaine',erpUser:'elaine',erpAccess:true,canFinance:false,canBanking:true};
 const input={operationId:'be64924e-0123-4dee-8211-4b90d0950621',fornCod:'F-001',data:'2026-11-03',valor:10003.52,forma:'PIX',bancoCod:'BC-003',empresa:'Manuela Metais',ticket:'',obs:'Teste'};
 
@@ -43,7 +43,7 @@ function fakeDb(){
 
 test('Thaís consulta apenas os nomes e códigos dos bancos sem canBanking',async()=>{
   const db=fakeDb();
-  assert.deepEqual(await listAdvanceBankOptions(finance,{db}),{banks:[{cod:'BC-003',banco:'Conta principal',empresa:'Manuela Metais'}]});
+  assert.deepEqual(await listAdvanceBankOptions(finance,{db}),{banks:[{cod:'BC-003',banco:'Conta principal'}],suppliers:[{cod:'F-001',nome:'Fornecedor Um'}]});
   assert.equal(finance.canBanking,false);
   await assert.rejects(()=>listAdvanceBankOptions(banking,{db}),{status:403});
 });
@@ -91,7 +91,8 @@ test('aplicação não amplia regra de bancos nem publica extrato para perfil fi
   assert.match(frontend,/\/api\/finance\/advance-banks/);
   assert.match(frontend,/\/api\/finance\/advances/);
   assert.match(frontend,/__ERP_ADVANCE_BANK_OPTIONS__/);
-  assert.match(frontend,/if\(!_ehCheque\)/);
+  assert.match(frontend,/if\(!_ehCheque&&!bancoCod\)/);
+  assert.match(frontend,/cheques:_chqLista/);
 });
 
 
@@ -164,4 +165,115 @@ test('edição de adiantamento aguarda banco e preserva seleção após consulta
   assert.match(frontend,/eaBancoEl\.dataset\.pendingBankCode=selected/);
   assert.match(frontend,/el\.dataset\.pendingBankCode/);
   assert.match(frontend,/__ERP_ADVANCE_BANK_OPTIONS_UID__/);
+});
+
+const chequeInput={...input,operationId:'2472c957-97c8-4d88-8e3c-f404c028d294',forma:'Cheque',bancoCod:'',valor:600,chequeSituation:'A',cheques:[
+  {b:'Banco Azul',n:'100',v:200,d:'2026-11-03',venc:'2026-12-03',cli:''},
+  {b:'Banco Azul',n:'101',v:400,d:'2026-11-03',venc:'2026-12-04',cli:'Cliente A'}
+]};
+
+test('cheques são lançados com adiantamento na mesma gravação e são idempotentes',async()=>{
+  const db=fakeDb();
+  const result=await createAdvance(finance,chequeInput,{db});
+  assert.equal(db.updates,1);
+  assert.equal(result.cheques.length,2);
+  assert.equal(result.advance.valor,600);
+  assert.equal(result.advance.chequeIds.length,2);
+  assert.equal(Object.keys(result.advance.chequeFingerprints).length,2);
+  assert.equal(result.bankMovement,null);
+  assert.equal(db.state.erp.lancBanco,undefined);
+  assert.equal(db.state.erp.chequesControle[result.cheques[0].id].advanceCode,result.advance.cod);
+  assert.equal(db.state.erp.chequesControle[result.cheques[1].id].fornCod,'F-001');
+  const again=await createAdvance(finance,chequeInput,{db});
+  assert.equal(again.alreadyCommitted,true);
+  assert.equal(db.updates,1);
+});
+
+test('cheque inválido, repetido, já cadastrado ou soma errada não confirmam',async()=>{
+  const db=fakeDb();
+  await assert.rejects(()=>createAdvance(finance,{...chequeInput,valor:300},{db}),{code:'CHEQUE_TOTAL_MISMATCH'});
+  await assert.rejects(()=>createAdvance(finance,{...chequeInput,cheques:[chequeInput.cheques[0],chequeInput.cheques[0]]},{db}),{code:'CHEQUE_TOTAL_MISMATCH'});
+  await assert.rejects(()=>createAdvance(finance,{...chequeInput,cheques:[{...chequeInput.cheques[0],n:'100/200'},chequeInput.cheques[1]]},{db}),{code:'INVALID_CHEQUE'});
+  assert.equal(db.updates,0);
+  db.state.erp.chequesControle={old:{id:'old',b:'Banco Azul',n:'101',v:400}};
+  await assert.rejects(()=>createAdvance(finance,chequeInput,{db}),{code:'CHEQUE_ALREADY_EXISTS'});
+  assert.equal(db.updates,0);
+  assert.equal(db.state.erp.adiantamentos['F-001'].length,1);
+});
+
+test('cheques duplicados no mesmo lote são rejeitados por banco e número',async()=>{
+  const db=fakeDb();
+  await assert.rejects(()=>createAdvance(finance,{...chequeInput,valor:400,cheques:[chequeInput.cheques[0],{...chequeInput.cheques[0],b:'banco azul'}]},{db}),{code:'DUPLICATE_CHEQUE'});
+  assert.equal(db.updates,0);
+});
+
+test('falha na criação de cheque não altera adiantamentos nem controle',async()=>{
+  const db=fakeDb();db.failNext();
+  await assert.rejects(()=>createAdvance(finance,chequeInput,{db}),/Falha de comunicação/);
+  assert.equal(db.state.erp.chequesControle,undefined);
+  assert.equal(db.state.erp.adiantamentos['F-001'].length,1);
+  assert.equal(db.updates,0);
+});
+
+test('exclusão de adiantamento remove cheques vinculados no mesmo update',async()=>{
+  const db=fakeDb();
+  const made=await createAdvance(finance,chequeInput,{db});
+  const removed=await changeAdvance(finance,{action:'delete',operationId:'03e1079d-d0f5-4020-97a6-d8af6a493768',
+    fornCod:'F-001',adtCod:made.advance.cod,expected:made.advance},{db});
+  assert.equal(removed.removedCode,made.advance.cod);
+  assert.equal(db.updates,2);
+  assert.equal(db.state.erp.adiantamentos['F-001'].length,1);
+  assert.equal(Object.keys(db.state.erp.chequesControle).length,0);
+});
+
+test('exclusão de cheque não apaga cheque alterado por outro usuário',async()=>{
+  const db=fakeDb();
+  const made=await createAdvance(finance,chequeInput,{db});
+  db.state.erp.chequesControle[made.cheques[0].id].advanceCode='OUTRO-ADT';
+  await assert.rejects(()=>changeAdvance(finance,{action:'delete',operationId:'bd78cc27-6e85-40f3-8e7d-1305ec8bad2b',
+    fornCod:'F-001',adtCod:made.advance.cod,expected:made.advance},{db}),{code:'CHEQUE_LEDGER_CHANGED'});
+  assert.equal(db.state.erp.adiantamentos['F-001'].length,2);
+  assert.equal(db.updates,1);
+});
+
+test('edição de cheques vinculados é bloqueada antes de desalinhar valores',async()=>{
+  const db=fakeDb();
+  const made=await createAdvance(finance,chequeInput,{db});
+  await assert.rejects(()=>changeAdvance(finance,{action:'edit',operationId:'c9e8dd8e-c5f2-47c6-8426-9a67182b00d2',
+    fornCod:'F-001',adtCod:made.advance.cod,expected:made.advance,
+    data:'2026-11-04',valor:500,forma:'Cheque',status:'Pendente'},{db}),{code:'CHEQUE_EDIT_RESTRICTED'});
+  assert.equal(db.updates,1);
+});
+
+test('baixa ou alteração posterior do cheque impede exclusão destrutiva',async()=>{
+  const db=fakeDb();
+  const made=await createAdvance(finance,chequeInput,{db});
+  db.state.erp.chequesControle[made.cheques[0].id].s='C';
+  await assert.rejects(()=>changeAdvance(finance,{action:'delete',operationId:'c1ecf4ba-cc27-4b1b-b1b1-47a3cb57fb94',
+    fornCod:'F-001',adtCod:made.advance.cod,expected:made.advance},{db}),{code:'CHEQUE_LEDGER_CHANGED'});
+  assert.equal(db.updates,1);
+  assert.equal(db.state.erp.chequesControle[made.cheques[0].id].s,'C');
+});
+
+test('perfil de Adiantamentos não herda leitura de bancos, fornecedores e outros financeiros',()=>{
+  const rules=JSON.parse(readFileSync(new URL('../database.rules.json',import.meta.url),'utf8'));
+  assert.match(rules.rules.erp.adiantamentos['.read'],/canAdvances/);
+  assert.doesNotMatch(rules.rules.erp.adiantamentos['.write'],/canAdvances/);
+  for(const key of ['bancos','lancBanco','chequesControle','fornecedores','partyBanks','contasPagar']){
+    const policy=rules.rules.erp[key];
+    assert.ok(policy,key);
+    assert.doesNotMatch(String(policy['.read']||''),/canAdvances/,key);
+    assert.doesNotMatch(String(policy['.write']||''),/canAdvances/,key);
+  }
+  const storage=readFileSync(new URL('../storage.rules',import.meta.url),'utf8');
+  assert.doesNotMatch(storage,/canAdvances/);
+  assert.doesNotMatch(storage,/match\s+\/erp-files\/bancos/);
+});
+
+test('sincronização limpa cache bancário antigo quando perfil não tem canBanking',()=>{
+  const sync=readFileSync(new URL('../public/legacy/firebase-sync.js',import.meta.url),'utf8');
+  assert.match(sync,/if\(claims\.canBanking!==true\)/);
+  assert.match(sync,/BANCOS_DB\.splice\(0\)/);
+  assert.match(sync,/LANC_BANCO_DB\.splice\(0\)/);
+  assert.match(sync,/localStorage\.removeItem\(key\)/);
 });
