@@ -26,8 +26,8 @@ function setup(initial={}, options={}){
   }
  });
  const global={firebase:{auth:()=>({currentUser:{uid:'teste'}})},_fbDB:{ref}};
- const ticketStore={};let snapshots=0;
- const ctx={global,TICKETS_DB:ticketStore,TICKETS_DELETED:new Set(),
+ const ticketStore={};const ticketSnapJSON={};let snapshots=0;
+ const ctx={global,TICKETS_DB:ticketStore,TICKETS_DELETED:new Set(),_ticketsSnapJSON:ticketSnapJSON,
   _ticketsAtualizarSnapshot(){snapshots++},document:{getElementById(){return null}},money:v=>Number(v).toFixed(2)};
  runInNewContext(helper,ctx);
  return {commit:global.__ERP_PURCHASE_COMMIT_TICKET__,data,ctx,commits:()=>commits,snapshots:()=>snapshots};
@@ -38,7 +38,8 @@ test('pedido novo é confirmado por transação no caminho individual',async()=>
  assert.equal(x.commits(),1);
  assert.equal(x.data['erp/tickets/T049'].totalGeral,46946.7);
  assert.equal(x.ctx.TICKETS_DB.T049.fornecedor,'FERRO VELHO SILVA');
- assert.equal(x.snapshots(),1);
+ assert.equal(x.ctx._ticketsSnapJSON.T049,JSON.stringify(x.data['erp/tickets/T049']));
+ assert.equal(x.snapshots(),0); // Não marcar todos os demais tickets como gravados
 });
 test('ticket existente não é sobrescrito nem gera sucesso',async()=>{
  const x=setup({'erp/tickets/T049':{ticket:'T049',fornecedor:'OUTRO',totalGeral:10}});

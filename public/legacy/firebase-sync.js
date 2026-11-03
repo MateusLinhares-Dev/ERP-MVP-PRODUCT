@@ -391,6 +391,69 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   let _fbSaveRetries = 0;
   let _fbChangeVersion = 0;
   let _fbAtualizandoTimer = null;
+  // Receipts for the shared legacy queue. A local save request is NOT a cloud confirmation.
+  const _fbSaveReceipt = {
+    requested:0, confirmed:0, pending:false, error:null
+  };
+  window.__ERP_CLOUD_SAVE_STATE__ = _fbSaveReceipt;
+  try{ if(localStorage.getItem('mm_fb_pendente')==='1'){_fbSaveReceipt.pending=true;_fbSaveReceipt.error='Alterações locais ainda não confirmadas na nuvem.';} }catch(_e){}
+  function _fbPublicarRecibo(patch){
+    Object.assign(_fbSaveReceipt,patch);
+    try{ document.dispatchEvent(new CustomEvent('erp:cloud-save-state',{
+      detail:{..._fbSaveReceipt}
+    })); }catch(_e){}
+  }
+  const _fbAdiantamentosBase=Object.create(null);
+  function _fbAdiantamentoConfirmado(fornCod,items){
+    if(!fornCod)return;
+    _fbAdiantamentosBase[fornCod]=JSON.stringify(items||[]);
+  }
+  function _fbAdiantamentosRecebidos(remote){
+    Object.entries(remote||{}).forEach(function([fornCod,items]){
+      _fbAdiantamentoConfirmado(fornCod,Array.isArray(items)?items:Object.values(items||{}).filter(Boolean));
+    });
+  }
+  function _fbAdiantamentosAlterados(target){
+    const captured={};
+    Object.entries(target||{}).forEach(function([fornCod,items]){
+      const json=JSON.stringify(items);
+      if(json!==_fbAdiantamentosBase[fornCod])captured[fornCod]={items,json};
+    });
+    return captured;
+  }
+  function _fbConfirmarAdiantamentosLote(captured){
+    Object.entries(captured||{}).forEach(function([fornCod,info]){
+      if(JSON.stringify(ADT_POR_FORN[fornCod])===info.json)_fbAdiantamentosBase[fornCod]=info.json;
+    });
+  }
+  let _fbSalvamentoEmAndamento=null;
+  let _fbSalvarOutraVez=false;
+  // Protect a locally edited ticket when a partial/remote snapshot arrives.
+  function _fbTicketSnapshotConfirmado(remotos,confiavel){
+    // A remote update invalidates the 'already sent' cache for its keys.
+    // Otherwise a later intentional write of a previous value can be skipped.
+    if(remotos && typeof remotos==='object')Object.keys(remotos).forEach(function(k){
+      delete _fbEnviadoOk['tickets/'+k];
+    });
+    if(confiavel){ _ticketsAtualizarSnapshot(); return; }
+    if(!remotos || typeof remotos!=='object' || Array.isArray(remotos))return;
+    Object.keys(TICKETS_DB||{}).forEach(function(k){
+      const local=JSON.stringify(TICKETS_DB[k]);
+      const remoto=remotos[k]===undefined?undefined:JSON.stringify(remotos[k]);
+      if(remoto!==undefined && remoto===local)_ticketsSnapJSON[k]=local;
+      else delete _ticketsSnapJSON[k];
+    });
+  }
+  function _fbTicketConfirmarLote(enviados,removidos){
+    // Never snapshot tickets created or edited AFTER this write began.
+    Object.entries(enviados||{}).forEach(function(par){
+      const [key,json]=par;
+      if(Object.prototype.hasOwnProperty.call(TICKETS_DB,key) && JSON.stringify(TICKETS_DB[key])===json){
+        _ticketsSnapJSON[key]=json;
+      }
+    });
+    for(const key of removidos||[]){ if(!(key in TICKETS_DB))delete _ticketsSnapJSON[key]; }
+  }
 
   function _fbSetStatus(status, detalhe){ 
     const el=document.getElementById('fb-status-dot');
@@ -636,13 +699,33 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
 
   function fbSalvar() {
     _fbChangeVersion++;
+    _fbPublicarRecibo({requested:_fbChangeVersion,pending:true,error:null});
     try{ _fbPendente=true; localStorage.setItem('mm_fb_pendente','1'); }catch(e){}
     clearTimeout(_fbTimer);
     _fbTimer = setTimeout(_fbSalvarAgora, 800);
   }
   function fbSalvarImediato(){ clearTimeout(_fbTimer); _fbSalvarAgora(); }
 
-  async function _fbSalvarAgora() {
+  // Serialization prevents an older batch from completing after a newer one.
+  async function _fbSalvarAgora(){
+    if(_fbSalvamentoEmAndamento){
+      _fbSalvarOutraVez=true;
+      return _fbSalvamentoEmAndamento;
+    }
+    const flight=_fbSalvarAgoraInterno();
+    _fbSalvamentoEmAndamento=flight;
+    try { return await flight; }
+    finally{
+      _fbSalvamentoEmAndamento=null;
+      if(_fbSalvarOutraVez){
+        _fbSalvarOutraVez=false;
+        clearTimeout(_fbTimer);
+        _fbTimer=setTimeout(_fbSalvarAgora,120);
+      }
+    }
+  }
+
+  async function _fbSalvarAgoraInterno() {
     const _versaoSalvar=_fbChangeVersion;
     if(window.__ERP_RESTORING__){console.warn('Salvamento suspenso durante restauração.');return;}
 
@@ -897,6 +980,9 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       Object.keys(TICKETS_DB).forEach(function(k){
         if(JSON.stringify(TICKETS_DB[k]) !== _ticketsSnapJSON[k]) _ticketsParaSalvar[k] = TICKETS_DB[k];
       });
+      const _ticketsEnviadosJson={};
+      Object.keys(_ticketsParaSalvar).forEach(function(k){ _ticketsEnviadosJson[k]=JSON.stringify(_ticketsParaSalvar[k]); });
+      const _ticketsRemovidosNoLote=[...(typeof TICKETS_DELETED!=='undefined'?TICKETS_DELETED:[])];
       _patchIncremental(dados, 'tickets', _ticketsParaSalvar, TICKETS_DELETED);
       _patchIncremental(dados, 'historico', _syncHistorico.paraObjeto(), _syncHistorico.deletedSet);
       _patchIncremental(dados, 'ponto', _syncPonto.paraObjeto(), _syncPonto.deletedSet);
@@ -946,7 +1032,8 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       
       
       
-      _patchIncremental(dados, 'adiantamentos', ADT_POR_FORN, null);
+      const _adtAlteradosNoLote=_fbAdiantamentosAlterados(ADT_POR_FORN);
+      Object.entries(_adtAlteradosNoLote).forEach(function([fornCod,info]){dados['adiantamentos/'+fornCod]=info.items;});
       _patchIncremental(dados, 'cheques', CHEQUES_POR_FORN, _DEL_SETS.chequesPorForn);
       _patchIncremental(dados, 'saldos', SALDO_DEVEDOR_FORN, _DEL_SETS.saldoDevedor);
       try{ _limparMateriaisInvalidos(); }catch(e){}
@@ -969,10 +1056,25 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(!window._fbTsPendentesProprios) window._fbTsPendentesProprios = new Set();
       window._fbTsPendentesProprios.add(dados._ts);
       return _enviarDadosEmLotes(dados, 150*1024)
-        .then(()=>{ _fbSetStatus('ok'); _fbSaveRetries=0; const _semMudancaNova=_fbChangeVersion===_versaoSalvar; try{ _fbPendente=!_semMudancaNova; localStorage.setItem('mm_fb_pendente',_semMudancaNova?'0':'1'); if(_semMudancaNova) localStorage.setItem('mm_tanque_pendente','0'); }catch(e){} _ticketsAtualizarSnapshot(); _funcEditAtualizarSnapshot(); _deletedArrConfirmarSnapshots(_valoresDelArrAtual); if(!_semMudancaNova){ clearTimeout(_fbTimer); _fbTimer=setTimeout(_fbSalvarAgora,150); } })
+        .then(()=>{
+          _fbSetStatus('ok'); _fbSaveRetries=0;
+          const _semMudancaNova=_fbChangeVersion===_versaoSalvar;
+          try{
+            _fbPendente=!_semMudancaNova;
+            localStorage.setItem('mm_fb_pendente',_semMudancaNova?'0':'1');
+            if(_semMudancaNova)localStorage.setItem('mm_tanque_pendente','0');
+          }catch(e){}
+          _fbTicketConfirmarLote(_ticketsEnviadosJson,_ticketsRemovidosNoLote);
+          _fbConfirmarAdiantamentosLote(_adtAlteradosNoLote);
+          if(_semMudancaNova)_funcEditAtualizarSnapshot();
+          _deletedArrConfirmarSnapshots(_valoresDelArrAtual);
+          _fbPublicarRecibo({confirmed:Math.max(_fbSaveReceipt.confirmed,_versaoSalvar),pending:!_semMudancaNova,error:null});
+          if(!_semMudancaNova){clearTimeout(_fbTimer);_fbTimer=setTimeout(_fbSalvarAgora,150);}
+        })
         .catch(e=>{
           console.warn('Firebase write error:',e);
           const _msgErro=(e&&e.message)?e.message:'Erro desconhecido (sem mensagem)';
+          _fbPublicarRecibo({pending:true,error:_msgErro});
           if(window._fbTsPendentesProprios) window._fbTsPendentesProprios.delete(dados._ts);
           
           
@@ -997,7 +1099,11 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
             _fbSaveRetries=0;
           }
         });
-    } catch(e) { console.warn('fbSalvar error:',e); _fbSetStatus('error'); }
+    } catch(e) {
+      console.warn('fbSalvar error:',e);
+      _fbPublicarRecibo({pending:true,error:String(e&&e.message||'Falha na preparação do salvamento')});
+      _fbSetStatus('error');
+    }
   }
 
   
@@ -1279,9 +1385,10 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
             TICKETS_DELETED.forEach(function(tid){ if(TICKETS_DB[tid]!==undefined){ delete TICKETS_DB[tid]; _tkRemovidos=true; } });
           }catch(e){}
           if(typeof TICKETS_DELETED!=='undefined'){ TICKETS_DELETED.forEach(function(tid){ delete TICKETS_DB[tid]; }); }
-          _ticketsAtualizarSnapshot();
+          _fbTicketSnapshotConfirmado(d.tickets||{},_fbConfiavel);
           
           
+          _fbAdiantamentosRecebidos(d.adiantamentos);
           _mergeAdtCloudManda(_adtLocal, d.adiantamentos, ADT_POR_FORN, _fbConfiavel, (d._shallowKeys && d._shallowKeys.indexOf('adiantamentos')>=0));
           _mergeObjDeArraysPorId(_cheqLocal, d.cheques||{},       CHEQUES_POR_FORN, 'id', _fbConfiavel);
           _safeMerge(_saldLocal, d.saldos||{},        SALDO_DEVEDOR_FORN);
@@ -1526,7 +1633,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(!_chegouTarde){ if(callback) callback(true); }
       else {
         
-        // Sincronização tardia é silenciosa: atualização visual abaixo.
+
         [ 'renderTbFuncionarios','renderVendas','renderContasReceber','renderContasPagar',
           'renderTabelaFornecedores','renderEstoque','renderAdiantamentos','renderFrota',
           'agendaRender','renderDashboard','renderCombustivel','renderBancos','renderEpi','renderRodBalanca'
@@ -1543,9 +1650,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   }
 
   
-  // Atualizações de outra sessão nunca devem funcionar como uma navegação
-  // iniciada pelo usuário. O guard permanece responsável por validar acessos
-  // reais, mas um refresh automático só pode repintar abas autorizadas.
   function _fbAtualizarAbaAtivaSilenciosamente(){
     try{
       const painel=document.querySelector('.tab-panel.active');
@@ -1743,12 +1847,13 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
             TICKETS_DELETED.forEach(function(tid){ if(TICKETS_DB[tid]!==undefined){ delete TICKETS_DB[tid]; _tkRemovidos=true; } });
           }catch(e){}
           if(typeof TICKETS_DELETED!=='undefined'){ TICKETS_DELETED.forEach(function(tid){ delete TICKETS_DB[tid]; }); }
-          _ticketsAtualizarSnapshot();
+          _fbTicketSnapshotConfirmado(d.tickets||{},_fbConf2);
           _syncHistorico.carregarDeRemoto(d.historico, _fbConf2);
           HISTORICO_DB.sort((a,b)=>(a&&a.ts||0)-(b&&b.ts||0));
           if(HISTORICO_DB.length>1000) HISTORICO_DB.splice(0,HISTORICO_DB.length-1000);
           
           
+          _fbAdiantamentosRecebidos(d.adiantamentos);
           { const loc=JSON.parse(JSON.stringify(ADT_POR_FORN)); _mergeAdtCloudManda(loc, d.adiantamentos, ADT_POR_FORN, _fbConf2, (d._shallowKeys && d._shallowKeys.indexOf('adiantamentos')>=0)); }
           { const loc=JSON.parse(JSON.stringify(CHEQUES_POR_FORN)); _mergeObjDeArraysPorId(loc, d.cheques||{}, CHEQUES_POR_FORN, 'id', _fbConf2); }
           { const loc=JSON.parse(JSON.stringify(SALDO_DEVEDOR_FORN)); _mergeObj(loc, d.saldos||{}, SALDO_DEVEDOR_FORN); }
@@ -1965,9 +2070,21 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         if(typeof TICKETS_DELETED!=='undefined'&&TICKETS_DELETED.has&&TICKETS_DELETED.has(tid)) return;
         const val=snap&&snap.val?snap.val():null;
         if(!val||typeof val!=='object') return;
+        // A remote child event must not overwrite an unconfirmed local edit.
+        const currentLocal=TICKETS_DB[tid];
+        if(currentLocal && Object.prototype.hasOwnProperty.call(_ticketsSnapJSON,tid)
+          && JSON.stringify(currentLocal)!==_ticketsSnapJSON[tid]){
+          const live=JSON.stringify(val);
+          if(live!==JSON.stringify(currentLocal)){
+            console.warn('[Persistência] Ticket '+tid+' recebeu alteração concorrente; preservando edição local pendente.');
+            _fbPublicarRecibo({pending:true,error:'Conflito de sincronização em ticket '+tid+'. Verifique o histórico antes de continuar.'});
+            return;
+          }
+        }
         TICKETS_DB[tid]=Object.assign({},TICKETS_DB[tid]||{},val);
         try{ if(typeof _normalizarTicketFinanceiro==='function') _normalizarTicketFinanceiro(TICKETS_DB[tid]); }catch(e){}
-        try{ _ticketsAtualizarSnapshot(); }catch(e){}
+        delete _fbEnviadoOk['tickets/'+tid];
+        try{_ticketsSnapJSON[tid]=JSON.stringify(TICKETS_DB[tid]);}catch(e){}
         ticketsUi();
       }
       ticketsRef.on('child_added',aplicarTicket);

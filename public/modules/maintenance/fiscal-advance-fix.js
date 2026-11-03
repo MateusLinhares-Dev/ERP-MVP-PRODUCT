@@ -142,76 +142,31 @@
   async function deleteAdvance(supplierCode, advanceCode, button) {
     const key = supplierCode + '::' + advanceCode;
     if (deleting.has(key)) return false;
-    const local = (typeof ADT_POR_FORN !== 'undefined' ? ADT_POR_FORN[supplierCode] : null);
-    const record = (local || []).find(a => String(a?.cod) === String(advanceCode));
-    if (!record) { alertUser('Adiantamento não encontrado na lista atual. Atualize a página.'); return false; }
-    if (!global.confirm(`Excluir o adiantamento ${advanceCode} de ${supplierCode}?\nA exclusão será confirmada diretamente no Firebase.`)) return false;
+    const list = typeof ADT_POR_FORN !== 'undefined' ? ADT_POR_FORN[supplierCode] : null;
+    const matches = (list || []).filter(a => String(a?.cod) === String(advanceCode));
+    if (matches.length !== 1) { alertUser('Adiantamento não encontrado ou duplicado. Atualize a tela.'); return false; }
+    const record = matches[0];
+    if (!global.confirm(`Excluir o adiantamento ${advanceCode} de ${supplierCode}?\nO adiantamento e o movimento bancário vinculado serão removidos juntos.`)) return false;
     deleting.add(key);
     const previous = button?.textContent;
-    if (button) { button.disabled = true; button.textContent = 'Excluindo…'; }
+    if (button) button.textContent = 'Excluindo…';
     try {
-      if (!global._fbDB) throw new Error('Firebase não está conectado. Verifique a sessão.');
-      if (typeof global.firebase?.auth === 'function' && !global.firebase.auth().currentUser) throw new Error('Sessão Firebase expirada. Entre novamente.');
-      const supplierRef = global._fbDB.ref('erp/adiantamentos/' + supplierCode);
-      const initial = (await supplierRef.once('value')).val();
-      const targets = entries(initial).filter(([,a]) => String(a.cod) === String(advanceCode));
-      if (targets.length === 0) throw new Error('O registro não está mais no Firebase. Atualize a tela antes de continuar.');
-      if (targets.length !== 1) throw new Error('Existem lançamentos com o mesmo código nesse fornecedor. Exclusão bloqueada para evitar perda de dados.');
-      const [remoteKey, remoteRecord] = targets[0];
-      const originalFingerprint = stable(remoteRecord);
-      const childRef = supplierRef.child(remoteKey);
-      let removed = false;
-      // O SDK pode chamar update(null) usando o cache inicial, mesmo após once('value').
-      // Retornar null (em vez de undefined) evita abortar prematuramente; a operação
-      // continua restrita a UM filho e o servidor reexecuta a função com os dados atuais.
-      for (let attempt = 0; attempt < 2 && !removed; attempt++) {
-        const result = await childRef.transaction(current => {
-          if (current == null) return null; // não reintroduzir dados nem abortar por cache frio
-          if (String(current.cod) !== String(advanceCode) || stable(current) !== originalFingerprint) return;
-          return null;
-        }, undefined, false);
-        if (result?.committed) {
-          const remaining = (await supplierRef.once('value')).val();
-          if (!entries(remaining).some(([,a]) => String(a.cod) === String(advanceCode))) removed = true;
-        }
-        if (!removed && attempt === 0) {
-          // Só repetir se o registro ainda estiver EXATAMENTE igual; não ultrapassar
-          // edições de outra sessão ou apagar por posição após uma reordenação.
-          const check = (await supplierRef.once('value')).val();
-          const matches = entries(check).filter(([,a]) => String(a.cod) === String(advanceCode));
-          if (matches.length !== 1 || matches[0][0] !== remoteKey || stable(matches[0][1]) !== originalFingerprint) break;
-        }
-      }
-      if (!removed) {
-        throw new Error('O Firebase não confirmou a remoção deste registro. Nenhum outro adiantamento foi alterado. Atualize e tente novamente.');
-      }
-      // Somente após confirmação remota: atualizar memória e persistência local.
-      ADT_POR_FORN[supplierCode] = (ADT_POR_FORN[supplierCode] || []).filter(a => String(a?.cod) !== String(advanceCode));
+      if (typeof global._adtCommitTransacional !== 'function') throw new Error('Serviço financeiro indisponível.');
+      const result = await global._adtCommitTransacional({action:'delete',fornCod:supplierCode,adtCod:advanceCode,expected:record},button);
+      if (!result || result.action !== 'delete') throw new Error('Exclusão não confirmada.');
       try { if (global._ADT_PENDENTES) delete global._ADT_PENDENTES[key]; } catch (_) {}
-      try {
-        if (typeof _DEL_SETS !== 'undefined' && _DEL_SETS.adtItens) {
-          _DEL_SETS.adtItens.add(key);
-          localStorage.setItem(_DEL_LS_KEY.adtItens, JSON.stringify([..._DEL_SETS.adtItens]));
-        }
-        localStorage.setItem('mm_adt', JSON.stringify(ADT_POR_FORN));
-      } catch (e) { console.warn('[Adiantamentos] Cache local:', e); }
-      // Não remover movimentos bancários automaticamente: a baixa financeira deve
-      // ser avaliada em seu módulo de origem, com conferência dos vínculos.
       try { if (typeof registrarHistorico === 'function') registrarHistorico('Adiantamento', 'Excluído',
         `${supplierCode} ${advanceCode} — R$ ${Number(record.valor || 0).toFixed(2)} (${record.data || ''})`,
-        record, {fornCod: supplierCode}); } catch (error) { console.warn('[Adiantamentos] Histórico:', error); }
-      try { if (typeof saveDB === 'function') saveDB(); } catch (error) { console.warn('[Adiantamentos] Sincronia após exclusão:', error); }
-      try { if (typeof global.renderAdiantamentos === 'function') global.renderAdiantamentos(); } catch (e) { console.warn(e); }
+        record, {fornCod:supplierCode}); } catch (error) { console.warn('[Adiantamentos] Histórico:',error); }
       try { if (typeof global.onCanhotFornChange === 'function') global.onCanhotFornChange(); } catch (_) {}
-      alertUser('Adiantamento excluído e remoção confirmada no Firebase.', 'success');
+      alertUser('Adiantamento excluído e movimento bancário conciliado no Firebase.', 'success');
       return true;
     } catch (error) {
-      console.error('[Adiantamentos] Exclusão não confirmada:', error);
       alertUser('Não foi possível excluir: ' + (error?.message || 'erro desconhecido'));
       return false;
     } finally {
       deleting.delete(key);
-      if (button?.isConnected) { button.disabled = false; button.textContent = previous; }
+      if (button?.isConnected) button.textContent = previous;
     }
   }
 

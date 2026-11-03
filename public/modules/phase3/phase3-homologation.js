@@ -360,8 +360,8 @@ async function migrateLegacyAfazeres(){
       const e={id,title:String(a.texto||'').trim(),date,time:'',userKey,category:'Compromisso',description:'',status:a.feito?'Concluído':'Pendente',
         createdBy:currentUserKey(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),legacyAfazerId:String(a.id)};
       if(a.feito&&a.feitoEm)e.completedAt=String(a.feitoEm);
-      calendarEvents[id]=e;
       await store.save('calendarEvents',id,e);
+      calendarEvents[id]=e;
     }
   }catch(error){console.warn('[phase3] migração Afazeres → Calendário',error);}
   finally{calendarMigrating=false;}
@@ -493,10 +493,25 @@ global.phase3CalendarSave=async function(){
   const prev=calendarEvents[id]||{};
   const e={...prev,id,title,date,time:$('#p3cal-time')?.value||'',userKey,category:$('#p3cal-cat')?.value||'Compromisso',description:$('#p3cal-desc')?.value.trim()||'',
     status:prev.status||'Pendente',createdBy:prev.createdBy||currentUserKey(),createdAt:prev.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
-  calendarEvents[id]=e;await store.save('calendarEvents',id,e);cm();calendarMonth=date.slice(0,7);calendarSelected=date;renderCalendar();refreshAvisos();notify('Compromisso salvo.','success');
+  try{
+    await store.save('calendarEvents',id,e);
+    calendarEvents[id]=e;
+    cm();calendarMonth=date.slice(0,7);calendarSelected=date;
+    renderCalendar();refreshAvisos();notify('Compromisso salvo.','success');
+  }catch(error){console.error('[Calendário] Gravação não confirmada',error);notify('Compromisso NÃO salvo no Firebase. Confira a conexão e tente novamente.','error');}
 };
-global.phase3CalendarToggle=async id=>{const e=calendarEvents[id];if(!e||!store)return;e.status=e.status==='Concluído'?'Pendente':'Concluído';e.completedAt=e.status==='Concluído'?new Date().toISOString():'';e.updatedAt=new Date().toISOString();await store.save('calendarEvents',id,e);renderCalendar();refreshAvisos();};
-global.phase3CalendarDelete=async id=>{if(!calendarEvents[id]||!store||!confirm('Excluir este compromisso?'))return;delete calendarEvents[id];await store.remove('calendarEvents',id);renderCalendar();refreshAvisos();};
+global.phase3CalendarToggle=async id=>{
+  const previous=calendarEvents[id];if(!previous||!store)return;
+  const next={...previous,status:previous.status==='Concluído'?'Pendente':'Concluído',updatedAt:new Date().toISOString()};
+  next.completedAt=next.status==='Concluído'?new Date().toISOString():'';
+  try{await store.save('calendarEvents',id,next);calendarEvents[id]=next;renderCalendar();refreshAvisos();}
+  catch(error){console.error('[Calendário] Status não confirmado',error);notify('Não foi possível atualizar o compromisso. Nada foi confirmado.','error');}
+};
+global.phase3CalendarDelete=async id=>{
+  if(!calendarEvents[id]||!store||!confirm('Excluir este compromisso?'))return;
+  try{await store.remove('calendarEvents',id);delete calendarEvents[id];renderCalendar();refreshAvisos();}
+  catch(error){console.error('[Calendário] Exclusão não confirmada',error);notify('Não foi possível excluir o compromisso.','error');}
+};
 function myUpcoming(){const me=currentUserKey(),now=today();return Object.values(calendarEvents||{}).filter(e=>e&&e.userKey===me&&e.status!=='Concluído'&&e.date>=now&&dateDiff(now,e.date)<=5).sort((a,b)=>a.date.localeCompare(b.date));}
 function checkCalendarPopups(){
   const me=currentUserKey();if(!me)return;
@@ -818,6 +833,7 @@ if(typeof legacySaveAdvance==='function')global.salvarAdiantamento=function(){
   const ticket=$('#adt-ticket')?.value||'',key=resolveTicketKey(ticket),t=key?ticketDb()[key]:null,
     fallbackBase=t&&ticketAdvanceBase(t)==null?Number(t.adiantamento||0):null;
   const r=legacySaveAdvance.apply(this,arguments);
+  if(r&&typeof r.then==='function')return r.then(saved=>{if(saved!==false)scheduleAdvanceReconcile(ticket,fallbackBase);return saved;});
   scheduleAdvanceReconcile(ticket,fallbackBase);
   return r;
 };
@@ -834,8 +850,9 @@ if(typeof legacySaveEditAdvance==='function')global.salvarEditAdiantamento=funct
     oldBase=oldObj&&ticketAdvanceBase(oldObj)==null?Math.max(0,Number(oldObj.adiantamento||0)-Number(old.valor||0)):null,
     newBase=newObj&&ticketAdvanceBase(newObj)==null?Number(newObj.adiantamento||0):null;
   const r=legacySaveEditAdvance.apply(this,arguments);
-  scheduleAdvanceReconcile(oldTicket,oldBase);
-  if(newTicket)scheduleAdvanceReconcile(newTicket,newBase);
+  const reconcile=()=>{scheduleAdvanceReconcile(oldTicket,oldBase);if(newTicket)scheduleAdvanceReconcile(newTicket,newBase);};
+  if(r&&typeof r.then==='function')return r.then(saved=>{if(saved!==false)reconcile();return saved;});
+  reconcile();
   return r;
 };
 const legacyCorrectPurchaseAdvance=global.salvarAdiantamentoCompra;
@@ -957,7 +974,7 @@ function parseCurrencyText(v){return parseBR(String(v||'').replace('R$',''));}
 function findReceivableForRow(row){const cells=row.cells;if(!cells||cells.length<10)return null;const date=String(cells[0]?.textContent||'').trim(),nf=String(cells[1]?.textContent||'').trim(),cli=String(cells[2]?.textContent||'').trim(),val=parseCurrencyText(cells[3]?.textContent),venc=String(cells[6]?.textContent||'').trim();try{return (CONTAS_RECEBER||[]).find(c=>String(fmtDate?fmtDate(c.data):toBR(c.data)).trim()===date&&String(c.cli||'').trim()===cli&&Math.abs(Number(c.valor||0)-val)<0.01&&String(fmtDate?fmtDate(c.venc):toBR(c.venc)).trim()===venc&&(nf==='—'||String(c.nf||'—').trim()===nf));}catch(e){return null;}}
 function decorateReceivables(){const tab=$('#tab-contas_receber');if(!tab)return;let note=$('#p3-cr-fiscal-note');if(!note){note=document.createElement('div');note.id='p3-cr-fiscal-note';note.className='p3-cr-fiscal-note';note.innerHTML='<b>Fluxo consolidado</b><span><strong>Venda</strong> gera Conta a Receber. A Conta a Receber pode ser ligada ao <strong>Cliente Fiscal</strong> para emissão/controle fiscal, mantendo os cadastros Comercial e Fiscal separados.</span>';tab.querySelector('.kpi-grid')?.insertAdjacentElement('afterend',note);}const body=$('#tb-contas-receber');if(!body)return;Array.from(body.rows).forEach(row=>{if(row.querySelector('.p3-fiscal-link-btn'))return;const cr=findReceivableForRow(row);if(!cr)return;const cell=row.cells[row.cells.length-1],id=String(cr.id||CONTAS_RECEBER.indexOf(cr));const b=document.createElement('button');b.className='p3-fiscal-link-btn';b.textContent=cr.fiscalPartyId?'🧾 Fiscal ✓':'🧾 Fiscal';b.title='Vincular este recebimento ao Cliente Fiscal';b.onclick=()=>phase3ReceivableFiscal(id);cell.prepend(b);});}
 global.phase3ReceivableFiscal=async function(id){let cr;try{cr=(CONTAS_RECEBER||[]).find((x,i)=>String(x.id||i)===String(id));}catch(e){}if(!cr||!store)return;const raw=await store.load('fiscalParties',{}),parties=Object.values(raw||{});const current=fiscalLinks[String(id)]||{};const body=$('#modal-body');if(!body)return;body.className='modal';body.innerHTML=`<h3>🧾 Vínculo fiscal da Conta a Receber</h3><p class="p3-help">Comercial e Fiscal continuam independentes. Aqui você relaciona este lançamento ao cadastro fiscal correto.</p><div class="fg"><label>Cliente comercial</label><input disabled value="${esc(cr.cli||cr.cliente||'')}"></div><div class="fg"><label>Cliente Fiscal</label><select id="p3-cr-fiscal-party"><option value="">— Selecione —</option>${parties.filter(x=>norm(x.kind||x.type||'').includes('cliente')).map(x=>`<option value="${esc(x.id)}" ${current.fiscalPartyId===x.id?'selected':''}>${esc(x.legalName||x.name)} · ${esc(x.cnpj||x.cpf||'')}</option>`).join('')}</select></div><div class="fg"><label>Nº NF / Pedido</label><input id="p3-cr-fiscal-nf" value="${esc(current.nf||cr.nf||'')}"></div><div class="modal-ft"><button onclick="cm()">Cancelar</button><button class="btn-save" onclick="phase3ReceivableFiscalSave('${esc(cr.id||id)}')">Salvar vínculo</button></div>`;$('#modal-ov')?.classList.add('open');};
-global.phase3ReceivableFiscalSave=async function(id){if(!store)return;const partyId=$('#p3-cr-fiscal-party')?.value;if(!partyId){notify('Selecione o Cliente Fiscal.','error');return;}const link={id:String(id),fiscalPartyId:partyId,nf:$('#p3-cr-fiscal-nf')?.value.trim()||'',updatedAt:new Date().toISOString()};fiscalLinks[String(id)]=link;await store.save('fiscalLinks',String(id),link);try{const cr=(CONTAS_RECEBER||[]).find((x,i)=>String(x.id||i)===String(id));if(cr){cr.fiscalPartyId=partyId;if(link.nf)cr.nf=link.nf;saveContasReceber?.();}}catch(e){}cm();decorateReceivables();notify('Vínculo fiscal salvo.','success');};
+global.phase3ReceivableFiscalSave=async function(id){if(!store)return;const partyId=$('#p3-cr-fiscal-party')?.value;if(!partyId){notify('Selecione o Cliente Fiscal.','error');return;}const link={id:String(id),fiscalPartyId:partyId,nf:$('#p3-cr-fiscal-nf')?.value.trim()||'',updatedAt:new Date().toISOString()};await store.save('fiscalLinks',String(id),link);fiscalLinks[String(id)]=link;try{const cr=(CONTAS_RECEBER||[]).find((x,i)=>String(x.id||i)===String(id));if(cr){cr.fiscalPartyId=partyId;if(link.nf)cr.nf=link.nf;saveContasReceber?.();}}catch(e){}cm();decorateReceivables();notify('Vínculo fiscal salvo.','success');};
 
 /* Casa Glória: remover de verdade */
 function removeCasaGloria(){let changed=false;try{Object.keys(CUSTO_CASA||{}).forEach(m=>(CUSTO_CASA[m]||[]).forEach(x=>{if(norm(x.area)==='casa gloria'){x.area='Casa';changed=true;}}));}catch(e){}const tab=$('#tab-custo_casa');if(tab){$$('button,[role="tab"],.cc-area-tab',tab).forEach(el=>{const txt=norm(el.textContent),id=norm(el.id),data=norm(el.dataset?.ccArea||'');if(txt==='casa gloria'||id.includes('casa gloria')||data==='casa gloria')el.remove();});}if(changed){try{saveCustoCasa?.();}catch(e){}}const note=$('#phase1-house-history-note');if(note&&note.textContent!=='Histórico preservado por período. Casa, Sítio e Veículos Pessoais permanecem separados.')note.textContent='Histórico preservado por período. Casa, Sítio e Veículos Pessoais permanecem separados.';}
