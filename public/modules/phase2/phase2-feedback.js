@@ -767,9 +767,20 @@ if(typeof originalSaveTripPhase2==='function')global.salvarViagem=function(){
 
 /* ---------- Fiscal independente completo ---------- */
 let fiscalParties={};
-let fiscalLiveRef=null,fiscalLoadSeq=0;
+let fiscalLiveRef=null,fiscalLoadSeq=0,fiscalReadBlockedUntil=0;
 async function loadFiscalParties(){
  const seq=++fiscalLoadSeq;
+ if(Date.now()<fiscalReadBlockedUntil)return;
+ // O painel Fiscal e opcional. Nao inscrever listeners para funcionarios
+ // sem canFiscalRead ou antes de a sessao Firebase estar autenticada.
+ if(global.firebase && typeof global.firebase.auth==='function'){
+   const user=global.firebase.auth()?.currentUser;
+   if(!user)return;
+   try{
+     const claims=(await user.getIdTokenResult()).claims||{};
+     if(claims.erpAccess!==true || (claims.canFiscalRead!==true && claims.admin!==true))return;
+   }catch(error){console.warn('[Fiscal] Credenciais indisponiveis para a consulta:',error?.code||'auth');return;}
+ }
  const db=global._fbDB||global.__fbRaw?.db;
  if(db?.ref){
    const ref=db.ref('erp/fiscalParties');
@@ -777,15 +788,23 @@ async function loadFiscalParties(){
      fiscalLiveRef=ref;
      // Sincronizar a lista de clientes E fornecedores em tempo real, sem precisar de F5.
      ref.on('value',snapshot=>{const value=snapshot.val();fiscalParties=value&&typeof value==='object'&&!Array.isArray(value)?value:{};renderFiscalRegistry();},error=>{
-       console.error('[Fiscal] Sincronização dos cadastros falhou:',error);
-       const host=$('#p2fis-list');if(host)host.textContent='Não foi possível sincronizar os cadastros fiscais. Verifique o acesso e tente atualizar.';
+       const code=String(error?.code||error?.message||'');
+       if(/permission.denied|permission_denied/i.test(code))fiscalReadBlockedUntil=Date.now()+60000;
+       console.warn('[Fiscal] Cadastro fiscal indisponível:',code);
+       const host=$('#p2fis-list');if(host)host.textContent='Não foi possível sincronizar os cadastros fiscais. Verifique canFiscalRead e as regras publicadas.';
+       try{ref.off('value');}catch(_){}
        fiscalLiveRef=null;
      });
    }
    try{
      const snapshot=await ref.once('value');if(seq!==fiscalLoadSeq)return;
      const value=snapshot.val();fiscalParties=value&&typeof value==='object'&&!Array.isArray(value)?value:{};renderFiscalRegistry();
-   }catch(error){console.error('[Fiscal] Leitura dos cadastros:',error);const host=$('#p2fis-list');if(host)host.textContent='Falha ao carregar cadastros fiscais. Atualize a aba.';}
+   }catch(error){
+     const code=String(error?.code||error?.message||'');
+     if(/permission.denied|permission_denied/i.test(code))fiscalReadBlockedUntil=Date.now()+60000;
+     console.warn('[Fiscal] Leitura dos cadastros indisponível:',code);
+     const host=$('#p2fis-list');if(host)host.textContent='Falha ao carregar cadastros fiscais. Confira a permissão fiscal antes de atualizar.';
+   }
    return;
  }
  if(store){try{const value=await store.load('fiscalParties',{});if(seq!==fiscalLoadSeq)return;fiscalParties=value||{};renderFiscalRegistry();}catch(error){console.error('[Fiscal] Cache indisponível:',error);}}
@@ -1147,7 +1166,7 @@ function apply(){
   removeNumberSpinners();fixPartyBanks();rebuildCalendarTools();priceSearches();cleanChequeControl();simplifyPayables();cleanAdvances();repairDiscreteStocks();ensureUnifiedEpi();redesignTrip();workspaceTrip();workspacePoint();replaceFiscalRegistry();simplifyExpensesGroup();addContractRenameButtons();mergeCasaGloria();restoreCoordTypes();filterCoordEmployees();filterCoordFunctionCards();fixSearchFocus();renderTripHistoryCards();
 }
 if(global.Phase1Dom)global.Phase1Dom.register(apply);else setInterval(apply,1000);
-setTimeout(()=>{apply();ensureOwnerModule();loadFiscalParties();},350);
+setTimeout(()=>{apply();ensureOwnerModule();},350);
 document.addEventListener('erp:user-started',()=>setTimeout(()=>{apply();ensureOwnerModule();},700));
 
 global.Phase2Feedback=Object.freeze({apply,chequeSequenceByBank,isDiscreteItem,isEpiItem,tripCostParts:phase2TripCostParts,tripMonthlyReport:phase2TripMonthlyReport});

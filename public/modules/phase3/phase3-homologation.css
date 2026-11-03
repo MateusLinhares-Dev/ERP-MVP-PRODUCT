@@ -159,3 +159,14 @@ thead .phase2-purchase-history-obs{position:sticky!important;top:0!important;rig
 /* Proteção contra listas extensas de lacunas de cheques */
 #phase3-cheque-gaps{max-height:108px;overflow-y:auto}
 #phase3-cheque-gaps>div{max-width:100%;overflow-wrap:anywhere;line-height:1.35}
+
+/* Contas pessoais da Dona: botao cancelar e status de leitura */
+#modal-body .modal-ft.p3-owner-modal-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding-top:16px;margin-top:18px;border-top:1px solid #e2eae5}
+#modal-body .modal-ft.p3-owner-modal-actions button{min-height:40px;border-radius:9px;padding:9px 18px;font:inherit;font-size:.84rem;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s}
+#modal-body .modal-ft.p3-owner-modal-actions button.p3-owner-cancel{background:#f7faf8!important;color:#365446!important;border:1px solid #b9c9c0!important;box-shadow:none!important;outline-offset:2px}
+#modal-body .modal-ft.p3-owner-modal-actions button.p3-owner-cancel:hover{background:#e8f2ec!important;border-color:#548268!important}
+#modal-body .modal-ft.p3-owner-modal-actions button#p3ob-save{background:#174d34!important;border:1px solid #174d34!important;color:#fff!important;box-shadow:none!important}
+#modal-body .modal-ft.p3-owner-modal-actions button#p3ob-save:hover{background:#216743!important}
+.p3-owner-read-error{margin:14px 0;padding:16px 18px;background:#fff5f3;border:1px solid #e3a5a0;border-radius:11px;color:#8f2926;font-weight:700;line-height:1.5}
+.p3-owner-loading{margin:14px 0;padding:16px;background:#f2f6f3;border:1px solid #d5e1d9;border-radius:10px;color:#496453}
+@media(max-width:520px){#modal-body .modal-ft.p3-owner-modal-actions{flex-direction:column-reverse;align-items:stretch}#modal-body .modal-ft.p3-owner-modal-actions button{width:100%}}

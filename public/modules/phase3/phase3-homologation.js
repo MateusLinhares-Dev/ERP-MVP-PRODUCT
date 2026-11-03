@@ -547,6 +547,9 @@ const legacyChequeDelete=global.chqExcluir;if(typeof legacyChequeDelete==='funct
 
 /* Contas pessoais da Dona — separadas por imóvel, sem alterar pagamentos anteriores */
 let ownerBills={};
+let ownerBillsLoaded=false;
+let ownerBillsError='';
+let ownerReloadRequest=0;
 let ownerMonth=today().slice(0,7),ownerFilter='todos';
 const OWNER_PROPERTIES=Object.freeze([
   {id:'sitio',name:'Sítio',icon:'🌳'},
@@ -592,12 +595,31 @@ function ownerTotals(items,month){
   return {expected,paid,pending:Math.max(0,expected-paid)};
 }
 async function loadOwnerBills(){
-  if(!store)return;
+  if(!store && !global.__businessRepository)return;
+  const request=++ownerReloadRequest;
   try{
-    ownerBills=await store.load('ownerBills',{});
+    // O cache Phase1Store transforma falhas de permissão em {} e mascara
+    // despesas existentes como R$ 0,00. Preferir leitura real confirmada.
+    const remote=global.__businessRepository;
+    const value=remote && typeof remote.read==='function'
+      ? await remote.read('ownerBills')
+      : await store.load('ownerBills',{});
+    if(request!==ownerReloadRequest)return;
+    ownerBills=value && typeof value==='object' && !Array.isArray(value)?value:{};
+    ownerBillsLoaded=true;
+    ownerBillsError='';
     Object.values(ownerBills).forEach(x=>{if(x&&x.dueDay==null)x.dueDay=Number(x.day||1);if(x&&!x.payments)x.payments={};});
     renderOwnerBillsV3();
-  }catch(e){notify('Não foi possível carregar as contas pessoais.','error');}
+  }catch(error){
+    if(request!==ownerReloadRequest)return;
+    const code=String(error?.code||error?.message||'');
+    ownerBillsError=/permission.denied|permission_denied/i.test(code)
+      ? 'O Firebase recusou a leitura de Contas da Dona. Confira canOwnerBills e a sessao da administradora; os totais NAO foram zerados.'
+      : 'Falha de conexao ao consultar Contas da Dona. Os totais nao podem ser confirmados agora.';
+    // Nao zerar os dados existentes e nao bombardear a usuaria com toast.
+    renderOwnerBillsV3();
+    console.warn('[Contas da Dona] Falha de leitura:',code);
+  }
 }
 function ownerDueDate(b,month){const [y,m]=month.split('-').map(Number),last=new Date(y,m,0).getDate();return `${month}-${String(Math.min(last,Math.max(1,Number(b.dueDay||1)))).padStart(2,'0')}`;}
 function ownerStatus(b,month){const p=b.payments?.[month];if(p?.paid)return 'pago';const due=ownerDueDate(b,month),now=today();return due<now?'atrasado':due===now?'hoje':'pendente';}
@@ -608,6 +630,14 @@ function ownerBillRow(b){
 }
 function renderOwnerBillsV3(){
   const host=$('#phase2-owner-bills');if(!host)return;host.dataset.p3owner='1';
+  if(ownerBillsError){
+    host.innerHTML='<div class="p3-owner-read-error" role="alert">'+esc(ownerBillsError)+'</div>';
+    return;
+  }
+  if(!ownerBillsLoaded){
+    host.innerHTML='<div class="p3-owner-loading" role="status">Consultando contas pessoais no Firebase...</div>';
+    return;
+  }
   const active=Object.values(ownerBills||{}).filter(x=>x&&x.active!==false&&ownerOccurs(x,ownerMonth));
   const visible=active.filter(x=>ownerFilter==='todos'||ownerStatus(x,ownerMonth)===ownerFilter);
   const totals=ownerTotals(active,ownerMonth);
@@ -635,13 +665,25 @@ global.phase2OpenOwnerBills=function(){
   }catch(e){}
   loadOwnerBills();
 };
+// O sincronizador sinaliza dados recebidos, sem chamar switchTab().
+let ownerRefreshTimer=null;
+if(typeof document!=='undefined' && typeof document.addEventListener==='function'){
+  document.addEventListener('erp:remote-data-merged',event=>{
+    if(event?.detail?.tab!=='contas_dona')return;
+    clearTimeout(ownerRefreshTimer);
+    ownerRefreshTimer=setTimeout(()=>{
+      if($('#tab-contas_dona')?.classList?.contains('active') && !$('#modal-ov')?.classList?.contains('open'))loadOwnerBills();
+    },800);
+  });
+}
 global.phase3OwnerMonth=v=>{ownerMonth=/^\d{4}-\d{2}$/.test(String(v||''))?v:ownerMonth;renderOwnerBillsV3();};
 global.phase3OwnerFilter=v=>{ownerFilter=['todos','pendente','hoje','atrasado','pago'].includes(v)?v:'todos';renderOwnerBillsV3();};
 global.phase3OwnerOpen=function(id='',property=''){
+  if(!ownerBillsLoaded || ownerBillsError){loadOwnerBills();notify('Aguarde a leitura confirmada das contas pessoais.','error');return;}
   const b=id?ownerBills[id]:null,body=$('#modal-body');if(!body)return;
   const chosen=b?ownerPropertyId(b):property;
   body.className='modal';
-  body.innerHTML=`<h3>${b?'✏️ Editar':'＋ Nova'} conta pessoal</h3><input type="hidden" id="p3ob-id" value="${esc(id)}"><div class="fg"><label for="p3ob-property">Imóvel *</label><select id="p3ob-property"><option value="">— Selecione o imóvel —</option><option value="sitio" ${chosen==='sitio'?'selected':''}>🌳 Sítio</option><option value="casa-gloria" ${chosen==='casa-gloria'?'selected':''}>🏡 Casa Glória</option></select><small class="p3-help">As contas antigas sem classificação podem ser organizadas aqui sem alterar os pagamentos.</small></div><div class="fg"><label for="p3ob-desc">Descrição</label><input id="p3ob-desc" value="${esc(b?.desc||'')}"></div><div class="phase3-grid2"><div class="fg"><label for="p3ob-cat">Categoria</label><input id="p3ob-cat" value="${esc(b?.category||'')}"></div><div class="fg"><label for="p3ob-value">Valor R$</label><input id="p3ob-value" inputmode="decimal" value="${b?money(b.value):''}"></div></div><div class="fg"><label for="p3ob-due">Primeiro vencimento</label><input id="p3ob-due" type="date" value="${ownerDueDate(b||{dueDay:10},b?.startMonth||ownerMonth)}"><small class="p3-help">Para contas recorrentes, o vencimento se repete no mesmo dia (ou no último dia do mês).</small></div><div class="phase3-grid2 p3-owner-recurrence"><div class="fg"><label for="p3ob-recurrence">Repetição</label><select id="p3ob-recurrence" onchange="phase3OwnerRecurrenceChanged()"><option value="monthly" ${(b?.recurrenceMode||'monthly')==='monthly'?'selected':''}>Mensal — sem prazo final</option><option value="fixed" ${b?.recurrenceMode==='fixed'?'selected':''}>Mensal — quantidade de meses</option><option value="once" ${b?.recurrenceMode==='once'?'selected':''}>Somente uma vez</option></select></div><div class="fg"><label for="p3ob-recurrence-months">Número de meses</label><input type="number" id="p3ob-recurrence-months" min="1" max="120" step="1" value="${Number(b?.recurrenceMonths||12)}" ${(b?.recurrenceMode==='fixed')?'':'disabled'}><small class="p3-help">Ex.: 12 meses = 12 vencimentos, incluindo o primeiro.</small></div></div><div class="fg"><label for="p3ob-obs">Observação</label><input id="p3ob-obs" value="${esc(b?.obs||'')}"></div><div class="modal-ft"><button type="button" onclick="cm()">Cancelar</button><button type="button" class="btn-save" id="p3ob-save" onclick="phase3OwnerSave()">Salvar</button></div>`;
+  body.innerHTML=`<h3>${b?'✏️ Editar':'＋ Nova'} conta pessoal</h3><input type="hidden" id="p3ob-id" value="${esc(id)}"><div class="fg"><label for="p3ob-property">Imóvel *</label><select id="p3ob-property"><option value="">— Selecione o imóvel —</option><option value="sitio" ${chosen==='sitio'?'selected':''}>🌳 Sítio</option><option value="casa-gloria" ${chosen==='casa-gloria'?'selected':''}>🏡 Casa Glória</option></select><small class="p3-help">As contas antigas sem classificação podem ser organizadas aqui sem alterar os pagamentos.</small></div><div class="fg"><label for="p3ob-desc">Descrição</label><input id="p3ob-desc" value="${esc(b?.desc||'')}"></div><div class="phase3-grid2"><div class="fg"><label for="p3ob-cat">Categoria</label><input id="p3ob-cat" value="${esc(b?.category||'')}"></div><div class="fg"><label for="p3ob-value">Valor R$</label><input id="p3ob-value" inputmode="decimal" value="${b?money(b.value):''}"></div></div><div class="fg"><label for="p3ob-due">Primeiro vencimento</label><input id="p3ob-due" type="date" value="${ownerDueDate(b||{dueDay:10},b?.startMonth||ownerMonth)}"><small class="p3-help">Para contas recorrentes, o vencimento se repete no mesmo dia (ou no último dia do mês).</small></div><div class="phase3-grid2 p3-owner-recurrence"><div class="fg"><label for="p3ob-recurrence">Repetição</label><select id="p3ob-recurrence" onchange="phase3OwnerRecurrenceChanged()"><option value="monthly" ${(b?.recurrenceMode||'monthly')==='monthly'?'selected':''}>Mensal — sem prazo final</option><option value="fixed" ${b?.recurrenceMode==='fixed'?'selected':''}>Mensal — quantidade de meses</option><option value="once" ${b?.recurrenceMode==='once'?'selected':''}>Somente uma vez</option></select></div><div class="fg"><label for="p3ob-recurrence-months">Número de meses</label><input type="number" id="p3ob-recurrence-months" min="1" max="120" step="1" value="${Number(b?.recurrenceMonths||12)}" ${(b?.recurrenceMode==='fixed')?'':'disabled'}><small class="p3-help">Ex.: 12 meses = 12 vencimentos, incluindo o primeiro.</small></div></div><div class="fg"><label for="p3ob-obs">Observação</label><input id="p3ob-obs" value="${esc(b?.obs||'')}"></div><div class="modal-ft p3-owner-modal-actions"><button type="button" class="p3-owner-cancel" onclick="cm()">Cancelar</button><button type="button" class="btn-save" id="p3ob-save" onclick="phase3OwnerSave()">Salvar</button></div>`;
   $('#modal-ov')?.classList.add('open');
 };
 global.phase3OwnerRecurrenceChanged=function(){
