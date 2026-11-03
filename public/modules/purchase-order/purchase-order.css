@@ -107,3 +107,11 @@
 .phase4-po-duplicate-warnings{margin:12px 0;padding:12px 14px;border:1px solid #edc778;border-radius:9px;background:#fff9e8;color:#795311;font-size:.85rem;font-weight:700;line-height:1.5}
 .phase4-po-duplicate-warnings[hidden]{display:none!important}
 .phase4-po-table tr.phase4-po-duplicate-item td:nth-child(2) input{border-color:#dd9d2f!important;background:#fffaf0!important}
+
+/* Consulta somente leitura do histórico de compras no Firebase. */
+.phase4-ticket-lookup{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:8px 0 14px;padding:12px 14px;border:1px solid #dbe6dd;border-radius:10px;background:#f9fcfa;color:#1d4831}
+.phase4-ticket-lookup label{font-size:.78rem;font-weight:750}
+.phase4-ticket-lookup input{width:120px;min-height:37px;box-sizing:border-box;border:1px solid #cbdacf;border-radius:7px;padding:8px 11px;font-size:.84rem;background:#fff}
+.phase4-ticket-lookup button{min-height:37px}
+#phase4-ticket-lookup-result{flex:1 1 240px;min-width:180px;max-width:100%;font-size:.76rem;line-height:1.45;color:#475e4e;overflow-wrap:anywhere}
+@media(max-width:620px){.phase4-ticket-lookup{align-items:stretch}.phase4-ticket-lookup input{flex:1}.phase4-ticket-lookup button{flex:1}}
