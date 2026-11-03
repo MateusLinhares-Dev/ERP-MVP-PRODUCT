@@ -214,6 +214,7 @@ async function main() {
   await loadClassic('/modules/phase2/phase2-feedback.js');
 
   loadStyle('/modules/phase3/phase3-homologation.css');
+  loadStyle('/modules/phase3/bank-editor-polish.css');
   await loadClassic('/modules/phase3/phase3-homologation.js');
 
   loadStyle('/modules/master-data/master-data-forms.css');

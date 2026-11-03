@@ -35,7 +35,7 @@ export default async function handler(req,res){
       if(!isManager)throw err('Gestão reservada à Elaine.',403);
       const [train,staff,usersSnap]=await Promise.all([root.get(),db.ref('erp/funcEdit').get(),db.ref('erpAuth/users').get()]);
       const v=records(train.val());
-      const employees=employeeRecords(staff.val()).map(f=>({id:employeeKey(f.mat),name:String(f.nome).slice(0,120),active:f.ativo!==false&&!['inativo','desligado','demitido'].includes(String(f.status||'').toLowerCase())}));
+      const employees=employeeRecords(staff.val()).map(f=>({id:employeeKey(f.mat),name:String(f.nome).slice(0,120),mat:String(f.mat),active:f.ativo!==false&&!['inativo','desligado','demitido'].includes(String(f.status||'').toLowerCase())}));
       return res.status(200).json({courses:records(v.courses),enrollments:records(v.enrollments),documents:records(v.documents),employees,erpUsers:userRecords(usersSnap.val()),history: Object.values(records(v.audit)).slice(-120)});
     }
     assertSameOrigin(req,{required:true});assertJsonBody(req,{maxBytes:14000});
@@ -45,16 +45,45 @@ export default async function handler(req,res){
     const commit=async changes=>root.update({...changes,['audit/'+auditKey]:{action,recordId:result.id,actor:who,uid:identity.uid,createdAt:now()}});
     if(action==='course'){
       const v=coursePayload(b),key=b.id?safeId(b.id):id();
-      result={id:key};await commit({['courses/'+key]:{...v,id:key,updatedAt:now(),updatedBy:who}});
+      // Editar um curso inativo não deve reativá-lo implicitamente.
+      const original=b.id?(await root.child('courses/'+key).get()).val():null;
+      if(b.id&&!original)throw err('Curso não encontrado para edição.',404);
+      const duplicate=Object.values(records((await root.child('courses').get()).val())).some(c=>c&&c.id!==key&&String(c.title||'').trim().toLowerCase()===v.title.toLowerCase());
+      if(duplicate)throw err('Este curso já está cadastrado. Use Editar no catálogo.',409);
+      result={id:key};await commit({['courses/'+key]:{...v,active:original?original.active!==false:true,id:key,updatedAt:now(),updatedBy:who}});
     }else if(action==='enroll'){
       const entry=enrollmentPayload(b),key=b.id?safeId(b.id):id();
-      const [courseSnap,employeeSnap,usersSnap]=await Promise.all([root.child('courses/'+entry.courseId).get(),db.ref('erp/funcEdit').get(),db.ref('erpAuth/users').get()]);
-      const course=courseSnap.val();if(!course||course.active===false)throw err('Curso não encontrado ou inativo.');
+      const [courseSnap,employeeSnap,usersSnap,enrollSnap]=await Promise.all([root.child('courses/'+entry.courseId).get(),db.ref('erp/funcEdit').get(),db.ref('erpAuth/users').get(),root.child('enrollments').get()]);
+      const course=courseSnap.val(),recordsNow=Object.values(records(enrollSnap.val()));
+      const previous=b.id?records(enrollSnap.val())[key]:null;
+      if(b.id&&!previous)throw err('Vínculo não encontrado para edição.',404);
+      if(!course||(course.active===false&&(!previous||previous.courseId!==entry.courseId)))throw err('Curso não encontrado ou inativo.');
       if(!employeeRecords(employeeSnap.val()).some(f=>employeeKey(f.mat)===entry.employeeId))throw err('Funcionário não cadastrado no RH. Atualize a matriz e selecione novamente.');
       if(entry.notifyEnabled&&!entry.employeeLogin)throw err('Selecione o usuário do ERP que receberá o aviso ou desmarque os avisos.');
       if(entry.employeeLogin&&!userRecords(usersSnap.val()).some(u=>u.login===entry.employeeLogin))throw err('Usuário do ERP não encontrado para os avisos.');
       if(entry.status==='concluido'&&course.renewalMonths&&entry.completedAt&&!entry.expiresAt)entry.expiresAt=yearMonthDelta(entry.completedAt,course.renewalMonths);
-      result={id:key};await commit({['enrollments/'+key]:{...entry,id:key,updatedAt:now(),updatedBy:who}});
+      const duplicate=recordsNow.find(e=>e&&e.id!==key&&e.employeeId===entry.employeeId&&e.courseId===entry.courseId&&e.status!=='dispensado');
+      if(duplicate&&!previous)throw err('Esse funcionário já possui vínculo ativo com este curso. Edite o vínculo existente ou exclua o duplicado.',409);
+      // Transação de reserva protege duas sessões criando o mesmo par simultaneamente.
+      const pairKey=entry.employeeId+'_'+entry.courseId;
+      const lock=root.child('enrollmentLocks/'+pairKey);
+      let reserved=false;
+      if(!previous){
+        const tx=await lock.transaction(current=>current===null?key:undefined,undefined,false);
+        if(!tx.committed)throw err('Já existe cadastro deste curso para o funcionário. Atualize a matriz.',409);
+        reserved=true;
+      }
+      try{
+        result={id:key};await commit({['enrollments/'+key]:{...entry,id:key,updatedAt:now(),updatedBy:who}});
+      }catch(error){if(reserved)try{await lock.transaction(current=>current===key?null:undefined,undefined,false);}catch(_){}throw error;}
+    }else if(action==='removeEnrollment'){
+      const key=safeId(b.id),snapshot=await root.child('enrollments/'+key).get(),item=snapshot.val();
+      if(!item)throw err('Vínculo não encontrado.',404);
+      const documentSnap=await root.child('documents').get();
+      if(Object.values(records(documentSnap.val())).some(d=>d&&d.enrollmentId===key))throw err('Esse vínculo possui certificado. Exclua o certificado primeiro ou mantenha o vínculo no histórico.',409);
+      result={id:key};await commit({['enrollments/'+key]:null});
+      const lock=root.child('enrollmentLocks/'+item.employeeId+'_'+item.courseId);
+      try{await lock.transaction(current=>current===key?null:undefined,undefined,false);}catch(e){console.warn('[Matriz] Limpeza do índice após exclusão:',e.message);}
     }else if(action==='activate'){
       const key=safeId(b.id),snapshot=await root.child('courses/'+key).get();
       if(!snapshot.exists())throw err('Curso não encontrado.',404);

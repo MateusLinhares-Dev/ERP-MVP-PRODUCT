@@ -14897,7 +14897,7 @@ function renderEstoque(){
   if(!tbE) return;
   try{ _recuperarMateriaisComMovimento(); }catch(e){}
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const _isEl=_usuarioAtualEhAdmin();
+  const _isEl=_usuarioAtualEhAdmin() || window.erpCanAccessTab?.('estoque')===true;
   const materiais=(METAIS||[]).filter(function(m){ return !!m && !_estoqueMaterialExcluido(m); }).slice().sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{sensitivity:'base'}));
   const rows=materiais.map(mat=>{
     const e=ESTOQUE_DB[mat]||{inicial:0,saidas:0,precoVenda:0};
@@ -14940,30 +14940,44 @@ function renderEstoque(){
 
 
 
-function excluirMaterial(mat){
-  if(!_usuarioAtualEhAdmin()){alert('Apenas a '+_usuarioAdminNome()+' pode excluir materiais do estoque.');return;}
-  if(!mat||!METAIS.includes(mat)){alert('Material não encontrado.');return;}
-  const e=ESTOQUE_DB[mat]||{mat,inicial:0,entradas:0,saidas:0,precoVenda:0,obs:''};
-  const entradasAuto=getEntradasMaterial(mat);
-  const saidasAuto=getSaidasMaterial(mat)+Number(e.saidas||0);
-  const saldo=Number(e.inicial||0)+entradasAuto-saidasAuto;
-  let msg='Excluir "'+mat+'" do cadastro de materiais do Estoque?';
-  if(Math.abs(saldo)>0.001 || entradasAuto>0 || saidasAuto>0){
-    msg='⚠️ "'+mat+'" tem movimentação registrada — saldo atual: '+saldo.toFixed(1)+' kg (entradas: '+entradasAuto.toFixed(1)+' kg, saídas: '+saidasAuto.toFixed(1)+' kg).\n\n'
-      +'Excluir só remove esse material da lista do Estoque — as compras/vendas já lançadas com ele continuam existindo no histórico, só não vão mais aparecer somadas aqui.\n\n'
-      +'Tem certeza que quer excluir mesmo assim?';
+async function excluirMaterial(mat){
+  // O frontend não determina autorização: confirmação das claims do Firebase.
+  const auth=window.__fbRaw?.auth?.currentUser;
+  const db=window._fbDB;
+  if(!auth||!db){showToast('Faça login novamente para gerenciar os materiais.','error');return;}
+  try{
+    const claims=(await auth.getIdTokenResult(true)).claims||{};
+    if(claims.erpAccess!==true||claims.canInventory!==true){showToast('Seu usuário não tem a permissão de estoque (canInventory). Solicite autorização ao administrador.','error');return;}
+  }catch(error){showToast('Não foi possível confirmar sua permissão de estoque.','error');return;}
+  if(!mat||!METAIS.includes(mat)){showToast('Material não encontrado. Atualize o estoque.','error');return;}
+  const e=ESTOQUE_DB[mat]||{mat,inicial:0,saidas:0};
+  const entradas=getEntradasMaterial(mat),saidas=getSaidasMaterial(mat)+Number(e.saidas||0);
+  const inicial=Number(e.inicial||0);
+  // Não romper vínculo de materiais já movimentados com Compras / Vendas.
+  if(entradas>0||saidas>0||Math.abs(inicial)>0.0001){
+    showToast('Este material tem saldo ou movimentações. Para preservar a rastreabilidade, corrija o lançamento de origem ou solicite sua inativação, sem excluir o histórico.','error');return;
   }
-  if(!confirm(msg)) return;
-  const registro=Object.assign({},e,{mat});
-  const alvoExclusao=_normalizarTombstoneEstoque(mat);
-  for(let i=METAIS.length-1;i>=0;i--){
-    if(_normalizarTombstoneEstoque(METAIS[i])===alvoExclusao) METAIS.splice(i,1);
-  }
-  _apagarChave('estoque', ESTOQUE_DB, mat);
-  saveEstoque();
-  registrarHistorico('Estoque','Excluído','Material removido do cadastro: '+mat+(saldo?' (saldo era '+saldo.toFixed(1)+' kg)':''), registro, null);
-  renderEstoque();
-  showToast('Material "'+mat+'" excluído do cadastro.','success');
+  if(!confirm('Excluir o material "'+mat+'" do catálogo? Esta ação não remove notas, compras ou vendas.'))return;
+  if(window.__ERP_STOCK_DELETE_BUSY__)return;
+  window.__ERP_STOCK_DELETE_BUSY__=true;
+  try{
+    // A exclusão é confirmada na nuvem ANTES de alterar a lista local.
+    const deletedRef=db.ref('erp/estoqueDeleted');
+    const tx=await deletedRef.transaction(function(current){
+      const items=Array.isArray(current)?current.filter(Boolean):current&&typeof current==='object'?Object.keys(current):[];
+      if(!items.includes(mat))items.push(mat);
+      return items;
+    },undefined,false);
+    if(!tx.committed)throw new Error('Exclusão não confirmada pelo Firebase.');
+    await db.ref('erp/estoque/'+mat).remove();
+    const alvoExclusao=_normalizarTombstoneEstoque(mat);
+    for(let i=METAIS.length-1;i>=0;i--)if(_normalizarTombstoneEstoque(METAIS[i])===alvoExclusao)METAIS.splice(i,1);
+    _apagarChave('estoque', ESTOQUE_DB, mat);
+    saveEstoque();
+    try{registrarHistorico('Estoque','Excluído','Material sem movimento removido do catálogo: '+mat,Object.assign({},e,{mat}),null);}catch(error){console.warn('[Estoque] Histórico não registrado:',error);}
+    renderEstoque();showToast('Material removido do catálogo e confirmado no Firebase.','success');
+  }catch(error){console.error('[Estoque] Falha de exclusão:',error);showToast('Não foi possível excluir o material: '+(error.message||'erro de permissão ou conexão'),'error');}
+  finally{window.__ERP_STOCK_DELETE_BUSY__=false;}
 }
 
 function editEstoque(mat){
