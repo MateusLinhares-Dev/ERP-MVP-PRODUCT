@@ -55,6 +55,10 @@ export default async function handler(req,res){
       if(entry.employeeLogin&&!userRecords(usersSnap.val()).some(u=>u.login===entry.employeeLogin))throw err('Usuário do ERP não encontrado para os avisos.');
       if(entry.status==='concluido'&&course.renewalMonths&&entry.completedAt&&!entry.expiresAt)entry.expiresAt=yearMonthDelta(entry.completedAt,course.renewalMonths);
       result={id:key};await commit({['enrollments/'+key]:{...entry,id:key,updatedAt:now(),updatedBy:who}});
+    }else if(action==='activate'){
+      const key=safeId(b.id),snapshot=await root.child('courses/'+key).get();
+      if(!snapshot.exists())throw err('Curso não encontrado.',404);
+      result={id:key};await commit({['courses/'+key+'/active']:true,['courses/'+key+'/updatedAt']:now(),['courses/'+key+'/updatedBy']:who});
     }else if(action==='archive'){
       const key=safeId(b.id),kind=String(b.kind);
       if(!['courses','enrollments'].includes(kind))throw err('Tipo inválido.');

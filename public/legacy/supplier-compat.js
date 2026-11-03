@@ -13,53 +13,31 @@
   }
 
   function _accountList(f){
-    if(!f) return [];
-    var out=[];
-    // partyBanks e a fonte oficial quando o fornecedor ja possui cadastro multibanco.
-    // Contas legadas so participam quando NAO ha registro canonico: caso contrario,
-    // uma conta removida no editor reapareceria no modal PIX.
-    var canonical=false, candidates=[];
-    try{
-      var api=window.ERPPartyBanks;
-      if(api && typeof api.hasCanonical==='function' && api.hasCanonical('fornecedor',String(f.cod||''))){
-        canonical=true;
-        candidates=[api.list('fornecedor',String(f.cod||''))];
-      }
-    }catch(error){ console.warn('[fornecedores] consulta das contas oficiais:',error); }
-    if(!canonical) candidates=[f.contas, f.contasBancarias, f.contas_bancarias, f.contasPix, f.dadosBancarios];
-    candidates.forEach(function(src){
-      if(!src) return;
-      var arr=[];
-      if(Array.isArray(src)) arr=src;
-      else if(typeof src==='object'){
-        var looksLikeAccount=['banco','bank','agencia','agency','conta','account','pix','chavePix','chave_pix'].some(function(k){ return src[k]!=null; });
-        arr=looksLikeAccount?[src]:Object.values(src);
-      }
-      arr.forEach(function(a){
-        if(!a || typeof a!=='object') return;
+    if(!f)return [];
+    const api=window.ERPPartyBanks;
+    const hasOfficial=!!(api&&typeof api.hasCanonical==='function'&&api.hasCanonical('fornecedor',String(f.cod||'')));
+    const out=[];
+    const sources=hasOfficial?[api.list('fornecedor',String(f.cod||''))]:[f.contas,f.contasBancarias,f.contas_bancarias,f.contasPix,f.dadosBancarios];
+    sources.forEach(src=>{
+      if(!src)return;
+      const candidates=Array.isArray(src)?src:typeof src==='object'&&Object.keys(src).some(k=>['banco','bank','agencia','agency','conta','account','pix'].includes(k))?[src]:typeof src==='object'?Object.values(src):[];
+      candidates.forEach(a=>{if(!a||typeof a!=='object')return;
         out.push({
-          banco:a.banco||a.bank||a.codigoBanco||a.codigo_banco||'',
-          agencia:a.agencia||a.ag||a.agency||'',
-          conta:a.conta||a.numeroConta||a.numero_conta||a.account||'',
-          pix:a.pix||a.chavePix||a.chave_pix||a.chave||'',
-          cpfcnpj:a.cpfcnpj||a.cpfCnpj||a.documento||a.cpf||a.cnpj||f.cnpj||f.cpf||'',
-          titular:a.titular||a.nomeTitular||a.nome_titular||f.nome||''
+          banco:String(a.bank||a.banco||'').trim(),agencia:String(a.agency||a.agencia||a.ag||'').trim(),
+          conta:String(a.account||a.conta||a.numeroConta||'').trim(),pix:String(a.pix||a.chavePix||a.chave_pix||'').trim(),
+          pais:String(a.country||a.pais||'BR').trim(),tipoConta:String(a.accountType||a.tipoConta||'').trim(),
+          titular:String(a.holderName||a.titular||a.nomeTitular||(!hasOfficial?f.nome:'')||'').trim(),
+          cpfcnpj:String(a.holderDocument||a.cpfcnpj||a.cpfCnpj||(!hasOfficial?(f.cnpj||f.cpf):'')||'').trim()
         });
       });
     });
-
-    if(!canonical && (f.pix || f.banco || f.agencia || f.conta)){
-      out.push({
-        banco:f.banco||'', agencia:f.agencia||'', conta:f.conta||'', pix:f.pix||'',
-        cpfcnpj:f.cnpj||f.cpf||'', titular:f.nome||''
-      });
-    }
-
-    var seen=new Set();
-    return out.filter(function(a){
-      var key=[a.banco,a.agencia,a.conta,a.pix,a.cpfcnpj].map(function(v){return String(v||'').trim().toLowerCase();}).join('|');
-      if(key==='||||' || seen.has(key)) return false;
-      seen.add(key); return true;
+    if(!hasOfficial&&(f.bank||f.banco||f.agencia||f.conta||f.pix))out.push({
+      banco:f.banco||'',agencia:f.agencia||'',conta:f.conta||'',pix:f.pix||'',
+      pais:'BR',tipoConta:'',titular:f.nome||'',cpfcnpj:f.cnpj||f.cpf||''
+    });
+    const seen=new Set();return out.filter(a=>{
+      const key=[a.banco,a.agencia,a.conta,a.pix].map(x=>{let v=String(x||'').toLowerCase().trim().replace(/\s+/g,' ');if(v===String(a.pix||'').toLowerCase().trim()&&/^\+?[\d\s().-]+$/.test(v))v=v.replace(/\D/g,'');return v;}).join('|');
+      if(seen.has(key)||!key.replace(/\|/g,''))return false;seen.add(key);return true;
     });
   }
 
@@ -91,8 +69,11 @@
     var parts=[];
     parts.push('Fornecedor: '+(f.nome||''));
     parts.push('Conta '+(index+1));
-    if(a.cpfcnpj) parts.push('CPF/CNPJ: '+a.cpfcnpj);
+    if(a.titular) parts.push('Titular da conta: '+a.titular);
+    if(a.cpfcnpj) parts.push('CPF/CNPJ do titular: '+a.cpfcnpj);
     if(a.banco) parts.push('Banco: '+a.banco);
+    if(a.pais) parts.push('País: '+(a.pais==='BR'?'Brasil':a.pais==='OUTRO'?'Outro país':a.pais));
+    if(a.tipoConta) parts.push('Tipo de conta: '+a.tipoConta);
     if(a.agencia) parts.push('Agência: '+a.agencia);
     if(a.conta) parts.push('Conta: '+a.conta);
     if(a.pix) parts.push('PIX: '+a.pix);
@@ -135,8 +116,11 @@
       return '<div style="border:1px solid #cfe3d6;background:#f6fbf8;border-radius:10px;padding:12px 14px;margin-top:10px">'+
         '<div style="font-weight:900;color:#176b35;font-size:.95rem;margin-bottom:6px">'+rotulo+'</div>'+
         '<div style="font-size:.82rem;line-height:1.65;color:#333">'+
-          (a.cpfcnpj?'<b>CPF/CNPJ:</b> '+_safe(a.cpfcnpj)+' &nbsp;·&nbsp; ':'')+
+          (a.titular?'<b>Titular:</b> '+_safe(a.titular)+'<br>':'')+
+          (a.cpfcnpj?'<b>CPF/CNPJ do titular:</b> '+_safe(a.cpfcnpj)+' &nbsp;·&nbsp; ':'')+
           (a.banco?'<b>Banco:</b> '+_safe(a.banco)+' &nbsp;·&nbsp; ':'')+
+          (a.pais?'<b>País:</b> '+_safe(a.pais==='BR'?'Brasil':a.pais==='OUTRO'?'Outro país':a.pais)+' &nbsp;·&nbsp; ':'')+
+          (a.tipoConta?'<b>Tipo:</b> '+_safe(a.tipoConta)+' &nbsp;·&nbsp; ':'')+
           (a.agencia?'<b>Ag:</b> '+_safe(a.agencia)+' &nbsp;·&nbsp; ':'')+
           (a.conta?'<b>Conta:</b> '+_safe(a.conta):'')+
           (a.pix?'<br><b>PIX:</b> <span style="color:#159447;font-weight:800">'+_safe(a.pix)+'</span>':'')+

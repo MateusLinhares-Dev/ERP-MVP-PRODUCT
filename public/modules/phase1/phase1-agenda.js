@@ -3,6 +3,49 @@
 const original={open:global.agendaAbrirNovo,save:global.agendaNovo,whats:global.agendaWhats,render:global.agendaRender};
 const defaultServices=[{id:'base_entrega',name:'ENTREGA DE MATERIAL'},{id:'base_retirada',name:'RETIRADA DE MATERIAL'},{id:'base_coleta',name:'COLETA DE MATERIAL'},{id:'base_atendimento',name:'ATENDIMENTO'}];
 let serviceCatalog=defaultServices,serviceBusy=false;
+const agendaRemoteParties={Cliente:[],Fornecedor:[]};
+let agendaPartiesRequestId=0;
+function agendaNorm(text){return String(text||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();}
+function agendaActive(row){return row&&row.nome&&row.ativo!==false&&row.inativo!==true&&!['inativo','excluido','excluído','desativado'].includes(agendaNorm(row.status));}
+function agendaLocalNames(type){
+  try{
+    const list=type==='Cliente'?(CLIENTES||[]):(typeof getFornAtivos==='function'?getFornAtivos():(FORNECEDORES||[]));
+    return list.filter(agendaActive).map(p=>String(p.nome).trim());
+  }catch(error){console.warn('[agenda] lista local',error);return [];}
+}
+function agendaRenderPartyOptions(type,chosen){
+  const select=document.getElementById('agd-novo-nome');if(!select)return;
+  const all=[...agendaLocalNames(type),...agendaRemoteParties[type].filter(agendaActive).map(p=>String(p.nome).trim())];
+  const unique=new Map();for(const name of all){const k=agendaNorm(name);if(k&&!unique.has(k))unique.set(k,name);}
+  const list=[...unique.values()].sort((a,b)=>a.localeCompare(b,'pt-BR',{sensitivity:'base'}));
+  const selected=chosen ?? select.value;
+  select.replaceChildren();
+  const blank=document.createElement('option');blank.value='';blank.textContent='— Selecione '+(type==='Cliente'?'o cliente':'o fornecedor')+' —';select.append(blank);
+  for(const name of list){const opt=document.createElement('option');opt.value=name;opt.textContent=name;select.append(opt);}
+  const matched=list.find(name=>agendaNorm(name)===agendaNorm(selected));
+  select.value=matched||'';
+  global.ERPRefreshSearchableSelect?.('agd-novo-nome');
+  const info=document.getElementById('phase1-agenda-party-status');
+  if(info)info.textContent=list.length+' cadastro(s) disponíveis para busca';
+}
+async function agendaRefreshParties(type){
+  const select=document.getElementById('agd-novo-nome'),kind=type||document.getElementById('agd-novo-tipo')?.value||'Cliente';
+  if(!select)return;
+  agendaRenderPartyOptions(kind);
+  const repository=global.__businessRepository;
+  if(!repository?.read)return;
+  const request=++agendaPartiesRequestId;
+  const collection=kind==='Cliente'?'clientes':'fornecedores';
+  try{
+    const data=await repository.read(collection);
+    if(request!==agendaPartiesRequestId)return;
+    agendaRemoteParties[kind]=Array.isArray(data)?data:Object.values(data||{});
+    if(document.getElementById('agd-novo-nome')!==select||document.getElementById('agd-novo-tipo')?.value!==kind)return;
+    agendaRenderPartyOptions(kind);
+  }catch(error){console.warn('[agenda] não foi possível buscar cadastros atuais:',error);
+    const info=document.getElementById('phase1-agenda-party-status');if(info)info.textContent='Lista local disponível. Falha ao atualizar do Firebase.';}
+}
+
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function enhanceModal(){
   const card=document.querySelector('#agd-novo-ov>div');if(!card||card.dataset.phase1==='1')return;
@@ -11,7 +54,7 @@ function enhanceModal(){
   if(type){
     type.value='Cliente';
     type.parentElement?.classList.add('phase1-agenda-party-type');
-    type.onchange=()=>{try{if(typeof _agdNovoAtualizaNomes==='function')_agdNovoAtualizaNomes();}catch(e){}global.ERPRefreshSearchableSelect?.('agd-novo-nome');};
+    type.onchange=()=>{try{if(typeof _agdNovoAtualizaNomes==='function')_agdNovoAtualizaNomes();}catch(e){}agendaRefreshParties(type.value);};
     try{if(typeof _agdNovoAtualizaNomes==='function')_agdNovoAtualizaNomes();}catch(e){}
     const typeLabel=type.parentElement?.querySelector('label');if(typeLabel)typeLabel.textContent='TIPO DE CADASTRO';
   }
@@ -19,7 +62,7 @@ function enhanceModal(){
   if(typeof global.ERPEnhanceSearchableSelect==='function'){
     global.ERPEnhanceSearchableSelect(who,{placeholder:'Buscar pelo nome, digite para filtrar…',label:'Cliente ou fornecedor da entrega'});
   }
-  if(whoWrap){const label=whoWrap.querySelector('label');if(label)label.textContent='CLIENTE / FORNECEDOR';const quick=document.createElement('button');quick.type='button';quick.className='phase1-agenda-quick';quick.textContent='＋ Cadastro rápido de cliente';quick.onclick=global.phase1AgendaQuickClient;whoWrap.appendChild(quick);}
+  if(whoWrap){const label=whoWrap.querySelector('label');if(label)label.textContent='CLIENTE / FORNECEDOR';const info=document.createElement('small');info.id='phase1-agenda-party-status';info.style.cssText='display:block;margin-top:4px;color:#64776d;font-size:.7rem';whoWrap.appendChild(info);whoWrap.addEventListener('focusin',ev=>{if(ev.target.classList?.contains('erp-search-select-input'))agendaRefreshParties(type?.value||'Cliente');});const quick=document.createElement('button');quick.type='button';quick.className='phase1-agenda-quick';quick.textContent='＋ Cadastro rápido de cliente';quick.onclick=global.phase1AgendaQuickClient;whoWrap.appendChild(quick);}
   const material=document.getElementById('agd-novo-material');const obs=document.getElementById('agd-novo-obs');const obsWrap=obs?.parentElement;
   if(obsWrap){
     const before=document.createElement('div');before.className='phase1-agenda-fields phase1-agenda-fields-before';before.innerHTML=`<label><span>SERVIÇO</span><select id="agd-novo-servico"><option value="ENTREGA DE MATERIAL">ENTREGA DE MATERIAL</option><option value="RETIRADA DE MATERIAL">RETIRADA DE MATERIAL</option><option value="COLETA DE MATERIAL">COLETA DE MATERIAL</option><option value="ATENDIMENTO">ATENDIMENTO</option></select></label><label><span>FORMA DE PAGAMENTO</span><select id="agd-novo-pagamento"><option value="">— Não informado —</option><option>PIX</option><option>Dinheiro</option><option>Cheque</option><option>Transferência</option><option>A prazo</option><option>Outro</option></select></label>`;obsWrap.insertAdjacentElement('beforebegin',before);
@@ -38,6 +81,7 @@ function enhanceModal(){
     refreshServices().catch(e=>showServiceError('Serviços não sincronizados: '+e.message));
   }
   card.dataset.phase1='1';
+  agendaRefreshParties(type?.value||'Cliente');
   setTimeout(()=>document.querySelector('#agd-novo-ov .erp-search-select-input')?.focus(),35);
 }
 if(typeof original.open==='function')global.agendaAbrirNovo=function(){const result=original.open.apply(this,arguments);enhanceModal();return result;};
@@ -48,6 +92,7 @@ document.addEventListener('erp:catalog-updated',()=>{
   try{if(typeof _agdNovoAtualizaNomes==='function')_agdNovoAtualizaNomes();}catch(e){}
   if(old&&[...select.options].some(x=>x.value===old))select.value=old;
   global.ERPRefreshSearchableSelect?.('agd-novo-nome');
+  agendaRefreshParties(document.getElementById('agd-novo-tipo')?.value||'Cliente');
 });
 if(typeof original.save==='function')global.agendaNovo=function(){
   let before=[];try{before=(AGENDA_DB||[]).map(x=>x&&x.id).filter(Boolean);}catch(e){}
@@ -138,7 +183,7 @@ async function deleteService(id){
   }catch(e){serviceManagerStatus(e.message,true);}
   finally{serviceBusy=false;renderServiceManager();}
 }
-function phoneFor(name){const key=String(name||'').trim().toUpperCase();let phone='';try{[...(CLIENTES||[]),...(FORNECEDORES||[])].forEach(p=>{if(String(p?.nome||'').trim().toUpperCase()===key)phone=p.tel||p.telefone||p.celular||phone;});}catch(e){}return String(phone||'').replace(/\D/g,'');}
+function phoneFor(name){const key=String(name||'').trim().toUpperCase();let phone='';try{[...(CLIENTES||[]),...(FORNECEDORES||[]),...agendaRemoteParties.Cliente,...agendaRemoteParties.Fornecedor].forEach(p=>{if(String(p?.nome||'').trim().toUpperCase()===key)phone=p.tel||p.telefone||p.celular||phone;});}catch(e){}return String(phone||'').replace(/\D/g,'');}
 global.agendaWhats=function(id){
   let a=null;try{a=(AGENDA_DB||[]).find(x=>x&&x.id===id);}catch(e){}if(!a)return;
   let phone=phoneFor(a.nome);if(!phone){phone=String(prompt(`Informe o WhatsApp de ${a.nome}:`,'47')||'').replace(/\D/g,'');if(!phone)return;}if(phone.length===10||phone.length===11)phone='55'+phone;
