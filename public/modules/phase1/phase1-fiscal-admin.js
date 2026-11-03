@@ -11,6 +11,15 @@ async function initFiscalParties(){
     return;
   }
   const seq=++fiscalPartyLoadId;
+  // A extensao era inicializada em toda sessao, inclusive sem acesso fiscal.
+  if(global.firebase && typeof global.firebase.auth==='function'){
+    const user=global.firebase.auth()?.currentUser;
+    if(!user)return;
+    try{
+      const claims=(await user.getIdTokenResult()).claims||{};
+      if(claims.erpAccess!==true || (claims.canFiscalRead!==true && claims.admin!==true))return;
+    }catch(error){console.warn('[Fiscal] Autenticacao ainda indisponivel:',error?.code||'auth');return;}
+  }
   try{
     // Ao voltar à aba, consultar a fonte atual: Phase1Store mantém cache e a
     // primeira leitura pode ocorrer antes de o Firebase terminar a sincronização.

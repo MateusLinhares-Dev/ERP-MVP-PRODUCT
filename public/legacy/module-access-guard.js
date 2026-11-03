@@ -30,6 +30,10 @@
     // A Matriz é exclusiva da conta administradora Elaine. O servidor ainda verifica
     // as claims Firebase antes de qualquer leitura/gravação de cursos e certificados.
     if(tab==='matriz_capacitacao') return isElaineOwner();
+    // Contas da Dona e criada dinamicamente: nao consta nas tabs legadas.
+    // O backend exige canOwnerBills, concedida a administradores; nao abrir
+    // permissao para perfis financeiros comuns so por terem o menu visivel.
+    if(tab==='contas_dona') return !!(currentProfile() && currentProfile().admin===true);
 
     if(OWNER_ONLY_TABS.has(tab) && !isElaineOwner()) return false;
     var profile=currentProfile();

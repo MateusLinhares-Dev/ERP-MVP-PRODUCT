@@ -1526,7 +1526,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(!_chegouTarde){ if(callback) callback(true); }
       else {
         
-        try{ showToast('☁️ Dados da nuvem chegaram — telas atualizadas.','info',4000); }catch(e){}
+        // Sincronização tardia é silenciosa: atualização visual abaixo.
         [ 'renderTbFuncionarios','renderVendas','renderContasReceber','renderContasPagar',
           'renderTabelaFornecedores','renderEstoque','renderAdiantamentos','renderFrota',
           'agendaRender','renderDashboard','renderCombustivel','renderBancos','renderEpi','renderRodBalanca'
@@ -1543,6 +1543,44 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   }
 
   
+  // Atualizações de outra sessão nunca devem funcionar como uma navegação
+  // iniciada pelo usuário. O guard permanece responsável por validar acessos
+  // reais, mas um refresh automático só pode repintar abas autorizadas.
+  function _fbAtualizarAbaAtivaSilenciosamente(){
+    try{
+      const painel=document.querySelector('.tab-panel.active');
+      const tab=painel&&typeof painel.id==='string'&&painel.id.startsWith('tab-')
+        ? painel.id.slice(4) : '';
+      if(!tab) return false;
+      // Atualizacao remota nao e clique: switchTab dispararia guards, modais e
+      // notificacoes de acesso negado repetidamente em toda a empresa.
+      if(typeof window.erpCanAccessTab==='function' && !window.erpCanAccessTab(tab)) return false;
+      const renders={
+        dashboard:'renderDashboard',
+        contas_pagar:'renderContasPagar',
+        contas_receber:'renderContasReceber',
+        bancos:'renderBancos',
+        estoque:'renderEstoque',
+        adiantamentos:'renderAdiantamentos',
+        funcionarios:'renderTbFuncionarios',
+        frota:'renderFrota',
+        vendas:'renderVendas',
+        fornecedores:'renderTabelaFornecedores'
+      };
+      const fn=renders[tab];
+      if(fn && typeof window[fn]==='function') window[fn]();
+      // Componentes com repositorio proprio (ex.: ownerBills) recarregam
+      // sua colecao via listener ou evento, sem reabrir a rota.
+      if(typeof document.dispatchEvent==='function' && typeof CustomEvent==='function'){
+        document.dispatchEvent(new CustomEvent('erp:remote-data-merged',{detail:{tab:tab}}));
+      }
+      return true;
+    }catch(error){
+      console.warn('[ERP] Nao foi possivel renderizar os dados sincronizados:',error);
+      return false;
+    }
+  }
+
   let _fbListenerAtivo = false;
   function fbIniciarListener() {
     if(_fbListenerAtivo) return;
@@ -1593,10 +1631,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           window.__ERP_DEFERRED_FULL_SYNC__=false;
           if(typeof fbCarregar==='function'){
             fbCarregar(function(){
-              try{
-                const atual=document.querySelector('.tab-panel.active');
-                if(atual&&typeof switchTab==='function') switchTab(atual.id.replace('tab-',''));
-              }catch(e){}
+              _fbAtualizarAbaAtivaSilenciosamente();
             });
           }
         }catch(e){}
@@ -1882,8 +1917,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         const _campoAtivo = document.activeElement;
         const _digitandoAgora = _campoAtivo && ['INPUT','SELECT','TEXTAREA'].includes(_campoAtivo.tagName) && _campoAtivo.offsetParent!==null;
         if(!_modalAbertoAgora && !_digitandoAgora){
-          try { const a=document.querySelector('.tab-panel.active'); if(a) switchTab(a.id.replace('tab-','')); } catch(e){}
-          showToast('🔄 Dados atualizados por outro usuário','success',3000);
+          _fbAtualizarAbaAtivaSilenciosamente();
         }
         if(_temPendenteLocal) setTimeout(function(){ try{ _fbSalvarAgora(); }catch(e){} },0);
       });
