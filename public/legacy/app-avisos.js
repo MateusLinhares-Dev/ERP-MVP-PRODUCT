@@ -110,11 +110,8 @@
     try{
       var el=document.querySelector('.nav-tab[data-tab="avisos"] .nt-label'); if(!el) return;
       var n=avisosContar();
-      // A contagem muda somente quando os dados mudam. Reescrever o badge
-      // a cada MutationObserver invalidava a DOM e criava um ciclo visual.
-      if(el.dataset.erpAvisosLegacyCount===String(n)) return;
-      el.innerHTML = 'Avisos' + (n>0 ? ' <span style="background:#c0392b;color:#fff;border-radius:10px;padding:0 7px;font-size:.7rem;font-weight:800;margin-left:4px">'+n+'</span>' : '');
-      el.dataset.erpAvisosLegacyCount=String(n);
+      const html = 'Avisos' + (n>0 ? ' <span style="background:#c0392b;color:#fff;border-radius:10px;padding:0 7px;font-size:.7rem;font-weight:800;margin-left:4px">'+n+'</span>' : '');
+      if(el.innerHTML!==html)el.innerHTML=html;
     }catch(e){}
   };
 
@@ -125,7 +122,7 @@
     var vtList=_fA().filter(function(f){ return Number(f.valeTransporte||0)>0; });
 
     function card(t,c){ return '<div style="background:#fff;border-radius:12px;box-shadow:0 2px 10px #0001;padding:16px 18px;margin-bottom:16px">'+t+c+'</div>'; }
-    var html='<div data-erp-avisos-main="1" style="max-width:900px;margin:0 auto;padding:6px 2px">';
+    var html='<div style="max-width:900px;margin:0 auto;padding:6px 2px">';
     html+='<h2 style="margin:6px 0 14px;color:#1f3864">🔔 Avisos</h2>';
 
     if(_canAfazeres()){
@@ -162,13 +159,7 @@
     }
 
     html+='</div>';
-    // Camadas adicionais inserem cartões de calendário e de antecedência.
-    // Comparar box.innerHTML com o HTML-base nunca funciona depois disso:
-    // reconstruiria a tela inteira mesmo sem mudança nos dados.
-    if(box.__erpAvisosBaseHtml!==html || !box.querySelector('[data-erp-avisos-main]')){
-      box.innerHTML=html;
-      box.__erpAvisosBaseHtml=html;
-    }
+    if(box.innerHTML!==html)box.innerHTML=html;
     try{ avisosAtualizarBadge(); }catch(e){}
   };
 

@@ -4,7 +4,7 @@ import { createLegacyDatabaseAdapter } from './legacy-db-adapter.js';
 import { createRealtimeBusinessRepository } from './realtime-business-repository.js';
 import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 
-const assetRevision = '20261104-credit-ledger-fix-v2';
+const assetRevision = '20261104-company-live-pdf-release';
 
 function loadClassic(src) {
   return new Promise((resolve, reject) => {
@@ -138,15 +138,17 @@ function arquivarCachesAntigosAntesDaNuvem(){
 
 async function main() {
   arquivarCachesAntigosAntesDaNuvem();
-  const configResponse = await fetch('/api/config', { credentials: 'same-origin' });
+  const [configResponse, publicResponse, policyResponse] = await Promise.all([
+    fetch('/api/config', { credentials: 'same-origin' }),
+    fetch('/api/public-config', { credentials: 'same-origin' }),
+    fetch('/app/rtdb-collection-policy.json', { credentials: 'same-origin' })
+  ]);
   if (!configResponse.ok) throw new Error(`Config endpoint retornou ${configResponse.status}`);
   const runtimeConfig = await configResponse.json();
   window.__APP_CONFIG__ = runtimeConfig;
 
-  const publicResponse = await fetch('/api/public-config', { credentials: 'same-origin' });
   if (publicResponse.ok) applyPublicBranding(await publicResponse.json());
   installRestUrl(runtimeConfig);
-  const policyResponse = await fetch('/app/rtdb-collection-policy.json', { credentials: 'same-origin' });
   if (!policyResponse.ok) throw new Error('Política de acesso ao Realtime Database indisponível.');
   const collectionPolicy = await policyResponse.json();
   if (collectionPolicy.version !== 1 || !collectionPolicy.nodes || !collectionPolicy.nodes.tickets) {
