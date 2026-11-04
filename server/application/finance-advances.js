@@ -245,6 +245,8 @@ export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
     if(matches.length!==1)failure(409,'ADVANCE_CHANGED','Adiantamento não encontrado ou duplicado. Atualize os dados.');
     const previous=matches[0];
     if(!expectedMatches(previous,input.expected))failure(409,'ADVANCE_CHANGED','O adiantamento foi alterado por outra sessão. Atualize antes de salvar.');
+    if(Number(previous.valorCompensado||0)>0||previous.origem==='compensacao_cp')
+      failure(409,'ADVANCE_ALREADY_COMPENSATED','Adiantamento já compensado total ou parcialmente. Para alterar ou excluir, faça o estorno financeiro auditado.');
     if(newFornCod!==fornCod&&!supplierExists(suppliersSnap.val(),newFornCod))failure(422,'SUPPLIER_NOT_FOUND','Fornecedor de destino não encontrado.');
     const oldMovementId=clean(previous.movBancoId||'');
     const originalMovement=oldMovementId?(await db.ref('erp/lancBanco/'+pathKey(oldMovementId)).get()).val():null;

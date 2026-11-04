@@ -58,7 +58,9 @@ export async function payPayable(identity,input,{db,now=()=>Date.now(),uuid=rand
       const lock=await ticketLock.transaction(current=>current&&current.expiresAt>now()?undefined:{owner,expiresAt:now()+120000},undefined,false);
       if(!lock.committed)fail(409,'TICKET_IN_PROGRESS','Outra baixa deste ticket está em andamento.');
     }
-    const supplier=advanceCents?key(input.fornCod||original.fornCod):'';
+    const supplier=advanceCents?key(original.fornCod||input.fornCod):'';
+    if(advanceCents&&original.fornCod&&String(input.fornCod||original.fornCod)!==String(original.fornCod))
+      fail(409,'SUPPLIER_MISMATCH','O fornecedor do adiantamento não corresponde ao título.');
     if(advanceCents){
       supplierLock=instance.ref('erpFinanceAdvanceLocks/'+supplier);
       const lock=await supplierLock.transaction(current=>current&&current.expiresAt>now()?undefined:{owner,expiresAt:now()+120000},undefined,false);
@@ -73,21 +75,45 @@ export async function payPayable(identity,input,{db,now=()=>Date.now(),uuid=rand
     if(payCents&&!bank)fail(422,'BANK_NOT_FOUND','Banco não encontrado. Atualize as opções.');
     const advanceList=advanceCents?(Array.isArray(advanceSnap.val())?advanceSnap.val():Object.values(advanceSnap.val()||{}).filter(Boolean)).map(x=>({...x})):null;
     if(advanceCents&&!Array.isArray(advanceList))fail(409,'ADVANCES_INVALID','Saldo de adiantamentos inconsistente.');
+    const ticketRecord=ticketSnap?.val?.()||null;
+    if(advanceCents&&ticketRecord?.fornecedorCod&&String(ticketRecord.fornecedorCod)!==supplier)
+      fail(409,'SUPPLIER_MISMATCH','O ticket está associado a outro fornecedor.');
+    if(advanceCents&&!original.fornCod&&!ticketRecord?.fornecedorCod){
+      const rawSuppliers=(await instance.ref('erp/fornecedores').get()).val();
+      const normalize=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLocaleLowerCase('pt-BR');
+      const name=normalize(original.cred||ticketRecord?.fornecedor||ticketRecord?.fornecedorNome);
+      const matching=entries(rawSuppliers).filter(([,row])=>normalize(row.nome)===name);
+      if(!name||matching.length!==1||String(matching[0][1].cod||'')!==supplier)
+        fail(409,'SUPPLIER_NOT_VERIFIED','Não foi possível confirmar o fornecedor deste título legado. Verifique o cadastro.');
+    }
     let advanceRemaining=advanceCents;
     if(advanceList){
-      for(const advance of [...advanceList]){
+      const ticketCode=String(original.ticket||'').trim();
+      const eligible=advanceList.filter(a=>a.status==='Pendente'&&(!a.ticket||String(a.ticket).trim()===ticketCode));
+      eligible.sort((a,b)=>Number(String(b.ticket||'').trim()===ticketCode)-Number(String(a.ticket||'').trim()===ticketCode));
+      for(const advance of eligible){
         if(!advanceRemaining)break;
-        if(advance.status!=='Pendente')continue;
         const available=cents(Number(advance.valor));
         const used=Math.min(available,advanceRemaining);
-        if(used===available){advance.status='Quitado';advance.ticket=advance.ticket||original.ticket||'';advance.obs=(advance.obs?advance.obs+' | ':'')+'Compensado em CP '+displayDate(date);}
-        else{
+        const initialCents=cents(Number(advance.valorOriginal??advance.valor));
+        const alreadyApplied=cents(Number(advance.valorCompensado||0),true);
+        advance.valorOriginal=money(initialCents);
+        advance.valorCompensado=money(alreadyApplied+used);
+        if(used===available){
+          advance.status='Quitado';
+          advance.ticket=advance.ticket||ticketCode;
+          advance.obs=(advance.obs?advance.obs+' | ':'')+'Compensado em CP '+displayDate(date);
+        }else{
           advance.valor=money(available-used);
-          advanceList.push({cod:'ADT'+now().toString(36)+uuid().replaceAll('-','').slice(0,8),data:displayDate(date),valor:money(used),status:'Quitado',ticket:original.ticket||'',forma:advance.forma,bancoCod:advance.bancoCod||'',bancoNome:advance.bancoNome||'',obs:'Compensação parcial – CP '+displayDate(date)});
+          if(advance.ticket&&String(advance.ticket).trim()===ticketCode){
+            advance.ticketOrigem=advance.ticket;
+            advance.ticket='';
+          }
+          advanceList.push({cod:'ADT'+now().toString(36)+uuid().replaceAll('-','').slice(0,8),data:displayDate(date),valor:money(used),status:'Quitado',ticket:ticketCode,forma:advance.forma,bancoCod:advance.bancoCod||'',bancoNome:advance.bancoNome||'',empresa:advance.empresa||'',origem:'compensacao_cp',adiantamentoOrigem:advance.cod,obs:'Compensação parcial – CP '+displayDate(date)});
         }
         advanceRemaining-=used;
       }
-      if(advanceRemaining)fail(409,'ADVANCE_BALANCE_CHANGED','Saldo de adiantamentos insuficiente. Atualize a página.');
+      if(advanceRemaining)fail(409,'ADVANCE_BALANCE_CHANGED','Crédito disponível para este ticket é insuficiente. Atualize os dados.');
     }
     const amountTotal=payCents+advanceCents,rest=currentCents-amountTotal,full=rest===0;
     const updated={...original,pagamentos:[...(Array.isArray(original.pagamentos)?original.pagamentos:[]),{data:displayDate(date),valor:money(payCents),adt:money(advanceCents),banco:bank?.banco||'',obs:clean(input.obs,1000)}],status:full?'Pago':'Pendente',valor:full?money(currentCents):money(rest),valorPago:money(cents(Number(original.valorPago||0),true)+payCents),_upd:now()};
