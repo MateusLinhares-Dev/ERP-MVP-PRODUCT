@@ -140,7 +140,7 @@
   window.renderTabelaFornecedores = function(){
     try{ if(typeof _syncFornecedores!=='undefined' && _syncFornecedores.limparDuplicatasExatas()){ try{fbSalvar();}catch(e){} } }catch(e){}
     var tb=document.getElementById('tb-fornecedores'); if(!tb) return;
-    var isElaine=(typeof cu!=='undefined' && cu && cu.admin===true);
+    var isElaine=(typeof _usuarioPodeOperarModulo==='function'&&_usuarioPodeOperarModulo('fornecedores'));
     var lista=(typeof _getFornFiltrados==='function')?_getFornFiltrados():_activeSuppliers();
     // O compat de bancos/PIX substitui o renderizador legado. Paginar aqui é
     // obrigatório: caso contrário, todos os fornecedores voltam ao DOM.

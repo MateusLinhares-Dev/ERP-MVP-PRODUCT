@@ -821,6 +821,13 @@ let _USERS_DEL = [];
 try{ const _ud=localStorage.getItem('mm_users_del'); if(_ud) _USERS_DEL=JSON.parse(_ud)||[]; }catch(e){}
 function _usuarioEhAdmin(u){ return !!(u&&u.admin===true); }
 function _usuarioAtualEhAdmin(){ return _usuarioEhAdmin(typeof cu!=='undefined'?cu:null); }
+function _usuarioPodeOperarModulo(tab){
+  if(_usuarioAtualEhAdmin())return true;
+  try{
+    if(typeof window.erpCanAccessTab==='function')return window.erpCanAccessTab(tab)===true;
+    return Array.isArray(cu?.tabs)&&cu.tabs.includes(tab);
+  }catch(e){return false;}
+}
 
 
 
@@ -870,7 +877,7 @@ function renderTabelaFornecedores(){
   try{ if(_syncFornecedores.limparDuplicatasExatas()){ try{fbSalvar();}catch(e){} } }catch(e){}
   const tbForn=document.getElementById('tb-fornecedores');
   if(!tbForn) return;
-  const _isEl=_usuarioAtualEhAdmin();
+  const _isEl=_usuarioPodeOperarModulo('fornecedores');
   const lista=_getFornFiltrados();
   const pagina=_erpPaginarDados('fornecedores-compra',lista,'tb-fornecedores',renderTabelaFornecedores);
   tbForn.innerHTML=pagina.map(function(f){
@@ -1910,7 +1917,7 @@ function populateAll(){
 
   
   renderTabelaFornecedores();
-  const _isElaine=_usuarioAtualEhElaine();
+  const _isElaine=_usuarioPodeOperarModulo('fornecedores');
   if(!_isElaine){
     const chkHdr=document.getElementById('chk-all-forn'); if(chkHdr) chkHdr.style.display='none';
     const btnExcSel=document.getElementById('btn-excluir-sel'); if(btnExcSel) btnExcSel.style.display='none';
@@ -13109,7 +13116,7 @@ function renderClientes(){
     tbody.innerHTML='<tr><td colspan="7" style="color:var(--gray);text-align:center;padding:20px">'+(v?'Nenhum cliente encontrado para "'+esc(v)+'"':'Nenhum cliente cadastrado ainda')+'</td></tr>';
     return;
   }
-  const _isEl=_usuarioAtualEhAdmin();
+  const _isEl=_usuarioPodeOperarModulo('clientes');
   const pagina=_erpPaginarDados('clientes',lista,'tb-clientes-list',renderClientes);
   tbody.innerHTML=pagina.map((c,i)=>{
     const realIdx=CLIENTES.indexOf(c);
@@ -13131,16 +13138,29 @@ function renderClientes(){
 
 
 
-function excluirCliente(idx){
-  if(!_usuarioAtualEhAdmin()){ alert('Apenas a administradora pode excluir clientes.'); return; }
-  const c=CLIENTES[idx]; if(!c) return;
-  if(!confirm('Excluir o cliente "'+(c.nome||'')+'"?\n\nOs lançamentos já feitos com ele (vendas, contas a receber) continuam no histórico — ele só some da lista de clientes.')) return;
-  const registro=Object.assign({},c);
-  try{ _syncClientes.remover(idx); }catch(e){ CLIENTES.splice(idx,1); }
-  saveClientes();
-  try{ registrarHistorico('Cliente','Excluído','Cliente removido: '+(c.nome||''), registro, {cod:c.cod||''}); }catch(e){}
-  renderClientes();
-  showToast('Cliente "'+(c.nome||'')+'" excluído.','success');
+const _erpExclusoesEmAndamento=new Set();
+async function excluirCliente(idx){
+  if(!_usuarioPodeOperarModulo('clientes')){alert('Sem acesso ao módulo Clientes.');return;}
+  const c=CLIENTES[idx];if(!c)return;
+  if(!confirm('Excluir o cliente "'+(c.nome||'')+'"?\n\nAs vendas e contas a receber continuam no histórico.'))return;
+  const registro={...c},id=c.id||_syncClientes.paraObjeto()&&c.id;
+  if(!id||!window._fbDB||!firebase?.auth?.().currentUser){showToast('Conecte-se ao Firebase para excluir o cliente.','error');return;}
+  if(_erpExclusoesEmAndamento.has('cliente:'+id))return;
+  _erpExclusoesEmAndamento.add('cliente:'+id);
+  try{
+    if(!/^[a-zA-Z0-9_-]{1,120}$/.test(String(id)))throw new Error('Identificador do cliente inválido.');
+    const existing=await window._fbDB.ref('erp/clientes/'+id).once('value');
+    if(!existing.val())throw new Error('Cliente não existe mais na nuvem. Atualize a lista.');
+    await window._fbDB.ref('erp').update({['clientes/'+id]:null,['clientesDeleted/'+id]:true});
+    _syncClientes.remover(CLIENTES.indexOf(c));
+    try{localStorage.setItem('mm_clientes',JSON.stringify(CLIENTES));}catch(e){}
+    renderClientes();
+    try{populatePrecosCliSel();}catch(e){}
+    try{registrarHistorico('Cliente','Excluído','Cliente removido: '+(c.nome||''),registro,{cod:c.cod||''});}catch(e){}
+    document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'clientes'}}));
+    showToast('Cliente excluído e confirmado no Firebase.','success');
+  }catch(error){showToast('Não foi possível excluir o cliente: '+error.message,'error');}
+  finally{_erpExclusoesEmAndamento.delete('cliente:'+id);}
 }
 
 
@@ -13275,40 +13295,42 @@ function toggleAllForn(checked){
   atualizarBtnExcluir();
 }
 
-function excluirSelecionados(){
-  if(!_usuarioAtualEhAdmin()){alert('Apenas a '+_usuarioAdminNome()+' pode excluir fornecedores.');return;}
-  const chks=[...document.querySelectorAll('.forn-chk:checked')];
-  if(chks.length===0) return;
-  const nomes=chks.map(c=>{const f=FORNECEDORES.find(x=>x.cod===c.value);return f?f.nome:c.value;});
-  if(chks.length >= FORNECEDORES.length){
-    alert('⚠️ Não é possível excluir todos os fornecedores de uma vez. Selecione apenas os que deseja remover.');
-    return;
-  }
-  if(!confirm(`Excluir ${chks.length} fornecedor(es)?\n\n${nomes.slice(0,10).join('\n')}${nomes.length>10?'\n...':''}\n\nUse o botão ↩️ Restaurar se precisar desfazer.`)) return;
-  chks.forEach(c=>{ FORN_DELETED.add(c.value); });
+async function _fornecedoresMarcarExcluidos(codes){
+  if(!window._fbDB||!firebase?.auth?.().currentUser)throw new Error('Sessão Firebase indisponível.');
+  const unique=[...new Set(codes.map(x=>String(x||'').trim()))];
+  if(!unique.length||unique.length>200||unique.some(cod=>!/^[a-zA-Z0-9_-]{1,120}$/.test(cod)))throw new Error('Identificadores dos fornecedores inválidos.');
+  await window._fbDB.ref('erp/fornDeleted').update(Object.fromEntries(unique.map(cod=>[cod,true])));
+  unique.forEach(cod=>FORN_DELETED.add(cod));
   localStorage.setItem('mm_fornecedores_deleted',JSON.stringify([...FORN_DELETED]));
-  try{fbSalvar();}catch(e){}
-  
   renderTabelaFornecedores();
   populateFornSelects();
-  const chkAll=document.getElementById('chk-all-forn');
-  if(chkAll) chkAll.checked=false;
+  const checkAll=document.getElementById('chk-all-forn');if(checkAll)checkAll.checked=false;
   atualizarBtnExcluir();
-  alert(`✅ ${chks.length} fornecedor(es) excluído(s)!`);
 }
 
-function excluirFornecedor(cod){
-  if(!_usuarioAtualEhAdmin()){alert('Apenas a '+_usuarioAdminNome()+' pode excluir fornecedores.');return;}
-  const f=FORNECEDORES.find(x=>x.cod===cod);
-  if(!f) return;
-  if(!confirm('Excluir fornecedor "'+f.nome+'"?\nUse o botão ↩️ Restaurar se precisar desfazer.')) return;
-  FORN_DELETED.add(cod);
-  localStorage.setItem('mm_fornecedores_deleted', JSON.stringify([...FORN_DELETED]));
-  try{fbSalvar();}catch(e){}
-  
-  renderTabelaFornecedores();
-  populateFornSelects();
-  alert('✅ Fornecedor excluído!');
+async function excluirSelecionados(){
+  if(!_usuarioPodeOperarModulo('fornecedores')){alert('Sem acesso ao módulo Fornecedores.');return;}
+  const chks=[...document.querySelectorAll('.forn-chk:checked')];
+  if(!chks.length)return;
+  const codes=chks.map(c=>c.value).filter(c=>FORNECEDORES.some(f=>f.cod===c));
+  if(codes.length>=getFornAtivos().length){showToast('Não é permitido excluir todos os fornecedores de uma vez.','error');return;}
+  if(!confirm('Excluir '+codes.length+' fornecedor(es) selecionado(s)?'))return;
+  if(_erpExclusoesEmAndamento.has('fornecedores'))return;
+  _erpExclusoesEmAndamento.add('fornecedores');
+  try{await _fornecedoresMarcarExcluidos(codes);showToast('Exclusões confirmadas no Firebase.','success');}
+  catch(error){showToast('Falha ao excluir fornecedores: '+error.message,'error');}
+  finally{_erpExclusoesEmAndamento.delete('fornecedores');}
+}
+
+async function excluirFornecedor(cod){
+  if(!_usuarioPodeOperarModulo('fornecedores')){alert('Sem acesso ao módulo Fornecedores.');return;}
+  const f=FORNECEDORES.find(x=>String(x.cod)===String(cod));if(!f)return;
+  if(!confirm('Excluir fornecedor "'+f.nome+'"?'))return;
+  if(_erpExclusoesEmAndamento.has('fornecedor:'+cod))return;
+  _erpExclusoesEmAndamento.add('fornecedor:'+cod);
+  try{await _fornecedoresMarcarExcluidos([cod]);showToast('Fornecedor excluído e confirmado no Firebase.','success');}
+  catch(error){showToast('Falha ao excluir fornecedor: '+error.message,'error');}
+  finally{_erpExclusoesEmAndamento.delete('fornecedor:'+cod);}
 }
 
 function editFornecedor(cod){
@@ -13817,7 +13839,7 @@ function lcSalvar(){ try{ localStorage.setItem('mm_lista_compras', JSON.stringif
 
 function _lcGravar(item){ try{ if(window._fbDB && item && item.id) window._fbDB.ref('erp/listaCompras/'+item.id).set(item); }catch(e){} }
 function _lcRemover(id){ try{ if(window._fbDB && id) window._fbDB.ref('erp/listaCompras/'+id).remove(); }catch(e){} }
-function _lcPodeExcluir(){ return _usuarioAtualEhAdmin(); }
+function _lcPodeExcluir(){ return _usuarioPodeOperarModulo('lista_compras'); }
 let _lcListenerOn=false;
 function lcInit(){
   try{
@@ -13911,7 +13933,7 @@ function lcToggle(id){
   lcSalvar(); _lcGravar(it); renderListaCompras();
 }
 function lcExcluir(id){
-  if(!_lcPodeExcluir()){ showToast('Só '+_usuarioAdminNome()+' pode excluir itens da lista.','error'); return; }
+  if(!_lcPodeExcluir()){ showToast('Sem acesso à Lista de Compras.','error'); return; }
   const it=LISTA_COMPRAS.find(x=>x.id===id); if(!it) return;
   if(!confirm('Excluir "'+it.nome+'" da lista?')) return;
   const i=LISTA_COMPRAS.findIndex(x=>x.id===id); if(i>=0) LISTA_COMPRAS.splice(i,1);
@@ -18451,247 +18473,104 @@ function registrarMovBanco(bancoNome, dataISO, descricao, tipo, valor){
   return mov;
 }
 
-function pagarContaRapido(idx, id){
-  
-  
-  if(id){ const fresh=_cpIdxPorId(id); if(fresh>=0) idx=fresh; }
-  const c=CONTAS_PAGAR[idx]; if(!c) return;
+async function _cpConsultarContasBancarias(selectId,current=''){
+  const select=document.getElementById(selectId);
+  if(!select)return false;
+  select.disabled=true;
+  select.innerHTML='<option value="">Carregando bancos autorizados...</option>';
+  try{
+    const user=firebase?.auth?.().currentUser;
+    if(!user)throw new Error('Sessão expirada. Entre novamente.');
+    const token=await user.getIdToken(true);
+    const response=await fetch('/api/finance/bank-options',{method:'GET',headers:{Authorization:'Bearer '+token,Accept:'application/json'},cache:'no-store',credentials:'same-origin'});
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.message||'Consulta de bancos não autorizada.');
+    if(firebase?.auth?.().currentUser?.uid!==user.uid)return false;
+    const banks=Array.isArray(result.banks)?result.banks:[];
+    select.innerHTML='<option value="">— Selecione —</option>'+banks.map(b=>'<option value="'+esc(b.cod)+'">'+esc(b.banco)+' — '+esc(b.cod)+'</option>').join('');
+    if(current&&banks.some(b=>b.cod===current))select.value=current;
+    select.disabled=!banks.length;
+    if(!banks.length)select.innerHTML='<option value="">Nenhum banco disponível</option>';
+    return banks.length>0;
+  }catch(error){
+    select.innerHTML='<option value="">'+esc(error.message||'Falha ao carregar bancos')+'</option>';
+    select.disabled=true;
+    showToast('Não foi possível consultar as contas: '+(error.message||'erro desconhecido'),'error');
+    return false;
+  }
+}
+
+function pagarContaRapido(idx,id){
+  if(id){const fresh=_cpIdxPorId(id);if(fresh>=0)idx=fresh;}
+  const c=CONTAS_PAGAR[idx];if(!c)return;
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const body=document.getElementById('modal-body');
-  body.className='modal';
+  const body=document.getElementById('modal-body');body.className='modal';
   const hoje=new Date().toISOString().slice(0,10);
-  const bancoOpts=(BANCOS_DB||[]).map(b=>{
-    const n=b.banco+(b.tipo==='Conta Terceiro'?' ('+b.titular+')':'');
-    return '<option value="'+esc(n)+'"'+(n===c.bancoNome||b.banco===c.bancoNome?' selected':'')+'>'+esc(n)+(b.empresa?' — '+esc(b.empresa):'')+'</option>';
-  }).join('');
-
-  
-  const fornCod = c.fornCod || (FORNECEDORES.find(f=>f.nome===c.cred)||{}).cod || null;
-  const adtsPendentes = fornCod ? (ADT_POR_FORN[fornCod]||[]).filter(a=>a.status==='Pendente') : [];
-  const totalAdtDisp = adtsPendentes.reduce((s,a)=>s+Number(a.valor),0);
-  const valorCP = Number(c.valor);
-  const adtSugerido = Math.min(totalAdtDisp, valorCP);
-
-  const saldoAposAdt = Math.max(0, valorCP - adtSugerido);
-
-  const adtBlock = totalAdtDisp > 0
-    ? '<div style="background:#fff8e1;border:1px solid #f9a825;border-radius:8px;padding:12px 14px;margin-bottom:14px">'
-        +'<div style="font-size:.78rem;font-weight:800;color:#7b4f00;margin-bottom:6px">💰 ADIANTAMENTOS DISPONÍVEIS — '+esc(c.cred||fornCod)+'</div>'
-        +'<div style="font-size:.82rem;color:#555;margin-bottom:8px">Saldo em adiantamentos: <b style="color:#27ae60">R$ '+fmt(totalAdtDisp)+'</b> ('+adtsPendentes.length+' lançamento'+(adtsPendentes.length!==1?'s':'')+')</div>'
-        +'<div class="fg" style="margin-bottom:6px">'
-          +'<label style="font-size:.78rem">Valor a compensar com adiantamento (R$)</label>'
-          +'<input id="pcp-adt" type="number" min="0" step="0.01" max="'+adtSugerido.toFixed(2)+'" value="'+adtSugerido.toFixed(2)+'" oninput="atualizarLiquidoCP('+valorCP+')" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #f9a825;border-radius:5px">'
-        +'</div>'
-        +'<div style="display:flex;gap:10px;align-items:center">'
-          +'<span style="font-size:.82rem;color:#555">Saldo restante após compensação:</span>'
-          +'<span id="pcp-liquido-label" style="font-size:1rem;font-weight:900;color:'+(saldoAposAdt>0?'#c0392b':'#1a5c35')+'">R$ '+fmt(saldoAposAdt)+'</span>'
-        +'</div>'
-      +'</div>'
-    : '';
-
-  
-  const botoesFooter = totalAdtDisp > 0
-    ? '<button class="btn-cancel" onclick="cm()">Cancelar</button>'
-      +'<button class="btn-save" style="background:#e67e22;margin-right:6px" id="btn-so-compensar">💰 Compensar e manter saldo em aberto</button>'
-      +'<button class="btn-save" style="background:#27ae60" id="btn-pagar-tudo">✅ Pagar valor total</button>'
-    : '<button class="btn-cancel" onclick="cm()">Cancelar</button>'
-      +'<button class="btn-save" style="background:#27ae60" id="btn-pagar-tudo">✅ Confirmar Pagamento</button>';
-
-  body.innerHTML=
-    '<h3>💳 Baixar Pagamento</h3>'+
-    '<div style="background:#fde8e8;border-radius:8px;padding:12px 14px;margin-bottom:14px">'+
-      '<b>'+esc(c.desc||c.cred)+'</b><br>'+
-      '<span style="font-size:.9rem">Valor em aberto: <b>R$ '+fmt(valorCP)+'</b></span>'+
-      (c.cred?'<span style="font-size:.82rem;color:#555"> &nbsp;&middot;&nbsp; '+esc(c.cred)+'</span>':'')+
-    '</div>'+
-    adtBlock+
-    '<input type="hidden" id="pcp-idx" value="'+idx+'">'+
-    '<input type="hidden" id="pcp-id" value="'+esc(c.id||'')+'">'+
-    '<input type="hidden" id="pcp-forn-cod" value="'+(fornCod||'')+'">'+
-    '<div class="fg"><label>Valor a Pagar Agora (R$)</label>'+
-      '<input id="pcp-valor-pagar" type="number" min="0.01" step="0.01" max="'+valorCP.toFixed(2)+'" value="'+valorCP.toFixed(2)+'">'+
-      '<div style="font-size:.74rem;color:#888;margin-top:2px">Pra pagar em partes, digite um valor menor — o restante fica pendente aqui mesmo pra próxima baixa.</div>'+
-    '</div>'+
-    '<div class="fg"><label>Data</label><input id="pcp-data" type="date" value="'+hoje+'"></div>'+
-    '<div class="fg"><label>Conta Bancária (Debitada) — obrigatório para pagar valor total</label><select id="pcp-banco"><option value="">— Selecione —</option>'+bancoOpts+'</select></div>'+
+  const fornCod=c.fornCod||(FORNECEDORES.find(f=>f.nome===c.cred)||{}).cod||'';
+  const adtsPendentes=fornCod?(ADT_POR_FORN[fornCod]||[]).filter(a=>a.status==='Pendente'):[];
+  const totalAdtDisp=adtsPendentes.reduce((sum,a)=>sum+Number(a.valor||0),0);
+  const valorCP=Number(c.valor),adtSugerido=Math.min(totalAdtDisp,valorCP);
+  const adtBlock=totalAdtDisp>0
+    ?'<div class="fg"><label>Compensar adiantamento (R$)</label><input id="pcp-adt" type="number" min="0" step="0.01" max="'+adtSugerido.toFixed(2)+'" value="'+adtSugerido.toFixed(2)+'"></div>':'';
+  body.innerHTML='<h3>💳 Baixar Pagamento</h3>'+
+    '<div style="background:#fde8e8;border-radius:8px;padding:12px;margin-bottom:14px"><b>'+esc(c.desc||c.cred)+'</b><div>Saldo em aberto: R$ '+fmt(valorCP)+'</div></div>'+
+    '<input type="hidden" id="pcp-id" value="'+esc(c.id||'')+'"><input type="hidden" id="pcp-forn-cod" value="'+esc(fornCod)+'">'+
+    '<div class="fg"><label>Valor a pagar agora, incluindo eventual adiantamento (R$)</label><input id="pcp-valor-pagar" type="number" min="0.01" step="0.01" max="'+valorCP.toFixed(2)+'" value="'+valorCP.toFixed(2)+'"></div>'+
+    adtBlock+'<div class="fg"><label>Data</label><input id="pcp-data" type="date" value="'+hoje+'"></div>'+
+    '<div class="fg"><label>Conta Bancária (Debitada)</label><select id="pcp-banco" disabled><option value="">Carregando bancos autorizados...</option></select></div>'+
     '<div class="fg"><label>Observação</label><input id="pcp-obs" placeholder="Opcional"></div>'+
-    '<div class="modal-ft" style="flex-wrap:wrap;gap:6px">'+botoesFooter+'</div>';
+    '<div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button>'+
+    (totalAdtDisp>0?'<button class="btn-save" type="button" id="btn-so-compensar">Compensar adiantamento</button>':'')+
+    '<button class="btn-save" type="button" id="btn-pagar-tudo">✅ Confirmar Pagamento</button></div>';
   document.getElementById('modal-ov').classList.add('open');
-  
-  const btnSoComp=document.getElementById('btn-so-compensar');
-  const btnPagarTudo=document.getElementById('btn-pagar-tudo');
-  if(btnSoComp) btnSoComp.addEventListener('click', function(){ confirmarPagarCP('so-compensar'); });
-  if(btnPagarTudo) btnPagarTudo.addEventListener('click', function(){ confirmarPagarCP('pagar-tudo'); });
+  body.dataset.paymentOperation=crypto.randomUUID();
+  _cpConsultarContasBancarias('pcp-banco',c.bancoCod||'');
+  document.getElementById('btn-so-compensar')?.addEventListener('click',()=>confirmarPagarCP('so-compensar'));
+  document.getElementById('btn-pagar-tudo')?.addEventListener('click',()=>confirmarPagarCP('pagar-tudo'));
 }
 
 function atualizarLiquidoCP(valorCP){
-  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const adt=parseFloat(document.getElementById('pcp-adt')?.value)||0;
-  const liq=Math.max(0,valorCP-adt);
-  const el=document.getElementById('pcp-liquido-label');
-  if(el) el.textContent='R$ '+fmt(liq);
+  const adt=Number(document.getElementById('pcp-adt')?.value)||0;
+  const label=document.getElementById('pcp-liquido-label');
+  if(label)label.textContent='R$ '+(Math.max(0,valorCP-adt)).toLocaleString('pt-BR',{minimumFractionDigits:2});
 }
 
-function confirmarPagarCP(modo){
-  let idx=parseInt(document.getElementById('pcp-idx').value);
-  
-  
-  
-  
-  
-  
-  
-  const idAlvo=document.getElementById('pcp-id')?.value||'';
-  if(idAlvo){ const fresh=_cpIdxPorId(idAlvo); if(fresh>=0) idx=fresh; }
-  const c=CONTAS_PAGAR[idx]; if(!c) return;
-  const dataISO=document.getElementById('pcp-data').value;
-  const banco=document.getElementById('pcp-banco').value;
-  const obs=document.getElementById('pcp-obs').value.trim();
-  if(!dataISO){alert('Informe a data!');return;}
-  const dataFmt=dataISO.split('-').reverse().join('/');
-  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-
-  const fornCod=document.getElementById('pcp-forn-cod')?.value||c.fornCod||null;
-  const adtInput=document.getElementById('pcp-adt');
-  const adtAplicar=adtInput ? Math.max(0,parseFloat(adtInput.value)||0) : 0;
-
-  
-  
-  const valorOriginalAntes=Number(c.valor);
-
-  
-  
-  
-  
-  
-  let valorPagarAgora=valorOriginalAntes;
-  if(modo==='pagar-tudo'){
-    const valorPagarInput=document.getElementById('pcp-valor-pagar');
-    if(valorPagarInput && valorPagarInput.value!==''){
-      const v=parseFloat(valorPagarInput.value);
-      if(!isNaN(v)) valorPagarAgora=Math.min(Math.max(0.01,v), valorOriginalAntes);
-    }
+async function confirmarPagarCP(modo){
+  const modal=document.getElementById('modal-body'),id=document.getElementById('pcp-id')?.value;
+  const idx=_cpIdxPorId(id),c=CONTAS_PAGAR[idx];if(!c||!modal||modal.dataset.paymentBusy==='true')return;
+  const total=Number(document.getElementById('pcp-valor-pagar')?.value);
+  const adt=Number(document.getElementById('pcp-adt')?.value||0);
+  const onlyAdvance=modo==='so-compensar';
+  const advanceAmount=onlyAdvance?adt:adt;
+  const amount=onlyAdvance?0:Math.round((total-adt)*100)/100;
+  const banco=onlyAdvance?'':document.getElementById('pcp-banco')?.value||'';
+  const data=document.getElementById('pcp-data')?.value||'';
+  if(!Number.isFinite(total)||!Number.isFinite(adt)||adt<0||!Number.isFinite(amount)||amount<0||(onlyAdvance?adt<=0:total<=0)||(!onlyAdvance&&total>Number(c.valor)+0.001)){
+    showToast('Confira o valor e a compensação informados.','error');return;
   }
-
-  const valorLiquido=Math.max(0,valorPagarAgora-adtAplicar);
-  const restanteAposEssaBaixa=Math.max(0,valorOriginalAntes-valorPagarAgora);
-  if(!Array.isArray(c.pagamentos)) c.pagamentos=[];
-
-  
-  if(modo==='so-compensar'){
-    if(adtAplicar<=0){alert('Informe um valor de adiantamento a compensar!');return;}
-    const valorAntesCompensar=Number(c.valor);
-    
-    _aplicarAdiantamentosCP(fornCod, adtAplicar, c, dataFmt);
-    
-    const novoValor=Math.max(0,valorAntesCompensar-adtAplicar);
-    c.valor=novoValor;
-    const obsExtra='Compensado adiantamento R$ '+fmt(adtAplicar)+' em '+dataFmt;
-    c.obs=(c.obs?c.obs+' | ':'')+[obs,obsExtra].filter(Boolean).join(' | ');
-    c.pagamentos.push({data:dataFmt, valor:0, adt:adtAplicar, banco:'', obs:obsExtra});
-    c._upd=Date.now();
-    
-    if(novoValor<=0.01){
-      c.status='Pago'; c.dataPgto=dataFmt;
-      if(c.ticket && TICKETS_DB[c.ticket]){ _baixarSaldoTicket(c.ticket, valorAntesCompensar, dataFmt); saveDB(); renderTickets(); }
-    } else if(c.ticket && TICKETS_DB[c.ticket]){
-      
-      
-      
-      
-      
-      
-      _baixarSaldoTicket(c.ticket, adtAplicar, dataFmt, c.id);
-      saveDB(); renderTickets();
-    }
-    
-    
-    
-    registrarHistorico('Contas a Pagar', novoValor<=0.01?'Pago (compensado c/ adiantamento)':'Compensação parcial c/ adiantamento',
-      (c.cred||c.desc||c.id)+' — adiantamento R$ '+fmt(adtAplicar)+(novoValor<=0.01?' (quitou o saldo)':' | saldo restante R$ '+fmt(novoValor)),
-      c, {cpId:c.id});
-    
-    saveContasPagar(); renderContasPagar(); saveDB(); renderAdiantamentos();
-    renderFluxo(); renderDashboard(); cm();
-    if(novoValor<=0.01){
-      showToast('Conta totalmente compensada com adiantamento!','success');
-    } else {
-      showToast('Adiantamento de R$ '+fmt(adtAplicar)+' compensado. Saldo em aberto: R$ '+fmt(novoValor),'success');
-    }
-    return;
-  }
-
-  
-  if(valorLiquido>0 && !banco){alert('Selecione a conta bancária para pagar o valor restante!');return;}
-  
-  if(adtAplicar>0) _aplicarAdiantamentosCP(fornCod, adtAplicar, c, dataFmt);
-  const obsPagamento=(adtAplicar>0?'Compensado adiantamento R$ '+fmt(adtAplicar):'');
-  c.pagamentos.push({data:dataFmt, valor:valorLiquido, adt:adtAplicar, banco:banco||'', obs:[obs,obsPagamento].filter(Boolean).join(' | ')});
-  const fechouAgora=restanteAposEssaBaixa<=0.01;
-  if(fechouAgora){
-    
-    c.status='Pago';
-    c.dataPgto=dataFmt;
-    c.valor=valorPagarAgora;
-    
-    
-    
-    
-    
-    { const _adtComp=(Number(c.adtCompensado)||0)+(adtAplicar>0?adtAplicar:0); if(_adtComp>0) c.adtCompensado=_adtComp; else delete c.adtCompensado; }
-    c.valorPago=(Number(c.valorPago)||0)+valorLiquido;
-    if(banco) c.bancoNome=banco;
-  } else {
-    
-    
-    
-    
-    c.status='Pendente';
-    c.valor=restanteAposEssaBaixa;
-    c.valorPago=(Number(c.valorPago)||0)+valorLiquido;
-    if(adtAplicar>0) c.adtCompensado=(Number(c.adtCompensado)||0)+adtAplicar;
-    if(banco) c.bancoNome=banco;
-  }
-  if(obs||obsPagamento) c.obs=(c.obs?c.obs+' | ':'')+[obs,obsPagamento].filter(Boolean).join(' | ');
-  c._upd=Date.now();
-  
-  
-  
-  
-  
-  registrarHistorico('Contas a Pagar', fechouAgora?'Pago':'Pagamento parcial',
-    (c.cred||c.desc||c.id)+' — R$ '+fmt(valorLiquido)+(banco?' via '+banco:'')+(adtAplicar>0?' + R$ '+fmt(adtAplicar)+' adiantamento':'')+(fechouAgora?'':' | saldo restante R$ '+fmt(restanteAposEssaBaixa)),
-    c, {cpId:c.id});
-  saveContasPagar(); renderContasPagar();
-  if(adtAplicar>0){ saveDB(); renderAdiantamentos(); }
-  if(banco && valorLiquido>0){
-    const _movPg=registrarMovBanco(banco, dataISO, 'Pagto: '+(c.desc||c.cred)+(adtAplicar>0?' (após comp. adt.)':''), 'Saida', valorLiquido);
-    
-    
-    
-    if(_movPg){
-      c.movBancoIdCP=_movPg.id;
-      const _ultPg=c.pagamentos[c.pagamentos.length-1];
-      if(_ultPg) _ultPg.movBancoId=_movPg.id;
-    }
-  }
-  if(c.ticket && TICKETS_DB[c.ticket]){
-    
-    
-    
-    
-    
-    _baixarSaldoTicket(c.ticket, valorPagarAgora, dataFmt, fechouAgora?undefined:c.id);
-    saveDB(); renderTickets();
-  }
-  renderFluxo(); renderDashboard(); cm();
-  showToast((fechouAgora?'Conta paga!':'Pagamento parcial registrado! Saldo restante: R$ '+fmt(restanteAposEssaBaixa))
-    +(adtAplicar>0?' | Adt. R$ '+fmt(adtAplicar):'')
-    +(valorLiquido>0?' | Banco R$ '+fmt(valorLiquido)+(banco?' ('+banco+')':''):(adtAplicar>0?' | 100% adiantamento':''))
-    +(c.ticket?' | Ticket #'+c.ticket:''),'success');
+  if(amount>0&&!banco){showToast('Selecione a conta bancária autorizada.','error');return;}
+  const user=firebase?.auth?.().currentUser;
+  if(!user){showToast('Sessão expirada. Entre novamente.','error');return;}
+  modal.dataset.paymentBusy='true';
+  const buttons=Array.from(modal.querySelectorAll('#btn-pagar-tudo,#btn-so-compensar'));
+  buttons.forEach(button=>button.disabled=true);
+  try{
+    const token=await user.getIdToken(true);
+    const response=await fetch('/api/finance/payables-payment',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operationId:modal.dataset.paymentOperation,payableId:id,expected:{valor:c.valor,status:c.status,paymentsCount:Array.isArray(c.pagamentos)?c.pagamentos.length:0},date,bankCode:banco,amount,advanceAmount,fornCod:document.getElementById('pcp-forn-cod')?.value||'',obs:document.getElementById('pcp-obs')?.value||''})});
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.message||'Falha ao confirmar pagamento.');
+    if(firebase?.auth?.().currentUser?.uid!==user.uid)throw new Error('Sessão alterada. Atualize a página.');
+    CONTAS_PAGAR[idx]=result.payable;
+    if(result.advanceEntries&&result.fornCod)ADT_POR_FORN[result.fornCod]=result.advanceEntries;
+    if(result.ticket&&result.ticketKey)TICKETS_DB[result.ticketKey]=result.ticket;
+    renderContasPagar();
+    if(result.advanceEntries)renderAdiantamentos();
+    if(result.ticket)renderTickets();
+    renderFluxo();renderDashboard();cm();
+    showToast('Pagamento confirmado pelo servidor.','success');
+  }catch(error){showToast(error.message||'Não foi possível confirmar o pagamento.','error',6500);}
+  finally{modal.dataset.paymentBusy='false';buttons.forEach(button=>button.disabled=false);}
 }
-
-
 
 
 function _baixarSaldoTicket(ticketId, valorPago, dataFmt, cpJaTratadoId){
@@ -25299,9 +25178,7 @@ function rodSubTab(t){
 }
 
 function rodExcluirPesagem(tid){
-  if(!_usuarioAtualEhAdmin()){
-    showToast('Apenas a administradora pode excluir pesagens!','error'); return;
-  }
+  if(!_usuarioPodeOperarModulo('rod_balanca')){showToast('Sem acesso à Balança Rodoviária.','error');return;}
   const t=TICKETS_DB[tid];
   if(!t){ showToast('Pesagem não encontrada!','error'); return; }
   const nome=t.fornecedor||t.cliente||tid;
@@ -25513,9 +25390,7 @@ function csTab(t){
 }
 
 function csExcluirPesagem(tid){
-  if(!_usuarioAtualEhAdmin()){
-    showToast('Apenas a administradora pode excluir pesagens!','error'); return;
-  }
+  if(!_usuarioPodeOperarModulo('compra_sucata')){showToast('Sem acesso a Compra de Sucata.','error');return;}
   const t=TICKETS_DB[tid];
   if(!t){ showToast('Pesagem não encontrada!','error'); return; }
   const nome=t.fornecedor||t.fornecedorNome||tid;
@@ -25552,7 +25427,7 @@ function csRenderPesagens(){
       const kg=(t.itens||[]).reduce((si,it)=>si+(it.pesoLiq||it.lq||it.br||0),0)||
                (t.bags||[]).reduce((si,b)=>si+(b.lq||b.br||0),0)||t.totalKg||0;
       const data=t.data?t.data.split('-').reverse().join('/'):'—';
-      const _isAdmCs=_usuarioAtualEhAdmin();
+      const _isAdmCs=_usuarioPodeOperarModulo('compra_sucata');
       const delBtnCs=_isAdmCs?`<button onclick="csExcluirPesagem('${k}')" title="Excluir pesagem" style="background:#c62828;color:#fff;border:none;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:.72rem;margin-left:2px">🗑️</button>`:'';
       return `<div style="font-size:.8rem;color:#555;padding:4px 0;border-bottom:1px solid #f0f0f0;display:flex;gap:8px;align-items:center">
         <span style="min-width:70px;color:#1565c0;font-weight:600">${t.ticket||k}</span>
@@ -26095,7 +25970,7 @@ function rodRenderHistorico(){
       :isAguard
       ?`<button onclick="rodSelecionarParaSaida('${k}')" style="background:#e65100;color:#fff;border:none;border-radius:6px;padding:4px 9px;font-size:.75rem;cursor:pointer;font-weight:700">⚖️ Finalizar</button>`
       :`<button onclick="rodImprimirRomaneio('${k}')" style="background:#1a3a2a;color:#fff;border:none;border-radius:6px;padding:4px 9px;font-size:.75rem;cursor:pointer;font-weight:700">🖨️ Romaneio</button>`;
-    const _isAdm=_usuarioAtualEhAdmin();
+    const _isAdm=_usuarioPodeOperarModulo('rod_balanca');
     const delBtn=_isAdm
       ?`<button onclick="rodExcluirPesagem('${k}')" style="background:#c62828;color:#fff;border:none;border-radius:6px;padding:4px 9px;font-size:.75rem;cursor:pointer;font-weight:700;margin-left:4px" title="Excluir">🗑️</button>`:'';
     const tipoBadge=t.tipo==='venda'
