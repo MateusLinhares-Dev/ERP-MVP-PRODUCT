@@ -92,7 +92,7 @@ test('CSV inclui linhas e total no formato brasileiro e bloqueia fórmulas',()=>
   const output=report.csv([{empresa:'=1+1',cliente:'CICLO',numero:'001',data:'05/11/2026',vencimento:'',valor:3000.5,situacao:'A compensar',adiantamento:'ADT001'}]);
   assert.match(output,/"EMPRESA";"CLIENTE"/);
   assert.match(output,/"'=1\+1"/);
-  assert.match(output,/"3\.000,50"/);
+  assert.match(output,/"R\$ 3\.000,50"/);
   assert.match(output,/"TOTAL"/);
 });
 

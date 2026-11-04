@@ -1192,9 +1192,9 @@
       </div>
       <div class="tcard">
         <div class="tcard-hdr"><div class="tcard-title">Ponto Mensal (lançamento manual)</div><button class="btn-add" onclick="om('ponto_lancamento')">+ Lançar Falta/HE</button></div>
-        <div class="erp-employee-history-filters">
-          <label>Mês de referência <input type="month" id="ponto-mes" onchange="renderPontoTab()"></label>
-          <label>Funcionários <select id="ponto-situacao" onchange="renderPontoTab()"><option value="ativos">Ativos</option><option value="inativos">Inativos — histórico</option><option value="todos">Todos (com histórico)</option></select></label>
+        <div class="erp-employee-history-filters ponto-filter-toolbar">
+          <label>Mês de referência <input type="month" id="ponto-mes" onchange="_erpReiniciarPagina('ponto-mensal');renderPontoTab()"></label>
+          <label>Funcionários <select id="ponto-situacao" onchange="_erpReiniciarPagina('ponto-mensal');renderPontoTab()"><option value="ativos">Ativos</option><option value="inativos">Inativos — histórico</option><option value="todos">Todos (com histórico)</option></select></label>
           <span>Inativos não aparecem em novos lançamentos. Registros anteriores continuam disponíveis para consulta.</span>
         </div>
         <table>
@@ -1809,6 +1809,7 @@
         <button class="btn-add" onclick="om('funcionario')" style="margin-bottom:4px">+ Novo Funcionário</button>
       </div>
 
+      <div class="func-toolbar"><label for="func-ordenacao">Ordenar funcionários</label><select id="func-ordenacao" onchange="funcSelecionarOrdenacao(this.value)"><option value="nome:1">Nome (A–Z)</option><option value="nome:-1">Nome (Z–A)</option><option value="status:1">Status (A–Z)</option><option value="status:-1">Status (Z–A)</option><option value="mat:1">Matrícula (crescente)</option><option value="mat:-1">Matrícula (decrescente)</option><option value="cargo:1">Cargo (A–Z)</option></select></div>
       <!-- Sub-aba Ativos -->
       <div id="func-subtab-ativos">
         <div class="tcard" style="border-radius:0 8px 8px 8px">

@@ -18,14 +18,10 @@
 .adt-report-table tbody tr:nth-child(even){background:#fbfdfb}
 .adt-report-table .adt-report-amount{text-align:right;font-weight:800}
 .adt-report-empty{text-align:center!important;color:#74887c;padding:24px!important}
-@media print{
-  @page{size:A4 landscape;margin:12mm}
-  body *{visibility:hidden!important}
-  #adt-cheques-report,#adt-cheques-report *{visibility:visible!important}
-  #adt-cheques-report{position:absolute!important;left:0!important;top:0!important;width:100%!important;margin:0!important;padding:0!important;border:0!important;box-shadow:none!important}
-  #adt-cheques-report .adt-report-actions,#adt-cheques-report .adt-report-filters,#adt-cheques-report #adt-report-message{display:none!important}
-  #adt-cheques-report .adt-report-table-wrap{overflow:visible!important}
-  #adt-cheques-report .adt-report-table{font-size:9pt;white-space:normal}
-  #adt-cheques-report .adt-report-table tr{break-inside:avoid}
-  #adt-cheques-report .adt-report-table thead{display:table-header-group}
-}
+
+.adt-report-table th{background:#fff27a;color:#28362d}
+.adt-report-table tfoot td{background:#fff27a;font-weight:800}
+.adt-report-pagination{display:flex;justify-content:flex-end;align-items:center;gap:12px;padding:12px 0 4px;font-size:.82rem;color:#315b42}
+.adt-report-pagination[hidden]{display:none!important}
+.adt-report-pagination button{padding:7px 11px;background:#eaf4ee;border:1px solid #b8d1bf;color:#1b5035;border-radius:7px;cursor:pointer}
+.adt-report-pagination button:disabled{opacity:.45;cursor:default}
