@@ -77,6 +77,19 @@ function advanceRecords(value){
   failure(409,'INVALID_SUPPLIER_ADVANCES','Cadastro de adiantamentos do fornecedor está inconsistente.');
 }
 
+async function acquireAdvanceLock(ref,owner,now){
+  const delays=[0,160,280,420,640,900,1200,1600];
+  for(const delay of delays){
+    if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
+    const acquired=await ref.transaction(current=>{
+      if(current&&Number(current.expiresAt)>now())return;
+      return {owner,expiresAt:now()+120000};
+    },undefined,false);
+    if(acquired.committed)return true;
+  }
+  return false;
+}
+
 export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=randomUUID}={}){
   requireFinance(identity);
   db=await resolveDatabase(db);
@@ -123,11 +136,8 @@ export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
   try{
     for(const key of keys){
       const lockRef=db.ref('erpFinanceAdvanceLocks/'+key);
-      const acquired=await lockRef.transaction(current=>{
-        if(current&&Number(current.expiresAt)>now())return;
-        return {owner,expiresAt:now()+120000};
-      },undefined,false);
-      if(!acquired.committed)failure(409,'ADVANCE_IN_PROGRESS','Outra operação financeira está em andamento. Tente novamente.');
+      const acquired=await acquireAdvanceLock(lockRef,owner,now);
+      if(!acquired)failure(409,'ADVANCE_IN_PROGRESS','Outra operação financeira está em andamento. Tente novamente.');
       locks.push(lockRef);
     }
     const committed=(await opRef.get()).val();
@@ -222,11 +232,8 @@ export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
   try{
     for(const key of keys){
       const lockRef=db.ref('erpFinanceAdvanceLocks/'+key);
-      const acquired=await lockRef.transaction(current=>{
-        if(current&&Number(current.expiresAt)>now())return;
-        return {owner,expiresAt:now()+120000};
-      },undefined,false);
-      if(!acquired.committed)failure(409,'ADVANCE_IN_PROGRESS','Outra alteração está em andamento para este fornecedor. Tente novamente.');
+      const acquired=await acquireAdvanceLock(lockRef,owner,now);
+      if(!acquired)failure(409,'ADVANCE_IN_PROGRESS','Outra alteração está em andamento para este fornecedor. Tente novamente.');
       locks.push(lockRef);
     }
     const again=(await opRef.get()).val();

@@ -994,7 +994,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       _patchIncremental(dados, 'contasReceber', _syncContasReceber.paraObjeto(), _syncContasReceber.deletedSet);
       _patchIncremental(dados, 'afazeres', _syncAfazeres.paraObjeto(), _syncAfazeres.deletedSet);
       _patchIncremental(dados, 'vendas', _syncVendas.paraObjeto(), _syncVendas.deletedSet);
-      _patchIncremental(dados, 'vales', _syncVales.paraObjeto(), _syncVales.deletedSet);
+      delete dados.valesDeleted;
       _patchIncremental(dados, 'lancBanco', _syncLancBanco.paraObjeto(), _syncLancBanco.deletedSet);
       _patchIncremental(dados, 'viagem', _syncViagem.paraObjeto(), _syncViagem.deletedSet);
       _patchIncremental(dados, 'combustivel', _syncCombustivel.paraObjeto(), _syncCombustivel.deletedSet);
