@@ -35,7 +35,7 @@ test('perfil Contas a Pagar não herda acesso ao módulo Bancos',()=>{
 test('consulta devolve somente código e nome sem dados bancários',async()=>{
   const db=fakeDB();
   assert.deepEqual(await listPaymentBanks(thais,{db}),{banks:[{cod:'BC-2',banco:'Banco Gratus'}]});
-  await assert.rejects(()=>listPaymentBanks({erpAccess:true,canSales:true},{db}),{status:403});
+  await assert.rejects(()=>listPaymentBanks({erpAccess:true,canChat:true},{db}),{status:403});
   assert.match(rules.bancos['.read'],/canBanking/);
   assert.doesNotMatch(rules.bancos['.read'],/canPayables|canFinance/);
   assert.match(rules.lancBanco['.write'],/canBanking/);

@@ -100,6 +100,7 @@ export function buildSecurityClaims(
     canSuppliers: isAdmin || hasAny(tabs, ['fornecedores','precos_fornecedores','compra_sucata']),
     canAdvances: isAdmin || tabs.has('adiantamentos'),
     canPayables: isAdmin || tabs.has('contas_pagar'),
+    canExpenses: isAdmin || tabs.has('despesas_grupo'),
     canFinance: isAdmin || hasAny(tabs, ['contas_pagar','contas_receber','fluxo_caixa','cheques','cheques_compensar','contas_banco']),
     canBanking: isAdmin || hasAny(tabs, ['contas_banco','bancos']),
     canPayroll: isAdmin || tabs.has('folha_pagamento'),

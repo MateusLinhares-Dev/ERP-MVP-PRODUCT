@@ -8,7 +8,8 @@ const money=value=>Math.round(value)/100;
 const entries=value=>Object.entries(value&&typeof value==='object'?value:{}).filter(([,record])=>record&&typeof record==='object'&&!Array.isArray(record));
 const dateISO=value=>{const date=clean(value,10),parsed=new Date(date+'T12:00:00.000Z');if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(parsed.getTime())||parsed.toISOString().slice(0,10)!==date)fail(422,'INVALID_DATE','Data inválida.');return date;};
 const displayDate=value=>value.split('-').reverse().join('/');
-const canList=identity=>identity?.erpAccess===true&&(identity.canFinance===true||identity.canAdvances===true||identity.canReceivables===true||identity.canBanking===true);
+const bankListClaims=['canFinance','canAdvances','canPayables','canReceivables','canBanking','canPurchasing','canSales','canCustomers','canSuppliers','canContracts','canFleet','canPayroll','canExpenses'];
+const canList=identity=>identity?.erpAccess===true&&bankListClaims.some(claim=>identity[claim]===true);
 async function database(db){return db||(await import('../infrastructure/firebase-admin.js')).getFirebaseAdmin().db;}
 const banks=value=>entries(value).map(([id,b])=>({cod:clean(b.cod||b.codigo||b.id||id),banco:clean(b.banco||b.nomeBanco||b.nome)})).filter(b=>b.cod&&b.banco);
 
