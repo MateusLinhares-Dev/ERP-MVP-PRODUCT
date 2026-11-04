@@ -67,7 +67,7 @@ function makeContext({filters={}, folha={}}={}) {
 
 test('Ponto: ativo é padrão, inativo apenas no histórico do mês com registros, sem apagar dados',()=>{
   const {ctx,nodes}=makeContext();
-  vm.runInContext(between('function renderPontoTab(){','function _popularSelectPontoFuncionarios(){'),ctx);
+  vm.runInContext(between('function _pontoMinutosRHiD(','function _popularSelectPontoFuncionarios(){'),ctx);
   vm.runInContext('renderPontoTab()',ctx);
   assert.match(nodes.get('tb-ponto').innerHTML,/FUNC ATIVO/);
   assert.doesNotMatch(nodes.get('tb-ponto').innerHTML,/FUNC INATIVO/);

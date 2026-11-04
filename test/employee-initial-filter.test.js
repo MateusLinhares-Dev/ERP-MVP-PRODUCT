@@ -9,8 +9,8 @@ test('inicialização de funcionários usa o mesmo filtro de ativos e inativos d
   const initial=core.slice(core.indexOf('function populateAll(){'),core.indexOf('function ',core.indexOf('function populateAll(){')+10));
   assert.match(initial,/renderTbFuncionarios\(\)/);
   assert.doesNotMatch(initial,/tbF\.innerHTML=FUNCIONARIOS\.map/);
-  assert.match(core,/const ativos\s*= FUNCIONARIOS\.filter\(x=>x\.status!==\x27Inativo\x27\)/);
-  assert.match(core,/const inativos = FUNCIONARIOS\.filter\(x=>x\.status===\x27Inativo\x27\)/);
+  assert.match(core,/const ativos\s*= FUNCIONARIOS\.filter\(_erpFuncionarioAtivo\)/);
+  assert.match(core,/const inativos = FUNCIONARIOS\.filter\(x=>!_erpFuncionarioAtivo\(x\)\)/);
 });
 
 test('sincronização de RH atualiza tabelas após receber alterações da nuvem',()=>{

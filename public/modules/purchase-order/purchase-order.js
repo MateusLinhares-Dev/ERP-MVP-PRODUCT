@@ -1446,27 +1446,27 @@ function printCss(){
     *{box-sizing:border-box}
     html,body{margin:0;padding:0}
     body{background:#e7e9ec;color:#151515;font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .phase4-print{width:210mm;min-height:297mm;margin:16px auto;padding:14mm;background:#fff;box-shadow:0 3px 18px #0002;font-size:10px;line-height:1.3}
-    .doc-topline{display:flex;justify-content:space-between;align-items:center;font-size:8px;margin-bottom:13px}
+    .phase4-print{width:210mm;min-height:297mm;margin:16px auto;padding:14mm;background:#fff;box-shadow:0 3px 18px #0002;font-size:12px;line-height:1.45}
+    .doc-topline{display:flex;justify-content:space-between;align-items:center;font-size:10px;margin-bottom:13px}
     .doc-header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;min-height:88px}
     .brand{width:150px;flex-shrink:0;display:flex;align-items:flex-start}
     .logo{width:118px;min-height:76px;border:1px solid #29453a;background:#fff;padding:7px;display:flex;align-items:center;justify-content:center;position:relative}
     .logo-image{display:block;max-width:100%;max-height:60px;object-fit:contain}
     .logo-fallback{display:none;width:100%;min-height:60px;align-items:center;justify-content:center;text-align:center;color:#1a3a2a;font-size:13px;line-height:1.1;font-weight:900;overflow-wrap:anywhere}
-    .company{display:flex;flex-direction:column;text-align:right;gap:2px;max-width:64%;font-size:8px;line-height:1.25;overflow-wrap:anywhere}
-    .company strong{font-size:8.5px}
-    .phase4-print h1{text-align:center;font-size:15px;font-weight:700;margin:10px 0 22px}
+    .company{display:flex;flex-direction:column;text-align:right;gap:2px;max-width:64%;font-size:10px;line-height:1.25;overflow-wrap:anywhere}
+    .company strong{font-size:11px}
+    .phase4-print h1{text-align:center;font-size:18px;font-weight:700;margin:10px 0 22px}
     .phase4-print-top{display:grid;grid-template-columns:minmax(0,1fr) 38%;gap:7px;align-items:start}
     .supplier{min-height:49px;border:1px solid #555;padding:5px 7px;display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere}
-    .supplier h2{font-size:9px;margin:0 0 3px;font-weight:700}
-    .supplier strong{font-size:9px}
-    .supplier span{font-size:8.5px}
-    .meta{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px}
+    .supplier h2{font-size:12px;margin:0 0 3px;font-weight:700}
+    .supplier strong{font-size:12px}
+    .supplier span{font-size:11px}
+    .meta{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
     .meta th,.meta td{border:1px solid #555;text-align:left;padding:4px 5px;overflow-wrap:anywhere}
     .meta th{width:53%;font-weight:700}
     .print-section{margin-top:24px;break-inside:avoid-page}
-    .print-section h2{font-size:10px;margin:0 0 5px;font-weight:700}
-    .items,.installments{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px}
+    .print-section h2{font-size:13px;margin:0 0 5px;font-weight:700}
+    .items,.installments{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
     .items .col-description{width:52%}
     .items .col-quantity{width:16%}
     .items .col-unit-price{width:16%}
@@ -1476,16 +1476,16 @@ function printCss(){
     .items td.numeric,.installments td.numeric{text-align:right;white-space:nowrap}
     .items td.center,.installments td.center{text-align:center}
     .item-description strong,.item-description span{display:block}
-    .item-description span{white-space:pre-wrap;font-size:8px;margin-top:2px}
+    .item-description span{white-space:pre-wrap;font-size:10px;margin-top:2px}
     .items thead{display:table-header-group}
     .items tr,.installments tr{break-inside:avoid-page}
-    .print-totals{width:42%;margin:1px 0 0 auto;border-collapse:collapse;font-size:9px}
+    .print-totals{width:49%;margin:1px 0 0 auto;border-collapse:collapse;font-size:11px}
     .print-totals th,.print-totals td{padding:1px 5px;text-align:right;vertical-align:top;white-space:nowrap}
     .print-totals th{font-weight:700}
     .print-totals td{min-width:75px}
     .print-totals .grand th,.print-totals .grand td{border-top:1px solid #555;font-weight:800}
     .installments th:nth-child(1){width:12%}.installments th:nth-child(2){width:28%}.installments th:nth-child(3){width:22%}
-    .payment-totals{width:57%;margin-left:auto;border-collapse:collapse;font-size:9px}
+    .payment-totals{width:62%;margin-left:auto;border-collapse:collapse;font-size:11px}
     .payment-totals th,.payment-totals td{border-bottom:1px solid #dedede;padding:4px 6px}
     .payment-totals th{text-align:left;font-weight:500}
     .payment-totals td{text-align:right;white-space:nowrap}
@@ -1507,6 +1507,7 @@ function printCss(){
     .notes{min-height:42px;border:1px solid #555;padding:7px;white-space:pre-wrap;overflow-wrap:anywhere}
     .print-actions{text-align:center;margin:18px 0 25px}
     .print-actions button{padding:11px 25px;border:0;border-radius:7px;background:#1a3a2a;color:#fff;font-size:13px;font-weight:700;cursor:pointer}
+    @media screen and (max-width:850px){.phase4-print{width:100%;min-width:0;margin:0 auto;padding:16px;box-shadow:none}.phase4-print-top{grid-template-columns:1fr}.company{text-align:left;max-width:100%}.items th,.items td{padding:6px 4px}.items{font-size:11px}}
     @media print{
       html,body{background:#fff!important;margin:0!important;padding:0!important}
       .phase4-print{width:auto;min-height:0;margin:0;padding:0;box-shadow:none}
