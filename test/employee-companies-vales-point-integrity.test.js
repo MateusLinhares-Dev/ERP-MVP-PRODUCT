@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 const companyApi=readFileSync(new URL('../api/admin/employee-companies.js',import.meta.url),'utf8');
 const normalizer={};
-runInNewContext(companyApi.slice(companyApi.indexOf('export function normalizeEmployeeCompanies('),companyApi.indexOf('export default async function handler(')).replace('export function','function')+';this.normalizeEmployeeCompanies=normalizeEmployeeCompanies;',normalizer);
+runInNewContext(companyApi.slice(companyApi.indexOf('function companyKey(value)'),companyApi.indexOf('export default async function handler(')).replaceAll('export function','function')+';this.normalizeEmployeeCompanies=normalizeEmployeeCompanies;',normalizer);
 const normalizeEmployeeCompanies=normalizer.normalizeEmployeeCompanies;
 
 const core=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
@@ -29,7 +29,7 @@ test('cadastro oferece criar empresa sem excluir formulário e exige API admin',
   assert.match(template,/gerenciarEmpresasFuncionarios\(\)/);
   assert.match(core,/employee-company-ov/);
   assert.match(core,/\/api\/admin\/employee-companies/);
-  assert.match(core,/_cfgEmployeeCompanyOptionsHtml\(nome\)/);
+  assert.match(core,/_erpAplicarCadastroEmpresas\(result\)/);
 });
 
 test('novos vales e lançamentos não listam funcionários inativos por rescisão',()=>{

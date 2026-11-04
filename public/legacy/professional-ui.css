@@ -454,3 +454,13 @@
   #app-screen .erp-workspace-nav{display:none!important}
   #app-screen .erp-workspace-panel[hidden]{display:block!important}
 }
+
+#tab-despesas_grupo .erp-expense-company-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#tab-despesas_grupo .erp-expense-company-header button{font-size:.85rem;padding:9px 14px}
+.erp-company-list{max-height:245px;overflow-y:auto;border:1px solid #dbe6de;border-radius:8px;background:#f7faf8;padding:5px 10px}
+.erp-company-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:46px;border-bottom:1px solid #dfe7e0;padding:7px 0}
+.erp-company-row:last-child{border-bottom:0}
+.erp-company-row span{min-width:0;overflow-wrap:anywhere;font-weight:600;color:#274536}
+.erp-company-row small{font-weight:500;color:#8b5d32}
+.erp-company-row button{flex-shrink:0;padding:7px 12px;border-radius:6px;cursor:pointer;font-size:.78rem}
+@media(max-width:560px){.erp-company-row{align-items:flex-start}.erp-company-row button{padding:7px 8px}}

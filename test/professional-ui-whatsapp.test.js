@@ -41,7 +41,7 @@ test('interface mantém painel financeiro e elimina apenas o acesso visual ao su
   assert.match(html,/id="tab-cheques_compensar"/);
   assert.match(html,/id="tab-fiscal"/);
   assert.match(html,/id="tab-despesas_grupo"/);
-  assert.match(html,/href="\/legacy\/professional-ui\.css"/);
+  assert.match(html,/href="\/legacy\/professional-ui\.css(?:\?v=[^"]+)?"/);
   assert.match(styles,/#tab-viagem_motorista/);
   assert.match(styles,/#tab-coordenacao/);
 });
