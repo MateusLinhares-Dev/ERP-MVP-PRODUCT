@@ -4,7 +4,8 @@ import {requireIdentity} from '../../server/http/auth.js';
 import {applyApiSecurityHeaders,assertJsonBody,assertMethod,assertSameOrigin,sendError} from '../../server/http/http.js';
 
 function companyKey(value){
-  return String(value||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+  const key=String(value||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+  return key==='gratus metais'?'gratus':key==='manuela metais'?'manuela':key;
 }
 export function normalizeEmployeeCompanies(values){
   const out=[],seen=new Set();
@@ -22,8 +23,9 @@ export function changeCompanyConfig(current,action,name){
   const all=[...companies,...normalizeEmployeeCompanies(cfg.expenseGroups),...normalizeEmployeeCompanies(cfg.financeCompanies),...normalizeEmployeeCompanies(cfg.transferCompanies),...normalizeEmployeeCompanies(cfg.chequeCompanies),...Object.keys(cfg.companies||{})];
   const exists=all.some(item=>companyKey(item)===key);
   if(action==='create'){
-    if(!exists&&companies.length>=100)return null;
-    if(!exists)companies.push(name);
+    const alreadyRegistered=companies.some(item=>companyKey(item)===key);
+    if(!alreadyRegistered&&companies.length>=100)return null;
+    if(!alreadyRegistered)companies.push(name);
     cfg.employeeCompanies=companies;
     cfg.inactiveCompanies=inactive.filter(item=>companyKey(item)!==key);
   }else if(action==='archive'){

@@ -27,13 +27,10 @@
     // A ajuda é pública para qualquer conta autenticada no ERP. Não exige permissão
     // administrativa nem dá acesso a dados ou operações de outros módulos.
     if(tab==='help_center') return !!currentProfile();
+    if(tab==='contas_dona') return isElaineOwner();
     // A Matriz é exclusiva da conta administradora Elaine. O servidor ainda verifica
     // as claims Firebase antes de qualquer leitura/gravação de cursos e certificados.
     if(tab==='matriz_capacitacao') return isElaineOwner();
-    // Contas da Dona e criada dinamicamente: nao consta nas tabs legadas.
-    // O backend exige canOwnerBills, concedida a administradores; nao abrir
-    // permissao para perfis financeiros comuns so por terem o menu visivel.
-    if(tab==='contas_dona') return !!(currentProfile() && currentProfile().admin===true);
 
     if(OWNER_ONLY_TABS.has(tab) && !isElaineOwner()) return false;
     var profile=currentProfile();
@@ -56,7 +53,7 @@
   window.switchTab=function(tid){
     tid=String(tid||'').trim();
    
-    if(!tabExists(tid)){
+    if(tid!=='contas_dona'&&!tabExists(tid)){
       console.warn('[ERP] Módulo inexistente ignorado:',tid);
       try{ showToast('Módulo não encontrado.','error'); }catch(e){}
       return false;

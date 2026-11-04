@@ -11,15 +11,6 @@ async function initFiscalParties(){
     return;
   }
   const seq=++fiscalPartyLoadId;
-  // A extensao era inicializada em toda sessao, inclusive sem acesso fiscal.
-  if(global.firebase && typeof global.firebase.auth==='function'){
-    const user=global.firebase.auth()?.currentUser;
-    if(!user)return;
-    try{
-      const claims=(await user.getIdTokenResult()).claims||{};
-      if(claims.erpAccess!==true || (claims.canFiscalRead!==true && claims.admin!==true))return;
-    }catch(error){console.warn('[Fiscal] Autenticacao ainda indisponivel:',error?.code||'auth');return;}
-  }
   try{
     // Ao voltar à aba, consultar a fonte atual: Phase1Store mantém cache e a
     // primeira leitura pode ocorrer antes de o Firebase terminar a sincronização.
@@ -339,10 +330,10 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
     const totalSaidas = data.sai.reduce((t,n)=>t+sum(n),0);
     return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Fiscal — ${printEscape(label)} — ${printEscape(info.label)}</title>
 <style>
-@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:20px;color:#1e2923;font-size:11px;}
+@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:18px;color:#1e2923;font-size:13px;}
 header{display:flex;gap:20px;align-items:center;justify-content:space-between;border-bottom:2px solid #174b32;padding:0 0 16px;margin-bottom:22px;min-height:77px}
 .company-logo{width:90px;max-height:75px;object-fit:contain}.company-name{font-size:21px;font-weight:700;color:#174b32}.period{font-size:13px;color:#56685a;margin-top:6px}
-h2{font-size:14px;color:#174b32;margin:23px 0 9px;}table{border-collapse:collapse;width:100%;table-layout:fixed;margin-bottom:15px;}th,td{border:1px solid #d4ded8;padding:7px 8px;text-align:left;vertical-align:top;word-break:break-word;}th{background:#eef4ef}td.numeric,th.numeric{text-align:right;white-space:nowrap;}tfoot{font-weight:700;background:#f6faf6;}footer{border-top:1px solid #d7e3da;padding-top:12px;margin-top:22px;}@media print{body{padding:0}tr{break-inside:avoid}}
+h2{font-size:16px;color:#174b32;margin:23px 0 9px;}table{border-collapse:collapse;width:100%;table-layout:fixed;margin-bottom:15px;}th,td{border:1px solid #d4ded8;padding:7px 8px;text-align:left;vertical-align:top;word-break:break-word;}th{background:#eef4ef}td.numeric,th.numeric{text-align:right;white-space:nowrap;}tfoot{font-weight:700;background:#f6faf6;}footer{border-top:1px solid #d7e3da;padding-top:12px;margin-top:22px;}@media print{body{padding:0}tr{break-inside:avoid}}
 </style></head><body><header>${logo}<div><div class="company-name">${printEscape(label)}</div><div class="period">Relatório Fiscal — ${printEscape(info.label)}</div></div></header>`+
       table('Entradas — Notas de compra',data.ent,'fornecedor','Fornecedor')+
       table('Saídas — Notas de venda / despesa',data.sai,'cliente','Cliente')+
@@ -749,7 +740,7 @@ async function renderCosts(){
     const c=await claims(),kind=$('#fis-v3-cost-kind')?.value||'funcionario';
     if(c.erpAccess!==true){$('#fis-v3-cost-result').replaceChildren();throw Error('Sessão inválida.');}
     if(kind!=='funcionario'){
-      if(!c.canFiscalRead)throw Error('Consulta restrita a usuários com acesso ao Fiscal.');
+      if(c.canFiscalRead!==true)throw Error('Consulta restrita a usuários com acesso ao Fiscal.');
       return await renderFiscalPartyCosts(kind);
     }
     if(!c.canPayroll){$('#fis-v3-cost-result').replaceChildren();throw Error('Consulta de funcionários exige acesso à Folha de Pagamento.');}

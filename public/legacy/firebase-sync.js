@@ -85,7 +85,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(_FB_CONFIG);
       window._fbRawDB = firebase.database();
        window._fbDB = window.__legacyDbAdapter ? window.__legacyDbAdapter(window._fbRawDB) : window._fbRawDB;
-      try{ if(typeof _fbSetStatus==='function') _fbSetStatus('ok'); }catch(e){}
+      try{ if(typeof _fbSetStatus==='function') _fbSetStatus('saving','Aguardando autenticação e sincronização'); }catch(e){}
       var banner=document.getElementById('fb-offline-banner'); if(banner) banner.remove();
       try{ if(firebase.auth && firebase.auth().currentUser) _iniciarChecagemVersao(); }catch(e){}
 
@@ -572,7 +572,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(str!==undefined && _fbEnviadoOk[k]===str){ pulados++; return; }
       filtrado[k]=dados[k];
     });
-    if(pulados>0) console.info('fbSalvar: '+pulados+' itens inalterados pulados (já estão na nuvem).');
+    if(pulados>0&&window.__ERP_DEBUG_SYNC__===true)console.info('fbSalvar: '+pulados+' itens inalterados pulados (já estão na nuvem).');
     return filtrado;
   }
   function _fbMarcarEnviado(objLote){
@@ -1715,10 +1715,16 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     _fbListenerAtivo = true;
 
-    
+    window._fbDB.ref('erp/config').on('value',snap=>{
+      try{
+        const cfg=snap&&snap.val?snap.val():null;
+        if(cfg&&typeof window.__erpApplyCompanyDirectory==='function')window.__erpApplyCompanyDirectory(cfg);
+      }catch(error){console.warn('Cadastro de empresas: falha ao atualizar lista',error);}
+    },error=>{console.warn('Cadastro de empresas indisponível',error);});
+
     window._fbDB.ref('.info/connected').on('value', snap => {
       _fbOnline = !!snap.val();
-      _fbSetStatus(_fbOnline ? 'ok' : 'offline');
+      _fbSetStatus(_fbOnline ? (_fbDadosCarregados ? 'ok' : 'saving') : 'offline',_fbOnline&&!_fbDadosCarregados?'Carregando dados autenticados...':'');
       if(_fbOnline && _fbDadosCarregados){
         let pendente=false;
         try{ pendente=_fbPendente||localStorage.getItem('mm_fb_pendente')==='1'; }catch(e){}

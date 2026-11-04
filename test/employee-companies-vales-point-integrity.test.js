@@ -79,9 +79,9 @@ test('ponto não duplica horas extras em dia com lançamento manual',()=>{
 });
 
 test('pedido de compra aumenta letras dos itens no impresso e adapta celular',()=>{
-  assert.match(print,/\.items,\.installments\{[^}]*font-size:12px/);
+  assert.match(print,/\.items,\.installments\{[^}]*font-size:14px/);
   assert.match(print,/@media screen and \(max-width:850px\)/);
-  assert.match(print,/\.print-totals\{[^}]*font-size:11px/);
+  assert.match(print,/\.print-totals\{[^}]*font-size:13px/);
 });
 
 test('recibo identifica o vale correto mesmo após a lista mudar de ordem',()=>{

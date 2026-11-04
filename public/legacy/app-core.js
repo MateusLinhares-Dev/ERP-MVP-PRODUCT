@@ -2812,20 +2812,20 @@ function imprimirExtrato(){
   win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
   <meta charset="UTF-8"><title>Extrato – ${fornNome}</title>
   <style>
-    body{font-family:'Segoe UI',Arial,sans-serif;padding:28px;color:#111;font-size:12px}
+    body{font-family:'Segoe UI',Arial,sans-serif;padding:22px;color:#111;font-size:14px}
     .logo{font-size:20px;font-weight:900;color:#1a3a2a;letter-spacing:1px}
     .logo span{color:#c8a400}
     .sub{color:#555;font-size:10px;margin-bottom:2px}
-    .titulo{text-align:center;font-size:13px;font-weight:800;border:2px solid #333;padding:7px;border-radius:4px;margin:14px 0;letter-spacing:1px}
+    .titulo{text-align:center;font-size:16px;font-weight:800;border:2px solid #333;padding:7px;border-radius:4px;margin:14px 0;letter-spacing:1px}
     .sec{font-size:12px;font-weight:800;color:#1a3a2a;margin:14px 0 5px;border-left:4px solid #c8a400;padding-left:7px}
-    table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px}
+    table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px}
     th{background:#1a3a2a;color:#fff;padding:6px 7px;text-align:left}
     td{padding:5px 7px;border-bottom:1px solid #e0e0e0}
     .resumo{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
     .res-box{border:1px solid #ddd;border-radius:5px;padding:8px 10px;background:#f9f9f9}
     .res-box.g{background:#d5f0e0}.res-box.r{background:#fde8e8}.res-box.y{background:#fff3cd}.res-box.b{background:#e8f8ef}
     .res-lbl{font-size:9px;color:#555;font-weight:700;text-transform:uppercase;margin-bottom:2px}
-    .res-val{font-size:14px;font-weight:900;color:#1a3a2a}
+    .res-val{font-size:17px;font-weight:900;color:#1a3a2a}
     .footer{margin-top:20px;text-align:center;font-size:10px;color:#888;border-top:1px solid #ddd;padding-top:10px}
     @media print{body{padding:14px}button{display:none}}
   </style></head><body>
@@ -3406,15 +3406,15 @@ function imprimirCanhoto(){
   win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
   <meta charset="UTF-8"><title>Recibo ${tk.ticket} – ${_empresaPrincipalLabel()}</title>
   <style>
-    body{font-family:'Segoe UI',Arial,sans-serif;padding:28px;color:#111;font-size:13px}
+    body{font-family:'Segoe UI',Arial,sans-serif;padding:22px;color:#111;font-size:15px}
     .logo{font-size:22px;font-weight:900;color:#1a3a2a;letter-spacing:1px}
     .logo span{color:#c8a400}
-    .sub{color:#555;font-size:11px;margin-bottom:2px}
-    .titulo{text-align:center;font-size:14px;font-weight:800;border:2px solid #333;padding:8px;border-radius:4px;margin:14px 0;letter-spacing:1px}
-    table{width:100%;border-collapse:collapse;font-size:12px}
+    .sub{color:#555;font-size:12px;margin-bottom:2px}
+    .titulo{text-align:center;font-size:18px;font-weight:800;border:2px solid #333;padding:8px;border-radius:4px;margin:14px 0;letter-spacing:1px}
+    table{width:100%;border-collapse:collapse;font-size:14px}
     th{background:#1a3a2a;color:#fff;padding:7px 8px;text-align:left}
     td{border-bottom:1px solid #eee}
-    .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;margin-bottom:12px;font-size:12px}
+    .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;margin-bottom:12px;font-size:14px}
     .footer{margin-top:20px;text-align:center;font-size:11px;color:#888;border-top:1px solid #ddd;padding-top:10px}
     @media print{body{padding:12px}button{display:none}}
   </style></head><body>
@@ -3653,7 +3653,8 @@ function _cfgPublicBusiness(){
   return window.__PUBLIC_BUSINESS_CONFIG__&&typeof window.__PUBLIC_BUSINESS_CONFIG__==='object'?window.__PUBLIC_BUSINESS_CONFIG__:{};
 }
 function _companyKey(value){
-  return String(value||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+  const key=String(value||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
+  return key==='gratus metais'?'gratus':key==='manuela metais'?'manuela':key;
 }
 function _cfgInactiveCompanies(){
   const pub=_cfgPublicBusiness();
@@ -3669,6 +3670,8 @@ function _cfgRegisteredCompanies(){
     out.push(value);
   }
   const cfg=ERP_BUSINESS_CONFIG||{},pub=_cfgPublicBusiness();
+  const preferred=Array.isArray(cfg.employeeCompanies)?cfg.employeeCompanies:pub.employeeCompanies;
+  if(Array.isArray(preferred))preferred.forEach(add);
   add(cfg.primaryCompanyKey||(pub.company&&pub.company.key));
   Object.keys(cfg.companies||{}).forEach(add);
   Object.keys(EMPRESAS_INFO||{}).forEach(add);
@@ -3681,7 +3684,7 @@ function _cfgFinanceCompanies(){
   const a=Array.isArray(ERP_BUSINESS_CONFIG.financeCompanies)?ERP_BUSINESS_CONFIG.financeCompanies:[];
   const b=Array.isArray(_cfgPublicBusiness().financeCompanies)?_cfgPublicBusiness().financeCompanies:[];
   const inactive=_cfgInactiveCompanies(),seen=new Set(),out=[];
-  [...a,...b,..._cfgRegisteredCompanies()].forEach(function(v){const key=_companyKey(v);if(key&&!seen.has(key)&&!inactive.has(key)){seen.add(key);out.push(v);}});
+  [..._cfgRegisteredCompanies(),...a,...b].forEach(function(v){const key=_companyKey(v);if(key&&!seen.has(key)&&!inactive.has(key)){seen.add(key);out.push(v);}});
   return out;
 }
 function _cfgFinanceCompanyColor(company){
@@ -3698,7 +3701,7 @@ function _cfgTransferCompanies(){
 function _cfgChequeCompanies(){
   const inactive=_cfgInactiveCompanies(),seen=new Set(),out=[];
   const pub=_cfgPublicBusiness();
-  const values=[...(Array.isArray(ERP_BUSINESS_CONFIG.chequeCompanies)?ERP_BUSINESS_CONFIG.chequeCompanies:[]),...(Array.isArray(pub.chequeCompanies)?pub.chequeCompanies:[]),..._cfgRegisteredCompanies()];
+  const values=[..._cfgRegisteredCompanies(),...(Array.isArray(ERP_BUSINESS_CONFIG.chequeCompanies)?ERP_BUSINESS_CONFIG.chequeCompanies:[]),...(Array.isArray(pub.chequeCompanies)?pub.chequeCompanies:[])];
   values.forEach(v=>{const key=_companyKey(v);if(key&&!seen.has(key)&&!inactive.has(key)){seen.add(key);out.push(v);}});
   return out;
 }
@@ -3737,6 +3740,18 @@ function _erpAplicarCadastroEmpresas(result){
   _erpRefreshCompanySources();
   try{_popularEmpresasDespesa();if(document.getElementById('kpi-row'))despAtualizar();}catch(e){}
 }
+function _erpApplyCompanyDirectory(config){
+  if(!config||typeof config!=='object')return false;
+  const companies=Array.isArray(config.employeeCompanies)?config.employeeCompanies.slice():[];
+  const inactiveCompanies=Array.isArray(config.inactiveCompanies)?config.inactiveCompanies.slice():[];
+  const oldCompanies=ERP_BUSINESS_CONFIG.employeeCompanies||[];
+  const oldInactive=ERP_BUSINESS_CONFIG.inactiveCompanies||[];
+  if(JSON.stringify(oldCompanies)===JSON.stringify(companies)&&JSON.stringify(oldInactive)===JSON.stringify(inactiveCompanies))return false;
+  _erpAplicarCadastroEmpresas({companies,inactiveCompanies});
+  if(document.getElementById('rh-empresas-atuais'))_erpRenderEmpresasAdministracao();
+  return true;
+}
+window.__erpApplyCompanyDirectory=_erpApplyCompanyDirectory;
 function gerenciarEmpresasFuncionarios(){
   if(!_usuarioAtualEhAdmin()){showToast('Apenas administradores podem gerenciar empresas.','error');return;}
   document.getElementById('employee-company-ov')?.remove();
@@ -7041,7 +7056,7 @@ function valeGerarTodosRecibosMes(){
     paginas+='</div>';
   }
   win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Recibos de Vale - '+esc(titulo)+'</title><style>'+ 
-    '@page{size:A4 portrait;margin:7mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;color:#111;background:#fff}.toolbar{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #ddd;padding:8px;text-align:center}.toolbar button{background:#1a5e2a;color:#fff;border:0;border-radius:6px;padding:8px 18px;font-weight:700;cursor:pointer}.folha-recibos{height:283mm;page-break-after:always;display:flex;flex-direction:column;justify-content:flex-start}.folha-recibos:last-child{page-break-after:auto}.vale-recibo{height:139mm;padding:8mm 2mm 4mm;position:relative}.vale-recibo-titulo{text-align:center;font-size:15px;font-weight:800}.vale-recibo-empresa{text-align:center;font-size:11px;font-weight:700;margin-top:2px}.vale-recibo-linha{border-top:1px solid #333;margin:5px 0 8px}.vale-recibo-info{display:grid;grid-template-columns:1fr 1fr;gap:5px 18px;background:#fafafa;border-radius:4px;padding:8px}.vale-recibo-info span{display:block;font-size:9px;color:#777}.vale-recibo-info b{display:block;font-size:11px;margin-top:1px}.vale-recibo-total{text-align:center;font-size:18px;font-weight:900;color:#1a3a2a;background:#e8f5e9;border-radius:5px;padding:7px;margin:9px 0}.vale-recibo-decl{text-align:center;font-size:10px;color:#555}.vale-recibo-ass{text-align:center;margin-top:8px;height:42px}.vale-recibo-assdata{text-align:center;font-size:9px;color:#777}.vale-recibo-rodape{text-align:center;color:#aaa;font-size:8px;margin-top:7px;border-top:1px solid #eee;padding-top:5px}.corte{height:5mm;border-top:1px dashed #aaa;text-align:center;color:#999;font-size:8px;line-height:5mm}@media print{.toolbar{display:none}.folha-recibos{height:283mm}}'+
+    '@page{size:A4 portrait;margin:7mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;color:#111;background:#fff}.toolbar{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #ddd;padding:8px;text-align:center}.toolbar button{background:#1a5e2a;color:#fff;border:0;border-radius:6px;padding:8px 18px;font-weight:700;cursor:pointer}.folha-recibos{height:283mm;page-break-after:always;display:flex;flex-direction:column;justify-content:flex-start}.folha-recibos:last-child{page-break-after:auto}.vale-recibo{height:139mm;padding:8mm 2mm 4mm;position:relative}.vale-recibo-titulo{text-align:center;font-size:18px;font-weight:800}.vale-recibo-empresa{text-align:center;font-size:13px;font-weight:700;margin-top:2px}.vale-recibo-linha{border-top:1px solid #333;margin:5px 0 8px}.vale-recibo-info{display:grid;grid-template-columns:1fr 1fr;gap:5px 18px;background:#fafafa;border-radius:4px;padding:8px}.vale-recibo-info span{display:block;font-size:11px;color:#777}.vale-recibo-info b{display:block;font-size:13px;margin-top:1px}.vale-recibo-total{text-align:center;font-size:22px;font-weight:900;color:#1a3a2a;background:#e8f5e9;border-radius:5px;padding:7px;margin:9px 0}.vale-recibo-decl{text-align:center;font-size:12px;color:#555}.vale-recibo-ass{text-align:center;margin-top:8px;height:42px}.vale-recibo-assdata{text-align:center;font-size:11px;color:#777}.vale-recibo-rodape{text-align:center;color:#aaa;font-size:10px;margin-top:7px;border-top:1px solid #eee;padding-top:5px}.corte{height:5mm;border-top:1px dashed #aaa;text-align:center;color:#999;font-size:8px;line-height:5mm}@media print{.toolbar{display:none}.folha-recibos{height:283mm}}'+
     '</style></head><body><div class="toolbar"><b>'+lista.length+' recibo(s) · '+esc(titulo)+'</b> &nbsp; <button onclick="window.print()">🖨️ Imprimir todos</button></div>'+paginas+'</body></html>');
   win.document.close();
 }
@@ -21076,8 +21091,8 @@ function _popularEmpresasDespesa(){
     names.push(v);seen.add(key);
   }
   const cfg=ERP_BUSINESS_CONFIG||{},pub=_cfgPublicBusiness();
-  for(const source of [cfg.expenseGroups,pub.expenseGroups])if(Array.isArray(source))source.forEach(v=>add(v,false));
   _cfgRegisteredCompanies().forEach(v=>add(_cfgExpenseGroupForCompany(v),false));
+  for(const source of [cfg.expenseGroups,pub.expenseGroups])if(Array.isArray(source))source.forEach(v=>add(v,false));
   _despMescladas().forEach(v=>{if(v&&v.empresa)add(v.empresa,true);});
   EMPRESAS.length=0;
   names.forEach(v=>EMPRESAS.push(v));
