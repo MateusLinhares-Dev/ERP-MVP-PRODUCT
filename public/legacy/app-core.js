@@ -12274,11 +12274,11 @@ function pontoRHiDComoImportar(){
     '<div class="rhid-guide">'+
     '<p><b>1. Exporte no RH iD:</b> selecione o relatório individual de Cartão de Ponto em formato PDF com texto selecionável. O arquivo pode conter vários funcionários, um cartão por página.</p>'+
     '<p><b>2. Período:</b> no RH iD escolha o mês inteiro desejado, por exemplo, de 01/10/2026 até 31/10/2026.</p>'+
-    '<p><b>3. Campos necessários:</b> NOME DO FUNCIONÁRIO, CPF DO FUNCIONÁRIO, período DE ... ATÉ ..., cabeçalho DIA / PREVISTO, as colunas ENT. 1 e SAI. 1 e as linhas de datas diárias.</p>'+
-    '<div class="rhid-guide-example"><b>Exemplo de estrutura aceita</b><pre>NOME DO FUNCIONÁRIO: JOÃO EXEMPLO\nCPF DO FUNCIONÁRIO: 000.000.000-00\nDE 01/10/2026 ATÉ 31/10/2026\nDIA   PREVISTO   ENT. 1   SAI. 1\n01/10/2026 - QUI   08:00   08:02   12:00</pre></div>'+
+    '<p><b>3. Campos necessários:</b> NOME DO FUNCIONÁRIO, CPF DO FUNCIONÁRIO, período DE ... ATÉ ..., cabeçalho DIA, as colunas ENT. 1 e SAÍ. 1 e as linhas de datas diárias. A coluna PREVISTO é opcional.</p>'+
+    '<div class="rhid-guide-example"><b>Exemplo de estrutura aceita</b><pre>NOME DO FUNCIONÁRIO: JOÃO EXEMPLO\nCPF DO FUNCIONÁRIO: 000.000.000-00\nDE 01/10/2026 ATÉ 31/10/2026\nDIA   ENT. 1   SAI. 1   ENT. 2   SAI. 2   TOTAL TRABALHADO   EXTRAS TOTAL\n01/10/2026 - QUI   08:02   12:00   13:00   17:48   08:46   00:00</pre></div>'+
     '<p><b>4. Conferência:</b> clique em Importar Cartão de Ponto, confira a prévia e associe cada cartão à matrícula correta no ERP. A importação só grava depois da confirmação.</p>'+
     '<p><b>Não aceito:</b> planilha XLSX/CSV, foto ou PDF digitalizado sem texto, PDF protegido e relatórios de formato diferente do cartão individual RH iD. O texto do exemplo demonstra a estrutura, não substitui o PDF original.</p>'+
-    '<p><b>Se não importar:</b> verifique se o PDF permite selecionar o texto, se o cabeçalho tem DIA e PREVISTO e se o funcionário existe no cadastro. Nenhum registro é substituído quando a leitura falha.</p>'+
+    '<p><b>Se não importar:</b> verifique se o PDF permite selecionar o texto, se o cabeçalho tem DIA, ENT. 1 e SAÍ. 1 e se o funcionário existe no cadastro. Nenhum registro é substituído quando a leitura falha.</p>'+
     '</div><div class="modal-ft"><button class="btn-cancel" onclick="cm()">Fechar</button></div>';
   document.getElementById('modal-ov')?.classList.add('open');
 }

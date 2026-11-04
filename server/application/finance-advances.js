@@ -66,6 +66,51 @@ export async function listAdvanceBankOptions(identity,{db}={}){
   return {banks,suppliers};
 }
 
+export async function listAdvanceCheques(identity,{db}={}){
+  requireFinance(identity);
+  db=await resolveDatabase(db);
+  const [snapshot,deletedSnapshot]=await Promise.all([
+    db.ref('erp/chequesControle').get(),
+    db.ref('erp/chequesControle_del').get()
+  ]);
+  const deleted=deletedSnapshot.val()||{};
+  const entries=snapshot.val()||{};
+  const rows=Object.entries(entries).filter(([id,c])=>c&&typeof c==='object'&&!Array.isArray(c)&&c.advanceCode&&c.fornCod&&deleted[id]!==true).map(([id,c])=>({
+    origem:'Adiantamento a fornecedor',
+    id:clean(c.id||id,100),
+    adiantamento:clean(c.advanceCode,100),
+    empresa:clean(c.emitente||c.origem||'',180),
+    cliente:clean(c.dest||'',240),
+    numero:clean(c.n,40),
+    data:clean(c.d,10),
+    vencimento:clean(c.venc,10),
+    valor:Number(c.v),
+    situacao:c.s==='C'?'Compensado':c.s==='X'?'Cancelado':'A compensar'
+  })).filter(c=>c.numero&&c.cliente&&Number.isFinite(c.valor)&&c.valor>0);
+  if(identity.canFinance===true){
+    const customerSnap=await db.ref('erp/chequesCli').get();
+    for(const [customer,raw] of Object.entries(customerSnap.val()||{})){
+      if(!raw||typeof raw!=='object')continue;
+      for(const c of Object.values(raw)){
+        if(!c||typeof c!=='object'||clean(c.tipo,40).toLowerCase()!=='adiantamento')continue;
+        const item={
+          origem:'Cheque de cliente',
+          id:'',adiantamento:'',
+          empresa:clean(c.emitente||'',180),
+          cliente:clean(customer,240),
+          numero:clean(c.num,40),
+          data:clean(c.data||c.bomPara,10),
+          vencimento:clean(c.bomPara,10),
+          valor:Number(c.valor),
+          situacao:c.status==='Compensado'?'Compensado':c.status==='Devolvido'?'Devolvido':'A compensar'
+        };
+        if(item.numero&&item.cliente&&Number.isFinite(item.valor)&&item.valor>0)rows.push(item);
+      }
+    }
+  }
+  return {cheques:rows};
+}
+
 function supplierExists(raw,code){
   return Object.values(raw&&typeof raw==='object'?raw:{}).some(s=>s&&typeof s==='object'&&String(s.cod||'')===code);
 }
