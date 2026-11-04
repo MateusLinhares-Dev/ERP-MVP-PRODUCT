@@ -23,14 +23,15 @@ const paid={T089:{ticket:'T089',fornecedorCod:'F089',status:'Pago',totalGeral:87
 test('adiantamento associado a T089 quitado não volta a ser abatido em T115',()=>{
   const ctx=financialContext([{cod:'ADT089',valor:10003.52,status:'Pendente',ticket:'T089',forma:'PIX'}],{valor:1300.02,ticket:'T089'},paid);
   const result=ctx.financialData(null,'F089');
-  assert.equal(result.adts.length,0);
-  assert.equal(result.balance,1300.02);
-  assert.equal(Number((1433.80-result.balance).toFixed(2)),133.78);
+  assert.equal(result.adts.length,1);
+  assert.equal(result.adts[0].valor,1300.02);
+  assert.equal(result.balance,0);
+  assert.equal(Number((1433.80-result.adts[0].valor).toFixed(2)),133.78);
 });
 
 test('sincronização antiga sem vínculo também não reaplica o adiantamento original registrado no recibo',()=>{
   const ctx=financialContext([{cod:'ADT089',valor:10003.52,status:'Pendente',ticket:'',forma:'PIX'}],{valor:1300.02,ticket:'T089'},paid);
-  assert.equal(ctx.financialData(null,'F089').adts.length,0);
+  assert.equal(ctx.financialData(null,'F089').adts.length,1);
 });
 
 test('resíduo autenticado não pode ser somado novamente ao crédito antigo do mesmo ticket',()=>{
@@ -75,5 +76,5 @@ test('baixa envia a data escolhida sem referência a date inexistente',()=>{
 
 test('front publicado carrega os assets com revisão para não usar o JavaScript antigo',()=>{
   assert.match(bootstrap,/script\.src = src \+ '\?v=' \+ assetRevision/);
-  assert.match(html,/app\/bootstrap\.js\?v=20261104-company-directory-v1/);
+  assert.match(html,/app\/bootstrap\.js\?v=20261104-credit-ledger-fix-v2/);
 });

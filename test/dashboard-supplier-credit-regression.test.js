@@ -19,10 +19,10 @@ const paid={
 const stale={cod:'ADT100',ticket:'T089',status:'Pendente',valor:10003.52,forma:'PIX'};
 test('compra quitada por adiantamento de 10003,52 deixa somente crédito de 1300,02 para a próxima compra',()=>{
   const fin=fixture(paid,[stale],null);
-  assert.equal(fin.adts.length,0);
-  assert.equal(fin.balance,1300.02);
-  assert.equal(fin.creditSource,'ADT100');
-  assert.equal(Number((1366.80-fin.balance).toFixed(2)),66.78);
+  assert.equal(fin.adts.length,1);
+  assert.equal(fin.adts[0].valor,1300.02);
+  assert.equal(fin.balance,0);
+  assert.equal(Number((1366.80-fin.adts[0].valor).toFixed(2)),66.78);
 });
 test('se lançamento posterior já usou o crédito, não oferecer novamente nem o original nem o residual',()=>{
   const bought={...paid,T130:{ticket:'T130',fornecedorCod:'F001',totalGeral:1366.80,creditoFornecedorAplicado:1300.02,creditoFornecedorOrigem:'ADT100'}};
@@ -39,8 +39,9 @@ test('um cache financeiro atrasado não ressuscita o crédito depois da compensa
 test('saldo residual parcialmente usado continua disponível só pelo restante',()=>{
   const bought={...paid,T130:{ticket:'T130',fornecedorCod:'F001',totalGeral:500,creditoFornecedorAplicado:500,creditoFornecedorOrigem:'ADT100'}};
   const fin=fixture(bought,[stale],{valor:800.02,ticket:'T130'});
-  assert.equal(fin.adts.length,0);
-  assert.equal(fin.balance,800.02);
+  assert.equal(fin.adts.length,1);
+  assert.equal(fin.adts[0].valor,800.02);
+  assert.equal(fin.balance,0);
 });
 test('registro original sem comprovante de compensação não gera crédito presumido',()=>{
   const fin=fixture({T089:{ticket:'T089',fornecedorCod:'F001',totalGeral:8703.50,status:'Pendente',adiantamento:10003.52}},[stale],null);

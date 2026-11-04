@@ -10764,7 +10764,7 @@ function salvarCompra(forcar, ignorarFaltantes){
   const data=document.getElementById('c-data')?.value||'';
   const resp=(document.getElementById('c-resp')?.value||'').trim();
   const fornSel=document.getElementById('c-forn');
-  const adtManual=parseFloat(document.getElementById('c-adt')?.value)||0;
+  const adtManual=window.__ERP_PURCHASE_APPROVED_ADVANCES__?0:(parseFloat(document.getElementById('c-adt')?.value)||0);
   
   const extrasCompra=_coletarExtras(); 
   const valorExtra=extrasCompra.reduce(function(s,e){ return s+e.v; },0);
@@ -10860,26 +10860,29 @@ function salvarCompra(forcar, ignorarFaltantes){
   
   const _adtChks=[...document.querySelectorAll('.c-adt-chk')];
   const _adtSelecionados=_adtChks.length ? new Set(_adtChks.filter(c=>c.checked).map(c=>c.dataset.cod)) : null;
-  const pendentesAdt=ADT_POR_FORN[fornCod].filter(a=>a.status==='Pendente'&&(!_adtSelecionados||_adtSelecionados.has(a.cod)));
-  const pendentesCheq=CHEQUES_POR_FORN[fornCod].filter(c=>c.status==='Pendente');
+  const _approved=window.__ERP_PURCHASE_APPROVED_ADVANCES__?.supplierCode===fornCod?window.__ERP_PURCHASE_APPROVED_ADVANCES__.amounts:null;
+  const pendentesAdt=ADT_POR_FORN[fornCod].filter(a=>a.status==='Pendente'&&(_approved?Object.prototype.hasOwnProperty.call(_approved,String(a.cod||'')):(!_adtSelecionados||_adtSelecionados.has(a.cod))));
+  const _approvedCheques=window.__ERP_PURCHASE_APPROVED_ADVANCES__?.supplierCode===fornCod?window.__ERP_PURCHASE_APPROVED_ADVANCES__.cheques:null;
+  const pendentesCheq=CHEQUES_POR_FORN[fornCod].filter(c=>c.status==='Pendente'&&(!_approvedCheques||Object.prototype.hasOwnProperty.call(_approvedCheques,String(c.id||c.num||c.numero||''))));
+  const _adtDisponivel=a=>_approved?Math.max(0,Math.min(Number(a.valor||0),Number(_approved[String(a.cod||'')]||0))):Number(a.valor||0);
   const _reciboAdiantamentos=pendentesAdt.map(a=>({
     cod:a.cod||'', data:a.data||'', forma:a.forma||'', bancoNome:a.bancoNome||'',
-    valorOriginal:_r2(Math.max(0,Number(a.valor)||0)), valorAplicado:0,
-    valorPendente:_r2(Math.max(0,Number(a.valor)||0))
+    valorOriginal:_r2(Math.max(0,_adtDisponivel(a))), valorAplicado:0,
+    valorPendente:_r2(Math.max(0,_adtDisponivel(a)))
   }));
   const _reciboCheques=pendentesCheq.map(c=>({
     id:c.id||'', num:c.num||c.numero||'', banco:c.banco||'', bomPara:c.bomPara||c.data||'',
     valorOriginal:_r2(Math.max(0,Number(c.valor)||0)), valorAplicado:0,
     valorPendente:_r2(Math.max(0,Number(c.valor)||0))
   }));
-  const totalAdtPendente=pendentesAdt.reduce((s,a)=>s+Number(a.valor),0);
+  const totalAdtPendente=pendentesAdt.reduce((s,a)=>s+_adtDisponivel(a),0);
   const totalCheqPendente=pendentesCheq.reduce((s,c)=>s+Number(c.valor),0);
   const totalPendenteGeral=totalAdtPendente+totalCheqPendente;
 
   
   const adtEfetivo=totalPendenteGeral>0 ? totalPendenteGeral : adtManual;
   const _sdRaw=SALDO_DEVEDOR_FORN&&SALDO_DEVEDOR_FORN[fornCod];
-  const saldoAnterior=_sdRaw?(typeof _sdRaw==='object'?(_sdRaw.valor||0):Number(_sdRaw||0)):0;
+  const saldoAnterior=_approved?0:(_sdRaw?(typeof _sdRaw==='object'?(_sdRaw.valor||0):Number(_sdRaw||0)):0);
   const saldoPagar=_r2(totalGeral - adtEfetivo + saldoAnterior);  
 
   
@@ -10888,7 +10891,7 @@ function salvarCompra(forcar, ignorarFaltantes){
   for(let _ai=0;_ai<pendentesAdt.length;_ai++){
     const a=pendentesAdt[_ai];
     if(aRestante<=0) break;
-    const vAdt=Number(a.valor);
+    const vAdt=_adtDisponivel(a);
     const usado=Math.min(vAdt, aRestante);
     const _detAdt=_reciboAdiantamentos[_ai];
     if(_detAdt){
@@ -10897,6 +10900,8 @@ function salvarCompra(forcar, ignorarFaltantes){
     }
     if(usado>=vAdt){
       a.status='Quitado'; a.ticket=a.ticket||ticket;
+      if(_approved)a.valorOriginal=Math.max(Number(a.valorOriginal||0),Number(window.__ERP_PURCHASE_APPROVED_ADVANCES__.originals[String(a.cod||'')]||0));
+      a.valorCompensado=_r2(Math.max(0,Number(a.valorCompensado||0),_approved?Number(window.__ERP_PURCHASE_APPROVED_ADVANCES__.spent[String(a.cod||'')]||0):0)+usado);
     } else {
       const codParcial='ADT'+String(Date.now()).slice(-6);
       ADT_POR_FORN[fornCod].push({
@@ -10905,7 +10910,9 @@ function salvarCompra(forcar, ignorarFaltantes){
         bancoCod:a.bancoCod||'', bancoNome:a.bancoNome||'',
         obs:'Quitação parcial de '+a.cod+' — compra '+dataFmt
       });
-      a.valor=vAdt-usado;
+      a.valor=_r2(vAdt-usado);
+      if(_approved)a.valorOriginal=Math.max(Number(a.valorOriginal||0),Number(window.__ERP_PURCHASE_APPROVED_ADVANCES__.originals[String(a.cod||'')]||0));
+      a.valorCompensado=_r2(Math.max(0,Number(a.valorCompensado||0),_approved?Number(window.__ERP_PURCHASE_APPROVED_ADVANCES__.spent[String(a.cod||'')]||0):0)+usado);
     }
     aRestante-=usado;
   }
