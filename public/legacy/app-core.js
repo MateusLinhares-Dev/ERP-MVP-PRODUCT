@@ -1759,6 +1759,7 @@ function switchTab(tid){
     else if(tid==='chat'){ chatInit(); }
     
     if(tid!=='chat'){ try{ chatDestroy(); }catch(e){} }
+    if(['contas_pagar','contas_receber','adiantamentos','cheques','contratos','fin_clientes','despesas_grupo','fornecedores','vendas'].includes(tid))_erpBankDirectoryScan();
   }catch(e){ console.warn('switchTab render error',tid,e); }
 }
 
@@ -3704,7 +3705,7 @@ function _legacyRepairConfig(key){
 
 function _cfgChequeBanks(){
   const legacy=Array.isArray(ERP_BUSINESS_CONFIG.chequeBanks)?ERP_BUSINESS_CONFIG.chequeBanks:[];
-  const live=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB)?BANCOS_DB:[]).filter(function(b){
+  const live=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB)&&BANCOS_DB.length?BANCOS_DB:(_erpBankDirectory.ready?_erpBankDirectory.banks:[])).filter(function(b){
     if(!b||!String(b.banco||'').trim()) return false;
     const t=String(b.tipo||'').toLowerCase();
     return t.indexOf('aplica')<0&&t!=='caixa';
@@ -7959,7 +7960,7 @@ function salvarAdiantamentoCli(){
   const cod='ADTC'+String(Date.now()).slice(-6);
   const dataFmt=data.split('-').reverse().join('/');
   const bancoCod=document.getElementById('adtcli-banco')?.value||'';
-  const bancoNome=bancoCod?((BANCOS_DB.find(b=>b.cod===bancoCod)?.banco)||''):'';
+  const bancoNome=bancoCod?((_erpBankDirectory.banks.find(b=>b.cod===bancoCod)?.banco)||''):'';
   ADT_CLI[cliNome].push({
     cod, data:dataFmt, valor,
     forma: document.getElementById('adtcli-forma')?.value||'PIX',
@@ -8832,38 +8833,160 @@ function _adtPopularFornecedoresPermitidos(){
     if(input)input.setAttribute('list','dlist-forn-adiantamentos');
   }
 }
+const _erpBankDirectory={uid:'',ready:false,pending:null,banks:[],error:'',loadedAt:0};
+const _erpBankDirectoryModes={
+  'cp-banco':'code','ecp-banco':'code','pcp-banco':'code','adtcli-banco':'code','cr-banco':'code',
+  'ct-banco':'name','cheq-banco':'cheque','adt-seq-banco':'cheque','fcp-banco':'name',
+  'ecr-banco':'name','rcr-banco':'name','ffla-banco':'name','f-banco':'name'
+};
+const _erpBankDirectorySelector=Object.keys(_erpBankDirectoryModes).map(id=>'select#'+id).concat(['#cheq-rows td:nth-child(4) select','#v-pgto-rows td:nth-child(2) select']).join(',');
+function _erpBankDirectoryUser(){
+  try{return typeof firebase!=='undefined'?firebase.auth().currentUser:null;}catch(e){return null;}
+}
+function _erpBankDirectorySyncUser(){
+  const user=_erpBankDirectoryUser(),uid=user?.uid||'';
+  if(uid!==_erpBankDirectory.uid){
+    _erpBankDirectory.uid=uid;
+    _erpBankDirectory.ready=false;
+    _erpBankDirectory.banks=[];
+    _erpBankDirectory.error='';
+    _erpBankDirectory.loadedAt=0;
+    _erpBankDirectory.pending=null;
+  }
+  return user;
+}
+function _erpBankDirectorySelects(){
+  return typeof document!=='undefined'?Array.from(document.querySelectorAll(_erpBankDirectorySelector)).filter(el=>el.tagName==='SELECT'):[];
+}
+function _erpBankDirectoryApply(){
+  const user=_erpBankDirectorySyncUser(),banks=user&&_erpBankDirectory.ready?_erpBankDirectory.banks:[];
+  for(const el of _erpBankDirectorySelects()){
+    const mode=_erpBankDirectoryModes[el.id]||((el.closest?.('#cheq-rows'))?'cheque':'name');
+    if(el.dataset.erpBankOwner!==_erpBankDirectory.uid){
+      if(el.dataset.erpBankOwner){el.value='';delete el.dataset.erpBankDesired;}
+      el.dataset.erpBankOwner=_erpBankDirectory.uid;
+    }
+    const selected=el.dataset.erpBankDesired||el.dataset.pendingBankCode||el.value||'';
+    if(selected)el.dataset.erpBankDesired=selected;
+    const expected=[];
+    if(!user)expected.push({value:'',label:'Entre no ERP para consultar bancos'});
+    else if(!_erpBankDirectory.ready)expected.push({value:'',label:_erpBankDirectory.error||'Carregando bancos autorizados...'});
+    else{
+      expected.push({value:'',label:banks.length?'— Selecione o banco —':'Nenhum banco disponível para este perfil'});
+      const seen=new Map();
+      for(const bank of banks){
+        if(mode==='code')expected.push({value:bank.cod,label:bank.banco+' — '+bank.cod});
+        else if(!seen.has(bank.banco)){
+          seen.set(bank.banco,true);
+          expected.push({value:bank.banco,label:bank.banco});
+        }
+      }
+      if(mode==='cheque')for(const name of _cfgChequeBankNames()){
+        if(name&&!seen.has(name)){
+          seen.set(name,true);
+          expected.push({value:name,label:name});
+        }
+      }
+      if((el.id==='ecp-banco'||el.id==='ecr-banco')&&el.dataset.erpBankDesired&&selected&&!expected.some(item=>item.value===selected)){
+        expected.push({value:selected,label:selected+' (registro anterior)'});
+      }
+    }
+    const currentOptions=Array.from(el.options||[]);
+    if(currentOptions.length!==expected.length||expected.some((item,index)=>currentOptions[index]?.value!==item.value||currentOptions[index]?.textContent!==item.label)){
+      el.innerHTML=expected.map(item=>'<option value="'+esc(item.value)+'">'+esc(item.label)+'</option>').join('');
+    }
+    if(selected&&Array.from(el.options).some(option=>option.value===selected)){
+      el.value=selected;
+      delete el.dataset.erpBankDesired;
+      delete el.dataset.pendingBankCode;
+    }
+    el.disabled=!user||!_erpBankDirectory.ready||!expected.some(item=>item.value);
+  }
+}
+async function _erpBankDirectoryLoad(force=false){
+  const user=_erpBankDirectorySyncUser();
+  if(!user){_erpBankDirectoryApply();return false;}
+  if(_erpBankDirectory.pending)return _erpBankDirectory.pending;
+  if(_erpBankDirectory.ready&&!force&&Date.now()-_erpBankDirectory.loadedAt<60000){_erpBankDirectoryApply();return true;}
+  const uid=user.uid;
+  _erpBankDirectory.ready=false;
+  _erpBankDirectory.error='';
+  _erpBankDirectoryApply();
+  const request=(async()=>{
+    const token=await user.getIdToken(true);
+    const response=await fetch('/api/finance/bank-options',{
+      method:'GET',headers:{Authorization:'Bearer '+token,Accept:'application/json'},cache:'no-store',credentials:'same-origin'
+    });
+    const type=response.headers?.get?.('content-type')||'';
+    if(type&&!type.includes('application/json'))throw new Error('API de bancos indisponível. Publique as funções na Vercel.');
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(response.status===403?'Seu perfil ainda não possui autorização para consultar a lista de bancos. Saia e entre novamente.':data.message||'Falha na consulta de bancos.');
+    if(_erpBankDirectoryUser()?.uid!==uid)return false;
+    const unique=new Set();
+    _erpBankDirectory.banks=(Array.isArray(data.banks)?data.banks:[]).filter(bank=>{
+      if(typeof bank?.cod!=='string'||typeof bank?.banco!=='string')return false;
+      const cod=bank.cod.trim(),nome=bank.banco.trim();
+      if(!cod||!nome||unique.has(cod))return false;
+      unique.add(cod);return true;
+    }).map(bank=>({cod:bank.cod.trim(),banco:bank.banco.trim()}));
+    _erpBankDirectory.ready=true;
+    _erpBankDirectory.loadedAt=Date.now();
+    _erpBankDirectory.error='';
+    _erpBankDirectoryApply();
+    return true;
+  })().catch(error=>{
+    if(_erpBankDirectoryUser()?.uid===uid){
+      _erpBankDirectory.error=error.message||'Falha ao consultar bancos.';
+      _erpBankDirectory.ready=false;
+      _erpBankDirectory.banks=[];
+      _erpBankDirectoryApply();
+      if(typeof showToast==='function')showToast(_erpBankDirectory.error,'error',5500);
+    }
+    return false;
+  }).finally(()=>{
+    if(_erpBankDirectory.pending===request)_erpBankDirectory.pending=null;
+  });
+  _erpBankDirectory.pending=request;
+  return request;
+}
+function _erpBankDirectoryScan(){
+  if(!_erpBankDirectorySelects().length)return;
+  _erpBankDirectoryApply();
+  if(_erpBankDirectoryUser()&&!_erpBankDirectory.pending&&!_erpBankDirectory.error&&(!_erpBankDirectory.ready||Date.now()-_erpBankDirectory.loadedAt>=60000))_erpBankDirectoryLoad();
+}
 function _populateBancosSelects(){
-  const currentUser=firebase?.auth?.().currentUser?.uid||'';
+  const currentUser=_erpBankDirectoryUser()?.uid||'';
   if(window.__ERP_ADVANCE_BANK_OPTIONS_UID__&&window.__ERP_ADVANCE_BANK_OPTIONS_UID__!==currentUser){
     window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__=false;
     window.__ERP_ADVANCE_BANK_OPTIONS_UID__='';
     window.__ERP_ADVANCE_BANK_OPTIONS__=[];
     window.__ERP_ADVANCE_SUPPLIER_OPTIONS__=[];
   }
-  const bancos=Array.isArray(BANCOS_DB)?BANCOS_DB.filter(b=>b&&String(b.banco||'').trim()):[];
-  const makeOptions=function(list){
-    return '<option value="">— Selecione o banco —</option>'+list.map(function(b){
-      const label=String(b.banco||'')+(b.empresa?' — '+b.empresa:'')+(b.tipo==='Conta Terceiro'&&b.titular?' 👤 '+b.titular:'');
-      return '<option value="'+esc(String(b.cod||b.id||b.banco||''))+'">'+esc(label)+'</option>';
-    }).join('')+(list.length?'':'<option value="" disabled>Nenhuma conta cadastrada em Bancos</option>');
-  };
-  const standard=makeOptions(bancos);
-  const advanced=window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__
-    ? makeOptions(window.__ERP_ADVANCE_BANK_OPTIONS__||[])
-    : '<option value="">'+esc(window.__ERP_ADVANCE_BANK_OPTIONS_ERROR__||'Carregando contas autorizadas...')+'</option>';
-  ['adt-banco','ea-banco','cheq-banco','cp-banco','ct-banco','adtcli-banco','rcr-banco','ecr-banco'].forEach(function(id){
-    const el=document.getElementById(id);if(!el)return;
+  const list=window.__ERP_ADVANCE_BANK_OPTIONS__||[];
+  const options=window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__
+    ?'<option value="">— Selecione o banco —</option>'+list.map(bank=>'<option value="'+esc(bank.cod)+'">'+esc(bank.banco)+'</option>').join('')
+    :'<option value="">'+esc(window.__ERP_ADVANCE_BANK_OPTIONS_ERROR__||'Carregando contas autorizadas...')+'</option>';
+  for(const id of ['adt-banco','ea-banco']){
+    const el=document.getElementById(id);if(!el)continue;
     const current=el.value||el.dataset.pendingBankCode||'';
-    const restricted=id==='adt-banco'||id==='ea-banco';
-    const html=restricted?advanced:standard;
-    if(el.innerHTML!==html)el.innerHTML=html;
-    if(current&&[...el.options].some(o=>o.value===current)){el.value=current;delete el.dataset.pendingBankCode;}
-    if(restricted)el.disabled=!window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__||!(window.__ERP_ADVANCE_BANK_OPTIONS__||[]).length;
-  });
+    if(el.innerHTML!==options)el.innerHTML=options;
+    if(current&&Array.from(el.options).some(option=>option.value===current)){el.value=current;delete el.dataset.pendingBankCode;}
+    el.disabled=!window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__||!list.length;
+  }
+  _erpBankDirectoryScan();
   if((document.getElementById('adt-banco')||document.getElementById('ea-banco'))&&!window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__&&!window.__ERP_ADVANCE_BANK_OPTIONS_PROMISE__&&!window.__ERP_ADVANCE_BANK_OPTIONS_ERROR__)
     _adtCarregarContasPermitidas();
 }
-
+if(typeof MutationObserver!=='undefined'&&typeof document!=='undefined'&&document.body){
+  new MutationObserver(records=>{
+    if(records.some(record=>{
+      const target=record.target;
+      if(target?.matches?.(_erpBankDirectorySelector))return true;
+      return Array.from(record.addedNodes||[]).some(node=>node.nodeType===1&&(node.matches?.(_erpBankDirectorySelector)||node.querySelector?.(_erpBankDirectorySelector)));
+    }))_erpBankDirectoryScan();
+  }).observe(document.body,{childList:true,subtree:true});
+}
+try{if(typeof firebase!=='undefined'&&firebase.auth()?.onAuthStateChanged)firebase.auth().onAuthStateChanged(()=>{_erpBankDirectorySyncUser();_erpBankDirectoryScan();});}catch(e){}
 
 let _camDest='';
 function abrirCamera(destInputId){
@@ -18289,7 +18412,7 @@ function deExcluir(id){
 
 function _bancoNomePorCod(cod){
   if(!cod) return '';
-  const src=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB))?BANCOS_DB:[];
+  const src=_erpBankDirectory.ready?_erpBankDirectory.banks:((typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB))?BANCOS_DB:[]);
   const b=src.find(x=>x.cod===cod||x.banco===cod);
   if(!b) return (typeof cod==='string'?cod:'');
   return b.banco+(b.tipo==='Conta Terceiro'&&b.titular?' ('+b.titular+')':'');
@@ -18410,6 +18533,9 @@ function editContaPagar(idx, id){
     '<button class="btn-cancel" onclick="cm()">Cancelar</button>'+
     '<button class="btn-save" onclick="salvarEditContaPagar()">💾 Salvar</button></div>';
   _ovE.classList.add('open');
+  const bankSelect=document.getElementById('ecp-banco');
+  if(bankSelect)bankSelect.dataset.erpBankDesired=c.bancoCod||c.bancoNome||'';
+  _erpBankDirectoryScan();
 }
 
 function salvarEditContaPagar(){
@@ -18486,28 +18612,11 @@ function registrarMovBanco(bancoNome, dataISO, descricao, tipo, valor){
 async function _cpConsultarContasBancarias(selectId,current=''){
   const select=document.getElementById(selectId);
   if(!select)return false;
-  select.disabled=true;
-  select.innerHTML='<option value="">Carregando bancos autorizados...</option>';
-  try{
-    const user=firebase?.auth?.().currentUser;
-    if(!user)throw new Error('Sessão expirada. Entre novamente.');
-    const token=await user.getIdToken(true);
-    const response=await fetch('/api/finance/bank-options',{method:'GET',headers:{Authorization:'Bearer '+token,Accept:'application/json'},cache:'no-store',credentials:'same-origin'});
-    const result=await response.json();
-    if(!response.ok)throw new Error(result.message||'Consulta de bancos não autorizada.');
-    if(firebase?.auth?.().currentUser?.uid!==user.uid)return false;
-    const banks=Array.isArray(result.banks)?result.banks:[];
-    select.innerHTML='<option value="">— Selecione —</option>'+banks.map(b=>'<option value="'+esc(b.cod)+'">'+esc(b.banco)+' — '+esc(b.cod)+'</option>').join('');
-    if(current&&banks.some(b=>b.cod===current))select.value=current;
-    select.disabled=!banks.length;
-    if(!banks.length)select.innerHTML='<option value="">Nenhum banco disponível</option>';
-    return banks.length>0;
-  }catch(error){
-    select.innerHTML='<option value="">'+esc(error.message||'Falha ao carregar bancos')+'</option>';
-    select.disabled=true;
-    showToast('Não foi possível consultar as contas: '+(error.message||'erro desconhecido'),'error');
-    return false;
-  }
+  if(current)select.dataset.erpBankDesired=current;
+  const allowed=await _erpBankDirectoryLoad();
+  if(document.getElementById(selectId)!==select)return false;
+  _erpBankDirectoryApply();
+  return allowed&&_erpBankDirectory.banks.length>0;
 }
 
 function pagarContaRapido(idx,id){
@@ -18870,6 +18979,9 @@ function editContaReceber(idx){
     '<button class="btn-cancel" onclick="cm()">Cancelar</button>'+
     '<button class="btn-save" onclick="salvarEditContaReceber()">💾 Salvar</button></div>';
   document.getElementById('modal-ov').classList.add('open');
+  const bankSelect=document.getElementById('ecr-banco');
+  if(bankSelect)bankSelect.dataset.erpBankDesired=c.banco||'';
+  _erpBankDirectoryScan();
 }
 
 function salvarEditContaReceber(){
@@ -18895,7 +19007,7 @@ function receberContaRapido(idx){
   const body=document.getElementById('modal-body');
   body.className='modal';
   const hoje=new Date().toISOString().slice(0,10);
-  const bancoOpts=(BANCOS_DB||[]).map(b=>{
+  const bancoOpts=(_erpBankDirectory.ready?_erpBankDirectory.banks:[]).map(b=>{
     const n=b.banco+(b.tipo==='Conta Terceiro'?' ('+b.titular+')':'');
     return '<option value="'+esc(n)+'">'+esc(n)+'</option>';
   }).join('');
@@ -20077,7 +20189,7 @@ function vhImprimir(){
 window['vhImprimir']=vhImprimir;
 
 
-const _vBancoOpts=()=>(BANCOS_DB.length>0?BANCOS_DB.map(b=>`<option value="${b.banco}">${b.banco}${b.titular&&b.titular!==_empresaPrincipalRazao()?' ('+b.titular+')':''}</option>`).join(''):'<option value="">Nenhuma conta cadastrada</option>');
+const _vBancoOpts=()=>_erpBankDirectory.ready?_erpBankDirectory.banks.map(b=>'<option value="'+esc(b.banco)+'">'+esc(b.banco)+'</option>').join(''):'<option value="">Carregando bancos...</option>';
 
 let vPgtoRowId=0;
 function addVPgtoRow(){
@@ -20779,11 +20891,10 @@ function _despPopularBancos(){
   const sel=document.getElementById('f-banco');
   if(!sel || sel.tagName!=='SELECT') return; // Despesas usa identificação digitada livremente.
   const atual=sel.value;
-  const bancos=Array.isArray(BANCOS_DB)?BANCOS_DB.filter(function(b){return b&&String(b.banco||'').trim();}):[];
+  const bancos=_erpBankDirectory.ready?_erpBankDirectory.banks:[];
   sel.innerHTML='<option value="">— Selecione uma conta cadastrada —</option>'+bancos.map(function(b){
     const nome=String(b.banco||'').trim();
-    const detalhe=[b.empresa,b.conta].filter(Boolean).join(' · ');
-    return '<option value="'+esc(nome)+'"'+(nome===atual?' selected':'')+'>'+esc(nome)+(detalhe?' — '+esc(detalhe):'')+'</option>';
+    return '<option value="'+esc(nome)+'"'+(nome===atual?' selected':'')+'>'+esc(nome)+'</option>';
   }).join('');
 }
 function despAtualizar(){
