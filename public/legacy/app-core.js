@@ -1504,11 +1504,12 @@ function renderFornInativos(){
       dash.style.display = 'block';
       if(dashCount) dashCount.textContent = inativos.length;
       if(dashNomes){
+        const current=dashNomes.style.display;
         dashNomes.textContent = inativos.map(i=>`${i.nome} (${i.dias})`).join(' • ');
-        dashNomes.style.display = 'none';
+        dashNomes.style.display=current||'none';
       }
       const tg=document.getElementById('dash-forn-inativo-toggle');
-      if(tg) tg.textContent='ver lista';
+      if(tg) tg.textContent=dashNomes&&dashNomes.style.display!=='none'?'ocultar lista':'ver lista';
     } else {
       dash.style.display = 'none';
     }
@@ -1851,7 +1852,15 @@ function renderDashboard(){
       dataCompras.push(+(comp/1000).toFixed(1));
       dataVendas.push(+(vend/1000).toFixed(1));
     }
-    if(canvas1._chartInst) canvas1._chartInst.destroy();
+    const chartSignature=JSON.stringify([labels,dataCompras,dataVendas]);
+    if(canvas1._chartInst&&canvas1._chartSignature!==chartSignature){
+      canvas1._chartInst.data.labels=labels;
+      canvas1._chartInst.data.datasets[0].data=dataCompras;
+      canvas1._chartInst.data.datasets[1].data=dataVendas;
+      canvas1._chartSignature=chartSignature;
+      canvas1._chartInst.update('none');
+    }else if(!canvas1._chartInst){
+    canvas1._chartSignature=chartSignature;
     canvas1._chartInst=new Chart(canvas1,{
       type:'bar',
       data:{
@@ -1870,18 +1879,31 @@ function renderDashboard(){
         }
       }
     });
+    }
   }
 
   
   const canvas2=el('chart-estoque');
   if(canvas2){
-    const mats=Object.keys(estoqueMatData).filter(m=>estoqueMatData[m]>0);
+    const mats=Object.keys(estoqueMatData).filter(m=>estoqueMatData[m]>0).sort(function(a,b){return a.localeCompare(b,'pt-BR');});
     const vals=mats.map(m=>+estoqueMatData[m].toFixed(0));
     const COLORS=['#1a7a41','#c8a400','#c0392b','#1a5276','#7c3aed','#2e6b46','#d68910','#128c7e'];
-    if(canvas2._chartInst) canvas2._chartInst.destroy();
-    if(mats.length===0){
-      canvas2.parentElement.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#aaa;font-size:.85rem">Sem dados de estoque</div>';
-    } else {
+    const stockSignature=JSON.stringify([mats,vals]);
+    if(canvas2._chartInst&&canvas2._chartSignature===stockSignature){
+    }else if(mats.length===0){
+      if(canvas2._chartInst){
+        canvas2._chartInst.data.labels=[];
+        canvas2._chartInst.data.datasets[0].data=[];
+        canvas2._chartSignature=stockSignature;
+        canvas2._chartInst.update('none');
+      }
+    }else if(canvas2._chartInst){
+      canvas2._chartInst.data.labels=mats;
+      canvas2._chartInst.data.datasets[0].data=vals;
+      canvas2._chartSignature=stockSignature;
+      canvas2._chartInst.update('none');
+    }else{
+      canvas2._chartSignature=stockSignature;
       canvas2._chartInst=new Chart(canvas2,{
         type:'doughnut',
         data:{

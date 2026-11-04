@@ -86,14 +86,27 @@ function sourceItems(body){
   });
 }
 function historicalAppliedAdvances(supplierCode){
-  const used=new Set();
-  for(const ticket of Object.values(tickets())){
-    if(String(ticket?.fornecedorCod||ticket?.fornCod||'')!==String(supplierCode))continue;
+  const used=new Map();
+  const rows=Object.values(tickets()).filter(function(ticket){
+    return String(ticket?.fornecedorCod||ticket?.fornCod||'')===String(supplierCode);
+  });
+  for(const ticket of rows){
     for(const item of ticket?.reciboFinanceiro?.adiantamentos||[]){
-      if(item?.cod&&Number(item.valorAplicado||0)>0)used.add(String(item.cod));
+      const code=String(item?.cod||'').trim();
+      const applied=Number(item?.valorAplicado||0);
+      if(code&&applied>0)used.set(code,Math.round(((used.get(code)||0)+applied)*100)/100);
     }
   }
   return used;
+}
+function linkedPurchase(reference,supplierCode){
+  const target=String(reference||'').trim();
+  if(!target)return null;
+  return Object.entries(tickets()).find(function(pair){
+    const ticket=pair[1];
+    return String(ticket?.fornecedorCod||ticket?.fornCod||'')===String(supplierCode)&&
+      (String(pair[0])===target||String(ticket?.ticket||'')===target||String(ticket?.numeroPedido||'')===target);
+  })?.[1]||null;
 }
 function financialData(body,supplierCode,sourceTicketKeys=[]){
   const code=String(supplierCode||'').trim();
@@ -101,18 +114,44 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
   const sameSupplier=code&&bodyCode===code;
   const sourceKeys=new Set([...(Array.isArray(sourceTicketKeys)?sourceTicketKeys:[]),...(sameSupplier?jsonDataset(body,'ticketKeys',[]):[])].map(String));
   const applied=historicalAppliedAdvances(code);
+  const historical=Object.values(tickets()).filter(function(ticket){
+    return String(ticket?.fornecedorCod||ticket?.fornCod||'')===code;
+  });
   let adts=[];
   let cheques=[];
   let balance=0;
+  let creditSource='';
   try{
+    const trackedCredits=[];
     const eligible=(ADT_POR_FORN[code]||[]).filter(function(a){
       if(!a||String(a.status||'Pendente').trim().toLowerCase()!=='pendente')return false;
-      if(!(Number(a.valor)>0))return false;
-      if(applied.has(String(a.cod||''))&&!a.ticketOrigem&&!Number(a.valorCompensado||0)&&!(Number(a.valorOriginal)>Number(a.valor)))return false;
-      const linked=String(a.ticket||'').trim();
-      if(!linked)return true;
+      const amount=Number(a.valor||0);
+      if(!(amount>0))return false;
+      const id=String(a.cod||'');
+      const linked=String(a.ticketOrigem||a.ticket||'').trim();
+      const original=Number(a.valorOriginal||0)>0?Number(a.valorOriginal):amount;
+      const recordedCompensation=Math.max(0,Number(a.valorCompensado||0));
+      const receiptApplied=applied.get(id)||0;
+      const oldPurchase=linkedPurchase(linked,code)||historical.find(function(ticket){
+        return (ticket?.reciboFinanceiro?.adiantamentos||[]).some(function(item){return String(item?.cod||'')===id&&Number(item?.valorAplicado||0)>0;});
+      });
+      const settledPurchase=oldPurchase && ['pago','quitado'].includes(String(oldPurchase.status||'').toLowerCase());
+      const legacyApplied=settledPurchase?Math.min(original,Math.max(0,Number(oldPurchase.adiantamento||0)),Math.max(0,Number(oldPurchase.totalGeral||0))):0;
+      const spent=Math.max(recordedCompensation,receiptApplied,legacyApplied);
+      if(spent>0){
+        const alreadyReduced=original>amount+0.005&&amount<=Math.max(0,original-spent)+0.005;
+        if(!alreadyReduced){
+          const laterCredits=historical.reduce(function(total,ticket){
+            return total+(String(ticket?.creditoFornecedorOrigem||'')===id?Math.max(0,Number(ticket.creditoFornecedorAplicado||0)):0);
+          },0);
+          const remaining=Math.round(Math.max(0,original-spent-laterCredits)*100)/100;
+          if(settledPurchase&&original-spent>0.005)trackedCredits.push({id,amount:remaining,ticket:linked||String(oldPurchase.ticket||'')});
+          return false;
+        }
+      }
+      if(!linked||a.ticketOrigem)return true;
       if(!sourceKeys.has(linked))return false;
-      const origin=tickets()[linked];
+      const origin=linkedPurchase(linked,code);
       return !!origin&&origin.status==='Aguard. Preço'&&origin._balFinalizado===true;
     });
     adts=eligible.filter(function(a){return !String(a.forma||'').toLowerCase().includes('cheque');});
@@ -120,13 +159,20 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
     const supplierCheques=(CHEQUES_POR_FORN[code]||[]).filter(function(c){return c&&!c._aplicadoTicket&&c.status!=='Quitado';});
     cheques=supplierCheques.concat(advanceCheques);
     const credit=SALDO_DEVEDOR_FORN&&SALDO_DEVEDOR_FORN[code];
-    const creditOrigin=typeof credit==='object'?String(credit?.ticket||''):'';
-    const hasRemainingCredit=creditOrigin&&eligible.some(function(a){return String(a.ticketOrigem||'')===creditOrigin;});
-    balance=hasRemainingCredit?0:Number(typeof credit==='object'?credit?.valor:credit)||0;
+    const persisted=Math.max(0,Number(typeof credit==='object'?credit?.valor:credit)||0);
+    const pendingReduced=eligible.some(function(a){return Number(a.valorOriginal||0)>Number(a.valor||0)&&Number(a.valorCompensado||0)>0;});
+    const possible=trackedCredits.length===1?trackedCredits[0]:null;
+    if(persisted>0){
+      balance=pendingReduced?0:(possible?Math.min(persisted,possible.amount):persisted);
+      creditSource=possible?.id||'';
+    }else if(possible&&!pendingReduced){
+      balance=possible.amount;
+      creditSource=possible.id;
+    }
   }catch(error){
     console.warn('[purchase-order] saldo do fornecedor indisponível',error);
   }
-  return {adts,cheques,balance:Math.max(0,balance)};
+  return {adts,cheques,balance:Math.max(0,balance),creditSource};
 }
 function validatePurchaseCredits(state){
   if(state.editKey)return;
@@ -170,6 +216,7 @@ function currentState(body){
     adts:fin.adts,
     cheques:fin.cheques,
     previousCredit:fin.balance,
+    creditSource:fin.creditSource||'',
     notes:''
   };
 }
@@ -280,7 +327,7 @@ function paymentHtml(state){
     return '<label class="phase4-po-pay-row"><input type="checkbox" id="cscheq-'+index+'" value="'+Number(c.valor||0)+'" checked onchange="phase4PurchaseRecalc()"><span><b>Cheque '+esc(c.num||c.cod||'')+'</b><small>'+esc(c.bomPara||c.data||'')+' · '+esc(c.banco||c.bancoNome||c.forma||'')+'</small></span><strong>R$ '+money(c.valor)+'</strong></label>';
   }).join('');
   const credit=state.previousCredit>0
-    ? '<label class="phase4-po-pay-row credit"><input type="checkbox" id="cssdv" value="'+Number(state.previousCredit||0)+'" checked onchange="phase4PurchaseRecalc()"><span><b>Crédito anterior do fornecedor</b><small>Abatimento financeiro já existente</small></span><strong>R$ '+money(state.previousCredit)+'</strong></label>'
+    ? '<label class="phase4-po-pay-row credit"><input type="checkbox" id="cssdv" value="'+Number(state.previousCredit||0)+'" checked onchange="phase4PurchaseRecalc()"><span><b>Crédito restante do fornecedor</b><small>Saldo disponível após compensações anteriores</small></span><strong>R$ '+money(state.previousCredit)+'</strong></label>'
     : '';
   if(!adts&&!cheques&&!credit)return '<div class="phase4-po-empty-pay">Nenhum adiantamento, cheque ou crédito pendente para este fornecedor.</div>';
   return adts+cheques+credit;
@@ -491,6 +538,7 @@ global.phase4PurchaseSupplierChanged=function(){
       next.adts=fin.adts;
       next.cheques=fin.cheques;
       next.previousCredit=fin.balance;
+      next.creditSource=fin.creditSource||'';
       next.sourceTicketKeys=[];
       if(!next.items?.length)next.items=[newItem()];
       storeState(target,next);
@@ -602,18 +650,19 @@ function syncPayable(ticket,state,totals){
 function syncSupplierCredit(ticket,state,totals){
   if(!state.supplierCode)return;
   try{
+    const selected=document.getElementById('cssdv');
+    const used=!!selected?.checked&&Number(state.previousCredit||0)>0;
+    const applied=Math.min(Math.max(0,Number(state.previousCredit||0)),Math.max(0,Number(totals.total||0)));
+    ticket.creditoFornecedorAplicado=used?Math.round(applied*100)/100:0;
+    ticket.creditoFornecedorOrigem=used?String(state.creditSource||''):'';
     if(totals.balance < -0.005){
       SALDO_DEVEDOR_FORN[state.supplierCode]={
-        valor:Math.abs(totals.balance),
-        ticket:ticket.ticket||'',
+        valor:Math.round(Math.abs(totals.balance)*100)/100,
+        ticket:String(ticket.ticket||''),
         data:state.purchaseDate||today()
       };
-    }else{
-      const current=SALDO_DEVEDOR_FORN&&SALDO_DEVEDOR_FORN[state.supplierCode];
-      if(current){
-        const currentTicket=typeof current==='object'?String(current.ticket||''):'';
-        if(!currentTicket||currentTicket===String(ticket.ticket||''))delete SALDO_DEVEDOR_FORN[state.supplierCode];
-      }
+    }else if(used){
+      delete SALDO_DEVEDOR_FORN[state.supplierCode];
     }
     localStorage.setItem('mm_saldo_devedor',JSON.stringify(SALDO_DEVEDOR_FORN));
   }catch(e){console.warn('[purchase-order] saldo fornecedor',e);}
@@ -1030,7 +1079,7 @@ function stateForSourceTicket(ticketKey){
   });
   if(!items.length)items=[newItem()];
   let number='';try{number=typeof getNextTicketId==='function'?getNextTicketId():'';}catch(e){}
-  return {supplierName:supplier.nome,supplierCode:supplier.cod||'',items,discount:0,freight:0,orderNumber:number,purchaseOrder:'',purchaseDate:today(),dueDate:today(),sourceTicketKeys:[ticketKey],adts:fin.adts,cheques:fin.cheques,previousCredit:fin.balance,notes:''};
+  return {supplierName:supplier.nome,supplierCode:supplier.cod||'',items,discount:0,freight:0,orderNumber:number,purchaseOrder:'',purchaseDate:today(),dueDate:today(),sourceTicketKeys:[ticketKey],adts:fin.adts,cheques:fin.cheques,previousCredit:fin.balance,creditSource:fin.creditSource||'',notes:''};
 }
 global.phase4OpenTicketForPurchase=function(ticketKey){
   const key=String(ticketKey||'').trim();
@@ -1151,12 +1200,13 @@ if(typeof legacy.tab==='function'){
           if(!state.editKey&&state.supplierCode){
             const fresh=financialData(body,state.supplierCode);
             const signature=function(items){return JSON.stringify((items||[]).map(function(i){return [i.cod||i.id||i.num,i.valor,i.status];}));};
-            if(signature(fresh.adts)!==signature(state.adts)||signature(fresh.cheques)!==signature(state.cheques)){
+            if(signature(fresh.adts)!==signature(state.adts)||signature(fresh.cheques)!==signature(state.cheques)||Math.abs(fresh.balance-Number(state.previousCredit||0))>0.005){
               global.phase4PurchaseRecalc();
               global.phase4PurchaseSyncMeta();
               state.adts=fresh.adts;
               state.cheques=fresh.cheques;
               state.previousCredit=fresh.balance;
+              state.creditSource=fresh.creditSource||'';
               storeState(body,state);
               render(body);
             }

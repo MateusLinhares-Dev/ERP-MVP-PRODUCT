@@ -664,7 +664,10 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   async function _enviarDadosEmLotes(dados, limiteBytes){
     dados = _fbFiltrarJaEnviado(dados);
     dados = _fbLimparUndefined(await _rtdbFiltrarGravacao(dados));
-    if(Object.keys(dados).length===0)return;
+    if(Object.keys(dados).every(function(key){return key==='_ts'||key==='_user';})){
+      if(window._fbTsPendentesProprios)window._fbTsPendentesProprios.delete(dados._ts);
+      return;
+    }
     let tamanhoTotal;
     try{ tamanhoTotal=JSON.stringify(dados).length; }catch(e){ tamanhoTotal=0; }
     if(tamanhoTotal<=limiteBytes && Object.keys(dados).length<=MAX_ITENS_POR_LOTE){
