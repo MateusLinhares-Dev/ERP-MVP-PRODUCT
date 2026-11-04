@@ -4,7 +4,7 @@ import { createLegacyDatabaseAdapter } from './legacy-db-adapter.js';
 import { createRealtimeBusinessRepository } from './realtime-business-repository.js';
 import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 
-const assetRevision = '20261104-supplier-credit-dashboard-v3';
+const assetRevision = '20261104-company-directory-v1';
 
 function loadClassic(src) {
   return new Promise((resolve, reject) => {
@@ -236,7 +236,7 @@ async function main() {
   initProfilePhoto({ auth, db, storage });
 
   // A folha visual deve ser a última para prevalecer sobre estilos de módulos legados.
-  const uiStylesheet = document.querySelector('link[href="/legacy/professional-ui.css"]');
+  const uiStylesheet = document.querySelector('link[href^="/legacy/professional-ui.css"]');
   if (uiStylesheet) document.head.appendChild(uiStylesheet);
   loadStyle('/legacy/operations-polish.css');
   await loadClassic('/legacy/operations-polish.js');

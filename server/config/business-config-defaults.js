@@ -40,6 +40,7 @@ export const DEFAULT_BUSINESS_CONFIG = {
     "Gratus Metais",
     "Mabor"
   ],
+  "inactiveCompanies": [],
   "employeeCompanies": [
     "Manuela Metais",
     "Mabor",
