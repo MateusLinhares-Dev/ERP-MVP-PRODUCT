@@ -577,99 +577,99 @@
       },
       "fornDespesaDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)"
       },
       "docsEmpresasDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBusinessDocs == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canBusinessDocs == true)"
       },
       "fornecedoresDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)"
       },
       "historicoDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
       },
       "viagemDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
       },
       "combustivelDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
       },
       "clientesDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCustomers == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCustomers == true)"
       },
       "frotaDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
       },
       "manutencaoDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)"
       },
       "epiDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
       },
       "agendaEntregasDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canDeliveryAgenda == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canDeliveryAgenda == true)"
       },
       "reunioesDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
       },
       "advertenciasDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
       },
       "bagsMovDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)"
       },
       "pontoDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
       },
       "pontoBatidasDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
       },
       "valesDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)"
       },
       "contasReceberDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
       },
       "afazeresDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canTasks == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canTasks == true)"
       },
       "contratosDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canContracts == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canContracts == true)"
       },
       "almoxaDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
       },
       "almoxaMovDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
       },
       "alxNotasDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
       },
       "alxNotasDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)"
       },
       "alxNotas": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true)",
@@ -677,19 +677,19 @@
       },
       "bancosDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)"
       },
       "lancBancoDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)"
       },
       "vendasDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSales == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSales == true)"
       },
       "despGrupoDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
       },
       "_appBuild": {
         ".read": "auth != null && auth.token.erpAccess == true",

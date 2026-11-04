@@ -136,7 +136,7 @@ for(const name of legacyNames){
     if(candidate.rules.erp[key])continue;
     candidate.rules.erp[key]={
       '.read':sourceRule['.read'],
-      '.write':`${auth} && auth.token.admin == true`
+      '.write':sourceRule['.write']
     };
   }
   if(!candidate.rules.erp[name]){

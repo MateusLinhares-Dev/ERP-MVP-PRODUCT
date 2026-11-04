@@ -708,7 +708,6 @@ async function purchaseConfirmCloud(key,ticket,options={}){
      throw new Error('O Firebase ainda não confirmou o conteúdo do pedido. Verifique o número na nuvem antes de tentar novamente.');
   try{
     if(typeof TICKETS_DB!=='undefined')TICKETS_DB[id]=Object.assign({},saved);
-    // Acknowledge only the ticket returned by RTDB, not unrelated pending tickets.
     if(typeof _ticketsSnapJSON!=='undefined')_ticketsSnapJSON[id]=JSON.stringify(saved);
   }catch(e){}
   return saved;
@@ -740,7 +739,7 @@ async function purchaseFindCloudTicket(){
       return;
     }
     TICKETS_DB[id]=Object.assign({},ticket);
-    try{if(typeof _ticketsSnapJSON!=='undefined')_ticketsSnapJSON[id]=JSON.stringify(ticket);}catch(e){}
+    try{if(typeof _ticketsSnapJSON!=='undefined')_ticketsSnapJSON[id]=JSON.stringify(saved);}catch(e){}
     try{
       const ids=['filt-compra-status','filt-compra-forn','filt-compra-de','filt-compra-ate'];
       ids.forEach(function(name){const field=document.getElementById(name);if(field)field.value=name==='filt-compra-status'?'todos':'';});
