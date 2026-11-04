@@ -23,6 +23,6 @@ test('public bundle does not contain legacy Firebase secrets/passwords',()=>{
 
 test('HTML shell loads the secure bootstrap',()=>{
   const html=fs.readFileSync(path.join(root,'public/index.template.html'),'utf8');
-  assert.match(html,/type="module" src="\/app\/bootstrap\.js"/);
+  assert.match(html,/type="module" src="\/app\/bootstrap\.js(?:\?v=[a-zA-Z0-9-]+)?"/);
   assert.equal(html.includes('firebase-app-compat.js'),false,'Firebase SDK should be loaded by runtime bootstrap');
 });

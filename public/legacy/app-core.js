@@ -18746,12 +18746,12 @@ async function confirmarPagarCP(modo){
   const advanceAmount=Math.round(adt*100)/100;
   const amount=onlyAdvance?0:Math.round((total-adt)*100)/100;
   const banco=amount>0?(document.getElementById('pcp-banco')?.value||''):'';
-  const data=document.getElementById('pcp-data')?.value||'';
+  const paymentDate=document.getElementById('pcp-data')?.value||'';
   const limiteAdt=Number(document.getElementById('pcp-adt')?.max||0);
   if(!Number.isFinite(total)||!Number.isFinite(adt)||adt<0||adt>limiteAdt+0.001||!Number.isFinite(amount)||amount<0||advanceAmount>total+0.001||(onlyAdvance?adt<=0:total<=0)||total>Number(c.valor)+0.001){
     showToast('Confira o valor e a compensação informados.','error');return;
   }
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(data)){showToast('Informe uma data válida.','error');return;}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)){showToast('Informe uma data válida.','error');return;}
   if(amount>0&&!banco){showToast('Selecione a conta bancária autorizada.','error');return;}
   const user=firebase?.auth?.().currentUser;
   if(!user){showToast('Sessão expirada. Entre novamente.','error');return;}
@@ -18760,9 +18760,9 @@ async function confirmarPagarCP(modo){
   buttons.forEach(button=>button.disabled=true);
   try{
     const token=await user.getIdToken(true);
-    const response=await fetch('/api/finance/payables-payment',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operationId:modal.dataset.paymentOperation,payableId:id,expected:{valor:c.valor,status:c.status,paymentsCount:Array.isArray(c.pagamentos)?c.pagamentos.length:0},date:data,bankCode:banco,amount,advanceAmount,fornCod:document.getElementById('pcp-forn-cod')?.value||'',obs:document.getElementById('pcp-obs')?.value||''})});
+    const response=await fetch('/api/finance/payables-payment',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operationId:modal.dataset.paymentOperation,payableId:id,expected:{valor:c.valor,status:c.status,paymentsCount:Array.isArray(c.pagamentos)?c.pagamentos.length:0},date:paymentDate,bankCode:banco,amount,advanceAmount,fornCod:document.getElementById('pcp-forn-cod')?.value||'',obs:document.getElementById('pcp-obs')?.value||''})});
     const result=await response.json();
-    if(!response.ok)throw new Error(result.message||'Falha ao confirmar pagamento.');
+    if(!response.ok)throw new Error((result.message||'Falha ao confirmar pagamento.')+(result.code?' ['+result.code+']':''));
     if(firebase?.auth?.().currentUser?.uid!==user.uid)throw new Error('Sessão alterada. Atualize a página.');
     CONTAS_PAGAR[idx]=result.payable;
     if(result.advanceEntries&&result.fornCod)ADT_POR_FORN[result.fornCod]=result.advanceEntries;

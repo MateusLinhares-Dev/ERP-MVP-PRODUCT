@@ -4,10 +4,12 @@ import { createLegacyDatabaseAdapter } from './legacy-db-adapter.js';
 import { createRealtimeBusinessRepository } from './realtime-business-repository.js';
 import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 
+const assetRevision = '20261104-finance-credit-v2';
+
 function loadClassic(src) {
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = src;
+    script.src = src + '?v=' + assetRevision;
     script.async = false;
     script.onload = resolve;
     script.onerror = () => reject(new Error(`Falha ao carregar ${src}`));
