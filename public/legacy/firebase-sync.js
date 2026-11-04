@@ -290,9 +290,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       }catch(_e){}
       try{
         var dlEmp=document.getElementById('dlist-empresas');
-        if(dlEmp && Array.isArray(cfg.transferCompanies)){
-          dlEmp.innerHTML=cfg.transferCompanies.map(function(v){return '<option value="'+String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">';}).join('');
-        }
+        if(dlEmp && typeof window.__erpRefreshCompanySources==='function')window.__erpRefreshCompanySources();
         try{ if(typeof _cpRenderEmpresaBotoes==='function') _cpRenderEmpresaBotoes(); }catch(_e2){}
         var fcfg=cfg.fiscalCompanies&&typeof cfg.fiscalCompanies==='object'?cfg.fiscalCompanies:{};
         try{ if(typeof _fiscalEnsureEmpresa==='function') _fiscalEnsureEmpresa(); if(typeof _fiscalRenderEmpresaBotoes==='function') _fiscalRenderEmpresaBotoes(); }catch(_e3){}

@@ -85,11 +85,11 @@ test('empresa removida não volta aos novos lançamentos, mas permanece no hist�
   assert.ok(!Array.from(ui._cfgChequeCompanies()).includes('Teste'));
 });
 
-test('cadastro gerenciado tem ações de remover e reativar somente por API autenticada',()=>{
+test('cadastro gerenciado possui exclusão definitiva pela API autenticada',()=>{
   assert.match(source,/if\(!_usuarioAtualEhAdmin\(\)\)/);
   assert.match(source,/data-company-action/);
-  assert.match(source,/restore/);
-  assert.match(source,/archive/);
+  assert.match(source,/data-company-action="delete/);
+  assert.match(api,/action==='delete'/);
   assert.match(source,/\/api\/admin\/employee-companies/);
   assert.match(api,/requireIdentity\(req,\{admin:true\}\)/);
   assert.match(api,/db\.ref\('erp\/config'\)\.transaction/);

@@ -4,7 +4,7 @@ import { createLegacyDatabaseAdapter } from './legacy-db-adapter.js';
 import { createRealtimeBusinessRepository } from './realtime-business-repository.js';
 import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 
-const assetRevision = '20261104-company-live-pdf-release';
+const assetRevision = '20261104-company-directory-hard-delete';
 
 function loadClassic(src) {
   return new Promise((resolve, reject) => {
