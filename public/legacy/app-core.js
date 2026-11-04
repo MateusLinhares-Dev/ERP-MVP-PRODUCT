@@ -8900,7 +8900,8 @@ function _erpBankDirectoryApply(){
       delete el.dataset.erpBankDesired;
       delete el.dataset.pendingBankCode;
     }
-    el.disabled=!user||!_erpBankDirectory.ready||!expected.some(item=>item.value);
+    el.disabled=!user||!_erpBankDirectory.ready||!expected.some(item=>item.value)||el.id==='pcp-banco'&&Number(document.getElementById('pcp-valor-pagar')?.value||0)-Number(document.getElementById('pcp-adt')?.value||0)<=0;
+    if(el.id==='pcp-banco'&&el.disabled&&_erpBankDirectory.ready)el.value='';
   }
 }
 async function _erpBankDirectoryLoad(force=false){
@@ -18616,6 +18617,7 @@ async function _cpConsultarContasBancarias(selectId,current=''){
   const allowed=await _erpBankDirectoryLoad();
   if(document.getElementById(selectId)!==select)return false;
   _erpBankDirectoryApply();
+  if(selectId==='pcp-banco')atualizarLiquidoCP(Number(document.getElementById('pcp-valor-pagar')?.value||0));
   return allowed&&_erpBankDirectory.banks.length>0;
 }
 
@@ -18625,17 +18627,23 @@ function pagarContaRapido(idx,id){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const body=document.getElementById('modal-body');body.className='modal';
   const hoje=new Date().toISOString().slice(0,10);
-  const fornCod=c.fornCod||(FORNECEDORES.find(f=>f.nome===c.cred)||{}).cod||'';
-  const adtsPendentes=fornCod?(ADT_POR_FORN[fornCod]||[]).filter(a=>a.status==='Pendente'):[];
-  const totalAdtDisp=adtsPendentes.reduce((sum,a)=>sum+Number(a.valor||0),0);
+  const ticket=String(c.ticket||'').trim();
+  const ticketFornecedor=ticket?Object.values(TICKETS_DB||{}).find(t=>String(t?.ticket||'').trim()===ticket):null;
+  const fornCod=c.fornCod||ticketFornecedor?.fornecedorCod||(FORNECEDORES.find(f=>f.nome===c.cred)||{}).cod||'';
+  const todosAdiantamentos=fornCod?(ADT_POR_FORN[fornCod]||[]):[];
+  const adtsPendentes=todosAdiantamentos.filter(a=>a&&a.status==='Pendente'&&(!a.ticket||String(a.ticket).trim()===ticket));
+  const totalAdtDisp=adtsPendentes.reduce((sum,a)=>sum+Math.max(0,Number(a.valor)||0),0);
   const valorCP=Number(c.valor),adtSugerido=Math.min(totalAdtDisp,valorCP);
+  const bloqueados=todosAdiantamentos.filter(a=>a&&a.status==='Pendente'&&a.ticket&&String(a.ticket).trim()!==ticket);
   const adtBlock=totalAdtDisp>0
-    ?'<div class="fg"><label>Compensar adiantamento (R$)</label><input id="pcp-adt" type="number" min="0" step="0.01" max="'+adtSugerido.toFixed(2)+'" value="'+adtSugerido.toFixed(2)+'"></div>':'';
+    ?'<div class="fg"><label>Compensar crédito disponível (R$)</label><input id="pcp-adt" type="number" min="0" step="0.01" max="'+adtSugerido.toFixed(2)+'" value="'+adtSugerido.toFixed(2)+'" oninput="atualizarLiquidoCP('+valorCP+')"><small>Disponível para este ticket: R$ '+fmt(totalAdtDisp)+'.'+(totalAdtDisp>valorCP?' Após quitar esta compra, restará R$ '+fmt(totalAdtDisp-valorCP)+' de crédito do fornecedor.':'')+'</small></div>':'<div class="fg"><small>Nenhum adiantamento disponível para esta compra.</small></div>';
+  const avisoVinculo=bloqueados.length?'<div style="font-size:.78rem;color:#75511b;margin-bottom:10px">Há adiantamentos vinculados a outras compras. Eles não serão utilizados neste pagamento.</div>':'';
   body.innerHTML='<h3>💳 Baixar Pagamento</h3>'+
     '<div style="background:#fde8e8;border-radius:8px;padding:12px;margin-bottom:14px"><b>'+esc(c.desc||c.cred)+'</b><div>Saldo em aberto: R$ '+fmt(valorCP)+'</div></div>'+
     '<input type="hidden" id="pcp-id" value="'+esc(c.id||'')+'"><input type="hidden" id="pcp-forn-cod" value="'+esc(fornCod)+'">'+
-    '<div class="fg"><label>Valor a pagar agora, incluindo eventual adiantamento (R$)</label><input id="pcp-valor-pagar" type="number" min="0.01" step="0.01" max="'+valorCP.toFixed(2)+'" value="'+valorCP.toFixed(2)+'"></div>'+
-    adtBlock+'<div class="fg"><label>Data</label><input id="pcp-data" type="date" value="'+hoje+'"></div>'+
+    '<div class="fg"><label>Valor total a quitar nesta operação (R$)</label><input id="pcp-valor-pagar" type="number" min="0.01" step="0.01" max="'+valorCP.toFixed(2)+'" value="'+valorCP.toFixed(2)+'" oninput="atualizarLiquidoCP('+valorCP+')"></div>'+
+    adtBlock+avisoVinculo+'<div id="pcp-liquido-label" style="font-weight:700;margin-bottom:10px"></div>'+
+    '<div class="fg"><label>Data</label><input id="pcp-data" type="date" value="'+hoje+'"></div>'+
     '<div class="fg"><label>Conta Bancária (Debitada)</label><select id="pcp-banco" disabled><option value="">Carregando bancos autorizados...</option></select></div>'+
     '<div class="fg"><label>Observação</label><input id="pcp-obs" placeholder="Opcional"></div>'+
     '<div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button>'+
@@ -18644,14 +18652,22 @@ function pagarContaRapido(idx,id){
   document.getElementById('modal-ov').classList.add('open');
   body.dataset.paymentOperation=crypto.randomUUID();
   _cpConsultarContasBancarias('pcp-banco',c.bancoCod||'');
+  atualizarLiquidoCP(valorCP);
   document.getElementById('btn-so-compensar')?.addEventListener('click',()=>confirmarPagarCP('so-compensar'));
   document.getElementById('btn-pagar-tudo')?.addEventListener('click',()=>confirmarPagarCP('pagar-tudo'));
 }
 
 function atualizarLiquidoCP(valorCP){
   const adt=Number(document.getElementById('pcp-adt')?.value)||0;
+  const total=Number(document.getElementById('pcp-valor-pagar')?.value);
+  const liquido=Math.max(0,(Number.isFinite(total)?total:valorCP)-adt);
   const label=document.getElementById('pcp-liquido-label');
-  if(label)label.textContent='R$ '+(Math.max(0,valorCP-adt)).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  if(label)label.textContent='Débito bancário nesta operação: R$ '+liquido.toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const banco=document.getElementById('pcp-banco');
+  if(banco){
+    if(liquido===0){banco.dataset.erpBankPrevious=banco.value;banco.value='';banco.disabled=true;}
+    else if(banco.options.length>1){banco.disabled=false;}
+  }
 }
 
 async function confirmarPagarCP(modo){
@@ -18660,13 +18676,15 @@ async function confirmarPagarCP(modo){
   const total=Number(document.getElementById('pcp-valor-pagar')?.value);
   const adt=Number(document.getElementById('pcp-adt')?.value||0);
   const onlyAdvance=modo==='so-compensar';
-  const advanceAmount=onlyAdvance?adt:adt;
+  const advanceAmount=Math.round(adt*100)/100;
   const amount=onlyAdvance?0:Math.round((total-adt)*100)/100;
-  const banco=onlyAdvance?'':document.getElementById('pcp-banco')?.value||'';
+  const banco=amount>0?(document.getElementById('pcp-banco')?.value||''):'';
   const data=document.getElementById('pcp-data')?.value||'';
-  if(!Number.isFinite(total)||!Number.isFinite(adt)||adt<0||!Number.isFinite(amount)||amount<0||(onlyAdvance?adt<=0:total<=0)||(!onlyAdvance&&total>Number(c.valor)+0.001)){
+  const limiteAdt=Number(document.getElementById('pcp-adt')?.max||0);
+  if(!Number.isFinite(total)||!Number.isFinite(adt)||adt<0||adt>limiteAdt+0.001||!Number.isFinite(amount)||amount<0||advanceAmount>total+0.001||(onlyAdvance?adt<=0:total<=0)||total>Number(c.valor)+0.001){
     showToast('Confira o valor e a compensação informados.','error');return;
   }
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(data)){showToast('Informe uma data válida.','error');return;}
   if(amount>0&&!banco){showToast('Selecione a conta bancária autorizada.','error');return;}
   const user=firebase?.auth?.().currentUser;
   if(!user){showToast('Sessão expirada. Entre novamente.','error');return;}
@@ -18675,18 +18693,19 @@ async function confirmarPagarCP(modo){
   buttons.forEach(button=>button.disabled=true);
   try{
     const token=await user.getIdToken(true);
-    const response=await fetch('/api/finance/payables-payment',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operationId:modal.dataset.paymentOperation,payableId:id,expected:{valor:c.valor,status:c.status,paymentsCount:Array.isArray(c.pagamentos)?c.pagamentos.length:0},date,bankCode:banco,amount,advanceAmount,fornCod:document.getElementById('pcp-forn-cod')?.value||'',obs:document.getElementById('pcp-obs')?.value||''})});
+    const response=await fetch('/api/finance/payables-payment',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operationId:modal.dataset.paymentOperation,payableId:id,expected:{valor:c.valor,status:c.status,paymentsCount:Array.isArray(c.pagamentos)?c.pagamentos.length:0},date:data,bankCode:banco,amount,advanceAmount,fornCod:document.getElementById('pcp-forn-cod')?.value||'',obs:document.getElementById('pcp-obs')?.value||''})});
     const result=await response.json();
     if(!response.ok)throw new Error(result.message||'Falha ao confirmar pagamento.');
     if(firebase?.auth?.().currentUser?.uid!==user.uid)throw new Error('Sessão alterada. Atualize a página.');
     CONTAS_PAGAR[idx]=result.payable;
     if(result.advanceEntries&&result.fornCod)ADT_POR_FORN[result.fornCod]=result.advanceEntries;
     if(result.ticket&&result.ticketKey)TICKETS_DB[result.ticketKey]=result.ticket;
-    renderContasPagar();
-    if(result.advanceEntries)renderAdiantamentos();
-    if(result.ticket)renderTickets();
-    renderFluxo();renderDashboard();cm();
-    showToast('Pagamento confirmado pelo servidor.','success');
+    try{renderContasPagar();}catch(error){console.error('contasPagar.render',error);}
+    if(result.advanceEntries)try{renderAdiantamentos();}catch(error){console.error('adiantamentos.render',error);}
+    if(result.ticket)try{renderTickets();}catch(error){console.error('tickets.render',error);}
+    try{renderFluxo();renderDashboard();}catch(error){console.error('financeiro.render',error);}
+    cm();
+    showToast(result.payable?.status==='Pago'?'Conta quitada e operação confirmada.':'Compensação ou pagamento parcial confirmado.','success');
   }catch(error){showToast(error.message||'Não foi possível confirmar o pagamento.','error',6500);}
   finally{modal.dataset.paymentBusy='false';buttons.forEach(button=>button.disabled=false);}
 }
