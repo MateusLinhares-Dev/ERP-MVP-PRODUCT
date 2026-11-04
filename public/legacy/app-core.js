@@ -7592,7 +7592,7 @@ function renderPontoTab(){
     if(!f||!_erpFiltroFuncionario(f,situacao)) return false;
     if(_erpFuncionarioAtivo(f)) return true;
     return lancamentosMes.some(p=>p.mat===f.mat) || (PONTO_BATIDAS_DB||[]).some(p=>p.mat===f.mat&&_erpRegistroMes(p.data,referencia));
-  });
+  }).sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{sensitivity:'base'}));
   const matsVisiveis=new Set(funcionarios.map(f=>f.mat));
   const lancamentosVisiveis=lancamentosMes.filter(p=>matsVisiveis.has(p.mat));
   const ativos=funcionarios.length;
@@ -7618,7 +7618,8 @@ function renderPontoTab(){
   
   
   try{ if(_syncPonto.limparDuplicatasExatas()){ saveDB(); } }catch(e){}
-  tb.innerHTML=funcionarios.map(f=>{
+  const paginaPonto=_erpPaginarDados('ponto-mensal',funcionarios,'tb-ponto',renderPontoTab,{searchable:true,alwaysShow:true,placeholder:'Pesquisar funcionário ou matrícula...',text:f=>[f.mat,f.nome].join(' ')});
+  tb.innerHTML=paginaPonto.map(f=>{
     const historico=_erpHistoricoSomenteLeitura(f);
     const lancs=lancamentosMes.filter(p=>p.mat===f.mat);
     const faltas=lancs.filter(p=>p.tipo==='Falta').length;
@@ -12267,9 +12268,9 @@ async function confirmarImportacaoCartaoPontoRHiD(){
 }
 
 function pontoRHiDComoImportar(){
+  om('ponto_rhid_ajuda');
   const body=document.getElementById('modal-body');
   if(!body)return;
-  om('ponto_rhid_ajuda');
   body.innerHTML='<h3>Como importar o cartão de ponto RH iD</h3>'+
     '<div class="rhid-guide">'+
     '<p><b>1. Exporte no RH iD:</b> selecione o relatório individual de Cartão de Ponto em formato PDF com texto selecionável. O arquivo pode conter vários funcionários, um cartão por página.</p>'+
@@ -13814,10 +13815,22 @@ function _funcRow(x){
 
 
 
-let _funcSort={col:'mat',dir:1};
+let _funcSort={col:'nome',dir:1};
+function funcSelecionarOrdenacao(valor){
+  const [col,dir]=String(valor||'nome:1').split(':');
+  if(!['nome','mat','status','cargo'].includes(col))return;
+  _funcSort={col,dir:dir==='-1'?-1:1};
+  _erpReiniciarPagina('funcionarios-ativos');
+  _erpReiniciarPagina('funcionarios-inativos');
+  renderTbFuncionarios();
+}
 function funcSortBy(col){
   if(_funcSort.col===col) _funcSort.dir*=-1;
   else { _funcSort.col=col; _funcSort.dir=1; }
+  const order=document.getElementById('func-ordenacao');
+  if(order){const value=_funcSort.col+':'+_funcSort.dir;order.value=[...order.options].some(o=>o.value===value)?value:'nome:1';}
+  _erpReiniciarPagina('funcionarios-ativos');
+  _erpReiniciarPagina('funcionarios-inativos');
   renderTbFuncionarios();
 }
 function _funcCmp(a,b){
@@ -13851,13 +13864,13 @@ function renderTbFuncionarios(){
   
   const tbA=document.getElementById('tb-funcionarios');
   if(tbA) tbA.innerHTML=ativos.length
-    ? _erpPaginarDados('funcionarios-ativos',ativos,'tb-funcionarios',renderTbFuncionarios,{searchable:true,placeholder:'Pesquisar funcionário ou matrícula...',text:f=>[f.mat,f.nome,f.cpf,f.cargo].join(' ')}).map(_funcRow).join('')
+    ? _erpPaginarDados('funcionarios-ativos',ativos,'tb-funcionarios',renderTbFuncionarios,{searchable:true,placeholder:'Pesquisar funcionário ou matrícula...',alwaysShow:true,text:f=>[f.mat,f.nome,f.cpf,f.cargo].join(' ')}).map(_funcRow).join('')
     : '<tr><td colspan="8" style="text-align:center;color:var(--gray);padding:20px">Nenhum funcionário ativo</td></tr>';
 
   
   const tbI=document.getElementById('tb-funcionarios-inativos');
   if(tbI) tbI.innerHTML=inativos.length
-    ? _erpPaginarDados('funcionarios-inativos',inativos,'tb-funcionarios-inativos',renderTbFuncionarios,{searchable:true,placeholder:'Pesquisar funcionário inativo...',text:f=>[f.mat,f.nome,f.cpf].join(' ')}).map(_funcRow).join('')
+    ? _erpPaginarDados('funcionarios-inativos',inativos,'tb-funcionarios-inativos',renderTbFuncionarios,{searchable:true,placeholder:'Pesquisar funcionário inativo...',alwaysShow:true,text:f=>[f.mat,f.nome,f.cpf].join(' ')}).map(_funcRow).join('')
     : '<tr><td colspan="8" style="text-align:center;color:var(--gray);padding:20px">Nenhum funcionário inativo</td></tr>';
 
   _funcAtualizarSetas();

@@ -30,3 +30,16 @@
 .rhid-guide-example{background:#f4f8f5;border:1px solid #d6e5da;border-radius:8px;padding:12px}
 .rhid-guide-example pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.77rem;margin:7px 0 0}
 @media(max-width:720px){#app-screen #tab-vales .vales-toolbar label{flex:1 1 140px}#app-screen #tab-vales .vales-toolbar button{flex:1 1 100%}#app-screen #tab-ponto .btn-rhid-help{margin:8px 0}}
+
+#app-screen #tab-ponto .ponto-filter-toolbar{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;padding:14px 18px;margin:0;background:#f8fbf9;border-bottom:1px solid #e2ebe5}
+#app-screen #tab-ponto .ponto-filter-toolbar label{display:flex;flex-direction:column;gap:6px;font-size:.77rem;font-weight:700;color:#335340;min-width:178px;margin:0}
+#app-screen #tab-ponto .ponto-filter-toolbar input,#app-screen #tab-ponto .ponto-filter-toolbar select{box-sizing:border-box;width:100%;height:40px;padding:8px 11px;border:1px solid #c0d4c7;border-radius:8px;background:#fff;color:#254434;font-size:.86rem}
+#app-screen #tab-ponto .ponto-filter-toolbar>span{flex:1 1 210px;color:#66796d;font-size:.76rem;line-height:1.4;padding-bottom:4px}
+#app-screen #tab-ponto #erp-list-pager-ponto-mensal-search{margin:14px 18px 12px;width:min(430px,calc(100% - 36px))}
+#app-screen #tab-ponto #erp-list-pager-ponto-mensal{margin:10px 18px 14px}
+#app-screen #tab-funcionarios .func-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:15px 18px;background:#f7faf8;border:1px solid #dbe7df;border-radius:0 9px 0 0}
+#app-screen #tab-funcionarios .func-toolbar label{font-size:.81rem;font-weight:700;color:#355443}
+#app-screen #tab-funcionarios .func-toolbar select{height:40px;min-width:230px;max-width:100%;padding:8px 12px;border:1px solid #bcd2c4;border-radius:8px;background:#fff;font-size:.85rem;color:#1f4831}
+#app-screen #tab-funcionarios .erp-list-pager-search{margin:14px 18px 12px;width:min(430px,calc(100% - 36px))}
+#app-screen #tab-funcionarios .erp-list-pager{margin:10px 18px 15px}
+@media(max-width:680px){#app-screen #tab-ponto .ponto-filter-toolbar label{flex:1 1 170px}#app-screen #tab-funcionarios .func-toolbar select{flex:1;min-width:180px}}
