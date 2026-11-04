@@ -534,16 +534,24 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
     if(migracaoEmAndamento || !window._fbDB) return;
     migracaoEmAndamento=true;
     try{
-      window._fbDB.ref('erp/'+nome).set(paraObjeto())
-        .then(function(){ console.info(nome+' migrado pro formato por-chave na nuvem.'); })
+      const ref=window._fbDB.ref('erp/'+nome);
+      const salvar=nome==='vales'?ref.transaction(current=>{
+        const existente={};
+        if(Array.isArray(current))current.forEach((item,index)=>{if(item){const id=item.id||prefixoId+'LEGACY'+index;existente[id]={...item,id};}});
+        else Object.entries(current||{}).forEach(([key,item])=>{if(item){const id=item.id||key;existente[id]={...item,id};}});
+        Object.entries(paraObjeto()).forEach(([id,item])=>{if(!existente[id])existente[id]=item;});
+        return existente;
+      },undefined,false):ref.set(paraObjeto());
+      salvar.then(function(){ console.info(nome+' migrado pro formato por-chave na nuvem.'); })
         .catch(function(e){ console.warn('Falha ao migrar '+nome+' pro formato por-chave:', e); })
         .finally(function(){ migracaoEmAndamento=false; });
     }catch(e){ migracaoEmAndamento=false; }
   }
   function carregarDeRemoto(remotoBruto, confiavel){
+    if(nome==='vales'&&remotoBruto===undefined)return;
     const remotoEhArray=Array.isArray(remotoBruto);
     const vals=remotoEhArray
-      ? remotoBruto.filter(Boolean)
+      ? (nome==='vales'?remotoBruto.map((item,index)=>item?{...item,id:item.id||prefixoId+'LEGACY'+index}:null).filter(Boolean):remotoBruto.filter(Boolean))
       : (remotoBruto && typeof remotoBruto==='object' ? Object.values(remotoBruto).filter(Boolean) : []);
 
     if(confiavel){
@@ -6010,20 +6018,20 @@ function editVale(idx){
     </div>`;
 }
 
-function salvarEditVale(idx){
-  const v=VALES_DB[idx];
-  if(!v){alert('Não encontrado.');return;}
-  const ativo=FUNCIONARIOS.find(f=>f&&f.mat===v.mat);
-  if(!ativo||!_erpFuncionarioAtivo(ativo)){alert('Funcionário inativo: o histórico não pode ser alterado.');return;}
-  const dataRaw=document.getElementById('ev-data').value;
-  v.data=dataRaw?dataRaw.split('-').reverse().join('/'):'';
-  v.valor=parseFloat(document.getElementById('ev-valor').value)||0;
-  v.tipo=document.getElementById('ev-tipo').value;
-  v.obs=document.getElementById('ev-obs').value.trim();
-  saveDB();
-  cm();
-  renderVales();
-  showToast('Vale atualizado.','success');
+async function salvarEditVale(idx){
+  const previous=VALES_DB[idx];
+  if(!previous){showToast('Vale não encontrado. Atualize o histórico.','error');return false;}
+  const ativo=FUNCIONARIOS.find(f=>f&&f.mat===previous.mat);
+  if(!ativo||!_erpFuncionarioAtivo(ativo)){showToast('Funcionário inativo: histórico somente leitura.','error');return false;}
+  const data=document.getElementById('ev-data')?.value||'';
+  const valor=Number(document.getElementById('ev-valor')?.value);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(data)||!Number.isFinite(valor)||valor<=0){showToast('Informe data e valor válidos.','error');return false;}
+  const next={...previous,data:data.split('-').reverse().join('/'),valor,tipo:document.getElementById('ev-tipo')?.value||'Vale',obs:(document.getElementById('ev-obs')?.value||'').trim()};
+  try{
+    await _valeAtualizarSeguro(previous,next);
+    cm();renderVales();showToast('Vale atualizado e confirmado no Firebase.','success');
+    return true;
+  }catch(error){showToast('Não foi possível atualizar o vale: '+error.message,'error',7000);return false;}
 }
 
 function _bancoValorMonetarioValido(valor){
@@ -6229,15 +6237,14 @@ function verValesFunc(mat){
   document.getElementById('modal-ov').classList.add('open');
 }
 
-function excluirValeModal(idx, mat){
+async function excluirValeModal(idx,mat){
   const v=VALES_DB[idx];
-  if(!v||!confirm('Excluir vale de R$ '+Number(v.valor).toFixed(2)+'?')) return;
-  _syncVales.remover(idx);
-  saveDB();
-  renderVales();
-  renderFolha();
-  cm();
-  setTimeout(()=>verValesFunc(mat),100);
+  if(!v||!confirm('Excluir vale de R$ '+Number(v.valor).toFixed(2)+'?'))return;
+  try{
+    await _valeExcluirSeguro(v);
+    renderVales();renderFolha();cm();setTimeout(()=>verValesFunc(mat),100);
+    showToast('Vale excluído e confirmado no Firebase.','success');
+  }catch(error){showToast('Não foi possível excluir o vale: '+error.message,'error',7000);}
 }
 
 
@@ -6757,26 +6764,25 @@ function _valeCanvasVazio(){
   return !data.some(v=>v!==0);
 }
 
-function valeSalvarAssinatura(idx, mat){
-  if(_valeCanvasVazio()){ showToast('Por favor, assine antes de salvar.','error'); return; }
+async function valeSalvarAssinatura(idx,mat){
+  if(_valeCanvasVazio()){showToast('Por favor, assine antes de salvar.','error');return;}
+  const previous=VALES_DB[idx];
+  if(!previous)return;
   const canvas=document.getElementById('vale-sig-canvas');
-  const dataUrl=canvas.toDataURL('image/png');
-  VALES_DB[idx].assinatura=dataUrl;
-  VALES_DB[idx].assinadoEm=new Date().toISOString().slice(0,10);
-  saveDB();
-  cm();
-  showToast('Assinatura registrada! ✅','success');
-  renderVales();
+  const next={...previous,assinatura:canvas.toDataURL('image/png'),assinadoEm:new Date().toISOString().slice(0,10)};
+  try{await _valeAtualizarSeguro(previous,next);cm();renderVales();showToast('Assinatura confirmada no Firebase.','success');}
+  catch(error){showToast('Não foi possível registrar a assinatura: '+error.message,'error',7000);}
 }
 
-function valeRemoverAssinatura(idx, mat){
-  if(!confirm('Remover assinatura deste vale?')) return;
-  delete VALES_DB[idx].assinatura;
-  delete VALES_DB[idx].assinadoEm;
-  saveDB();
-  cm();
-  showToast('Assinatura removida.','info');
-  renderVales();
+async function valeRemoverAssinatura(idx,mat){
+  if(!confirm('Remover assinatura deste vale?'))return;
+  const previous=VALES_DB[idx];
+  if(!previous)return;
+  const next={...previous};
+  delete next.assinatura;
+  delete next.assinadoEm;
+  try{await _valeAtualizarSeguro(previous,next);cm();renderVales();showToast('Assinatura removida no Firebase.','success');}
+  catch(error){showToast('Não foi possível remover a assinatura: '+error.message,'error',7000);}
 }
 
 function valeGerarRecibo(idx){
@@ -6786,11 +6792,12 @@ function valeGerarRecibo(idx){
   const nome=f?f.nome:v.mat;
   const cargo=f?f.cargo||'':'';
   const fmt=n=>_numFinito(n,0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const assSrc=v.assinatura||'';
+  const assSrc=/^data:image\/(?:png|jpeg|webp);base64,[a-zA-Z0-9+/=]+$/.test(v.assinatura||'')?v.assinatura:'';
   const assHtml=assSrc
-    ?`<img src="${assSrc}" style="max-height:70px;display:block;margin:0 auto">`
+    ?`<img src="${esc(assSrc)}" style="max-height:70px;display:block;margin:0 auto">`
     :`<div style="border-top:1.5px solid #333;width:280px;margin:0 auto;padding-top:4px;font-size:11px;color:#555;text-align:center">Assinatura do Funcionário</div>`;
   const win=window.open('','_blank','width=600,height=500');
+  if(!win){showToast('Autorize pop-ups para imprimir o recibo.','error',6000);return;}
   win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Recibo de Vale</title>
   <style>
     body{font-family:Arial,sans-serif;margin:0;padding:24px;font-size:13px;color:#111}
@@ -6840,29 +6847,35 @@ function _valeMesChave(v){
 }
 
 function _valeMesFiltroAtual(){
-  const el=document.getElementById('vales-filtro-mes');
-  if(!el) return '';
-  if(!el.dataset.inicializado){
-    const d=new Date();
-    el.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
-    el.dataset.inicializado='1';
-  }
-  return String(el.value||'');
+  return String(document.getElementById('vales-filtro-mes')?.value||'');
+}
+
+function _valeFiltrosAtuais(){
+  return {
+    mes:_valeMesFiltroAtual(),
+    ano:String(document.getElementById('vales-filtro-ano')?.value||'').trim(),
+    dia:String(document.getElementById('vales-filtro-dia')?.value||'').trim(),
+    situacao:_erpSituacaoFiltro('vales-situacao')
+  };
 }
 
 function _valeListaFiltrada(){
-  const mes=_valeMesFiltroAtual();
-  const situacao=_erpSituacaoFiltro('vales-situacao');
+  const filtros=_valeFiltrosAtuais();
   return VALES_DB.filter(function(v){
-    if(mes && _valeMesChave(v)!==mes) return false;
+    const mes=_valeMesChave(v);
+    if(filtros.mes&&mes!==filtros.mes)return false;
+    if(filtros.ano&&mes.slice(0,4)!==filtros.ano)return false;
+    if(filtros.dia){
+      const diaISO=String(v.data||'').includes('/')?String(v.data).split('/').reverse().join('-'):String(v.data||'');
+      if(diaISO!==filtros.dia)return false;
+    }
     const funcionario=FUNCIONARIOS.find(f=>f&&f.mat===v.mat);
-    return funcionario?_erpFiltroFuncionario(funcionario,situacao):situacao!=='ativos';
+    return funcionario?_erpFiltroFuncionario(funcionario,filtros.situacao):filtros.situacao!=='ativos';
   });
 }
 
 function valeVerTodos(){
-  const el=document.getElementById('vales-filtro-mes');
-  if(el){ el.dataset.inicializado='1'; el.value=''; }
+  ['vales-filtro-mes','vales-filtro-ano','vales-filtro-dia'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   renderVales();
 }
 
@@ -6872,8 +6885,8 @@ function _valeReciboHtml(v,compacto){
   const cargo=f?f.cargo||'':'';
   const empresa=(f&&f.empresa)||'';
   const fmt=function(n){return _numFinito(n,0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
-  const assinatura=v.assinatura
-    ? '<img src="'+v.assinatura+'" style="max-height:58px;display:block;margin:0 auto">'
+  const assinatura=/^data:image\/(?:png|jpeg|webp);base64,[a-zA-Z0-9+/=]+$/.test(v.assinatura||'')
+    ? '<img src="'+esc(v.assinatura)+'" style="max-height:58px;display:block;margin:0 auto">'
     : '<div style="border-top:1px solid #333;width:260px;margin:26px auto 0;padding-top:4px;font-size:10px;color:#555;text-align:center">Assinatura do Funcionário</div>';
   return '<section class="vale-recibo '+(compacto?'compacto':'')+'">'+
     '<div class="vale-recibo-titulo">RECIBO DE VALE / ADIANTAMENTO</div>'+
@@ -6897,19 +6910,17 @@ function _valeReciboHtml(v,compacto){
 }
 
 function valeGerarTodosRecibosMes(){
-  const mes=_valeMesFiltroAtual();
-  if(!mes){ showToast('Selecione um mês para gerar os recibos.','error'); return; }
+  const filtros=_valeFiltrosAtuais();
   const lista=_valeListaFiltrada().slice().sort(function(a,b){
     const na=String((FUNCIONARIOS.find(function(f){return f.mat===a.mat;})||{}).nome||a.mat||'');
     const nb=String((FUNCIONARIOS.find(function(f){return f.mat===b.mat;})||{}).nome||b.mat||'');
     return na.localeCompare(nb,'pt-BR');
   });
-  if(!lista.length){ showToast('Não há vales no mês selecionado.','error'); return; }
+  if(!lista.length){showToast('Não há vales para os filtros selecionados.','error');return;}
+  if(lista.length>300){showToast('Para imprimir mais de 300 recibos, selecione um período menor.','error',7000);return;}
   const win=window.open('','_blank','width=950,height=850');
   if(!win){ showToast('Permita pop-ups no navegador para gerar os recibos.','error',5000); return; }
-  const [ano,mn]=mes.split('-');
-  const meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-  const titulo=(meses[Number(mn)-1]||mn)+'/'+ano;
+  const titulo=filtros.dia?filtros.dia.split('-').reverse().join('/'):filtros.mes||filtros.ano||'Todos os períodos';
   let paginas='';
   for(let i=0;i<lista.length;i+=2){
     paginas+='<div class="folha-recibos">'+_valeReciboHtml(lista[i],true);
@@ -7438,7 +7449,7 @@ function renderVales(){
     const pa=String(a&&a.data||'').split('/'), pb=String(b&&b.data||'').split('/');
     const da=pa.length===3?new Date(Number(pa[2]),Number(pa[1])-1,Number(pa[0])).getTime():Date.parse(a&&a.data||'')||0;
     const db=pb.length===3?new Date(Number(pb[2]),Number(pb[1])-1,Number(pb[0])).getTime():Date.parse(b&&b.data||'')||0;
-    return db-da;
+    return db-da||String(b?.id||'').localeCompare(String(a?.id||''));
   });
   const pagina=_erpPaginarDados('vales',sorted,'tb-vales',renderVales,{searchable:true,placeholder:'Pesquisar vale, funcionário ou observação...',text:v=>{const f=FUNCIONARIOS.find(x=>x.mat===v.mat);return [v.mat,f?.nome,v.data,v.mes,v.obs,v.forma].join(' ');}});
   tb.innerHTML=pagina.map(function(v){
@@ -7484,39 +7495,78 @@ function salvarPontoLancamento(){
   alert('✅ Lançamento registrado!');
 }
 
-function salvarValeFunc(){
-  const mat=document.getElementById('vl-func')?.value;
-  const data=document.getElementById('vl-data')?.value;
-  const valor=parseFloat(document.getElementById('vl-valor')?.value)||0;
-  if(!mat){alert('Selecione o funcionário.');return;}
-  const funcionario=FUNCIONARIOS.find(f=>f&&f.mat===mat);
-  if(!funcionario || !_erpFuncionarioAtivo(funcionario)){alert('Funcionário inativo. Novos lançamentos são bloqueados; consulte o histórico no filtro.');return;}
-  if(!valor||valor<=0){alert('Informe o valor do vale.');return;}
-  const dataFmt=data?data.split('-').reverse().join('/'):'';
-  VALES_DB.push({
-    mat,
-    data:dataFmt,
-    mes:document.getElementById('vl-mes')?.value||'',
-    valor,
-    forma:document.getElementById('vl-forma')?.value||'PIX',
-    obs:document.getElementById('vl-obs')?.value||''
-  });
-  saveDB();
-  renderVales();
-  cm();
-  alert('✅ Vale registrado!');
+function _valeConfirmadoLocal(item,excluir=false){
+  const index=VALES_DB.findIndex(v=>v&&v.id===item.id);
+  if(excluir){
+    if(index>=0)_syncVales.remover(item.id);
+  }else if(index>=0){VALES_DB[index]=item;}
+  else VALES_DB.push(item);
+  try{localStorage.setItem('mm_vales',JSON.stringify(VALES_DB));}catch(error){}
 }
 
-function excluirVale(idx){
+function _valeRef(id){
+  if(!window._fbDB||!firebase?.auth?.().currentUser)throw new Error('Firebase indisponível ou sessão expirada.');
+  if(!/^[a-zA-Z0-9_-]+$/.test(String(id||'')))throw new Error('Identificador do vale inválido.');
+  return window._fbDB.ref('erp/vales/'+id);
+}
+
+function _valeFingerprint(item){
+  const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
+  return JSON.stringify(canonical(item));
+}
+
+async function _valeCriarSeguro(item){
+  const result=await _valeRef(item.id).transaction(current=>current===null?item:undefined,undefined,false);
+  if(!result.committed&&_valeFingerprint(result.snapshot?.val?.())!==_valeFingerprint(item))throw new Error('Este identificador já existe. Atualize e tente novamente.');
+  _valeConfirmadoLocal(item);
+}
+
+async function _valeAtualizarSeguro(previous,next){
+  if(!previous?.id)throw new Error('Vale sem identificador. Atualize a página.');
+  const baseline=_valeFingerprint(previous);
+  const result=await _valeRef(previous.id).transaction(current=>_valeFingerprint(current)===baseline?next:undefined,undefined,false);
+  if(!result.committed)throw new Error('O vale foi modificado em outra sessão. Atualize o histórico.');
+  _valeConfirmadoLocal(next);
+}
+
+async function _valeExcluirSeguro(item){
+  if(!item?.id)throw new Error('Vale sem identificador. Atualize a página.');
+  const baseline=_valeFingerprint(item);
+  const result=await _valeRef(item.id).transaction(current=>_valeFingerprint(current)===baseline?null:undefined,undefined,false);
+  if(!result.committed&&result.snapshot?.val?.()!=null)throw new Error('O vale foi alterado por outra sessão. Atualize antes de excluir.');
+  await window._fbDB.ref('erp/valesDeleted/'+item.id).set(true);
+  _valeConfirmadoLocal(item,true);
+}
+
+async function salvarValeFunc(){
+  const mat=document.getElementById('vl-func')?.value;
+  const data=document.getElementById('vl-data')?.value||'';
+  const valor=Number(document.getElementById('vl-valor')?.value);
+  if(!mat){showToast('Selecione o funcionário.','error');return false;}
+  const funcionario=FUNCIONARIOS.find(f=>f&&f.mat===mat);
+  if(!funcionario||!_erpFuncionarioAtivo(funcionario)){showToast('Funcionário inativo. Consulte o histórico.','error');return false;}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(data)||!Number.isFinite(valor)||valor<=0||Math.round(valor*100)/100!==valor){showToast('Informe data e valor monetário válidos.','error');return false;}
+  const button=document.querySelector('#modal-body .btn-save');
+  if(button?.disabled)return false;
+  const id=button?.dataset.valeId||_syncVales.novoId();
+  if(button){button.dataset.valeId=id;button.disabled=true;}
+  const item={id,mat,data:data.split('-').reverse().join('/'),mes:document.getElementById('vl-mes')?.value||'',valor,forma:document.getElementById('vl-forma')?.value||'PIX',obs:document.getElementById('vl-obs')?.value||''};
+  try{
+    await _valeCriarSeguro(item);
+    renderVales();cm();showToast('Vale registrado e confirmado no Firebase.','success');
+    return true;
+  }catch(error){showToast('Vale não confirmado: '+error.message,'error',7000);return false;}
+  finally{if(button)button.disabled=false;}
+}
+
+async function excluirVale(idx){
   const v=VALES_DB[idx];
   const f=FUNCIONARIOS.find(x=>x&&v&&x.mat===v.mat);
-  if(!f||!_erpFuncionarioAtivo(f)){alert('Registro histórico de funcionário inativo não pode ser excluído nesta tela.');return;}
-  if(!v||!confirm('Excluir vale de R$ '+Number(v.valor).toFixed(2)+'?')) return;
-  _syncVales.remover(idx);
-  saveDB();
-  renderVales();
+  if(!f||!_erpFuncionarioAtivo(f)){showToast('Funcionário inativo: histórico somente leitura.','error');return false;}
+  if(!v||!confirm('Excluir vale de R$ '+Number(v.valor).toFixed(2)+'?'))return false;
+  try{await _valeExcluirSeguro(v);renderVales();showToast('Vale excluído no Firebase.','success');return true;}
+  catch(error){showToast('Exclusão não confirmada: '+error.message,'error',7000);return false;}
 }
-
 
 function _diasUteisNoMes(ano,mesIndex){
   let total=0;
@@ -12110,7 +12160,7 @@ function _rhidExibirPrevia(paginas){
   const falhas=paginas.length-_rhidPaginasPendentes.length;
   if(!_rhidPaginasPendentes.length){
     host.style.display='block';
-    host.innerHTML='<div style="padding:12px;color:#9c2d24;background:#fff1ef;border:1px solid #edcac5;border-radius:8px">O PDF não contém cartões reconhecíveis. Nenhum dado foi alterado.</div>';
+    host.innerHTML='<div style="padding:12px;color:#9c2d24;background:#fff1ef;border:1px solid #edcac5;border-radius:8px">O PDF não contém cartões reconhecíveis. Confira o modelo no botão Como importar. Nenhum dado foi alterado.</div>';
     return;
   }
   _rhidPaginasPendentes.forEach((p,i)=>_rhidVinculosPendentes.set(i,_rhidMatriculaSugerida(p)));
@@ -12216,6 +12266,23 @@ async function confirmarImportacaoCartaoPontoRHiD(){
   }finally{_rhidImportando=false;}
 }
 
+function pontoRHiDComoImportar(){
+  const body=document.getElementById('modal-body');
+  if(!body)return;
+  om('ponto_rhid_ajuda');
+  body.innerHTML='<h3>Como importar o cartão de ponto RH iD</h3>'+
+    '<div class="rhid-guide">'+
+    '<p><b>1. Exporte no RH iD:</b> selecione o relatório individual de Cartão de Ponto em formato PDF com texto selecionável. O arquivo pode conter vários funcionários, um cartão por página.</p>'+
+    '<p><b>2. Período:</b> no RH iD escolha o mês inteiro desejado, por exemplo, de 01/10/2026 até 31/10/2026.</p>'+
+    '<p><b>3. Campos necessários:</b> NOME DO FUNCIONÁRIO, CPF DO FUNCIONÁRIO, período DE ... ATÉ ..., cabeçalho DIA / PREVISTO, as colunas ENT. 1 e SAI. 1 e as linhas de datas diárias.</p>'+
+    '<div class="rhid-guide-example"><b>Exemplo de estrutura aceita</b><pre>NOME DO FUNCIONÁRIO: JOÃO EXEMPLO\nCPF DO FUNCIONÁRIO: 000.000.000-00\nDE 01/10/2026 ATÉ 31/10/2026\nDIA   PREVISTO   ENT. 1   SAI. 1\n01/10/2026 - QUI   08:00   08:02   12:00</pre></div>'+
+    '<p><b>4. Conferência:</b> clique em Importar Cartão de Ponto, confira a prévia e associe cada cartão à matrícula correta no ERP. A importação só grava depois da confirmação.</p>'+
+    '<p><b>Não aceito:</b> planilha XLSX/CSV, foto ou PDF digitalizado sem texto, PDF protegido e relatórios de formato diferente do cartão individual RH iD. O texto do exemplo demonstra a estrutura, não substitui o PDF original.</p>'+
+    '<p><b>Se não importar:</b> verifique se o PDF permite selecionar o texto, se o cabeçalho tem DIA e PREVISTO e se o funcionário existe no cadastro. Nenhum registro é substituído quando a leitura falha.</p>'+
+    '</div><div class="modal-ft"><button class="btn-cancel" onclick="cm()">Fechar</button></div>';
+  document.getElementById('modal-ov')?.classList.add('open');
+}
+
 function importarCartaoPontoRHiD(input){
   const file=input.files&&input.files[0];
   if(!file)return;
@@ -12231,8 +12298,8 @@ function importarCartaoPontoRHiD(input){
       if(status)status.textContent=pages.filter(p=>p.dias&&p.dias.length).length+' cartão(ões) reconhecido(s). Revise os vínculos antes de importar.';
     }catch(err){
       console.error('Erro ao ler cartão do RH iD:',err);
-      if(status)status.textContent='Erro ao ler o PDF: '+err.message;
-      showToast('Não foi possível ler o PDF do RH iD.','error',6500);
+      if(status)status.textContent='Erro ao ler o PDF: '+err.message+'. Confira o botão Como importar / Modelo aceito.';
+      showToast('PDF não reconhecido. Consulte Como importar / Modelo aceito.','error',6500);
     }finally{input.value='';}
   };
   reader.readAsArrayBuffer(file);

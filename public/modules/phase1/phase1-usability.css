@@ -13,3 +13,20 @@
 .erp-list-pager-position{white-space:nowrap;font-variant-numeric:tabular-nums}
 .erp-list-pager-search{display:block;box-sizing:border-box;width:min(420px,100%);padding:9px 12px;margin:8px 0;border-radius:8px;border:1px solid #bcd2c4;font-size:.87rem}
 @media(max-width:580px){.erp-list-pager-nav{width:100%;justify-content:space-between}.erp-list-pager{gap:8px}}
+
+#app-screen #tab-vales .vales-toolbar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:16px 18px 8px;margin:0;border:0;background:#fff}
+#app-screen #tab-vales .vales-toolbar label{display:flex;flex-direction:column;align-items:stretch;gap:5px;margin:0;font-size:.76rem;font-weight:700;color:#3a5345}
+#app-screen #tab-vales .vales-toolbar select,#app-screen #tab-vales .vales-toolbar input{height:38px;min-width:130px;border:1px solid #cbd8ce;border-radius:8px;padding:7px 10px;background:#fff;color:#254734;box-sizing:border-box}
+#app-screen #tab-vales .vales-toolbar button{height:38px;border-radius:8px;padding:8px 13px;font-size:.81rem;font-weight:700;cursor:pointer}
+#app-screen #tab-vales .btn-vales-print{background:#245b41;color:white;border:1px solid #245b41}
+#app-screen #tab-vales .btn-vales-clear{background:white;color:#315844;border:1px solid #cbd8ce}
+#app-screen #tab-vales .vales-toolbar-note{padding:0 18px 12px;color:#63776b;font-size:.78rem}
+#app-screen #tab-vales .vales-result-count{padding:0 18px 10px;color:#5f7566;font-size:.76rem}
+#app-screen #tab-vales #erp-list-pager-vales-search{margin:8px 18px 16px;width:min(420px,calc(100% - 36px));min-height:40px}
+#app-screen #tab-vales #erp-list-pager-vales{margin:12px 18px}
+#app-screen #tab-ponto .btn-rhid-help{background:#f4f9f5;color:#245b41;border:1px solid #bad2c1;border-radius:8px;padding:8px 13px;font-size:.82rem;font-weight:700;cursor:pointer;margin-left:8px}
+.rhid-guide{font-size:.88rem;line-height:1.55;color:#304b3b;max-width:680px}
+.rhid-guide p{margin:12px 0}
+.rhid-guide-example{background:#f4f8f5;border:1px solid #d6e5da;border-radius:8px;padding:12px}
+.rhid-guide-example pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.77rem;margin:7px 0 0}
+@media(max-width:720px){#app-screen #tab-vales .vales-toolbar label{flex:1 1 140px}#app-screen #tab-vales .vales-toolbar button{flex:1 1 100%}#app-screen #tab-ponto .btn-rhid-help{margin:8px 0}}

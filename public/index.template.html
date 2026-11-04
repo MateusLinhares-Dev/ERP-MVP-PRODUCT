@@ -1208,6 +1208,7 @@
           <label class="btn-import-pdf" for="ponto-rhid-input" title="Importar Cartão de Ponto exportado do RH iD (PDF)" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:#1565c0;color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:.82rem;font-weight:700">
             📥 Importar Cartão de Ponto (RH iD)
           </label>
+          <button type="button" class="btn-rhid-help" onclick="pontoRHiDComoImportar()">Como importar / Modelo aceito</button>
           <input type="file" id="ponto-rhid-input" accept=".pdf" style="display:none" onchange="importarCartaoPontoRHiD(this)">
           <span id="ponto-import-status" style="margin-left:10px;font-size:.8rem;color:#555"></span>
         </div>
@@ -1893,7 +1894,7 @@
       <div class="sec-title" id="vales-titulo">💳 Controle de Vales – Pagamento Dia 20</div>
       <div class="kpi-grid">
         <div class="kpi o"><div class="kpi-lbl">Vales do Mês</div><div class="kpi-val" id="kpi-vales-mes">R$ 0</div><div class="kpi-sub" id="kpi-vales-mes-sub">Mês atual</div></div>
-        <div class="kpi r"><div class="kpi-lbl">Em Aberto</div><div class="kpi-val" id="kpi-vales-aberto">0</div><div class="kpi-sub">A pagar</div></div>
+        <div class="kpi r"><div class="kpi-lbl">Registros no mês</div><div class="kpi-val" id="kpi-vales-aberto">0</div><div class="kpi-sub">Vales lançados</div></div>
         <div class="kpi g"><div class="kpi-lbl">Total Geral</div><div class="kpi-val" id="kpi-vales-total">R$ 0</div><div class="kpi-sub">—</div></div>
       </div>
       <div class="tcard">
@@ -1901,10 +1902,16 @@
           <div class="tcard-title">Vales Lançados</div>
           <button class="btn-add" onclick="om('vale')">+ Novo Vale</button>
         </div>
-        <div class="erp-employee-history-filters">
+        <div class="erp-employee-history-filters vales-toolbar">
           <label>Situação do funcionário <select id="vales-situacao" onchange="renderVales()"><option value="ativos">Ativos</option><option value="inativos">Inativos — histórico</option><option value="todos">Todos</option></select></label>
-          <span>Vales antigos permanecem no banco e podem ser consultados mesmo após a inativação.</span>
+          <label>Mês <input id="vales-filtro-mes" type="month" onchange="renderVales()"></label>
+          <label>Ano <input id="vales-filtro-ano" type="number" min="2000" max="2100" placeholder="Todos" onchange="renderVales()"></label>
+          <label>Dia <input id="vales-filtro-dia" type="date" onchange="renderVales()"></label>
+          <button type="button" class="btn-vales-clear" onclick="valeVerTodos()">Limpar período</button>
+          <button type="button" class="btn-vales-print" onclick="valeGerarTodosRecibosMes()">Imprimir recibos em lote</button>
         </div>
+        <div class="vales-toolbar-note">Imprima todos os recibos ou filtre por mês, ano ou dia. Serão organizados dois por folha A4. O histórico permanece disponível após a inativação.</div>
+        <div id="vales-filtro-count" class="vales-result-count" role="status"></div>
         <table>
           <thead><tr><th>Matr.</th><th>Data</th><th>Mês Ref.</th><th>Nome</th><th>Valor R$</th><th>Forma</th><th>Obs.</th><th>Recibo</th><th>Ações</th></tr></thead>
           <tbody id="tb-vales"><tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum vale lançado ainda</td></tr></tbody>

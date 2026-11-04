@@ -118,7 +118,7 @@ if(typeof original.confirmPurchase==='function')global.csConfirmarEntrada=async 
     const base=(t.itens||[]).reduce((sum,it)=>sum+Number(it.total||0),0);const extraTotal=extras.reduce((sum,x)=>sum+Number(x.v||0),0);
     t.descontoCompra=discount;t.acrescimos=extras.slice();t.acrescimo=extraTotal-discount;t.totalGeral=Math.max(0,base-discount+extraTotal);t.saldoPagar=Math.max(0,t.totalGeral-Number(t.adiantamento||0));t.status=t.saldoPagar<=0.01?'Pago':'Pendente';
     try{const cp=CONTAS_PAGAR.find(x=>x.ticket===t.ticket&&x.status!=='Pago');if(cp){cp.valor=t.saldoPagar;cp.obs=[cp.obs,discount?`Desconto R$ ${money(discount)}`:'',...extras.map(x=>`${x.obs}: R$ ${money(x.v)}`)].filter(Boolean).join(' | ');}}catch(e){}
-    if(!global.__ERP_PURCHASE_IN_PROGRESS__){ saveAll();try{if(typeof renderTickets==='function')renderTickets();}catch(e){} }
+    saveAll();try{if(typeof renderTickets==='function')renderTickets();}catch(e){}
   }
   return result;
 };
