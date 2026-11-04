@@ -42,6 +42,7 @@ export async function getPublicBranding(repository = new FirebaseBusinessConfigR
     financeCompanies: stringList(cfg.financeCompanies),
     employeeCompanies: stringList(cfg.employeeCompanies),
     inactiveCompanies: stringList(cfg.inactiveCompanies),
+    deletedCompanies: stringList(cfg.deletedCompanies),
     expenseGroups: stringList(cfg.expenseGroups),
     expenseGroupCompanyMap: cfg.expenseGroupCompanyMap && typeof cfg.expenseGroupCompanyMap==='object' ? cfg.expenseGroupCompanyMap : {},
     chequeCompanies: stringList(cfg.chequeCompanies),

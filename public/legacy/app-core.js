@@ -3661,11 +3661,16 @@ function _cfgInactiveCompanies(){
   const a=Array.isArray(ERP_BUSINESS_CONFIG.inactiveCompanies)?ERP_BUSINESS_CONFIG.inactiveCompanies:(Array.isArray(pub.inactiveCompanies)?pub.inactiveCompanies:[]);
   return new Set(a.map(_companyKey));
 }
+function _cfgDeletedCompanies(){
+  const pub=_cfgPublicBusiness();
+  const a=Array.isArray(ERP_BUSINESS_CONFIG.deletedCompanies)?ERP_BUSINESS_CONFIG.deletedCompanies:(Array.isArray(pub.deletedCompanies)?pub.deletedCompanies:[]);
+  return new Set(a.map(_companyKey));
+}
 function _cfgRegisteredCompanies(){
-  const out=[],seen=new Set(),inactive=_cfgInactiveCompanies();
+  const out=[],seen=new Set(),inactive=_cfgInactiveCompanies(),deleted=_cfgDeletedCompanies();
   function add(v){
     const value=String(v||'').trim(),key=_companyKey(value);
-    if(!key||seen.has(key)||inactive.has(key))return;
+    if(!key||seen.has(key)||inactive.has(key)||deleted.has(key))return;
     seen.add(key);
     out.push(value);
   }
@@ -3675,7 +3680,7 @@ function _cfgRegisteredCompanies(){
   add(cfg.primaryCompanyKey||(pub.company&&pub.company.key));
   Object.keys(cfg.companies||{}).forEach(add);
   Object.keys(EMPRESAS_INFO||{}).forEach(add);
-  for(const source of [pub.companyKeys,cfg.financeCompanies,pub.financeCompanies,cfg.employeeCompanies,pub.employeeCompanies,cfg.transferCompanies,pub.transferCompanies]){
+  for(const source of [pub.companyKeys,cfg.financeCompanies,pub.financeCompanies,cfg.employeeCompanies,pub.employeeCompanies,cfg.transferCompanies,pub.transferCompanies,cfg.expenseGroups,pub.expenseGroups,cfg.chequeCompanies,pub.chequeCompanies]){
     if(Array.isArray(source))source.forEach(add);
   }
   return out;
@@ -3683,8 +3688,8 @@ function _cfgRegisteredCompanies(){
 function _cfgFinanceCompanies(){
   const a=Array.isArray(ERP_BUSINESS_CONFIG.financeCompanies)?ERP_BUSINESS_CONFIG.financeCompanies:[];
   const b=Array.isArray(_cfgPublicBusiness().financeCompanies)?_cfgPublicBusiness().financeCompanies:[];
-  const inactive=_cfgInactiveCompanies(),seen=new Set(),out=[];
-  [..._cfgRegisteredCompanies(),...a,...b].forEach(function(v){const key=_companyKey(v);if(key&&!seen.has(key)&&!inactive.has(key)){seen.add(key);out.push(v);}});
+  const inactive=_cfgInactiveCompanies(),deleted=_cfgDeletedCompanies(),seen=new Set(),out=[];
+  [..._cfgRegisteredCompanies(),...a,...b].forEach(function(v){const key=_companyKey(v);if(key&&!seen.has(key)&&!inactive.has(key)&&!deleted.has(key)){seen.add(key);out.push(v);}});
   return out;
 }
 function _cfgFinanceCompanyColor(company){
@@ -3699,10 +3704,10 @@ function _cfgTransferCompanies(){
   return _cfgRegisteredCompanies();
 }
 function _cfgChequeCompanies(){
-  const inactive=_cfgInactiveCompanies(),seen=new Set(),out=[];
+  const inactive=_cfgInactiveCompanies(),deleted=_cfgDeletedCompanies(),seen=new Set(),out=[];
   const pub=_cfgPublicBusiness();
   const values=[..._cfgRegisteredCompanies(),...(Array.isArray(ERP_BUSINESS_CONFIG.chequeCompanies)?ERP_BUSINESS_CONFIG.chequeCompanies:[]),...(Array.isArray(pub.chequeCompanies)?pub.chequeCompanies:[])];
-  values.forEach(v=>{const key=_companyKey(v);if(key&&!seen.has(key)&&!inactive.has(key)){seen.add(key);out.push(v);}});
+  values.forEach(v=>{const key=_companyKey(v);if(key&&!seen.has(key)&&!inactive.has(key)&&!deleted.has(key)){seen.add(key);out.push(v);}});
   return out;
 }
 function _cfgExpenseGroupCompanyMap(){
@@ -3726,17 +3731,19 @@ function _cfgBankDisplayToken(key){
 }
 function _cfgEmployeeCompanyOptionsHtml(sel){
   const values=_cfgEmployeeCompanies();
-  if(sel && values.indexOf(sel)<0) values.push(sel);
-  return '<option value="">— Selecione —</option>'+values.map(function(v){return '<option value="'+esc(v)+'"'+(v===sel?' selected':'')+'>'+esc(v)+'</option>';}).join('');
+  if(sel&&!_cfgDeletedCompanies().has(_companyKey(sel))&&!values.some(v=>_companyKey(v)===_companyKey(sel)))values.push(sel);
+  return '<option value="">— Selecione —</option>'+values.map(function(v){return '<option value="'+esc(v)+'"'+(_companyKey(v)===_companyKey(sel)?' selected':'')+'>'+esc(v)+'</option>';}).join('');
 }
 function _erpAplicarCadastroEmpresas(result){
   if(!result||!Array.isArray(result.companies))return;
   const cfg=window.__PUBLIC_BUSINESS_CONFIG__||{};
   cfg.employeeCompanies=result.companies.slice();
   cfg.inactiveCompanies=Array.isArray(result.inactiveCompanies)?result.inactiveCompanies.slice():[];
+  cfg.deletedCompanies=Array.isArray(result.deletedCompanies)?result.deletedCompanies.slice():[];
   window.__PUBLIC_BUSINESS_CONFIG__=cfg;
   ERP_BUSINESS_CONFIG.employeeCompanies=result.companies.slice();
   ERP_BUSINESS_CONFIG.inactiveCompanies=cfg.inactiveCompanies.slice();
+  ERP_BUSINESS_CONFIG.deletedCompanies=cfg.deletedCompanies.slice();
   _erpRefreshCompanySources();
   try{_popularEmpresasDespesa();if(document.getElementById('kpi-row'))despAtualizar();}catch(e){}
 }
@@ -3744,10 +3751,12 @@ function _erpApplyCompanyDirectory(config){
   if(!config||typeof config!=='object')return false;
   const companies=Array.isArray(config.employeeCompanies)?config.employeeCompanies.slice():[];
   const inactiveCompanies=Array.isArray(config.inactiveCompanies)?config.inactiveCompanies.slice():[];
+  const deletedCompanies=Array.isArray(config.deletedCompanies)?config.deletedCompanies.slice():[];
   const oldCompanies=ERP_BUSINESS_CONFIG.employeeCompanies||[];
   const oldInactive=ERP_BUSINESS_CONFIG.inactiveCompanies||[];
-  if(JSON.stringify(oldCompanies)===JSON.stringify(companies)&&JSON.stringify(oldInactive)===JSON.stringify(inactiveCompanies))return false;
-  _erpAplicarCadastroEmpresas({companies,inactiveCompanies});
+  const oldDeleted=ERP_BUSINESS_CONFIG.deletedCompanies||[];
+  if(JSON.stringify(oldCompanies)===JSON.stringify(companies)&&JSON.stringify(oldInactive)===JSON.stringify(inactiveCompanies)&&JSON.stringify(oldDeleted)===JSON.stringify(deletedCompanies))return false;
+  _erpAplicarCadastroEmpresas({companies,inactiveCompanies,deletedCompanies});
   if(document.getElementById('rh-empresas-atuais'))_erpRenderEmpresasAdministracao();
   return true;
 }
@@ -3761,7 +3770,7 @@ function gerenciarEmpresasFuncionarios(){
   const body=document.createElement('div');
   body.className='modal';
   body.style.maxWidth='610px';
-  body.innerHTML='<h3>Cadastro central de empresas</h3><p>As empresas cadastradas ficam disponíveis em Funcionários, Despesas do Grupo e nos demais seletores de empresa. Empresas removidas deixam de aparecer em novos lançamentos, mas permanecem nos históricos.</p><div class="fg"><label>Empresas e situação</label><div id="rh-empresas-atuais" class="erp-company-list"></div></div><div class="fg"><label>Nome da nova empresa *</label><input id="rh-nova-empresa" maxlength="80" autocomplete="off" placeholder="Ex.: Física"></div><div class="modal-ft"><button class="btn-cancel" onclick="document.getElementById(\'employee-company-ov\')?.remove()">Fechar</button><button class="btn-save" onclick="salvarEmpresaFuncionarios()">Adicionar empresa</button></div>';
+  body.innerHTML='<h3>Cadastro central de empresas</h3><p>As empresas cadastradas ficam disponíveis em Funcionários, Despesas do Grupo e nos demais seletores de empresa. A exclusão retira a empresa definitivamente do cadastro e dos seletores. Os lançamentos históricos continuam preservados.</p><div class="fg"><label>Empresas e situação</label><div id="rh-empresas-atuais" class="erp-company-list"></div></div><div class="fg"><label>Nome da nova empresa *</label><input id="rh-nova-empresa" maxlength="80" autocomplete="off" placeholder="Ex.: Física"></div><div class="modal-ft"><button class="btn-cancel" onclick="document.getElementById(\'employee-company-ov\')?.remove()">Fechar</button><button class="btn-save" onclick="salvarEmpresaFuncionarios()">Adicionar empresa</button></div>';
   ov.appendChild(body);
   document.body.appendChild(ov);
   _erpRenderEmpresasAdministracao();
@@ -3770,14 +3779,14 @@ function gerenciarEmpresasFuncionarios(){
 function _erpRenderEmpresasAdministracao(){
   const host=document.getElementById('rh-empresas-atuais');if(!host)return;
   const cfg=ERP_BUSINESS_CONFIG||{},pub=_cfgPublicBusiness();
-  const inactive=_cfgInactiveCompanies(),seen=new Set(),all=[];
+  const inactive=_cfgInactiveCompanies(),deleted=_cfgDeletedCompanies(),seen=new Set(),all=[];
   for(const source of [_cfgRegisteredCompanies(),cfg.expenseGroups,pub.expenseGroups,cfg.chequeCompanies,cfg.inactiveCompanies,pub.inactiveCompanies]){
     if(!Array.isArray(source))continue;
-    source.forEach(function(v){const key=_companyKey(v);if(key&&!seen.has(key)){seen.add(key);all.push(String(v));}});
+    source.forEach(function(v){const key=_companyKey(v);if(key&&!deleted.has(key)&&!seen.has(key)){seen.add(key);all.push(String(v));}});
   }
   host.innerHTML=all.map(function(v){
-    const off=inactive.has(_companyKey(v));
-    return '<div class="erp-company-row"><span>'+esc(v)+(off?' <small>Inativa</small>':'')+'</span><button type="button" class="'+(off?'btn-save':'btn-cancel')+'" data-company-action="'+(off?'restore':'archive')+'" data-company-name="'+esc(v)+'">'+(off?'Reativar':'Remover')+'</button></div>';
+    const principal=_companyKey(v)===_companyKey(ERP_BUSINESS_CONFIG.primaryCompanyKey||_cfgPublicBusiness().company?.key);
+    return '<div class="erp-company-row"><span>'+esc(v)+(inactive.has(_companyKey(v))?' <small>Inativa</small>':'')+'</span>'+(principal?'<span>Empresa principal</span>':'<button type="button" class="btn-cancel" data-company-action="delete" data-company-name="'+esc(v)+'">Excluir</button>')+'</div>';
   }).join('')||'<div>Nenhuma empresa cadastrada</div>';
   host.querySelectorAll('[data-company-action]').forEach(function(button){
     button.onclick=function(){_erpMudarSituacaoEmpresa(button.dataset.companyAction,button.dataset.companyName);};
@@ -3796,10 +3805,10 @@ async function _erpEnviarEmpresa(action,name){
 }
 async function _erpMudarSituacaoEmpresa(action,name){
   if(!name)return;
-  if(action==='archive'&&!confirm('Remover "'+name+'" das opções de novos lançamentos? Os registros históricos serão preservados.'))return;
+  if(action==='delete'&&!confirm('Excluir definitivamente a empresa "'+name+'" do cadastro e de todas as listas? Os lançamentos históricos não serão apagados.'))return;
   const button=Array.from(document.querySelectorAll('#rh-empresas-atuais [data-company-action]')).find(b=>b.dataset.companyName===name);
   if(button)button.disabled=true;
-  try{await _erpEnviarEmpresa(action,name);showToast(action==='archive'?'Empresa removida das opções de novos lançamentos.':'Empresa reativada.','success');}
+  try{await _erpEnviarEmpresa(action,name);showToast(action==='delete'?'Empresa excluída definitivamente do cadastro.':'Empresa atualizada.','success');}
   catch(error){showToast(error.message,'error',7000);}
   finally{if(button)button.disabled=false;}
 }
@@ -3888,9 +3897,9 @@ function _cfgChequeBankNormalize(value){
 }
 function _empresasOptions(sel, incluirOutra){
   const values=_cfgRegisteredCompanies();
-  if(sel&&sel!=='Outra'&&values.indexOf(sel)<0) values.push(sel);
+  if(sel&&sel!=='Outra'&&!_cfgDeletedCompanies().has(_companyKey(sel))&&!values.some(v=>_companyKey(v)===_companyKey(sel)))values.push(sel);
   const other=incluirOutra===false?'':'<option value="Outra"'+(sel==='Outra'?' selected':'')+'>Outra</option>';
-  return values.map(function(k){return '<option value="'+esc(k)+'"'+(k===sel?' selected':'')+'>'+esc(k)+'</option>';}).join('')+other;
+  return values.map(function(k){return '<option value="'+esc(k)+'"'+(_companyKey(k)===_companyKey(sel)?' selected':'')+'>'+esc(k)+'</option>';}).join('')+other;
 }
 function _sincronizarEmpresaPorBanco(bancoSelId, empresaSelId){
   const bs=document.getElementById(bancoSelId), es=document.getElementById(empresaSelId);
@@ -3900,6 +3909,7 @@ function _sincronizarEmpresaPorBanco(bancoSelId, empresaSelId){
   const b=(BANCOS_DB||[]).find(x=>String(x.cod||'')===String(val)||String(x.banco||'')===String(val));
   if(!b||!b.empresa) return;
   const empresa=String(b.empresa||'').trim();
+  if(_cfgDeletedCompanies().has(_companyKey(empresa)))return;
   if(es.tagName==='SELECT'){
     if(![...es.options].some(function(o){return o.value===empresa;})) es.insertAdjacentHTML('beforeend','<option value="'+esc(empresa)+'">'+esc(empresa)+'</option>');
     es.value=empresa;
@@ -21083,11 +21093,11 @@ function getMes(){
 }
 function getEmp(){ return document.getElementById('fil-emp')?.value||''; }
 function _popularEmpresasDespesa(){
-  const inactive=_cfgInactiveCompanies();
+  const inactive=_cfgInactiveCompanies(),deleted=_cfgDeletedCompanies();
   const names=[],seen=new Set();
   function add(value,allowInactive){
     const v=String(value||'').trim(),key=_companyKey(v);
-    if(!key||seen.has(key)||(!allowInactive&&inactive.has(key)))return;
+    if(!key||seen.has(key)||deleted.has(key)||(!allowInactive&&inactive.has(key)))return;
     names.push(v);seen.add(key);
   }
   const cfg=ERP_BUSINESS_CONFIG||{},pub=_cfgPublicBusiness();
