@@ -9794,6 +9794,16 @@ function removerAcrescimoCompra(idx){
   try{ renderTickets(); }catch(e){}
 }
 
+function compararTicketsHistorico(a,b){
+  const dataIso=function(d){
+    const s=String(d||'').trim();
+    return /^\d{2}\/\d{2}\/\d{4}$/.test(s)?s.slice(6)+'-'+s.slice(3,5)+'-'+s.slice(0,2):s;
+  };
+  const porData=dataIso(b.data).localeCompare(dataIso(a.data));
+  if(porData)return porData;
+  return String(b.ticket||b._dbKey||'').localeCompare(String(a.ticket||a._dbKey||''),'pt-BR',{numeric:true,sensitivity:'base'});
+}
+
 function renderTickets(){
   const tbody=document.getElementById('tb-compras');
   if(!tbody)return;
@@ -9909,7 +9919,7 @@ function renderTickets(){
     tbody.innerHTML=`<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum registro encontrado</td></tr>`;
     return;
   }
-  all.sort((a,b)=>{var _f=d=>{d=String(d||'');return d.indexOf('/')>=0?d.split('/').reverse().join('-'):d;};return _f(b.data).localeCompare(_f(a.data));}); 
+  all.sort(compararTicketsHistorico);
 
   let rows=all.map(tk=>{
     const statusEspecial=tk.status==='Aguard. Preço'||tk.status==='Consolidado';

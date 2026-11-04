@@ -62,11 +62,11 @@
       "partyBanks": {
         ".read": "auth != null && auth.token.erpAccess == true && auth.token.canPartyBanks == true",
         "$partyKey": {
-          ".write": "auth != null && auth.token.erpAccess == true && auth.token.canPartyBanks == true",
+          ".write": "auth != null && auth.token.erpAccess == true && auth.token.canPartyBanks == true && (($partyKey.beginsWith('fornecedor-') && auth.token.canSuppliers == true) || ($partyKey.beginsWith('cliente-') && auth.token.canCustomers == true))",
           ".validate": "newData.hasChildren()",
           "$index": {
             "bank": {
-              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 120)"
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length > 0 && newData.val().length <= 120)"
             },
             "agency": {
               ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 60)"
@@ -79,6 +79,19 @@
             },
             "$other": {
               ".validate": false
+            },
+            ".validate": "$index.matches(/^(0|[1-9][0-9]*)$/) && newData.hasChild('bank') && newData.child('bank').isString() && newData.child('bank').val().length > 0",
+            "country": {
+              ".validate": "!newData.exists() || (newData.isString() && (newData.val() == 'BR' || newData.val() == 'OUTRO'))"
+            },
+            "accountType": {
+              ".validate": "!newData.exists() || (newData.isString() && (newData.val() == '' || newData.val() == 'Corrente' || newData.val() == 'Poupança' || newData.val() == 'Pagamento' || newData.val() == 'Outro'))"
+            },
+            "holderName": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 150)"
+            },
+            "holderDocument": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 60)"
             }
           }
         }

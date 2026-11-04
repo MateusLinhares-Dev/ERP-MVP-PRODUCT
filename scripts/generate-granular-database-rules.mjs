@@ -54,6 +54,21 @@ for(const node of mapped.keys()){
   if(!nodes.includes(node))throw new Error(`Mapeamento obsoleto: ${node}`);
 }
 const candidate=structuredClone(current);
+const partyBankRule=candidate.rules.erp.partyBanks;
+partyBankRule.$partyKey['.write']=`${auth} && auth.token.canPartyBanks == true && (($partyKey.beginsWith('fornecedor-') && auth.token.canSuppliers == true) || ($partyKey.beginsWith('cliente-') && auth.token.canCustomers == true))`;
+partyBankRule.$partyKey.$index['.validate']="$index.matches(/^(0|[1-9][0-9]*)$/) && newData.hasChild('bank') && newData.child('bank').isString() && newData.child('bank').val().length > 0";
+const partyBankFields={
+  bank:"!newData.exists() || (newData.isString() && newData.val().length > 0 && newData.val().length <= 120)",
+  country:"!newData.exists() || (newData.isString() && (newData.val() == 'BR' || newData.val() == 'OUTRO'))",
+  accountType:"!newData.exists() || (newData.isString() && (newData.val() == '' || newData.val() == 'Corrente' || newData.val() == 'Poupança' || newData.val() == 'Pagamento' || newData.val() == 'Outro'))",
+  agency:"!newData.exists() || (newData.isString() && newData.val().length <= 60)",
+  account:"!newData.exists() || (newData.isString() && newData.val().length <= 80)",
+  pix:"!newData.exists() || (newData.isString() && newData.val().length <= 180)",
+  holderName:"!newData.exists() || (newData.isString() && newData.val().length <= 150)",
+  holderDocument:"!newData.exists() || (newData.isString() && newData.val().length <= 60)"
+};
+for(const [field,rule] of Object.entries(partyBankFields))partyBankRule.$partyKey.$index[field]={'.validate':rule};
+partyBankRule.$partyKey.$index.$other={'.validate':false};
 // Matrícula de cursos e documentos é gerenciada somente por API autenticada.
 // O Firebase Admin SDK escreve em erpTraining; clientes não acessam os dados diretamente.
 candidate.rules.erpTraining={'.read':false,'.write':false};

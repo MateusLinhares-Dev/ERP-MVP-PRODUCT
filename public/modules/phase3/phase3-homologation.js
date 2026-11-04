@@ -167,7 +167,8 @@ global.phase3BankAdd=function(v={}){
   const box=$('#phase3-bank-rows');if(!box)return;
   const a=canonicalBank(v),row=document.createElement('section');
   row.className='phase3-bank-row phase3-bank-expanded';
-  const field=(key,label,placeholder='')=>`<label class="phase3-bank-field"><span>${label}</span><input data-f="${key}" placeholder="${esc(placeholder)}" value="${esc(a[key]||'')}" maxlength="150" autocomplete="off"></label>`;
+  const inputLimits={bank:120,agency:60,account:80,pix:180,holderName:150,holderDocument:60};
+  const field=(key,label,placeholder='')=>`<label class="phase3-bank-field"><span>${label}</span><input data-f="${key}" placeholder="${esc(placeholder)}" value="${esc(a[key]||'')}" maxlength="${inputLimits[key]||150}" autocomplete="off"></label>`;
   row.innerHTML=`<div class="phase3-bank-row-head"><div><strong class="phase3-bank-sequence">Conta</strong><small>Dados bancários e identificação do titular</small></div><button type="button" class="phase3-bank-remove" onclick="phase3BankRemove(this)" aria-label="Remover conta do formulário">✕ <span>Remover</span></button></div>
     <div class="phase3-bank-fields">`+
     field('bank','Banco / instituição','Ex.: Banco do Brasil, Nubank, Itaú')+
@@ -200,7 +201,6 @@ global.phase3BankSave=async function(kind,key){
   const button=$('#phase3-bank-ov .p3-primary');if(button?.disabled)return;
   if(button){button.disabled=true;button.textContent='Salvando...';}
   try{
-    // A nuvem e confirmada ANTES de atualizar o cache ou os dados legados.
     await store.save('partyBanks',bankKey(kind,key),rows);
     partyBanks[bankKey(kind,key)]=rows;
     const e=partyEntity(kind,key),first=rows[0]||{};
@@ -211,7 +211,22 @@ global.phase3BankSave=async function(kind,key){
     try{global.renderTabelaFornecedores?.();}catch(error){console.warn('[phase3] re-render:',error);}
     notify('Contas atualizadas e confirmadas no Firebase.','success');
     document.dispatchEvent(new CustomEvent('erp:party-banks-updated',{detail:{kind,key}}));
-  }catch(error){console.error('[phase3] erro ao salvar contas:',error);notify('Não foi possível salvar as contas. Nenhuma mudança foi confirmada: '+(error.message||error),'error',7000);}
+  }catch(error){
+    console.error('[phase3] erro ao salvar contas:',error);
+    let detail=String(error?.message||error);
+    if(error?.code==='PERMISSION_DENIED'||/permission[_ -]?denied/i.test(detail)){
+      try{
+        const token=await window.firebase?.auth?.()?.currentUser?.getIdTokenResult?.();
+        const claims=token?.claims||{};
+        if(claims.erpAccess!==true||claims.canPartyBanks!==true||(kind==='fornecedor'?claims.canSuppliers!==true:claims.canCustomers!==true)){
+          detail='Seu perfil não possui autorização para alterar estas contas. Confirme a permissão do cadastro e entre novamente no ERP.';
+        }else{
+          detail='O Firebase recusou a alteração. Verifique se as Database Rules atualizadas foram publicadas neste ambiente.';
+        }
+      }catch(e){}
+    }
+    notify('Não foi possível salvar as contas. Nenhuma mudança foi confirmada: '+detail,'error',7000);
+  }
   finally{if(button?.isConnected){button.disabled=false;button.textContent='Salvar alterações';}}
 };
 global.ERPPartyBanks=Object.freeze({
