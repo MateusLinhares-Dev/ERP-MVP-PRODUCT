@@ -7,21 +7,17 @@
     const rx = new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*:\\s*(.*)', 'i');
     for (const line of lines) {
       const items = line.itens || [];
-      for (let i = 0; i < items.length; i++) {
-        const match = clean(items[i].str).match(rx);
-        if (!match) continue;
-        let value = match[1];
-        if (!value && items[i + 1] && items[i + 1].x < items[i].x + 245) value = items[i + 1].str;
-        // As colunas de Nome e CPF aparecem na mesma linha do cartão.
-        return clean(value.split(/\s+(?:CPF DO FUNCIONÁRIO|PIS DO FUNCIONÁRIO|DATA DE ADMISSÃO DO FUNCIONÁRIO|NOME DO DEPARTAMENTO)\s*:/i)[0]);
-      }
+      const merged = items.map(i => clean(i.str)).join(' ');
+      const match = merged.match(rx);
+      if (!match) continue;
+      return clean(match[1].split(/\s+(?:CPF DO FUNCIONÁRIO|PIS DO FUNCIONÁRIO|DATA DE ADMISSÃO DO FUNCIONÁRIO|NOME DO DEPARTAMENTO|NOME DO CENTRO DE CUSTO)\s*:/i)[0]);
     }
     return '';
   }
   function parsePage(lines, text) {
     const headerIndex = lines.findIndex(line => {
-      const a = (line.itens || []).map(i => clean(i.str).toUpperCase());
-      return a.some(s => s === 'DIA') && a.some(s => s === 'PREVISTO');
+      const lineText = (line.itens || []).map(i => clean(i.str)).join(' ').toUpperCase();
+      return /\bDIA\b/.test(lineText) && /ENT\.?\s*1\b/.test(lineText) && /SA[IÍ]\.?\s*1\b/.test(lineText);
     });
     const basic = {
       nome: field(lines, 'NOME DO FUNCIONÁRIO'),
@@ -38,7 +34,11 @@
     // EXTRA / 75%D, etc. Considerar as linhas adjacentes para localizar colunas.
     const header = lines.slice(Math.max(0, headerIndex - 2), headerIndex + 2)
       .flatMap(l => l.itens || []).map(it => ({ x: it.x, s: clean(it.str).toUpperCase() }));
-    function xFor(rx) { const it = header.find(i => rx.test(i.s)); return it ? it.x : null; }
+    function xFor(rx) {
+      const hit = header.find((i, index) => rx.test(i.s) ||
+        (index < header.length - 1 && rx.test(i.s + ' ' + header[index + 1].s) && header[index + 1].x >= i.x));
+      return hit ? hit.x : null;
+    }
     const columns = {
       previsto: xFor(/^PREVISTO$/), ent1: xFor(/^ENT\.?\s*1$/), sai1: xFor(/^SA[IÍ]\.?\s*1$/),
       ent2: xFor(/^ENT\.?\s*2$/), sai2: xFor(/^SA[IÍ]\.?\s*2$/),
@@ -49,6 +49,9 @@
       extraDiurna: xFor(/^DIURNA$/), extraNoturna: xFor(/^NOTURNA$/),
       bancoTotal: null, bancoSaldo: null
     };
+    const totalMarkers = header.filter(it => it.s === 'TOTAL' || it.s === 'TOTAIS').sort((a, b) => a.x - b.x);
+    if (columns.total == null && totalMarkers.length) columns.total = totalMarkers[0].x;
+    if (totalMarkers.length > 1) columns.extrasTotal = totalMarkers[totalMarkers.length - 1].x;
     const bankPositions = header.filter(it => it.s === 'BANCO').sort((a, b) => a.x - b.x);
     if (bankPositions[0]) columns.bancoTotal = bankPositions[0].x;
     if (bankPositions[1]) columns.bancoSaldo = bankPositions[1].x;
@@ -70,7 +73,7 @@
       const first = clean(items[0].str);
       if (/^Altera[cç][oõ]es/i.test(first)) { alterations = true; continue; }
       if (alterations) { basic.alteracoes.push(items.map(i => i.str).join(' ')); continue; }
-      const match = first.match(/^(\d{2}\/\d{2}\/\d{4})\s*-\s*([A-ZÀ-Ü]{3})/i);
+      const match = items.slice(0, 4).map(i => clean(i.str)).join(' ').match(/^(\d{2}\/\d{2}\/\d{4})\s*-\s*([A-ZÀ-Ü]{3})/i);
       if (!match) continue;
       const cols = {};
       for (const item of items.slice(1)) {
@@ -88,7 +91,8 @@
         data: match[1], diaSemana: match[2].toUpperCase(), previsto: val('previsto'),
         ent1: val('ent1'), sai1: val('sai1'), ent2: val('ent2'), sai2: val('sai2'),
         ent3: val('ent3'), sai3: val('sai3'), total: val('total'),
-        faltaAtraso: val('faltaAtraso'), extras
+        faltaAtraso: val('faltaAtraso'), extrasTotal: val('extrasTotal'),
+        observacao: items.map(i=>clean(i.str)).filter(v=>/^(?:Folga|Feriado|Viagem|Falta)(?:\b|:)/i.test(v)).join(' · '), extras
       });
     }
     if (!basic.dias.length) basic.erro = 'dias_nao_encontrados';

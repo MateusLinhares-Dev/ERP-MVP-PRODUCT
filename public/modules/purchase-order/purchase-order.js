@@ -85,34 +85,67 @@ function sourceItems(body){
     };
   });
 }
-function financialData(body,supplierCode){
-  // The legacy purchase form caches financial arrays in dataset. Those arrays may
-  // be stale/empty after a new advance is created. The authoritative source is
-  // ADT_POR_FORN, keyed by supplier code, not the visible supplier name.
+function historicalAppliedAdvances(supplierCode){
+  const used=new Set();
+  for(const ticket of Object.values(tickets())){
+    if(String(ticket?.fornecedorCod||ticket?.fornCod||'')!==String(supplierCode))continue;
+    for(const item of ticket?.reciboFinanceiro?.adiantamentos||[]){
+      if(item?.cod&&Number(item.valorAplicado||0)>0)used.add(String(item.cod));
+    }
+  }
+  return used;
+}
+function financialData(body,supplierCode,sourceTicketKeys=[]){
   const code=String(supplierCode||'').trim();
   const bodyCode=String(body?.dataset?.fornCod||'').trim();
   const sameSupplier=code&&bodyCode===code;
-  let adts=sameSupplier?jsonDataset(body,'adtsData',null):null;
-  let cheques=sameSupplier?jsonDataset(body,'cheqsData',null):null;
-  let balance=sameSupplier?Number(body?.dataset?.saldoAnterior||0)||0:0;
+  const sourceKeys=new Set([...(Array.isArray(sourceTicketKeys)?sourceTicketKeys:[]),...(sameSupplier?jsonDataset(body,'ticketKeys',[]):[])].map(String));
+  const applied=historicalAppliedAdvances(code);
+  let adts=[];
+  let cheques=[];
+  let balance=0;
   try{
-    const live=(ADT_POR_FORN[code]||[]).filter(function(a){
-      return a&&String(a.status||'Pendente').trim().toLowerCase()!=='quitado';
+    const eligible=(ADT_POR_FORN[code]||[]).filter(function(a){
+      if(!a||String(a.status||'Pendente').trim().toLowerCase()!=='pendente')return false;
+      if(!(Number(a.valor)>0))return false;
+      if(applied.has(String(a.cod||''))&&!a.ticketOrigem&&!Number(a.valorCompensado||0)&&!(Number(a.valorOriginal)>Number(a.valor)))return false;
+      const linked=String(a.ticket||'').trim();
+      if(!linked)return true;
+      if(!sourceKeys.has(linked))return false;
+      const origin=tickets()[linked];
+      return !!origin&&origin.status==='Aguard. Preço'&&origin._balFinalizado===true;
     });
-    const advances=live.filter(function(a){return !String(a.forma||'').toLowerCase().includes('cheque');});
-    const advanceCheques=live.filter(function(a){return String(a.forma||'').toLowerCase().includes('cheque');});
+    adts=eligible.filter(function(a){return !String(a.forma||'').toLowerCase().includes('cheque');});
+    const advanceCheques=eligible.filter(function(a){return String(a.forma||'').toLowerCase().includes('cheque');});
     const supplierCheques=(CHEQUES_POR_FORN[code]||[]).filter(function(c){return c&&!c._aplicadoTicket&&c.status!=='Quitado';});
-    adts=advances;
     cheques=supplierCheques.concat(advanceCheques);
-  }catch(e){/* Data may still be loading; preserve matching cached values only. */}
-  if(!(balance>0)){
-    try{
-      const raw=SALDO_DEVEDOR_FORN&&SALDO_DEVEDOR_FORN[code];
-      balance=raw?(typeof raw==='object'?Number(raw.valor||0):Number(raw||0)):0;
-    }catch(e){balance=0;}
+    const credit=SALDO_DEVEDOR_FORN&&SALDO_DEVEDOR_FORN[code];
+    const creditOrigin=typeof credit==='object'?String(credit?.ticket||''):'';
+    const hasRemainingCredit=creditOrigin&&eligible.some(function(a){return String(a.ticketOrigem||'')===creditOrigin;});
+    balance=hasRemainingCredit?0:Number(typeof credit==='object'?credit?.valor:credit)||0;
+  }catch(error){
+    console.warn('[purchase-order] saldo do fornecedor indisponível',error);
   }
-  return {adts:Array.isArray(adts)?adts:[],cheques:Array.isArray(cheques)?cheques:[],balance:Math.max(0,balance||0)};
+  return {adts,cheques,balance:Math.max(0,balance)};
 }
+function validatePurchaseCredits(state){
+  if(state.editKey)return;
+  const latest=financialData(null,state.supplierCode,state.sourceTicketKeys);
+  const available=new Map(latest.adts.concat(latest.cheques).map(function(a){return [String(a.cod||a.id||a.num||''),Number(a.valor)];}));
+  const selected=state.adts.concat(state.cheques).filter(function(item,index){
+    const prefix=index<state.adts.length?'csadt-':'cscheq-';
+    const pos=index<state.adts.length?index:index-state.adts.length;
+    return document.getElementById(prefix+pos)?.checked;
+  });
+  for(const item of selected){
+    const code=String(item.cod||item.id||item.num||'');
+    if(!available.has(code)||Math.abs(available.get(code)-Number(item.valor))>0.005)
+      throw new Error('O adiantamento ou cheque selecionado já foi utilizado ou alterado. Reabra a compra para atualizar os créditos.');
+  }
+  if(document.getElementById('cssdv')?.checked&&Math.abs(latest.balance-Number(state.previousCredit||0))>0.005)
+    throw new Error('O crédito anterior do fornecedor foi alterado. Reabra a compra antes de salvar.');
+}
+
 function currentState(body){
   const stored=jsonDataset(body,'phase4Order',null);
   if(stored&&Array.isArray(stored.items))return stored;
@@ -714,57 +747,6 @@ async function purchaseConfirmCloud(key,ticket,options={}){
 }
 global.__ERP_PURCHASE_COMMIT_TICKET__=purchaseConfirmCloud;
 
-// Read-only lookup for documents that were printed but are not visible in history.
-async function purchaseFindCloudTicket(){
-  const input=document.getElementById('phase4-ticket-lookup-id');
-  const out=document.getElementById('phase4-ticket-lookup-result');
-  const id=String(input?.value||'').trim().toUpperCase();
-  if(!/^T[0-9]{1,12}$/.test(id)){if(out)out.textContent='Informe um ticket válido, ex.: T049.';return;}
-  if(out)out.textContent='Consultando o Firebase (somente leitura)...';
-  try{
-    const ref=purchaseCloudRef(id);
-    const snap=await ref.once('value');
-    const ticket=snap?.val?.();
-    if(!ticket){
-      let deleted=false;
-      try{const mark=await global._fbDB.ref('erp/ticketsDeletedV2/'+id).once('value');deleted=!!mark?.val?.();}catch(e){}
-      if(!deleted)try{const mark=await global._fbDB.ref('erp/ticketsDeleted').once('value');deleted=Array.isArray(mark?.val?.())&&mark.val().includes(id);}catch(e){}
-      if(out)out.textContent=deleted
-        ?'O ticket '+id+' está marcado como excluído no Firebase. Não foi reativado; revise o histórico de exclusão.'
-        :'O ticket '+id+' não foi encontrado em erp/tickets. Não recrie automaticamente: confira o financeiro antes.';
-      return;
-    }
-    if(typeof TICKETS_DELETED!=='undefined'&&TICKETS_DELETED.has(id)){
-      if(out)out.textContent='O ticket existe na nuvem, mas está marcado como excluído. Necessário revisar a exclusão; não foi reativado.';
-      return;
-    }
-    TICKETS_DB[id]=Object.assign({},ticket);
-    try{if(typeof _ticketsSnapJSON!=='undefined')_ticketsSnapJSON[id]=JSON.stringify(saved);}catch(e){}
-    try{
-      const ids=['filt-compra-status','filt-compra-forn','filt-compra-de','filt-compra-ate'];
-      ids.forEach(function(name){const field=document.getElementById(name);if(field)field.value=name==='filt-compra-status'?'todos':'';});
-      if(typeof renderTickets==='function')renderTickets();
-    }catch(e){}
-    if(out)out.textContent='Encontrado no Firebase: '+String(ticket.fornecedor||'Fornecedor')+' · R$ '+money(ticket.totalGeral||0)+'. Carregado no histórico local sem alterar a nuvem.';
-  }catch(error){
-    if(out)out.textContent='Consulta não concluída: '+String(error?.code||error?.message||'Erro de permissão/rede')+'. Verifique a sessão e as regras.';
-  }
-}
-global.phase4PurchaseFindCloudTicket=purchaseFindCloudTicket;
-function ensurePurchaseLookup(){
-  const host=document.getElementById('cst-historico');
-  if(!host||document.getElementById('phase4-ticket-lookup'))return;
-  const node=document.createElement('div');
-  node.id='phase4-ticket-lookup';
-  node.className='phase4-ticket-lookup';
-  node.innerHTML='<label for="phase4-ticket-lookup-id">Localizar pedido no Firebase</label>'
-   +'<input id="phase4-ticket-lookup-id" inputmode="text" maxlength="13" placeholder="Ex.: T049" aria-label="Número do pedido">'
-   +'<button type="button" class="phase4-po-outline" onclick="phase4PurchaseFindCloudTicket()">Consultar</button>'
-   +'<span id="phase4-ticket-lookup-result" role="status"></span>';
-  host.insertBefore(node,host.firstChild);
-}
-
-
 function sourceSignature(keys){
   return (keys||[]).map(String).filter(Boolean).sort().join('|');
 }
@@ -848,6 +830,7 @@ global.phase4PurchaseSave=async function(){
   let prepared;
   try{
     validateSourceTickets(state);
+    validatePurchaseCredits(state);
     prepared=prepareLegacy(body,state);
   }catch(error){
     try{showToast(error.message,'error',6000);}catch(e){alert(error.message);}
@@ -1037,7 +1020,7 @@ function stateForSourceTicket(ticketKey){
   const supplierName=String(t.fornecedor||t.fornecedorNome||t.forn||'').trim();
   const supplier=supplierByName(supplierName);
   if(!supplier)return null;
-  const fin=financialData(null,supplier.cod||'');
+  const fin=financialData(null,supplier.cod||'',[ticketKey]);
   let items=ticketItemsForOrder(t);
   items.forEach(function(item){
     if(Number(item.preco||0)>0||!item.mat)return;
@@ -1149,7 +1132,6 @@ if(typeof legacy.loadSupplier==='function'){
 if(typeof legacy.tab==='function'){
   global.csTab=function(tab){
     const result=legacy.tab.apply(this,arguments);
-    if(tab==='historico')setTimeout(ensurePurchaseLookup,0);
     if(tab==='lancamento'){
       setTimeout(function(){
         const body=document.getElementById('cs-lanc-body');

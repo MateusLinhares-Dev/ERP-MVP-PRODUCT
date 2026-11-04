@@ -12274,11 +12274,11 @@ function pontoRHiDComoImportar(){
     '<div class="rhid-guide">'+
     '<p><b>1. Exporte no RH iD:</b> selecione o relatório individual de Cartão de Ponto em formato PDF com texto selecionável. O arquivo pode conter vários funcionários, um cartão por página.</p>'+
     '<p><b>2. Período:</b> no RH iD escolha o mês inteiro desejado, por exemplo, de 01/10/2026 até 31/10/2026.</p>'+
-    '<p><b>3. Campos necessários:</b> NOME DO FUNCIONÁRIO, CPF DO FUNCIONÁRIO, período DE ... ATÉ ..., cabeçalho DIA / PREVISTO, as colunas ENT. 1 e SAI. 1 e as linhas de datas diárias.</p>'+
-    '<div class="rhid-guide-example"><b>Exemplo de estrutura aceita</b><pre>NOME DO FUNCIONÁRIO: JOÃO EXEMPLO\nCPF DO FUNCIONÁRIO: 000.000.000-00\nDE 01/10/2026 ATÉ 31/10/2026\nDIA   PREVISTO   ENT. 1   SAI. 1\n01/10/2026 - QUI   08:00   08:02   12:00</pre></div>'+
+    '<p><b>3. Campos necessários:</b> NOME DO FUNCIONÁRIO, CPF DO FUNCIONÁRIO, período DE ... ATÉ ..., cabeçalho DIA, as colunas ENT. 1 e SAÍ. 1 e as linhas de datas diárias. A coluna PREVISTO é opcional.</p>'+
+    '<div class="rhid-guide-example"><b>Exemplo de estrutura aceita</b><pre>NOME DO FUNCIONÁRIO: JOÃO EXEMPLO\nCPF DO FUNCIONÁRIO: 000.000.000-00\nDE 01/10/2026 ATÉ 31/10/2026\nDIA   ENT. 1   SAI. 1   ENT. 2   SAI. 2   TOTAL TRABALHADO   EXTRAS TOTAL\n01/10/2026 - QUI   08:02   12:00   13:00   17:48   08:46   00:00</pre></div>'+
     '<p><b>4. Conferência:</b> clique em Importar Cartão de Ponto, confira a prévia e associe cada cartão à matrícula correta no ERP. A importação só grava depois da confirmação.</p>'+
     '<p><b>Não aceito:</b> planilha XLSX/CSV, foto ou PDF digitalizado sem texto, PDF protegido e relatórios de formato diferente do cartão individual RH iD. O texto do exemplo demonstra a estrutura, não substitui o PDF original.</p>'+
-    '<p><b>Se não importar:</b> verifique se o PDF permite selecionar o texto, se o cabeçalho tem DIA e PREVISTO e se o funcionário existe no cadastro. Nenhum registro é substituído quando a leitura falha.</p>'+
+    '<p><b>Se não importar:</b> verifique se o PDF permite selecionar o texto, se o cabeçalho tem DIA, ENT. 1 e SAÍ. 1 e se o funcionário existe no cadastro. Nenhum registro é substituído quando a leitura falha.</p>'+
     '</div><div class="modal-ft"><button class="btn-cancel" onclick="cm()">Fechar</button></div>';
   document.getElementById('modal-ov')?.classList.add('open');
 }
@@ -18746,12 +18746,12 @@ async function confirmarPagarCP(modo){
   const advanceAmount=Math.round(adt*100)/100;
   const amount=onlyAdvance?0:Math.round((total-adt)*100)/100;
   const banco=amount>0?(document.getElementById('pcp-banco')?.value||''):'';
-  const data=document.getElementById('pcp-data')?.value||'';
+  const paymentDate=document.getElementById('pcp-data')?.value||'';
   const limiteAdt=Number(document.getElementById('pcp-adt')?.max||0);
   if(!Number.isFinite(total)||!Number.isFinite(adt)||adt<0||adt>limiteAdt+0.001||!Number.isFinite(amount)||amount<0||advanceAmount>total+0.001||(onlyAdvance?adt<=0:total<=0)||total>Number(c.valor)+0.001){
     showToast('Confira o valor e a compensação informados.','error');return;
   }
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(data)){showToast('Informe uma data válida.','error');return;}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)){showToast('Informe uma data válida.','error');return;}
   if(amount>0&&!banco){showToast('Selecione a conta bancária autorizada.','error');return;}
   const user=firebase?.auth?.().currentUser;
   if(!user){showToast('Sessão expirada. Entre novamente.','error');return;}
@@ -18760,9 +18760,9 @@ async function confirmarPagarCP(modo){
   buttons.forEach(button=>button.disabled=true);
   try{
     const token=await user.getIdToken(true);
-    const response=await fetch('/api/finance/payables-payment',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operationId:modal.dataset.paymentOperation,payableId:id,expected:{valor:c.valor,status:c.status,paymentsCount:Array.isArray(c.pagamentos)?c.pagamentos.length:0},date:data,bankCode:banco,amount,advanceAmount,fornCod:document.getElementById('pcp-forn-cod')?.value||'',obs:document.getElementById('pcp-obs')?.value||''})});
+    const response=await fetch('/api/finance/payables-payment',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operationId:modal.dataset.paymentOperation,payableId:id,expected:{valor:c.valor,status:c.status,paymentsCount:Array.isArray(c.pagamentos)?c.pagamentos.length:0},date:paymentDate,bankCode:banco,amount,advanceAmount,fornCod:document.getElementById('pcp-forn-cod')?.value||'',obs:document.getElementById('pcp-obs')?.value||''})});
     const result=await response.json();
-    if(!response.ok)throw new Error(result.message||'Falha ao confirmar pagamento.');
+    if(!response.ok)throw new Error((result.message||'Falha ao confirmar pagamento.')+(result.code?' ['+result.code+']':''));
     if(firebase?.auth?.().currentUser?.uid!==user.uid)throw new Error('Sessão alterada. Atualize a página.');
     CONTAS_PAGAR[idx]=result.payable;
     if(result.advanceEntries&&result.fornCod)ADT_POR_FORN[result.fornCod]=result.advanceEntries;

@@ -1054,6 +1054,7 @@
                 <button class="btn-edit" onclick="om('historico_geral')" title="Vê tudo que foi criado, editado ou excluído em Adiantamentos, Cheques e Bancos — dá pra restaurar o que foi excluído">🕐 Log de Alterações</button>
                 <button class="btn-edit" onclick="sincronizarAdiantamentosBanco()" title="Confere se todo adiantamento com banco de saída definido tem o lançamento correspondente somando no saldo do banco, e cria o que estiver faltando">🔄 Sincronizar c/ Bancos</button>
                 <button class="btn-edit" onclick="zerarTodosAdiantamentos()" title="Apaga TODOS os adiantamentos (na nuvem também) pra você começar do zero. Faz backup antes." style="background:#7a1e1e;color:#fff">🧹 Zerar todos (recomeçar)</button>
+                <button type="button" class="btn-edit" onclick="abrirRelatorioChequesAdiantamentos()">📋 Relatório de Cheques</button>
                 <button class="btn-add" onclick="om('adiantamento')">+ Novo Adiantamento</button>
               </div>
             </div>
@@ -1069,6 +1070,7 @@
             </table>
           </div>
         </div>
+        <div id="adt-cheques-report" class="adt-report" hidden></div>
         <div id="adt-panel-historico" style="display:none">
           <div id="adt-historico-cards"></div>
         </div>
@@ -4151,6 +4153,6 @@
 
 
 
-<script type="module" src="/app/bootstrap.js"></script>
+<script type="module" src="/app/bootstrap.js?v=20261104-finance-credit-v2"></script>
 </body>
 </html>

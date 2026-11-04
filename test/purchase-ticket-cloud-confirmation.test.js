@@ -76,10 +76,10 @@ test('formulário só encerra após confirmação, e listener comum aguarda comm
  assert.match(purchase,/if\(global\.__ERP_PURCHASE_IN_PROGRESS__\)/);
  assert.match(purchase,/finishPurchaseDeferredSave\(purchaseCommitted\)/);
 });
-test('histórico permite consultar ticket na nuvem sem criar automaticamente outro',()=>{
- assert.match(purchase,/global\.phase4PurchaseFindCloudTicket=purchaseFindCloudTicket/);
- assert.match(purchase,/Localizar pedido no Firebase/);
- assert.match(purchase,/Não recrie automaticamente/);
+test('histórico não exibe ferramentas técnicas de consulta ao Firebase',()=>{
+ assert.doesNotMatch(purchase,/Localizar pedido no Firebase/);
+ assert.doesNotMatch(purchase,/ensurePurchaseLookup/);
+ assert.doesNotMatch(purchase,/phase4PurchaseFindCloudTicket/);
 });
 test('seletores de situação compartilham estilo profissional em múltiplos módulos',()=>{
  assert.match(selectCss,/#app-screen \.tab-panel select:not\(\[multiple\]\)/);
