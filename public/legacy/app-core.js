@@ -459,6 +459,8 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
     if(raw) JSON.parse(raw).forEach(function(id){ deletedSet.add(id); });
   }catch(e){}
   let migracaoEmAndamento=false;
+  const confirmados=new Map();
+  function marcarConfirmado(id){if(nome==='vales')confirmados.set(String(id),Date.now());}
   function novoId(){ return prefixoId+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
   
   
@@ -548,13 +550,14 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
     }catch(e){ migracaoEmAndamento=false; }
   }
   function carregarDeRemoto(remotoBruto, confiavel){
-    if(nome==='vales'&&remotoBruto===undefined)return;
+    if(nome==='vales'&&(remotoBruto===undefined||remotoBruto===null))return;
     const remotoEhArray=Array.isArray(remotoBruto);
     const vals=remotoEhArray
       ? (nome==='vales'?remotoBruto.map((item,index)=>item?{...item,id:item.id||prefixoId+'LEGACY'+index}:null).filter(Boolean):remotoBruto.filter(Boolean))
       : (remotoBruto && typeof remotoBruto==='object' ? Object.values(remotoBruto).filter(Boolean) : []);
 
     if(confiavel){
+      const manterRecentes=nome==='vales'?lista.filter(item=>item&&confirmados.has(String(item.id))&&Date.now()-confirmados.get(String(item.id))<20000&&!vals.some(remote=>remote&&String(remote.id)===String(item.id))):[];
       lista.length=0;
       vals.forEach(function(item){
         if(!item) return;
@@ -562,6 +565,10 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
         if(deletedSet.has(item.id)) return;
         lista.push(item);
       });
+      if(nome==='vales'){
+        manterRecentes.forEach(item=>{if(!deletedSet.has(item.id))lista.push(item);});
+        vals.forEach(item=>{if(item)confirmados.delete(String(item.id));});
+      }
       if(remotoEhArray && vals.length) migrar();
       return;
     }
@@ -624,7 +631,7 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
       aplicarTombstonesRemotos(remotoDelV2);
     }catch(e){ console.warn('buscarTombstonesRemotosEAplicar('+nome+') falhou:', e); }
   }
-  return { deletedSet:deletedSet, paraObjeto:paraObjeto, remover:remover, migrar:migrar, carregarDeRemoto:carregarDeRemoto, aplicarTombstonesRemotos:aplicarTombstonesRemotos, buscarTombstonesRemotosEAplicar:buscarTombstonesRemotosEAplicar, novoId:novoId, limparDuplicatasExatas:limparDuplicatasExatas };
+  return { deletedSet:deletedSet, paraObjeto:paraObjeto, remover:remover, migrar:migrar, carregarDeRemoto:carregarDeRemoto, aplicarTombstonesRemotos:aplicarTombstonesRemotos, buscarTombstonesRemotosEAplicar:buscarTombstonesRemotosEAplicar, novoId:novoId, limparDuplicatasExatas:limparDuplicatasExatas, marcarConfirmado:marcarConfirmado };
 }
 
 
@@ -3655,10 +3662,10 @@ function _cfgFinanceCompanyColor(company){
   return i>=0&&i<colors.length?colors[i]:'#888';
 }
 function _cfgEmployeeCompanies(){
-  const a=Array.isArray(ERP_BUSINESS_CONFIG.employeeCompanies)?ERP_BUSINESS_CONFIG.employeeCompanies:[];
   const pub=_cfgPublicBusiness();
+  const a=Array.isArray(ERP_BUSINESS_CONFIG.employeeCompanies)?ERP_BUSINESS_CONFIG.employeeCompanies:[];
   const b=Array.isArray(pub.employeeCompanies)?pub.employeeCompanies:[];
-  return a.length?a.slice():b.slice();
+  return [...new Set([...a,...b].map(v=>String(v||'').trim()).filter(Boolean))];
 }
 function _cfgTransferCompanies(){
   const a=Array.isArray(ERP_BUSINESS_CONFIG.transferCompanies)?ERP_BUSINESS_CONFIG.transferCompanies:[];
@@ -3691,6 +3698,47 @@ function _cfgEmployeeCompanyOptionsHtml(sel){
   const values=_cfgEmployeeCompanies();
   if(sel && values.indexOf(sel)<0) values.push(sel);
   return '<option value="">— Selecione —</option>'+values.map(function(v){return '<option value="'+esc(v)+'"'+(v===sel?' selected':'')+'>'+esc(v)+'</option>';}).join('');
+}
+function gerenciarEmpresasFuncionarios(){
+  document.getElementById('employee-company-ov')?.remove();
+  const ov=document.createElement('div');
+  ov.className='modal-ov open';
+  ov.id='employee-company-ov';
+  const body=document.createElement('div');
+  body.className='modal';
+  body.style.maxWidth='520px';
+  body.innerHTML='<h3>Empresas dos funcionários</h3><p>Cadastre um nome para vincular colaboradores, sem alterar empresas ou históricos existentes.</p><div class="fg"><label>Empresas cadastradas</label><div id="rh-empresas-atuais" style="padding:10px;background:#f3f7f4;border-radius:8px"></div></div><div class="fg"><label>Nome da nova empresa *</label><input id="rh-nova-empresa" maxlength="80" autocomplete="off" placeholder="Ex.: Física"></div><div class="modal-ft"><button class="btn-cancel" onclick="document.getElementById(\'employee-company-ov\')?.remove()">Cancelar</button><button class="btn-save" onclick="salvarEmpresaFuncionarios()">Salvar empresa</button></div>';
+  const list=body.querySelector('#rh-empresas-atuais');
+  if(list)list.textContent=_cfgEmployeeCompanies().join(' · ')||'Nenhuma empresa cadastrada';
+  ov.appendChild(body);
+  document.body.appendChild(ov);
+  body.querySelector('input')?.focus();
+}
+async function salvarEmpresaFuncionarios(){
+  const input=document.getElementById('rh-nova-empresa');
+  const nome=String(input?.value||'').trim().replace(/\s+/g,' ');
+  if(!nome||nome.length>80||/[<>\u0000-\u001f]/.test(nome)){showToast('Informe um nome válido (até 80 caracteres).','error');return;}
+  const btn=document.querySelector('#employee-company-ov .btn-save');
+  if(btn)btn.disabled=true;
+  try{
+    const user=firebase?.auth?.().currentUser;
+    if(!user)throw new Error('Sessão expirada. Entre novamente no ERP.');
+    const token=await user.getIdToken();
+    const response=await fetch('/api/admin/employee-companies',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({name:nome})});
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.message||'Não foi possível cadastrar a empresa.');
+    const cfg=window.__PUBLIC_BUSINESS_CONFIG__||{};
+    cfg.employeeCompanies=result.companies;
+    window.__PUBLIC_BUSINESS_CONFIG__=cfg;
+    ERP_BUSINESS_CONFIG.employeeCompanies=result.companies.slice();
+    for(const id of ['nfu-emp','efn-emp']){
+      const sel=document.getElementById(id);
+      if(sel){sel.innerHTML=_cfgEmployeeCompanyOptionsHtml(nome);sel.value=nome;}
+    }
+    document.getElementById('employee-company-ov')?.remove();
+    showToast('Empresa cadastrada com sucesso.','success');
+  }catch(error){showToast('Não foi possível salvar: '+error.message,'error',7000);}
+  finally{if(btn)btn.disabled=false;}
 }
 function _empresaPrincipalContatosInline(){
   const e=_empresaPrincipalInfo(), a=[];
@@ -4193,7 +4241,7 @@ const FORMS={
     </div>
     <div class="modal-ft" style="margin-top:14px"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarCheques()">💾 Salvar Todos</button></div>`,
   vale:`<h3>💳 Novo Vale</h3>
-    <div class="fg"><label>Funcionário</label><select id="vl-func">${FUNCIONARIOS.map(f=>`<option value="${f.mat}">${f.mat} – ${f.nome}</option>`).join('')}</select></div>
+    <div class="fg"><label>Funcionário</label><select id="vl-func">${FUNCIONARIOS.filter(f=>_erpFuncionarioAtivo(f)).map(f=>`<option value="${esc(f.mat)}">${esc(f.mat)} – ${esc(f.nome)}</option>`).join('')}</select></div>
     <div class="fg"><label>Data</label><input id="vl-data" type="date"></div>
     <div class="fg"><label>Mês Referência</label><input id="vl-mes" placeholder="Junho/2026"></div>
     <div class="fg"><label>Valor R$</label><input id="vl-valor" type="number" min="0" step="0.01"></div>
@@ -4203,7 +4251,7 @@ const FORMS={
   funcionario:`<h3>👷 Novo Funcionário</h3>
     <div class="fg"><label>Nome Completo</label><input id="nfu-nome" class="mask-upper" placeholder="JOÃO DA SILVA"></div>
     <div class="fg"><label>CPF</label><input id="nfu-cpf" class="mask-cpf" placeholder="000.000.000-00"></div>
-    <div class="fg"><label>Empresa</label><select id="nfu-emp"></select></div>
+    <div class="fg"><label>Empresa</label><div style="display:flex;gap:8px;align-items:center"><select id="nfu-emp" style="flex:1"></select><button type="button" class="btn-edit" onclick="gerenciarEmpresasFuncionarios()">+ Empresa</button></div></div>
     <div class="fg"><label>Cargo</label><input id="nfu-cargo" list="nfu-cargos" placeholder="Digite ou escolha o cargo"><datalist id="nfu-cargos"><option>Gerente Geral</option><option>Supervisor</option><option>Operador de Prensa</option><option>Separador de Materiais</option><option>Motorista</option><option>Auxiliar Geral</option><option>Balanceiro</option><option>Administrativo</option><option>Auxiliar Operacional</option><option>Serviços Gerais</option><option>Auxiliar de Produção</option></datalist></div>
     <div class="fg"><label>Salário Base R$</label><input id="nfu-sal" class="mask-money" inputmode="numeric" placeholder="R$ 0,00"></div>
     <div class="fg"><label>Vale Transporte R$ <small style="color:#888">(valor mensal)</small></label><input id="nfu-vt" type="number" min="0" step="0.01" placeholder="0,00"></div>
@@ -4273,7 +4321,7 @@ const FORMS={
     <datalist id="ct-cat-list"><option>Aluguel</option><option>Energia</option><option>Água</option><option>Internet/Telefone</option><option>Seguro</option><option>Financiamento</option><option>Contabilidade</option><option>Manutenção</option><option>Serviços Terceiros</option><option>Outros</option></datalist>
     <div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarContrato()">💾 Salvar</button></div>`,
   ponto_lancamento:`<h3>🕐 Lançar Falta / Hora Extra</h3>
-    <div class="fg"><label>Funcionário</label><select id="pt-func">${FUNCIONARIOS.map(f=>`<option value="${f.mat}">${f.mat} – ${f.nome}</option>`).join('')}</select></div>
+    <div class="fg"><label>Funcionário</label><select id="pt-func">${FUNCIONARIOS.filter(_erpFuncionarioAtivo).map(f=>`<option value="${esc(f.mat)}">${esc(f.mat)} – ${esc(f.nome)}</option>`).join('')}</select></div>
     <div class="fg"><label>Data</label><input id="pt-data" type="date"></div>
     <div class="fg"><label>Tipo</label><select id="pt-tipo" onchange="document.getElementById('pt-horas-div').style.display=this.value==='HE'?'':'none'"><option value="Falta">Falta</option><option value="HE">Hora Extra</option><option value="Atestado">Atestado</option></select></div>
     <div class="fg" id="pt-horas-div" style="display:none"><label>Horas Extras</label><input id="pt-horas" type="number" min="0" step="0.5" value="0"></div>
@@ -6211,6 +6259,7 @@ function verValesFunc(mat){
       '<tbody>'+
       vales.map((v,i)=>{
         const gi=VALES_DB.indexOf(v);
+        const vid=encodeURIComponent(String(v.id||'')).replace(/'/g,'%27');
         const ass=v.assinatura?'<span style="background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:2px 7px;font-size:.72rem;font-weight:700">✅ Assinado</span>':'<span style="background:#fff3cd;color:#856404;border-radius:10px;padding:2px 7px;font-size:.72rem;font-weight:700">⏳ Pendente</span>';
         return '<tr style="border-bottom:1px solid #eee">'+
         '<td style="padding:6px 8px">'+esc(v.data||'—')+'</td>'+
@@ -6219,9 +6268,9 @@ function verValesFunc(mat){
         '<td style="padding:6px 8px">'+esc(v.forma||'—')+'</td>'+
         '<td style="padding:6px 8px;text-align:center">'+ass+'</td>'+
         '<td style="padding:6px 8px;text-align:center;white-space:nowrap">'+
-        '<button class="btn-edit" style="font-size:.75rem;margin-right:3px" onclick="editVale('+gi+')">✏️</button>'+
+        '<button class="btn-edit" style="font-size:.75rem;margin-right:3px" onclick="editValePorId(\''+vid+'\')">✏️</button>'+
         '<button class="btn-edit" style="font-size:.75rem;margin-right:3px;background:#1565c0;color:#fff" onclick="valeAssinarModal('+gi+',\''+mat+'\')">✍️</button>'+
-        '<button class="btn-edit" style="font-size:.75rem;margin-right:3px;background:#2e7d32;color:#fff" onclick="valeGerarRecibo('+gi+')">📄</button>'+
+        '<button class="btn-edit" style="font-size:.75rem;margin-right:3px;background:#2e7d32;color:#fff" onclick="valeGerarReciboPorId(\''+vid+'\')">📄</button>'+
         '<button class="btn-edit-danger" style="font-size:.75rem" onclick="excluirValeModal('+gi+',\''+mat+'\')">🗑️</button></td>'+
         '</tr>';
       }).join('')+
@@ -7311,7 +7360,7 @@ function verCustoAnual(){
   const ano=mes.split('-')[0];
   const meses=['01','02','03','04','05','06','07','08','09','10','11','12'];
   const nomeMeses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  const lista=FUNCIONARIOS.filter(f=>f.status!=='Inativo');
+  const lista=FUNCIONARIOS.filter(_erpFuncionarioAtivo);
 
   const rows=lista.map(f=>{
     let totalBruto=0,totalLiq=0,totalVales=0,totalInss=0,mesesAtivos=0;
@@ -7416,14 +7465,15 @@ function verCustoAnual(){
 function renderVales(){
   const tb=document.getElementById('tb-vales');
   if(!tb) return;
+  const valorValido=v=>{const n=Number(v);return Number.isFinite(n)&&n>0&&n<=10000000?Math.round(n*100)/100:0;};
   const fmt=function(v){return _numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
   const filtroMes=_valeMesFiltroAtual();
   const listaFiltrada=_valeListaFiltrada();
   const agora=new Date();
   const mesKpi=filtroMes||agora.getFullYear()+'-'+String(agora.getMonth()+1).padStart(2,'0');
   const doMes=VALES_DB.filter(function(v){return _valeMesChave(v)===mesKpi;});
-  const totalMes=doMes.reduce(function(s,v){return s+_numFinito(v.valor,0);},0);
-  const totalGeral=VALES_DB.reduce(function(s,v){return s+_numFinito(v.valor,0);},0);
+  const totalMes=doMes.reduce(function(s,v){return s+valorValido(v.valor);},0);
+  const totalGeral=VALES_DB.reduce(function(s,v){return s+valorValido(v.valor);},0);
   const cfgV=(ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.employeeBenefits)||{};
   const diaVale=Math.max(1,Math.min(31,Number(cfgV.voucherPaymentDay)||20));
   const tituloVales=document.getElementById('vales-titulo');
@@ -7449,11 +7499,12 @@ function renderVales(){
     const pa=String(a&&a.data||'').split('/'), pb=String(b&&b.data||'').split('/');
     const da=pa.length===3?new Date(Number(pa[2]),Number(pa[1])-1,Number(pa[0])).getTime():Date.parse(a&&a.data||'')||0;
     const db=pb.length===3?new Date(Number(pb[2]),Number(pb[1])-1,Number(pb[0])).getTime():Date.parse(b&&b.data||'')||0;
-    return db-da||String(b?.id||'').localeCompare(String(a?.id||''));
+    const createdA=Date.parse(a?.criadoEm||'')||0,createdB=Date.parse(b?.criadoEm||'')||0;
+    return createdB-createdA||db-da||String(b?.id||'').localeCompare(String(a?.id||''));
   });
   const pagina=_erpPaginarDados('vales',sorted,'tb-vales',renderVales,{searchable:true,placeholder:'Pesquisar vale, funcionário ou observação...',text:v=>{const f=FUNCIONARIOS.find(x=>x.mat===v.mat);return [v.mat,f?.nome,v.data,v.mes,v.obs,v.forma].join(' ');}});
   tb.innerHTML=pagina.map(function(v){
-    const gi=VALES_DB.indexOf(v);
+    const vid=encodeURIComponent(String(v.id||'')).replace(/'/g,'%27');
     const f=FUNCIONARIOS.find(function(x){return x.mat===v.mat;});
     const nome=f?f.nome:v.mat;
     const historico=!f||_erpHistoricoSomenteLeitura(f);
@@ -7465,19 +7516,27 @@ function renderVales(){
       '<td>'+esc(_fmtDataBR(v.data)||'—')+'</td>'+ 
       '<td>'+esc(v.mes||'—')+'</td>'+ 
       '<td><b>'+esc(nome||'—')+'</b>'+(historico?' <small style="color:#7b5792">(Inativo / histórico)</small>':'')+'</td>'+ 
-      '<td style="font-weight:700">R$ '+fmt(v.valor)+'</td>'+ 
+      '<td style="font-weight:700">'+(valorValido(v.valor)?'R$ '+fmt(v.valor):'<span style="color:#b42318">Valor inválido — revisar</span>')+'</td>'+ 
       '<td>'+esc(v.forma||'—')+'</td>'+ 
       '<td style="font-size:.78rem">'+esc(v.obs||'—')+'</td>'+ 
       '<td style="white-space:nowrap;text-align:center">'+assBadge+
         '<br><div style="margin-top:4px;display:flex;gap:4px;justify-content:center">'+
-        '<button class="btn-edit" style="font-size:.72rem;background:#1565c0;color:#fff" onclick="valeAssinarModal('+gi+',\''+String(v.mat||'').replace(/'/g,"\\'")+'\')" title="Capturar assinatura">✍️ Assinar</button>'+ 
-        '<button class="btn-edit" style="font-size:.72rem;background:#2e7d32;color:#fff" onclick="valeGerarRecibo('+gi+')" title="Gerar recibo">📄 Recibo</button>'+ 
+        '<button class="btn-edit" style="font-size:.72rem;background:#1565c0;color:#fff" onclick="valeAssinarPorId(\''+vid+'\')" title="Capturar assinatura">✍️ Assinar</button>'+ 
+        '<button class="btn-edit" style="font-size:.72rem;background:#2e7d32;color:#fff" onclick="valeGerarReciboPorId(\''+vid+'\')" title="Gerar recibo">📄 Recibo</button>'+ 
         '</div></td>'+ 
-      '<td style="white-space:nowrap">'+(historico?'<span style="color:#66756e;font-size:.78rem">Somente leitura</span>':'<button class="btn-edit" onclick="editVale('+gi+')" title="Editar" style="margin-right:4px">✏️</button><button class="btn-edit-danger" onclick="excluirVale('+gi+')" title="Excluir">🗑️</button>')+'</td>'+ 
+      '<td style="white-space:nowrap">'+(historico?'<span style="color:#66756e;font-size:.78rem">Somente leitura</span>':'<button class="btn-edit" onclick="editValePorId(\''+vid+'\')" title="Editar" style="margin-right:4px">✏️</button><button class="btn-edit-danger" onclick="excluirValePorId(\''+vid+'\')" title="Excluir">🗑️</button>')+'</td>'+ 
       '</tr>';
   }).join('');
 }
 
+function valeIndicePorId(encoded){
+  const id=decodeURIComponent(String(encoded||''));
+  return VALES_DB.findIndex(v=>v&&String(v.id)===id);
+}
+function valeAssinarPorId(id){const i=valeIndicePorId(id);if(i<0){showToast('Vale não encontrado. Atualize os registros.','error');return;}valeAssinarModal(i,VALES_DB[i].mat);}
+function valeGerarReciboPorId(id){const i=valeIndicePorId(id);if(i<0){showToast('Vale não encontrado. Atualize os registros.','error');return;}valeGerarRecibo(i);}
+function editValePorId(id){const i=valeIndicePorId(id);if(i<0){showToast('Vale não encontrado. Atualize os registros.','error');return;}editVale(i);}
+function excluirValePorId(id){const i=valeIndicePorId(id);if(i<0){showToast('Vale não encontrado. Atualize os registros.','error');return;}return excluirVale(i);}
 function salvarPontoLancamento(){
   const mat=document.getElementById('pt-func')?.value;
   const data=document.getElementById('pt-data')?.value;
@@ -7501,6 +7560,7 @@ function _valeConfirmadoLocal(item,excluir=false){
     if(index>=0)_syncVales.remover(item.id);
   }else if(index>=0){VALES_DB[index]=item;}
   else VALES_DB.push(item);
+  if(!excluir&&typeof _syncVales.marcarConfirmado==='function')_syncVales.marcarConfirmado(item.id);
   try{localStorage.setItem('mm_vales',JSON.stringify(VALES_DB));}catch(error){}
 }
 
@@ -7545,14 +7605,18 @@ async function salvarValeFunc(){
   if(!mat){showToast('Selecione o funcionário.','error');return false;}
   const funcionario=FUNCIONARIOS.find(f=>f&&f.mat===mat);
   if(!funcionario||!_erpFuncionarioAtivo(funcionario)){showToast('Funcionário inativo. Consulte o histórico.','error');return false;}
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(data)||!Number.isFinite(valor)||valor<=0||Math.round(valor*100)/100!==valor){showToast('Informe data e valor monetário válidos.','error');return false;}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(data)||!Number.isFinite(valor)||valor<=0||Math.round(valor*100)/100!==valor||valor>10000000){showToast('Informe data e valor monetário válidos.','error');return false;}
   const button=document.querySelector('#modal-body .btn-save');
   if(button?.disabled)return false;
   const id=button?.dataset.valeId||_syncVales.novoId();
   if(button){button.dataset.valeId=id;button.disabled=true;}
-  const item={id,mat,data:data.split('-').reverse().join('/'),mes:document.getElementById('vl-mes')?.value||'',valor,forma:document.getElementById('vl-forma')?.value||'PIX',obs:document.getElementById('vl-obs')?.value||''};
+  const item={id,mat,data:data.split('-').reverse().join('/'),mes:document.getElementById('vl-mes')?.value||'',valor,forma:document.getElementById('vl-forma')?.value||'PIX',obs:document.getElementById('vl-obs')?.value||'',criadoEm:new Date().toISOString()};
   try{
     await _valeCriarSeguro(item);
+    try{
+      const snap=await window._fbDB.ref('erp/vales').once('value');
+      if(snap)_syncVales.carregarDeRemoto(snap.val(),true);
+    }catch(error){console.warn('Consulta de vales após confirmação indisponível:',error);}
     renderVales();cm();showToast('Vale registrado e confirmado no Firebase.','success');
     return true;
   }catch(error){showToast('Vale não confirmado: '+error.message,'error',7000);return false;}
@@ -7577,6 +7641,27 @@ function _diasUteisNoMes(ano,mesIndex){
   }
   return total;
 }
+function _pontoMinutosRHiD(valor){
+  const m=String(valor||'').trim().match(/^(\d{1,4}):(\d{2})$/);
+  return m&&Number(m[2])<60?Number(m[1])*60+Number(m[2]):0;
+}
+function _pontoResumoMensal(mat,referencia){
+  const manuais=PONTO_DB.filter(p=>p&&p.mat===mat&&_erpRegistroMes(p.data,referencia));
+  const batidas=PONTO_BATIDAS_DB.filter(p=>p&&p.mat===mat&&_erpRegistroMes(p.data,referencia));
+  const extrasManuais=manuais.filter(p=>p.tipo==='HE').reduce((s,p)=>s+Math.round(Number(p.horas||0)*60),0);
+  const datasExtrasManuais=new Set(manuais.filter(p=>p.tipo==='HE').map(p=>p.data));
+  const datasFaltasManuais=new Set(manuais.filter(p=>p.tipo==='Falta').map(p=>p.data));
+  const extrasImportadas=batidas.filter(p=>!datasExtrasManuais.has(p.data)).reduce((s,p)=>s+_pontoMinutosRHiD(p.extrasTotal||Object.values(p.extras||{})[0]?.valor),0);
+  const faltasComMarcacao=batidas.filter(p=>!datasFaltasManuais.has(p.data)&&/\bFalta\b/i.test(String(p.observacao||'')));
+  const faltasIntegraisImportadas=faltasComMarcacao.filter(p=>!/[0-2]\d:[0-5]\d/.test([p.ent1,p.sai1,p.ent2,p.sai2].join(' '))).length;
+  const faltasManuais=manuais.filter(p=>p.tipo==='Falta').length;
+  const minutosFalta=faltasManuais*480+batidas.filter(p=>!datasFaltasManuais.has(p.data)).reduce((n,p)=>n+_pontoMinutosRHiD(p.faltaAtraso),0);
+  return {faltas:faltasManuais+faltasComMarcacao.length,faltasIntegrais:faltasManuais+faltasIntegraisImportadas,minutosExtras:Math.max(0,extrasManuais)+extrasImportadas,minutosFalta};
+}
+function _pontoFormatarHoras(minutos){
+  const m=Math.max(0,Math.round(minutos||0));
+  return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0');
+}
 function renderPontoTab(){
   const tb=document.getElementById('tb-ponto');
   if(!tb) return;
@@ -7596,8 +7681,9 @@ function renderPontoTab(){
   const matsVisiveis=new Set(funcionarios.map(f=>f.mat));
   const lancamentosVisiveis=lancamentosMes.filter(p=>matsVisiveis.has(p.mat));
   const ativos=funcionarios.length;
-  const faltasMes=lancamentosVisiveis.filter(p=>p.tipo==='Falta').length;
-  const horasExtrasMes=lancamentosVisiveis.filter(p=>p.tipo==='HE').reduce((total,p)=>total+Number(p.horas||0),0);
+  const resumoPonto=funcionarios.map(f=>_pontoResumoMensal(f.mat,referencia));
+  const faltasMes=resumoPonto.reduce((s,r)=>s+r.faltas,0);
+  const minutosExtrasMes=resumoPonto.reduce((s,r)=>s+r.minutosExtras,0);
   const kDias=document.getElementById('kpi-ponto-dias-uteis');
   const kFunc=document.getElementById('kpi-ponto-funcionarios');
   const kFaltas=document.getElementById('kpi-ponto-faltas');
@@ -7605,7 +7691,7 @@ function renderPontoTab(){
   if(kDias) kDias.textContent=String(diasUteis);
   if(kFunc) kFunc.textContent=String(ativos);
   if(kFaltas) kFaltas.textContent=String(faltasMes);
-  if(kHe) kHe.textContent=(Number.isInteger(horasExtrasMes)?String(horasExtrasMes):horasExtrasMes.toLocaleString('pt-BR',{maximumFractionDigits:2}))+'h';
+  if(kHe) kHe.textContent=_pontoFormatarHoras(minutosExtrasMes);
   
   
   
@@ -7622,15 +7708,16 @@ function renderPontoTab(){
   tb.innerHTML=paginaPonto.map(f=>{
     const historico=_erpHistoricoSomenteLeitura(f);
     const lancs=lancamentosMes.filter(p=>p.mat===f.mat);
-    const faltas=lancs.filter(p=>p.tipo==='Falta').length;
-    const he=lancs.filter(p=>p.tipo==='HE').reduce((s,p)=>s+Number(p.horas||0),0);
-    const hf=lancs.filter(p=>p.tipo==='Falta').reduce((s,p)=>s+8,0);
+    const resumo=_pontoResumoMensal(f.mat,referencia);
+    const faltas=resumo.faltas;
+    const he=_pontoFormatarHoras(resumo.minutosExtras);
+    const hf=_pontoFormatarHoras(resumo.minutosFalta);
     const ates=lancs.filter(p=>p.tipo==='Atestado').length;
-    const diasTrab=historico?'—':Math.max(0,diasUteis-faltas);
+    const diasTrab=historico?'—':Math.max(0,diasUteis-resumo.faltasIntegrais);
     return '<tr>'+
       '<td>'+esc(f.mat)+'</td><td><b>'+esc(f.nome)+'</b>'+(historico?' <small title="Consulta de registros anteriores" style="color:#7b5792">(Inativo)</small>':'')+'</td>'+
       '<td>'+diasTrab+'</td><td>'+faltas+'</td>'+
-      '<td>'+he+'h</td><td>'+hf+'h</td><td>'+ates+'</td>'+
+      '<td>'+he+'</td><td>'+hf+'</td><td>'+ates+'</td>'+
       '<td style="font-size:.75rem">'+(lancs.map(l=>l.tipo+' '+l.data).join(', ')||'—')+'</td>'+
       '<td>'+(historico?'<span style="color:#66756e;font-size:.78rem">Somente leitura</span>':'<button class="btn-edit-danger" onclick="excluirPontoFunc(&#39;'+f.mat+'&#39;)" title="Excluir lançamentos deste mês">🗑️</button>')+'</td>'+
       '</tr>';
@@ -13756,8 +13843,8 @@ function importarFornecedores(input){
 
 function atualizarKpisFuncionarios(){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const ativos=FUNCIONARIOS.filter(f=>f.status!=='Inativo');
-  const inativos=FUNCIONARIOS.filter(f=>f.status==='Inativo');
+  const ativos=FUNCIONARIOS.filter(_erpFuncionarioAtivo);
+  const inativos=FUNCIONARIOS.filter(f=>!_erpFuncionarioAtivo(f));
   const gerentes=ativos.filter(f=>(f.cargo||'').toLowerCase().includes('gerente'));
   const supervisores=ativos.filter(f=>(f.cargo||'').toLowerCase().includes('supervisor'));
   const folhaTotal=ativos.reduce((s,f)=>s+Number(f.sal||0),0);
@@ -13852,8 +13939,8 @@ function renderTbFuncionarios(){
   setTimeout(()=>renderFolha(),50);
   atualizarKpisFuncionarios();
 
-  const ativos   = FUNCIONARIOS.filter(x=>x.status!=='Inativo').slice().sort(_funcCmp);
-  const inativos = FUNCIONARIOS.filter(x=>x.status==='Inativo').slice().sort(_funcCmp);
+  const ativos   = FUNCIONARIOS.filter(_erpFuncionarioAtivo).slice().sort(_funcCmp);
+  const inativos = FUNCIONARIOS.filter(x=>!_erpFuncionarioAtivo(x)).slice().sort(_funcCmp);
 
   
   const ba=document.getElementById('func-badge-ativos');
@@ -20809,14 +20896,14 @@ function om(k){
       if(k==='vale') setTimeout(()=>{ try{
         var sel=document.getElementById('vl-func');
         if(sel){
-          var ativos=(FUNCIONARIOS||[]).filter(f=>f && f.status!=='Inativo').slice().sort((a,b)=>String(a.mat||'').localeCompare(String(b.mat||''),'pt-BR'));
+          var ativos=(FUNCIONARIOS||[]).filter(f=>_erpFuncionarioAtivo(f)).slice().sort((a,b)=>String(a.mat||'').localeCompare(String(b.mat||''),'pt-BR'));
           sel.innerHTML=ativos.map(f=>'<option value="'+esc(f.mat)+'">'+esc(f.mat)+' – '+esc(f.nome)+'</option>').join('');
         }
       }catch(e){} },20);
       if(k==='ponto_lancamento') setTimeout(()=>{ try{
         var sel=document.getElementById('pt-func');
         if(sel){
-          var ativos=(FUNCIONARIOS||[]).filter(f=>f && f.status!=='Inativo').slice().sort((a,b)=>String(a.mat||'').localeCompare(String(b.mat||''),'pt-BR'));
+          var ativos=(FUNCIONARIOS||[]).filter(f=>_erpFuncionarioAtivo(f)).slice().sort((a,b)=>String(a.mat||'').localeCompare(String(b.mat||''),'pt-BR'));
           sel.innerHTML=ativos.map(f=>'<option value="'+esc(f.mat)+'">'+esc(f.mat)+' – '+esc(f.nome)+'</option>').join('');
         }
         var dt=document.getElementById('pt-data'); if(dt&&!dt.value) dt.value=_hojeISO();
