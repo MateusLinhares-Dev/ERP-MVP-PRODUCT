@@ -4,7 +4,7 @@ import { createLegacyDatabaseAdapter } from './legacy-db-adapter.js';
 import { createRealtimeBusinessRepository } from './realtime-business-repository.js';
 import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 
-const assetRevision = '20261105-company-directory-conflict-v5';
+const assetRevision = '20261105-supplier-advance-tombstones-v6';
 
 function loadClassic(src) {
   return new Promise((resolve, reject) => {

@@ -804,7 +804,7 @@ function populateFornSelects(){
     
     
     const dl=document.getElementById('dlist-forn-ativos');
-    if(dl) dl.innerHTML=ativos.map(f=>'<option value="'+esc(f.nome)+'">').join('');
+    if(dl) dl.innerHTML=ativos.map(f=>'<option value="'+esc(_fornRotuloOpcao(f,ativos))+'"></option>').join('');
   }catch(e){}
 }
 
@@ -812,16 +812,28 @@ function populateFornSelects(){
 
 
 
+function _fornNomeNormalizado(value){
+  return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,' ').toLocaleLowerCase('pt-BR');
+}
+
+function _fornRotuloOpcao(f,lista){
+  const nome=String(f.nome||'').trim();
+  const repetidos=lista.filter(item=>_fornNomeNormalizado(item.nome)===_fornNomeNormalizado(nome));
+  return repetidos.length>1?nome+' — '+String(f.cod||''):nome;
+}
+
 function _fornBuscaResolverCod(buscaId, hiddenId){
   const inp=document.getElementById(buscaId);
   const hid=document.getElementById(hiddenId);
-  if(!inp||!hid) return;
-  const norm=s=>(s||'').trim().toLowerCase();
-  const digitado=norm(inp.value);
+  if(!inp||!hid)return;
+  const digitado=_fornNomeNormalizado(inp.value);
   const forAdvance=buscaId==='adt-forn-busca'||buscaId==='ea-forn-busca';
-  const permitted=forAdvance&&window.__ERP_ADVANCE_BANK_OPTIONS_UID__===firebase?.auth?.().currentUser?.uid?window.__ERP_ADVANCE_SUPPLIER_OPTIONS__||[]:[];
-  const forn=digitado?[...getFornAtivos(),...permitted].find(f=>norm(f.nome)===digitado):null;
-  hid.value=forn?forn.cod:'';
+  let usuario='';
+  try{usuario=firebase.auth().currentUser?.uid||'';}catch(e){}
+  const permitted=forAdvance&&usuario&&window.__ERP_ADVANCE_BANK_OPTIONS_UID__===usuario&&window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__===true;
+  const lista=permitted?(window.__ERP_ADVANCE_SUPPLIER_OPTIONS__||[]):getFornAtivos();
+  const encontrados=digitado?lista.filter(f=>_fornNomeNormalizado(_fornRotuloOpcao(f,lista))===digitado):[];
+  hid.value=encontrados.length===1?String(encontrados[0].cod):'';
 }
 
 let FORNECEDORES_DESPESA = []; 
@@ -4189,7 +4201,7 @@ const FORMS={
     <div class="modal-ft" style="margin-top:14px"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarChequesCli()">💾 Salvar Todos</button></div>`,
   adiantamento:`<h3>💰 Novo Adiantamento</h3>
     <div class="fg"><label>Fornecedor</label>
-      <input id="adt-forn-busca" type="text" autocomplete="off" list="dlist-forn-ativos" placeholder="Digite o nome ou parte dele..." oninput="_fornBuscaResolverCod('adt-forn-busca','adt-forn')" onchange="_fornBuscaResolverCod('adt-forn-busca','adt-forn')" style="width:100%;box-sizing:border-box">
+      <input id="adt-forn-busca" type="text" autocomplete="off" list="dlist-forn-adiantamentos" placeholder="Digite o nome ou parte dele..." oninput="_fornBuscaResolverCod('adt-forn-busca','adt-forn')" onchange="_fornBuscaResolverCod('adt-forn-busca','adt-forn')" style="width:100%;box-sizing:border-box">
       <input type="hidden" id="adt-forn">
     </div>
     <div class="fg"><label>Data</label><input id="adt-data" type="date" value="${_hojeISO()}"></div>
@@ -6095,7 +6107,7 @@ function editAdiantamento(fornCod, adtCod){
   body.innerHTML=`<h3>✏️ Editar Adiantamento</h3>
     <div class="fg"><label>Código</label><input id="ea-cod" value="${a.cod}" disabled style="background:#f5f5f5"></div>
     <div class="fg"><label>Fornecedor <span style="font-weight:400;color:#888;font-size:.78rem">(mude aqui se lançou no nome errado — move o adiantamento para o fornecedor certo)</span></label>
-      <input id="ea-forn-busca" type="text" autocomplete="off" list="dlist-forn-ativos" value="${esc(_fornNomeAtual)}" placeholder="Digite o nome do fornecedor..." oninput="_fornBuscaResolverCod('ea-forn-busca','ea-forn')" onchange="_fornBuscaResolverCod('ea-forn-busca','ea-forn')" style="width:100%;box-sizing:border-box">
+      <input id="ea-forn-busca" type="text" autocomplete="off" list="dlist-forn-adiantamentos" value="${esc(_fornNomeAtual)}" placeholder="Digite o nome do fornecedor..." oninput="_fornBuscaResolverCod('ea-forn-busca','ea-forn')" onchange="_fornBuscaResolverCod('ea-forn-busca','ea-forn')" style="width:100%;box-sizing:border-box">
       <input type="hidden" id="ea-forn" value="${esc(fornCod)}">
     </div>
     <div class="fg"><label>Data</label><input type="date" id="ea-data" value="${a.data?a.data.split('/').reverse().join('-'):''}"></div>
@@ -9136,10 +9148,13 @@ function _adtPopularFornecedoresPermitidos(){
   const users=window.__ERP_ADVANCE_SUPPLIER_OPTIONS__||[];
   let dl=document.getElementById('dlist-forn-adiantamentos');
   if(!dl){dl=document.createElement('datalist');dl.id='dlist-forn-adiantamentos';document.body.appendChild(dl);}
-  dl.innerHTML=users.map(f=>'<option value="'+esc(f.nome)+'"></option>').join('');
+  dl.innerHTML=users.map(f=>'<option value="'+esc(_fornRotuloOpcao(f,users))+'"></option>').join('');
   for(const id of ['adt-forn-busca','ea-forn-busca']){
     const input=document.getElementById(id);
-    if(input)input.setAttribute('list','dlist-forn-adiantamentos');
+    if(input){
+      input.setAttribute('list','dlist-forn-adiantamentos');
+      _fornBuscaResolverCod(id,id==='adt-forn-busca'?'adt-forn':'ea-forn');
+    }
   }
 }
 const _erpBankDirectory={uid:'',ready:false,pending:null,banks:[],error:'',loadedAt:0};
