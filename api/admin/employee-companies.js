@@ -15,9 +15,11 @@ export function normalizeEmployeeCompanies(values){
   }
   return out;
 }
-export function changeCompanyConfig(current,action,name){
+export function changeCompanyConfig(current,action,name,expectedRevision){
   const cfg=current&&typeof current==='object'&&!Array.isArray(current)?{...current}:{};
   const key=companyKey(name);
+  const currentRevision=Number(cfg.companyDirectoryRevision)||0;
+  if(expectedRevision!==undefined&&currentRevision!==expectedRevision)return null;
   const companies=normalizeEmployeeCompanies(cfg.employeeCompanies);
   const inactive=normalizeEmployeeCompanies(cfg.inactiveCompanies);
   const deleted=normalizeEmployeeCompanies(cfg.deletedCompanies);
@@ -54,6 +56,7 @@ export function changeCompanyConfig(current,action,name){
 }
 export default async function handler(req,res){
   applyApiSecurityHeaders(res,req);
+  res.setHeader('Cache-Control','no-store');
   try{
     if(req.method==='GET'){
       await requireIdentity(req,{admin:true});
@@ -71,9 +74,13 @@ export default async function handler(req,res){
     if(!name||name.length>80||/[<>\u0000-\u001f]/.test(name)||!['create','archive','restore','delete'].includes(action)){
       const error=new Error('Informe uma empresa e uma operação válidas.');error.status=400;throw error;
     }
+    const expectedRevision=req.body?.expectedRevision;
+    if(expectedRevision!==undefined&&(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)){
+      const error=new Error('Versão do cadastro inválida.');error.status=400;throw error;
+    }
     const {db}=getFirebaseAdmin();
-    const result=await db.ref('erp/config').transaction(current=>changeCompanyConfig(current,action,name));
-    if(!result.committed){const error=new Error('Não foi possível alterar esta empresa. Confira se a empresa existe, se não é a principal ou se já foi excluída.');error.status=409;throw error;}
+    const result=await db.ref('erp/config').transaction(current=>changeCompanyConfig(current,action,name,expectedRevision));
+    if(!result.committed){const error=new Error('O cadastro foi alterado em outra sessão ou a empresa já foi excluída. A lista será atualizada; confira e tente novamente.');error.status=409;throw error;}
     const cfg=result.snapshot.val()||{};
     try{await db.ref('erpAudit').push({action:'company-'+action,module:'config',actorLogin:actor.erpUser,company:name,at:new Date().toISOString()});}catch(error){console.error('Falha ao registrar auditoria de empresa',error);}
     return res.status(200).json({ok:true,companies:normalizeEmployeeCompanies(cfg.employeeCompanies),inactiveCompanies:normalizeEmployeeCompanies(cfg.inactiveCompanies),deletedCompanies:normalizeEmployeeCompanies(cfg.deletedCompanies),revision:Number(cfg.companyDirectoryRevision)||0,apiVersion:2});

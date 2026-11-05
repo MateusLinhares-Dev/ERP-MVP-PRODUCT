@@ -3781,7 +3781,18 @@ function gerenciarEmpresasFuncionarios(){
   body.innerHTML='<h3>Cadastro central de empresas</h3><p>As empresas cadastradas ficam disponíveis em Funcionários, Despesas do Grupo e nos demais seletores de empresa. A exclusão retira a empresa definitivamente do cadastro e dos seletores. Os lançamentos históricos continuam preservados.</p><div class="fg"><label>Empresas e situação</label><div id="rh-empresas-atuais" class="erp-company-list"></div></div><div class="fg"><label>Nome da nova empresa *</label><input id="rh-nova-empresa" maxlength="80" autocomplete="off" placeholder="Ex.: Física"></div><div class="modal-ft"><button class="btn-cancel" onclick="document.getElementById(\'employee-company-ov\')?.remove()">Fechar</button><button class="btn-save" onclick="salvarEmpresaFuncionarios()">Adicionar empresa</button></div>';
   ov.appendChild(body);
   document.body.appendChild(ov);
-  _erpRenderEmpresasAdministracao();
+  const list=document.getElementById('rh-empresas-atuais');
+  if(list)list.textContent='Carregando cadastro confirmado...';
+  const add=body.querySelector('.btn-save');
+  if(add)add.disabled=true;
+  _erpRecarregarEmpresasServidor().then(function(){
+    if(add&&document.getElementById('employee-company-ov')===ov)add.disabled=false;
+  }).catch(function(error){
+    if(document.getElementById('employee-company-ov')===ov){
+      if(list)list.textContent=error.message;
+      showToast(error.message,'error',7000);
+    }
+  });
   body.querySelector('input')?.focus();
 }
 function _erpRenderEmpresasAdministracao(){
@@ -3801,33 +3812,66 @@ function _erpRenderEmpresasAdministracao(){
   });
 }
 let _erpEmpresaAlteracaoEmCurso=false;
+function _erpEmpresaRespostaValida(result){
+  return result&&result.ok===true&&result.apiVersion===2&&Array.isArray(result.companies)&&Array.isArray(result.deletedCompanies)&&Array.isArray(result.inactiveCompanies)&&Number.isSafeInteger(result.revision)&&result.revision>=0;
+}
+function _erpEmpresaEstadoDesejado(result,action,name){
+  const key=_companyKey(name);
+  if(action==='delete')return result.deletedCompanies.some(v=>_companyKey(v)===key)&&!result.companies.some(v=>_companyKey(v)===key);
+  if(action==='create')return result.companies.some(v=>_companyKey(v)===key)&&!result.deletedCompanies.some(v=>_companyKey(v)===key);
+  return false;
+}
+async function _erpConsultarEmpresasServidor(token){
+  const response=await fetch('/api/admin/employee-companies',{method:'GET',credentials:'same-origin',cache:'no-store',headers:{Authorization:'Bearer '+token}});
+  let result=null;
+  try{result=await response.json();}catch(error){}
+  if(!response.ok)throw new Error(response.status===404||response.status===405?'API de empresas desatualizada na Vercel. Publique a API e o frontend da mesma revisão.':result?.message||'Não foi possível consultar o cadastro de empresas no servidor.');
+  if(!_erpEmpresaRespostaValida(result))throw new Error('API de empresas desatualizada. Publique a API e o frontend da mesma revisão na Vercel antes de alterar empresas.');
+  const localRevision=Number(window.__ERP_COMPANY_DIRECTORY_REVISION__)||0;
+  if(result.revision<localRevision)throw new Error('O servidor retornou uma versão anterior do cadastro de empresas. Atualize a publicação da API antes de prosseguir.');
+  return result;
+}
+async function _erpRecarregarEmpresasServidor(){
+  const user=firebase?.auth?.().currentUser;
+  if(!user)throw new Error('Sessão expirada. Entre novamente no ERP.');
+  const token=await user.getIdToken();
+  const result=await _erpConsultarEmpresasServidor(token);
+  _erpAplicarCadastroEmpresas(result);
+  _erpRenderEmpresasAdministracao();
+  return result;
+}
 async function _erpEnviarEmpresa(action,name){
   if(_erpEmpresaAlteracaoEmCurso)throw new Error('Outra alteração de empresa está em andamento.');
   _erpEmpresaAlteracaoEmCurso=true;
   try{
-  const user=firebase?.auth?.().currentUser;
-  if(!user)throw new Error('Sessão expirada. Entre novamente no ERP.');
-  const token=await user.getIdToken();
-  const response=await fetch('/api/admin/employee-companies',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({action,name})});
-  let result;
-  try{result=await response.json();}catch(error){throw new Error('A API não devolveu uma resposta válida. A operação pode ter sido registrada; confira a lista antes de tentar novamente.');}
-  if(!response.ok)throw new Error(result.message||'Não foi possível atualizar as empresas.');
-  const confirmado=r=>r&&r.ok===true&&Array.isArray(r.companies)&&Array.isArray(r.deletedCompanies)&&Number.isSafeInteger(Number(r.revision))&&Number(r.revision)>=1;
-  if(!confirmado(result)){
+    const user=firebase?.auth?.().currentUser;
+    if(!user)throw new Error('Sessão expirada. Entre novamente no ERP.');
+    const token=await user.getIdToken();
+    const before=await _erpConsultarEmpresasServidor(token);
+    _erpAplicarCadastroEmpresas(before);
+    _erpRenderEmpresasAdministracao();
+    if(_erpEmpresaEstadoDesejado(before,action,name))return before;
+    let response=null,result=null,requestError=null;
     try{
-      const verifyResponse=await fetch('/api/admin/employee-companies',{method:'GET',credentials:'same-origin',cache:'no-store',headers:{Authorization:'Bearer '+token}});
-      if(verifyResponse.ok){
-        const serverState=await verifyResponse.json();
-        if(confirmado(serverState))result=serverState;
+      response=await fetch('/api/admin/employee-companies',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({action,name,expectedRevision:before.revision})});
+      try{result=await response.json();}catch(error){}
+    }catch(error){requestError=error;}
+    if(response&&!response.ok){
+      if(response.status===409){
+        try{const latest=await _erpConsultarEmpresasServidor(token);_erpAplicarCadastroEmpresas(latest);_erpRenderEmpresasAdministracao();}catch(error){}
       }
-    }catch(error){}
-    if(!confirmado(result))throw new Error('API de empresas desatualizada na Vercel. A alteração pode ter sido gravada, mas não foi possível verificá-la. Atualize frontend e função da API na mesma publicação antes de tentar novamente.');
-  }
-  if(action==='delete'&&!result.deletedCompanies.some(v=>_companyKey(v)===_companyKey(name)))throw new Error('Exclusão não confirmada pelo servidor.');
-  if(action==='create'&&!result.companies.some(v=>_companyKey(v)===_companyKey(name)))throw new Error('Inclusão não confirmada pelo servidor.');
-  _erpAplicarCadastroEmpresas(result);
-  _erpRenderEmpresasAdministracao();
-  return result;
+      throw new Error(result?.message||'Não foi possível alterar o cadastro de empresas.');
+    }
+    if(!_erpEmpresaRespostaValida(result)||result.revision<=before.revision||!_erpEmpresaEstadoDesejado(result,action,name)){
+      let latest=null;
+      try{latest=await _erpConsultarEmpresasServidor(token);}catch(error){}
+      if(latest&&latest.revision>=before.revision&&_erpEmpresaEstadoDesejado(latest,action,name))result=latest;
+      else if(requestError)throw new Error('Não foi possível confirmar a gravação. Confira a conexão e reabra o cadastro antes de repetir a operação.');
+      else throw new Error('O servidor não confirmou a alteração com a versão esperada. Confira a publicação da API e reabra o cadastro.');
+    }
+    _erpAplicarCadastroEmpresas(result);
+    _erpRenderEmpresasAdministracao();
+    return result;
   }finally{_erpEmpresaAlteracaoEmCurso=false;}
 }
 async function _erpMudarSituacaoEmpresa(action,name){
