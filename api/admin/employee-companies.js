@@ -1,6 +1,6 @@
 import '../../server/config/load-local-env.js';
 import {getFirebaseAdmin} from '../../server/infrastructure/firebase-admin.js';
-import {getCompanyDirectory,changeCompanyDirectory,companyDirectoryResponse} from '../../server/domain/company-directory.js';
+import {getCompanyDirectory,transactCompanyDirectory,companyDirectoryResponse} from '../../server/domain/company-directory.js';
 import {requireIdentity} from '../../server/http/auth.js';
 import {applyApiSecurityHeaders,assertJsonBody,assertMethod,assertSameOrigin,sendError} from '../../server/http/http.js';
 
@@ -75,9 +75,8 @@ export default async function handler(req,res){
       const error=new Error('Informe nome, operação e versão válidos.');error.status=400;throw error;
     }
     const {db}=getFirebaseAdmin();
-    await getCompanyDirectory(db);
     const ref=db.ref('erp/companyDirectory');
-    const result=await ref.transaction(current=>changeCompanyDirectory(current,action,name,expectedRevision));
+    const result=await transactCompanyDirectory(db,ref,action,name,expectedRevision);
     if(!result.committed){
       const latest=await getCompanyDirectory(db);
       const changed=latest.revision!==expectedRevision;

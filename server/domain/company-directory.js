@@ -97,6 +97,11 @@ export function changeCompanyDirectory(current, action, name, expectedRevision) 
   };
 }
 
+export async function transactCompanyDirectory(db, ref, action, name, expectedRevision) {
+  const known = await getCompanyDirectory(db);
+  return ref.transaction(current => changeCompanyDirectory(current == null ? known : current, action, name, expectedRevision));
+}
+
 export function companyDirectoryResponse(state) {
   const directory=normalizeCompanyDirectory(state);
   return {
