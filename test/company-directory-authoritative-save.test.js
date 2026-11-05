@@ -23,14 +23,14 @@ function setup(initial,hook=()=>{}){
   const applied=[];
   const runFetch=async(url,options)=>{
     calls.push(options.method);
-    if(options.method==='GET')return response(200,{ok:true,apiVersion:2,companies:stored.employeeCompanies||[],deletedCompanies:stored.deletedCompanies||[],inactiveCompanies:stored.inactiveCompanies||[],revision:stored.companyDirectoryRevision||0});
+    if(options.method==='GET')return response(200,{ok:true,apiVersion:3,companies:stored.employeeCompanies||[],deletedCompanies:stored.deletedCompanies||[],inactiveCompanies:stored.inactiveCompanies||[],revision:stored.companyDirectoryRevision||0});
     hook('beforePost',stored);
     const body=JSON.parse(options.body);
     const updated=change(stored,body.action,body.name,body.expectedRevision);
     if(!updated)return response(409,{message:'O cadastro foi alterado em outra sessão'});
     stored=clone(updated);
     if(hook('afterPost',stored)==='lost-response')throw new Error('connection reset');
-    return response(200,{ok:true,apiVersion:2,companies:stored.employeeCompanies||[],deletedCompanies:stored.deletedCompanies||[],inactiveCompanies:stored.inactiveCompanies||[],revision:stored.companyDirectoryRevision||0});
+    return response(200,{ok:true,apiVersion:3,companies:stored.employeeCompanies||[],deletedCompanies:stored.deletedCompanies||[],inactiveCompanies:stored.inactiveCompanies||[],revision:stored.companyDirectoryRevision||0});
   };
   const ctx={firebase:{auth:()=>({currentUser:{getIdToken:async()=> 'token-test'}})},fetch:runFetch,window:{__ERP_COMPANY_DIRECTORY_REVISION__:0},_companyKey:key,_erpAplicarCadastroEmpresas:state=>{applied.push(clone(state));ctx.window.__ERP_COMPANY_DIRECTORY_REVISION__=state.revision;},_erpRenderEmpresasAdministracao:()=>{}};
   runInNewContext(core.slice(start,end)+'\nthis.run=_erpEnviarEmpresa;',ctx);

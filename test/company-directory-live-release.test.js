@@ -69,15 +69,15 @@ test('empresas históricas e apelidos não geram duplicatas em novos lançamento
 test('a API não permite remover empresa principal ou mudar configurações fora da transação autenticada',()=>{
   assert.equal(backend().changeCompanyConfig({primaryCompanyKey:'Manuela Metais'},'archive','Manuela'),null);
   assert.match(api,/requireIdentity\(req,\{admin:true\}\)/);
-  assert.match(api,/ref\('erp\/config'\)\.transaction/);
-  assert.match(sync,/ref\('erp\/config'\)\.on\('value'/);
-  assert.match(sync,/window\.__erpApplyCompanyDirectory\(cfg\)/);
+  assert.match(api,/ref\('erp\/companyDirectory'\)/);
+  assert.match(sync,/ref\('erp\/companyDirectory'\)\.on\('value'/);
+  assert.match(sync,/window\.__erpApplyCompanyDirectory\(\{employeeCompanies:cfg\.companies/);
 });
 
 test('inicialização faz leituras de configuração em paralelo e atualiza versão do frontend',()=>{
   assert.match(bootstrap,/Promise\.all\(\[/);
-  assert.match(template,/bootstrap\.js\?v=20261105-company-directory-authoritative-v3/);
-  assert.match(bootstrap,/const assetRevision = '20261105-company-directory-authoritative-v3'/);
+  assert.match(template,/bootstrap\.js\?v=20261105-company-directory-isolation-v4/);
+  assert.match(bootstrap,/const assetRevision = '20261105-company-directory-isolation-v4'/);
 });
 
 test('pedido de compra tem fonte legível e continua usando página A4',()=>{

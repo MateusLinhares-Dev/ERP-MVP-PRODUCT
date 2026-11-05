@@ -3739,6 +3739,7 @@ function _erpAplicarCadastroEmpresas(result){
   const revision=Number(result.revision)||0;
   if(revision<(Number(window.__ERP_COMPANY_DIRECTORY_REVISION__)||0))return false;
   window.__ERP_COMPANY_DIRECTORY_REVISION__=revision;
+  window.__ERP_COMPANY_DIRECTORY_STATE__={companies:result.companies.slice(),inactiveCompanies:Array.isArray(result.inactiveCompanies)?result.inactiveCompanies.slice():[],deletedCompanies:Array.isArray(result.deletedCompanies)?result.deletedCompanies.slice():[],revision};
   const cfg=window.__PUBLIC_BUSINESS_CONFIG__||{};
   cfg.employeeCompanies=result.companies.slice();
   cfg.inactiveCompanies=Array.isArray(result.inactiveCompanies)?result.inactiveCompanies.slice():[];
@@ -3763,7 +3764,7 @@ function _erpApplyCompanyDirectory(config){
   const oldCompanies=ERP_BUSINESS_CONFIG.employeeCompanies||[];
   const oldInactive=ERP_BUSINESS_CONFIG.inactiveCompanies||[];
   const oldDeleted=ERP_BUSINESS_CONFIG.deletedCompanies||[];
-  if(JSON.stringify(oldCompanies)===JSON.stringify(companies)&&JSON.stringify(oldInactive)===JSON.stringify(inactiveCompanies)&&JSON.stringify(oldDeleted)===JSON.stringify(deletedCompanies)){window.__ERP_COMPANY_DIRECTORY_REVISION__=revision;ERP_BUSINESS_CONFIG.companyDirectoryRevision=revision;return false;}
+  if(JSON.stringify(oldCompanies)===JSON.stringify(companies)&&JSON.stringify(oldInactive)===JSON.stringify(inactiveCompanies)&&JSON.stringify(oldDeleted)===JSON.stringify(deletedCompanies)){window.__ERP_COMPANY_DIRECTORY_REVISION__=revision;window.__ERP_COMPANY_DIRECTORY_STATE__={companies:companies.slice(),inactiveCompanies:inactiveCompanies.slice(),deletedCompanies:deletedCompanies.slice(),revision};ERP_BUSINESS_CONFIG.companyDirectoryRevision=revision;return false;}
   if(!_erpAplicarCadastroEmpresas({companies,inactiveCompanies,deletedCompanies,revision}))return false;
   if(document.getElementById('rh-empresas-atuais'))_erpRenderEmpresasAdministracao();
   return true;
@@ -3813,7 +3814,7 @@ function _erpRenderEmpresasAdministracao(){
 }
 let _erpEmpresaAlteracaoEmCurso=false;
 function _erpEmpresaRespostaValida(result){
-  return result&&result.ok===true&&result.apiVersion===2&&Array.isArray(result.companies)&&Array.isArray(result.deletedCompanies)&&Array.isArray(result.inactiveCompanies)&&Number.isSafeInteger(result.revision)&&result.revision>=0;
+  return result&&result.ok===true&&result.apiVersion===3&&Array.isArray(result.companies)&&Array.isArray(result.deletedCompanies)&&Array.isArray(result.inactiveCompanies)&&Number.isSafeInteger(result.revision)&&result.revision>=0;
 }
 function _erpEmpresaEstadoDesejado(result,action,name){
   const key=_companyKey(name);

@@ -91,7 +91,7 @@ test('interface exclui de verdade sem reativar e API mantém autorização admin
   assert.match(section,/Excluir/);
   assert.doesNotMatch(section,/Reativar/);
   assert.match(api,/requireIdentity\(req,\{admin:true\}\)/);
-  assert.match(api,/ref\('erp\/config'\)\.transaction/);
-  assert.match(brand,/deletedCompanies: stringList\(cfg\.deletedCompanies\)/);
-  assert.match(sync,/__erpApplyCompanyDirectory\(cfg\)/);
+  assert.match(api,/ref\('erp\/companyDirectory'\)/);
+  assert.match(brand,/deletedCompanies: stringList\(directory\.deletedCompanies\)/);
+  assert.match(sync,/__erpApplyCompanyDirectory\(\{employeeCompanies:cfg\.companies/);
 });

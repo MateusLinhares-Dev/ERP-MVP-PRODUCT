@@ -92,13 +92,13 @@ test('cadastro gerenciado possui exclusão definitiva pela API autenticada',()=>
   assert.match(api,/action==='delete'/);
   assert.match(source,/\/api\/admin\/employee-companies/);
   assert.match(api,/requireIdentity\(req,\{admin:true\}\)/);
-  assert.match(api,/db\.ref\('erp\/config'\)\.transaction/);
+  assert.match(api,/db\.ref\('erp\/companyDirectory'\)/);
 });
 
 test('despesas e funcionários possuem entrada ao mesmo cadastro e a configuração pública mantém estados',()=>{
   assert.match(html,/id="tab-despesas_grupo"[\s\S]*?gerenciarEmpresasFuncionarios\(\)/);
   assert.match(html,/id="tab-funcionarios"[\s\S]*?gerenciarEmpresasFuncionarios\(\)/);
-  assert.match(branding,/inactiveCompanies: stringList\(cfg\.inactiveCompanies\)/);
+  assert.match(branding,/inactiveCompanies: stringList\(directory\.inactiveCompanies\)/);
   assert.match(branding,/expenseGroups: stringList\(cfg\.expenseGroups\)/);
   assert.match(source,/_erpRefreshCompanySources\(\)/);
 });

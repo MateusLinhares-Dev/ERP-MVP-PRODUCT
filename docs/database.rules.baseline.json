@@ -27,6 +27,10 @@
         ".read": "auth != null && auth.token.erpAccess == true",
         ".write": false
       },
+      "companyDirectory": {
+        ".read": "auth != null && auth.token.erpAccess == true",
+        ".write": false
+      },
       "chat": {
         ".read": "auth != null && auth.token.erpAccess == true && auth.token.canChat == true",
         "$messageId": {
