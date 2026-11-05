@@ -392,6 +392,8 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   let _fbTimer = null;
   let _fbOnline = true;
   let _fbSaveRetries = 0;
+  let _fbUltimoErroNotificado='';
+  let _fbUltimoErroNotificadoEm=0;
   let _fbChangeVersion = 0;
   let _fbAtualizandoTimer = null;
   // Receipts for the shared legacy queue. A local save request is NOT a cloud confirmation.
@@ -651,16 +653,22 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     const concorrencia=8;
     for(let inicio=0;inicio<entradas.length;inicio+=concorrencia){
       const faixa=entradas.slice(inicio,inicio+concorrencia);
-      await Promise.all(faixa.map(async function(par){
-        const raiz=par[0], grupo=par[1];
+      const respostas=await Promise.allSettled(faixa.map(async function(par){
+        const raiz=par[0],grupo=par[1];
         const ref=window._fbDB.ref('erp/'+raiz);
         if(grupo.temValor){
           await _comTimeoutFirebase(ref.set(grupo.valor),75000);
-          if(Object.keys(grupo.patch).length) await _comTimeoutFirebase(ref.update(grupo.patch),75000);
-          return;
+          if(Object.keys(grupo.patch).length)await _comTimeoutFirebase(ref.update(grupo.patch),75000);
+        }else if(Object.keys(grupo.patch).length){
+          await _comTimeoutFirebase(ref.update(grupo.patch),75000);
         }
-        if(Object.keys(grupo.patch).length) await _comTimeoutFirebase(ref.update(grupo.patch),75000);
       }));
+      const falhas=respostas.map(function(resultado,index){
+        if(resultado.status!=='rejected')return null;
+        const err=resultado.reason;
+        return 'erp/'+faixa[index][0]+': '+String(err?.message||err||'Falha desconhecida');
+      }).filter(Boolean);
+      if(falhas.length)throw new Error('Gravação não confirmada em '+falhas.join(' | ').slice(0,700));
     }
   }
 
@@ -1098,7 +1106,14 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _fbSaveRetries++;
           if(_fbSaveRetries<=3){
             _fbSetStatus('error', _msgErro);
-            try{ showToast('⚠️ Erro ao salvar no Firebase: '+_msgErro,'error',9000); }catch(_){}
+            try{
+              const agora=Date.now();
+              if(_fbUltimoErroNotificado!==_msgErro||agora-_fbUltimoErroNotificadoEm>30000){
+                _fbUltimoErroNotificado=_msgErro;
+                _fbUltimoErroNotificadoEm=agora;
+                showToast('⚠️ Erro ao salvar no Firebase: '+_msgErro,'error',9000);
+              }
+            }catch(_){}
             setTimeout(_fbSalvarAgora, 3000*_fbSaveRetries); 
           } else {
             _fbSetStatus('offline', _msgErro);

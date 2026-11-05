@@ -55,6 +55,13 @@ export function changeCompanyConfig(current,action,name){
 export default async function handler(req,res){
   applyApiSecurityHeaders(res,req);
   try{
+    if(req.method==='GET'){
+      await requireIdentity(req,{admin:true});
+      const {db}=getFirebaseAdmin();
+      const cfg=(await db.ref('erp/config').get()).val()||{};
+      res.setHeader('Cache-Control','no-store');
+      return res.status(200).json({ok:true,companies:normalizeEmployeeCompanies(cfg.employeeCompanies),inactiveCompanies:normalizeEmployeeCompanies(cfg.inactiveCompanies),deletedCompanies:normalizeEmployeeCompanies(cfg.deletedCompanies),revision:Number(cfg.companyDirectoryRevision)||0,apiVersion:2});
+    }
     assertMethod(req,'POST');
     assertSameOrigin(req,{required:true});
     assertJsonBody(req,{maxBytes:512});
@@ -69,6 +76,6 @@ export default async function handler(req,res){
     if(!result.committed){const error=new Error('Não foi possível alterar esta empresa. Confira se a empresa existe, se não é a principal ou se já foi excluída.');error.status=409;throw error;}
     const cfg=result.snapshot.val()||{};
     try{await db.ref('erpAudit').push({action:'company-'+action,module:'config',actorLogin:actor.erpUser,company:name,at:new Date().toISOString()});}catch(error){console.error('Falha ao registrar auditoria de empresa',error);}
-    return res.status(200).json({ok:true,companies:normalizeEmployeeCompanies(cfg.employeeCompanies),inactiveCompanies:normalizeEmployeeCompanies(cfg.inactiveCompanies),deletedCompanies:normalizeEmployeeCompanies(cfg.deletedCompanies),revision:Number(cfg.companyDirectoryRevision)||0});
+    return res.status(200).json({ok:true,companies:normalizeEmployeeCompanies(cfg.employeeCompanies),inactiveCompanies:normalizeEmployeeCompanies(cfg.inactiveCompanies),deletedCompanies:normalizeEmployeeCompanies(cfg.deletedCompanies),revision:Number(cfg.companyDirectoryRevision)||0,apiVersion:2});
   }catch(error){return sendError(res,error);}
 }
