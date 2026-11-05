@@ -78,8 +78,8 @@ test('UI não aceita confirmação de inclusão ou exclusão sem resposta consis
   const end=core.indexOf('function _empresaPrincipalContatosInline(){',start);
   const section=core.slice(start,end);
   assert.match(section,/_erpEmpresaAlteracaoEmCurso=true/);
-  assert.match(section,/Exclusão não confirmada pelo servidor/);
-  assert.match(section,/Inclusão não confirmada pelo servidor/);
+  assert.match(section,/_erpEmpresaEstadoDesejado\(result,action,name\)/);
+  assert.match(section,/_erpConsultarEmpresasServidor\(token\)/);
   assert.match(section,/_erpEmpresaAlteracaoEmCurso=false/);
 });
 

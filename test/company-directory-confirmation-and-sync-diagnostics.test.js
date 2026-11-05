@@ -18,57 +18,64 @@ function companyClient(fetcher){
     fetch:fetcher,
     _companyKey:value=>String(value||'').toLowerCase(),
     _erpAplicarCadastroEmpresas:result=>{applied.push(result);return true;},
-    _erpRenderEmpresasAdministracao:()=>{}
+    _erpRenderEmpresasAdministracao:()=>{},
+    window:{__ERP_COMPANY_DIRECTORY_REVISION__:0}
   };
   runInNewContext(core.slice(start,end)+'\nthis.run=_erpEnviarEmpresa;',ctx);
   return {run:ctx.run,applied};
 }
 const respond=(status,data)=>({ok:status>=200&&status<300,status,json:async()=>data});
 
-test('POST atualizado confirma revisao e nao repete a operacao',async()=>{
+test('POST atualizado usa GET antes de gravar e confirma revisao',async()=>{
   const calls=[];
   const client=companyClient(async(url,options)=>{
     calls.push(options.method);
-    return respond(200,{ok:true,companies:['Manuela Metais','Rafael'],deletedCompanies:[],revision:3});
+    if(options.method==='GET')return respond(200,{ok:true,companies:['Manuela Metais'],inactiveCompanies:[],deletedCompanies:[],revision:2,apiVersion:2});
+    assert.equal(JSON.parse(options.body).expectedRevision,2);
+    return respond(200,{ok:true,companies:['Manuela Metais','Rafael'],inactiveCompanies:[],deletedCompanies:[],revision:3,apiVersion:2});
   });
   const result=await client.run('create','Rafael');
   assert.equal(result.revision,3);
-  assert.deepEqual(calls,['POST']);
-  assert.equal(client.applied.length,1);
+  assert.deepEqual(calls,['GET','POST']);
+  assert.equal(client.applied.length,2);
 });
 
-test('POST legado com resposta incompleta e verificado por consulta sem reenviar escrita',async()=>{
+test('POST sem revisão pode ser confirmado por GET sem reenviar escrita',async()=>{
   const calls=[];
+  let created=false;
   const client=companyClient(async(url,options)=>{
     calls.push(options.method);
-    if(options.method==='POST')return respond(200,{ok:true,companies:['Manuela Metais','Rafael'],deletedCompanies:[]});
-    return respond(200,{ok:true,companies:['Manuela Metais','Rafael'],deletedCompanies:[],revision:8});
+    if(options.method==='POST'){
+      created=true;
+      return respond(200,{ok:true,companies:['Manuela Metais','Rafael'],deletedCompanies:[]});
+    }
+    return respond(200,{ok:true,companies:created?['Manuela Metais','Rafael']:['Manuela Metais'],inactiveCompanies:[],deletedCompanies:[],revision:8,apiVersion:2});
   });
   const result=await client.run('create','Rafael');
   assert.equal(result.revision,8);
-  assert.deepEqual(calls,['POST','GET']);
+  assert.deepEqual(calls,['GET','POST','GET']);
 });
 
-test('API antiga nao declara falha como se a escrita nao tivesse acontecido',async()=>{
+test('API legada é bloqueada ANTES do POST e não provoca gravação ambígua',async()=>{
   const calls=[];
   const client=companyClient(async(url,options)=>{
     calls.push(options.method);
-    if(options.method==='POST')return respond(200,{ok:true,companies:['Manuela Metais','Rafael'],deletedCompanies:[]});
     return respond(405,{message:'Method Not Allowed'});
   });
-  await assert.rejects(client.run('create','Rafael'),/API de empresas desatualizada na Vercel.*pode ter sido gravada/);
-  assert.deepEqual(calls,['POST','GET']);
+  await assert.rejects(client.run('create','Rafael'),/API de empresas desatualizada na Vercel/);
+  assert.deepEqual(calls,['GET']);
   assert.equal(client.applied.length,0);
 });
 
-test('servidor que recusa POST nao tem segundo envio',async()=>{
+test('servidor que recusa POST não tem segundo envio',async()=>{
   const calls=[];
   const client=companyClient(async(url,options)=>{
     calls.push(options.method);
+    if(options.method==='GET')return respond(200,{ok:true,companies:['Manuela Metais','Rafael'],inactiveCompanies:[],deletedCompanies:[],revision:2,apiVersion:2});
     return respond(403,{message:'Permissao negada'});
   });
   await assert.rejects(client.run('delete','Rafael'),/Permissao negada/);
-  assert.deepEqual(calls,['POST']);
+  assert.deepEqual(calls,['GET','POST']);
 });
 
 test('GET administrativo permite leitura de confirmacao com revisao e nao expõe dados sem identidade',()=>{
