@@ -10256,6 +10256,17 @@ function compararTicketsHistorico(a,b){
   return String(b.ticket||b._dbKey||'').localeCompare(String(a.ticket||a._dbKey||''),'pt-BR',{numeric:true,sensitivity:'base'});
 }
 
+function _compraHistoricoVisivel(ticket){
+  // A pesagem de origem permanece no Balanceiro. Não contabilize essa mesma
+  // carga duas vezes no histórico financeiro depois de gerar o pedido final.
+  if(!ticket || ticket._balSessao || ticket._rodEntrada || ticket.status==='Aguard. Saída')return false;
+  if(ticket.status==='Consolidado' && ticket._consolidadoEm){
+    const final=TICKETS_DB[String(ticket._consolidadoEm)];
+    if(final && final._consolidado===true)return false;
+  }
+  return true;
+}
+
 function renderTickets(){
   const tbody=document.getElementById('tb-compras');
   if(!tbody)return;
@@ -10300,7 +10311,7 @@ function renderTickets(){
   
   
 
-  const baseTodos=Object.values(TICKETS_DB).filter(tk=>!tk._balSessao && !tk._rodEntrada && tk.status!=='Aguard. Saída');
+  const baseTodos=Object.values(TICKETS_DB).filter(_compraHistoricoVisivel);
   const creditosTodos=[];
   Object.entries(ADT_POR_FORN).forEach(([cod,lista])=>{
     lista.filter(a=>a.forma==='Crédito'&&a.status==='Pendente').forEach(a=>{ creditosTodos.push(a); });
@@ -10319,7 +10330,7 @@ function renderTickets(){
     if(kpiS) kpiS.textContent='R$ '+fmt(Math.max(0,totalSaldoKpi)); }
 
   
-  let all=Object.entries(TICKETS_DB).filter(([k,tk])=>!tk._balSessao && !tk._rodEntrada && tk.status!=='Aguard. Saída').map(([k,tk])=>({...tk,_dbKey:k}));
+  let all=Object.entries(TICKETS_DB).filter(([k,tk])=>_compraHistoricoVisivel(tk)).map(([k,tk])=>({...tk,_dbKey:k}));
   if(filtStatus==='aguard_preco') all=all.filter(tk=>tk._balFinalizado && tk.status==='Aguard. Preço');
   else if(filtStatus==='pendente') all=all.filter(tk=>{
     const saldo=Number(tk.saldoPagar);
@@ -10349,12 +10360,12 @@ function renderTickets(){
   if(countEl) countEl.textContent=all.length+' registro'+(all.length!==1?'s':'');
 
   if(all.length===0&&creditos.length===0){
-    window.ERPListPager?.slice('compra-historico',[],'tb-compras',renderTickets,{alwaysShow:false});
+    window.ERPListPager?.slice('compra-historico',[],'tb-compras',renderTickets,{alwaysShow:true});
     tbody.innerHTML=`<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum registro encontrado</td></tr>`;
     return;
   }
   all.sort(compararTicketsHistorico);
-  const pageTickets=window.ERPListPager?.slice('compra-historico',all,'tb-compras',renderTickets,{alwaysShow:false})||all;
+  const pageTickets=window.ERPListPager?.slice('compra-historico',all,'tb-compras',renderTickets,{alwaysShow:true})||all;
 
   let rows=pageTickets.map(tk=>{
     const statusEspecial=tk.status==='Aguard. Preço'||tk.status==='Consolidado';
@@ -26237,7 +26248,12 @@ async function csConfirmarEntrada(fornNome){
   const vencBR=vencISO.split('-').reverse().join('/');
   const hoje=new Date().toISOString().slice(0,10).split('-').reverse().join('/');
 
-  const ticketNum=getNextTicketId(); 
+  // O fluxo moderno já verificou o número na nuvem. Não gere outro aqui.
+  const reserved=__integratedPurchase?String(window.__ERP_PURCHASE_SELECTED_NUMBER__||''):'';
+  if(__integratedPurchase && !/^T[0-9]{3,}$/.test(reserved))
+    throw new Error('Identificador da compra não reservado. Nenhuma alteração foi aplicada.');
+  const ticketNum=__integratedPurchase?reserved:getNextTicketId();
+  if(TICKETS_DB[ticketNum])throw new Error('Número da compra já utilizado localmente. Atualize o histórico.');
 
   TICKETS_DB[ticketNum]={
     ticket:ticketNum, data:new Date().toISOString().slice(0,10),
