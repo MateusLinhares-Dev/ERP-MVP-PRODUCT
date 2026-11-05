@@ -3809,9 +3809,20 @@ async function _erpEnviarEmpresa(action,name){
   if(!user)throw new Error('Sessão expirada. Entre novamente no ERP.');
   const token=await user.getIdToken();
   const response=await fetch('/api/admin/employee-companies',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({action,name})});
-  const result=await response.json();
+  let result;
+  try{result=await response.json();}catch(error){throw new Error('A API não devolveu uma resposta válida. A operação pode ter sido registrada; confira a lista antes de tentar novamente.');}
   if(!response.ok)throw new Error(result.message||'Não foi possível atualizar as empresas.');
-  if(!result.ok||!Array.isArray(result.companies)||!Array.isArray(result.deletedCompanies)||!Number.isSafeInteger(Number(result.revision))||Number(result.revision)<1)throw new Error('Servidor não confirmou a versão do cadastro.');
+  const confirmado=r=>r&&r.ok===true&&Array.isArray(r.companies)&&Array.isArray(r.deletedCompanies)&&Number.isSafeInteger(Number(r.revision))&&Number(r.revision)>=1;
+  if(!confirmado(result)){
+    try{
+      const verifyResponse=await fetch('/api/admin/employee-companies',{method:'GET',credentials:'same-origin',cache:'no-store',headers:{Authorization:'Bearer '+token}});
+      if(verifyResponse.ok){
+        const serverState=await verifyResponse.json();
+        if(confirmado(serverState))result=serverState;
+      }
+    }catch(error){}
+    if(!confirmado(result))throw new Error('API de empresas desatualizada na Vercel. A alteração pode ter sido gravada, mas não foi possível verificá-la. Atualize frontend e função da API na mesma publicação antes de tentar novamente.');
+  }
   if(action==='delete'&&!result.deletedCompanies.some(v=>_companyKey(v)===_companyKey(name)))throw new Error('Exclusão não confirmada pelo servidor.');
   if(action==='create'&&!result.companies.some(v=>_companyKey(v)===_companyKey(name)))throw new Error('Inclusão não confirmada pelo servidor.');
   _erpAplicarCadastroEmpresas(result);
