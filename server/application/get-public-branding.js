@@ -12,7 +12,13 @@ function stringList(value) {
 
 export async function getPublicBranding(repository = new FirebaseBusinessConfigRepository()) {
   const cfg = await repository.getConfig();
-  const directory = await getCompanyDirectory(getFirebaseAdmin().db);
+  let directory;
+  try {
+    directory = await getCompanyDirectory(getFirebaseAdmin().db);
+  } catch (error) {
+    console.error('Falha na leitura do cadastro isolado de empresas; mantendo configuração visual:',error?.code || error?.message || 'erro');
+    directory = {revision:0,companies:[],inactiveCompanies:[],deletedCompanies:[]};
+  }
   const companies = cfg.companies && typeof cfg.companies === 'object' ? cfg.companies : {};
   const primaryKey = text(cfg.primaryCompanyKey) || Object.keys(companies)[0] || '';
   const rawCompany = primaryKey && companies[primaryKey] && typeof companies[primaryKey] === 'object'

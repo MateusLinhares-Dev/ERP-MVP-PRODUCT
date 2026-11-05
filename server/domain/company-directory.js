@@ -41,24 +41,32 @@ export function initializeCompanyDirectory(config = {}) {
 }
 
 export function isValidCompanyDirectory(value) {
-  return value && typeof value === 'object' && !Array.isArray(value) && value.schemaVersion === 3 &&
+  const optionalList=value=>value==null||Array.isArray(value);
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && value.schemaVersion === 3 &&
     Number.isSafeInteger(value.revision) && value.revision >= 0 &&
-    Array.isArray(value.companies) && Array.isArray(value.inactiveCompanies) && Array.isArray(value.deletedCompanies);
+    typeof value.primaryCompanyKey === 'string' && value.primaryCompanyKey.trim() &&
+    Array.isArray(value.companies) && optionalList(value.inactiveCompanies) && optionalList(value.deletedCompanies));
+}
+
+function normalizeCompanyDirectory(value) {
+  if (!isValidCompanyDirectory(value)) throw new Error('Cadastro central de empresas inválido no Firebase.');
+  return {
+    ...value,
+    companies: companyNames(value.companies),
+    inactiveCompanies: companyNames(value.inactiveCompanies),
+    deletedCompanies: companyNames(value.deletedCompanies)
+  };
 }
 
 export async function getCompanyDirectory(db) {
   const directoryRef = db.ref('erp/companyDirectory');
   const existing = (await directoryRef.get()).val();
-  if (existing != null) {
-    if (!isValidCompanyDirectory(existing)) throw new Error('Cadastro central de empresas inválido no Firebase.');
-    return existing;
-  }
+  if (existing != null) return normalizeCompanyDirectory(existing);
   const legacy = (await db.ref('erp/config').get()).val() || {};
   const seed = initializeCompanyDirectory(legacy);
   const initialized = await directoryRef.transaction(current => current == null ? seed : undefined);
   const result = initialized.snapshot.val();
-  if (!isValidCompanyDirectory(result)) throw new Error('Não foi possível inicializar o cadastro central de empresas.');
-  return result;
+  return normalizeCompanyDirectory(result);
 }
 
 export function changeCompanyDirectory(current, action, name, expectedRevision) {
@@ -88,12 +96,13 @@ export function changeCompanyDirectory(current, action, name, expectedRevision) 
 }
 
 export function companyDirectoryResponse(state) {
+  const directory=normalizeCompanyDirectory(state);
   return {
     ok: true,
     apiVersion: 3,
-    revision: state.revision,
-    companies: companyNames(state.companies),
-    inactiveCompanies: companyNames(state.inactiveCompanies),
-    deletedCompanies: companyNames(state.deletedCompanies)
+    revision: directory.revision,
+    companies: directory.companies,
+    inactiveCompanies: directory.inactiveCompanies,
+    deletedCompanies: directory.deletedCompanies
   };
 }
