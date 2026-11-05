@@ -49,6 +49,7 @@ export function changeCompanyConfig(current,action,name){
     }
     cfg.deletedCompanies=[...deleted,name];
   }else return null;
+  cfg.companyDirectoryRevision=(Number.isSafeInteger(Number(cfg.companyDirectoryRevision))&&Number(cfg.companyDirectoryRevision)>=0?Number(cfg.companyDirectoryRevision):0)+1;
   return cfg;
 }
 export default async function handler(req,res){
@@ -68,6 +69,6 @@ export default async function handler(req,res){
     if(!result.committed){const error=new Error('Não foi possível alterar esta empresa. Confira se a empresa existe, se não é a principal ou se já foi excluída.');error.status=409;throw error;}
     const cfg=result.snapshot.val()||{};
     try{await db.ref('erpAudit').push({action:'company-'+action,module:'config',actorLogin:actor.erpUser,company:name,at:new Date().toISOString()});}catch(error){console.error('Falha ao registrar auditoria de empresa',error);}
-    return res.status(200).json({ok:true,companies:normalizeEmployeeCompanies(cfg.employeeCompanies),inactiveCompanies:normalizeEmployeeCompanies(cfg.inactiveCompanies),deletedCompanies:normalizeEmployeeCompanies(cfg.deletedCompanies)});
+    return res.status(200).json({ok:true,companies:normalizeEmployeeCompanies(cfg.employeeCompanies),inactiveCompanies:normalizeEmployeeCompanies(cfg.inactiveCompanies),deletedCompanies:normalizeEmployeeCompanies(cfg.deletedCompanies),revision:Number(cfg.companyDirectoryRevision)||0});
   }catch(error){return sendError(res,error);}
 }

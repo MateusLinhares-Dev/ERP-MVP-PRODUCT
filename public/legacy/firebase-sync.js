@@ -267,6 +267,11 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     try{
       var cfg=d&&d.config;
       if(!cfg || typeof cfg!=='object') return;
+      const latest=typeof ERP_BUSINESS_CONFIG!=='undefined'?ERP_BUSINESS_CONFIG:null;
+      const latestRevision=Math.max(Number(window.__ERP_COMPANY_DIRECTORY_REVISION__)||0,Number(latest?.companyDirectoryRevision)||0);
+      if(latest&&latestRevision>(Number(cfg.companyDirectoryRevision)||0)){
+        cfg={...cfg,companyDirectoryRevision:latestRevision,employeeCompanies:Array.isArray(latest.employeeCompanies)?latest.employeeCompanies.slice():[],inactiveCompanies:Array.isArray(latest.inactiveCompanies)?latest.inactiveCompanies.slice():[],deletedCompanies:Array.isArray(latest.deletedCompanies)?latest.deletedCompanies.slice():[]};
+      }
       if(typeof ERP_BUSINESS_CONFIG!=='undefined'){ Object.keys(ERP_BUSINESS_CONFIG).forEach(function(k){delete ERP_BUSINESS_CONFIG[k];}); Object.assign(ERP_BUSINESS_CONFIG,cfg); }
       if(typeof EMPRESAS_INFO!=='undefined' && cfg.companies && typeof cfg.companies==='object'){
         Object.keys(EMPRESAS_INFO).forEach(function(k){ delete EMPRESAS_INFO[k]; });
@@ -1127,8 +1132,10 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       }, function(){ clearTimeout(_tGuard); _seguir(); });
     }catch(e){ _seguir(); }
   }
+  let _fbPendenteAvisado=false;
   function _fbCarregarComProtecoes(callback) {
     if(!window._fbDB) { if(callback) callback(); return; }
+    try{if(localStorage.getItem('mm_fb_pendente')!=='1')_fbPendenteAvisado=false;}catch(error){}
     
     
     
@@ -1139,7 +1146,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     
     try{
       if(localStorage.getItem('mm_fb_pendente')==='1'){
-        console.warn('fbCarregar: alterações locais pendentes — mesclando a nuvem antes de salvar.');
+        if(!_fbPendenteAvisado){console.warn('fbCarregar: alterações locais pendentes — mesclando a nuvem antes de salvar.');_fbPendenteAvisado=true;}
         _fbPronto=true;
         let temLocal=false;
         try{
@@ -2060,6 +2067,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     if(!_ticketsListenerAtivo && _rtdbPodeAcessar('tickets','read',window.__ERP_RTD_CLAIMS__)){
       _ticketsListenerAtivo = true;
       const ticketsRef=window._fbDB.ref('erp/tickets');
+      const conflictMessages=new Map();
       let ticketsUiTimer=null;
       function ticketsUi(){
         clearTimeout(ticketsUiTimer);
@@ -2093,11 +2101,15 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           && JSON.stringify(currentLocal)!==_ticketsSnapJSON[tid]){
           const live=JSON.stringify(val);
           if(live!==JSON.stringify(currentLocal)){
-            console.warn('[Persistência] Ticket '+tid+' recebeu alteração concorrente; preservando edição local pendente.');
-            _fbPublicarRecibo({pending:true,error:'Conflito de sincronização em ticket '+tid+'. Verifique o histórico antes de continuar.'});
+            if(conflictMessages.get(tid)!==live){
+              conflictMessages.set(tid,live);
+              console.warn('[Persistência] Ticket '+tid+' recebeu alteração concorrente; preservando edição local pendente.');
+              _fbPublicarRecibo({pending:true,error:'Conflito de sincronização em ticket '+tid+'. Verifique o histórico antes de continuar.'});
+            }
             return;
           }
         }
+        conflictMessages.delete(tid);
         TICKETS_DB[tid]=Object.assign({},TICKETS_DB[tid]||{},val);
         try{ if(typeof _normalizarTicketFinanceiro==='function') _normalizarTicketFinanceiro(TICKETS_DB[tid]); }catch(e){}
         delete _fbEnviadoOk['tickets/'+tid];
@@ -2110,6 +2122,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         if(typeof TICKETS_DB==='undefined') return;
         const tid=String(snap&&snap.key||'');
         if(tid&&TICKETS_DB[tid]!==undefined) delete TICKETS_DB[tid];
+        conflictMessages.delete(tid);
         ticketsUi();
       });
     }
