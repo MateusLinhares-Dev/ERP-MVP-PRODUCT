@@ -69,9 +69,9 @@ test('versão concorrente não sobrescreve empresas criadas por outra sessão',a
       Object.assign(cfg,clone(latest));
     }
   });
-  await assert.rejects(client.run('create','Rafael'),/cadastro foi alterado em outra sessão/);
-  assert.deepEqual(client.read().employeeCompanies,['Manuela Metais','Elaine']);
-  assert.deepEqual(client.calls(),['GET','POST','GET']);
+  await client.run('create','Rafael');
+  assert.deepEqual(client.read().employeeCompanies,['Manuela Metais','Elaine','Rafael']);
+  assert.deepEqual(client.calls(),['GET','POST','GET','POST']);
 });
 
 test('servidor antigo sem confirmação é impedido antes da escrita',async()=>{

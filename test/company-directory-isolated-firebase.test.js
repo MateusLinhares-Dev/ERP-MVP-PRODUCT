@@ -51,7 +51,10 @@ test('incluir e excluir preserva empresas existentes e rejeita versão concorren
   dir=await getCompanyDirectory(env.db);
   assert.deepEqual(dir.companies,['Manuela Metais','Gratus','Mabor']);
   assert.equal(dir.revision,8);
-  assert.equal(changeCompanyDirectory(dir,'create','RAFAEL',8),undefined);
+  const recreated=changeCompanyDirectory(dir,'create','RAFAEL',8);
+  assert.ok(recreated);
+  assert.deepEqual(recreated.companies,['Manuela Metais','Gratus','Mabor','RAFAEL']);
+  assert.ok(!recreated.deletedCompanies.some(v=>v.toLowerCase()==='rafael'));
   assert.equal(changeCompanyDirectory(dir,'delete','Manuela Metais',8),undefined);
 });
 
