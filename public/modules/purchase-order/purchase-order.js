@@ -536,9 +536,18 @@ global.phase4PurchaseRecalc=function(){
   set('phase4-po-products-total','R$ '+money(productTotal));
   set('phase4-po-grand-total','R$ '+money(total));
   set('phase4-po-advance-total','R$ '+money(advances));
-  set('phase4-po-balance',(balance<0?'Crédito R$ ':'R$ ')+money(Math.abs(balance)));
+  // Uma redução em pedido liquidado não gera crédito automaticamente.
+  // O servidor exige conciliação financeira: a prévia não pode anunciar R$ 30
+  // como saldo disponível antes que essa reconciliação seja confirmada.
+  const requiresReconciliation=Boolean(state.editKey&&balance<0&&Number(state.originalBalance||0)>=0);
+  set('phase4-po-balance',requiresReconciliation
+    ? 'Requer conciliação: R$ '+money(Math.abs(balance))
+    : (balance<0?'Crédito R$ ':'R$ ')+money(Math.abs(balance)));
   const balanceEl=document.getElementById('phase4-po-balance');
-  if(balanceEl)balanceEl.classList.toggle('credit',balance<0);
+  if(balanceEl){
+    balanceEl.classList.toggle('credit',balance<0&&!requiresReconciliation);
+    balanceEl.title=requiresReconciliation?'Compra já liquidada: revisão financeira necessária antes de alterar o total.':'';
+  }
   storeState(body,state);
   return {productTotal,total,advances,balance};
 };
