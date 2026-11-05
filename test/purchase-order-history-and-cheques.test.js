@@ -96,33 +96,39 @@ test('editar pedido altera materiais sem reaplicar adiantamentos e atualiza apen
   };
   // Pass a closure that works as it does in the browser, without `this` dependencies.
   ctx.tickets=()=>ctx.TICKETS_DB;
-  const state={editKey:'k1',supplierName:'JOAO ELIAS',supplierCode:'F3',originalTotal:1000,originalBalance:700,
+  const state={editKey:'k1',ticketSnapshot:JSON.stringify(ticket),supplierName:'JOAO ELIAS',supplierCode:'F3',originalTotal:1000,originalBalance:700,
     items:[{mat:'ALUMINIO',originalIndex:0,ident:'LIMPO',quantidade:100,pesoBruto:100,preco:10},
            {mat:'COBRE',quantidade:10,pesoBruto:10,preco:20}],
     discount:0,freight:0,orderNumber:'T100',purchaseOrder:'',purchaseDate:'2026-10-27',dueDate:'2026-10-30',notes:'Teste'};
   ctx.state=state;
-  runInNewContext(`${code}\nsaveEditedTicket(state, {total:1200,productTotal:1200,balance:900})`,ctx);
-  assert.equal(ticket.itens.length,2);
-  assert.equal(ticket.itens[0].ident,'LIMPO');
-  assert.equal(ticket.itens[1].mat,'COBRE');
-  assert.equal(ticket.saldoPagar,900);
+  const edited=runInNewContext(`${code}\nsaveEditedTicket(state, {total:1200,productTotal:1200,balance:900})`,ctx);
+  assert.equal(ticket.itens.length,1);
+  assert.equal(ticket.saldoPagar,700);
+  assert.equal(cp.valor,700);
+  assert.equal(saved,0);assert.equal(savedCp,0);
+  assert.equal(edited.itens.length,2);
+  assert.equal(edited.itens[0].ident,'LIMPO');
+  assert.equal(edited.itens[1].mat,'COBRE');
+  assert.equal(edited.saldoPagar,900);
+  ctx.edited=edited;
+  runInNewContext(`${code}\nafterConfirmedPurchaseEdit(edited,state,{total:1200,productTotal:1200,balance:900})`,ctx);
   assert.equal(cp.valor,900);
   assert.equal(ticket.adiantamento,300);
   assert.equal(ticket.reciboFinanceiro.adiantamentos[0].valorAplicado,300);
   assert.equal(adts[0].status,'Quitado');
-  assert.equal(saved,1);assert.equal(savedCp,1);
+  assert.equal(saved,0);assert.equal(savedCp,1);
 });
 
 test('edição impede preço total inferior ao já pago/abatido',()=>{
   const code=extract(purchase,'function saveEditedTicket(state,totals){','function stateForSourceTicket(ticketKey){');
   const ticket={ticket:'T1',totalGeral:1000,saldoPagar:0,itens:[{mat:'COBRE',quantidade:1,preco:1000}]};
-  const ctx={TICKETS_DB:{T1:ticket},tickets:()=>ctx.TICKETS_DB};
-  assert.throws(()=>runInNewContext(`${code}\nsaveEditedTicket({editKey:'T1',originalTotal:1000,originalBalance:0}, {balance:-1,total:999})`,ctx),/abaixo do que já foi pago/);
+  const ctx={TICKETS_DB:{T1:ticket},ticket,tickets:()=>ctx.TICKETS_DB};
+  assert.throws(()=>runInNewContext(`${code}\nsaveEditedTicket({editKey:'T1',ticketSnapshot:JSON.stringify(ticket),originalTotal:1000,originalBalance:0}, {balance:-1,total:999})`,ctx),/abaixo de pagamento já registrado/);
 });
 
 test('histórico navega para edição completa, atalho Alt+Z e impressão enxuta',()=>{
   assert.match(core,/onclick="phase4PurchaseEditTicket\('\$\{tk\._dbKey\}'\)"/);
-  assert.match(purchase,/global\.phase4PurchaseEditTicket=function/);
+  assert.match(purchase,/global\.phase4PurchaseEditTicket=async function/);
   assert.match(purchase,/global\.csTab\('lancamento'\)/);
   assert.match(purchase,/String\(ev\.key\|\|'?'\)\.toLowerCase\(\)!=='z'/);
   assert.match(purchase,/aria-keyshortcuts="Alt\+Z"/);
@@ -131,7 +137,7 @@ test('histórico navega para edição completa, atalho Alt+Z e impressão enxuta
 });
 
 test('edição mantém valores extras legados sem modificar o total da compra ao abrir',()=>{
-  const code=extract(purchase,'function stateForExistingTicket(key){','global.phase4PurchaseEditTicket=function');
+  const code=extract(purchase,'function stateForExistingTicket(key,cloudTicket){','global.phase4PurchaseEditTicket=async function');
   const ticket={ticket:'T200',fornecedor:'JOAO ELIAS',totalGeral:1165,saldoPagar:665,adiantamento:500,
     descontoCompra:0,freteCompra:0,acrescimo:165,
     itens:[{mat:'COBRE',pesoLiq:10,quantidade:10,preco:100}]};

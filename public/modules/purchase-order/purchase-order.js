@@ -785,6 +785,11 @@ function finishPurchaseDeferredSave(success){
 const purchasePendingKeys=global.__ERP_PURCHASE_PENDING_KEYS__ instanceof Set
   ?global.__ERP_PURCHASE_PENDING_KEYS__:new Set();
 global.__ERP_PURCHASE_PENDING_KEYS__=purchasePendingKeys;
+function purchaseStableSnapshot(value){
+  if(Array.isArray(value))return '['+value.map(purchaseStableSnapshot).join(',')+']';
+  if(value&&typeof value==='object')return '{'+Object.keys(value).sort().map(function(key){return JSON.stringify(key)+':'+purchaseStableSnapshot(value[key]);}).join(',')+'}';
+  return JSON.stringify(value);
+}
 function purchaseCloudRef(key){
   if(!/^[A-Za-z0-9_-]{1,72}$/.test(String(key||'')))throw new Error('Identificador inválido do pedido.');
   if(!global._fbDB || typeof global._fbDB.ref!=='function')throw new Error('Firebase indisponível. Nenhum pedido foi confirmado.');
@@ -808,6 +813,7 @@ async function purchaseConfirmCloud(key,ticket,options={}){
   const tx=await ref.transaction(function(current){
     if(create){if(current!==null&&current!==undefined)return;return payload;}
     if(!current || typeof current!=='object')return;
+    if(options.expectedSnapshot && purchaseStableSnapshot(current)!==options.expectedSnapshot)return;
     if(expected && (Math.abs(Number(current.totalGeral||0)-Number(expected.totalGeral||0))>0.01
       || Math.abs(Number(current.saldoPagar||0)-Number(expected.saldoPagar||0))>0.01))return;
     return payload;
@@ -875,6 +881,27 @@ function finishPurchaseSave(body,key,ticket,totals){
   if(typeof global.csTab==='function')global.csTab('historico');
   try{showToast('Pedido '+String(ticket?.numeroPedido||ticket?.ticket||key)+' salvo e fechado. Total R$ '+money(totals.total)+'.','success',6000);}catch(e){}
 }
+async function purchaseEditWithReconciliation(key,ticket,state){
+  const current=global.firebase?.auth?.()?.currentUser;
+  if(!current||typeof current.getIdToken!=='function')throw new Error('Sessão Firebase expirada. Entre novamente.');
+  const operationId=state.editOperationId||(global.crypto?.randomUUID?.()||('00000000-0000-4000-8000-'+String(Date.now()).padStart(12,'0').slice(-12)));
+  state.editOperationId=operationId;
+  const token=await current.getIdToken();
+  const response=await fetch('/api/finance/purchase-order-edit',{
+    method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+    body:JSON.stringify({operationId,ticketNo:key,expectedTicket:JSON.parse(state.ticketSnapshot),ticket})
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(result.message||result.error||'O servidor não confirmou a conciliação do pedido.');
+  if(!result.ticket||String(result.ticket.ticket||'')!==String(key))throw new Error('A resposta de conciliação do servidor não confirmou o pedido.');
+  TICKETS_DB[key]=result.ticket;
+  try{if(typeof _ticketsSnapJSON!=='undefined')_ticketsSnapJSON[key]=JSON.stringify(result.ticket);}catch(e){}
+  if(result.advances&&typeof ADT_POR_FORN!=='undefined')ADT_POR_FORN[state.supplierCode]=result.advances;
+  if(result.saldo&&typeof SALDO_DEVEDOR_FORN!=='undefined')SALDO_DEVEDOR_FORN[state.supplierCode]=result.saldo;
+  if(result.creditLegacy&&!result.saldo&&typeof SALDO_DEVEDOR_FORN!=='undefined')SALDO_DEVEDOR_FORN[state.supplierCode]=result.creditLegacy;
+  if(result.payable&&typeof CONTAS_PAGAR!=='undefined'){const index=CONTAS_PAGAR.findIndex(c=>String(c?.id||'')===String(result.payable.id||''));if(index>=0)CONTAS_PAGAR[index]=result.payable;}
+  return result.ticket;
+}
 global.phase4PurchaseSave=async function(){
   if(saving)return;
   const body=document.getElementById('cs-lanc-body');if(!body)return;
@@ -895,8 +922,17 @@ global.phase4PurchaseSave=async function(){
       const totals=global.phase4PurchaseRecalc();
       const ticket=saveEditedTicket(state,totals);
       purchasePendingKeys.add(String(state.editKey));
-      try{ await purchaseConfirmCloud(String(state.editKey),ticket,{expected:{totalGeral:state.originalTotal,saldoPagar:state.originalBalance}}); }
-      finally{ purchasePendingKeys.delete(String(state.editKey)); }
+      let confirmed;
+      try{
+        const financeChanged=Math.abs(Number(totals.total||0)-Number(state.originalTotal||0))>0.005;
+        confirmed=financeChanged
+          ?await purchaseEditWithReconciliation(String(state.editKey),ticket,state)
+          :await purchaseConfirmCloud(String(state.editKey),ticket,{
+            expected:{totalGeral:state.originalTotal,saldoPagar:state.originalBalance},
+            expectedSnapshot:state.cloudSnapshot
+          });
+      }finally{purchasePendingKeys.delete(String(state.editKey));}
+      afterConfirmedPurchaseEdit(confirmed,state,totals);
       global.__ERP_PURCHASE_IN_PROGRESS__=false;
       try{if(typeof saveContasPagar==='function')saveContasPagar();}catch(e){}
       try{saveDB();}catch(e){}
@@ -983,8 +1019,8 @@ function isoDate(value){
   const match=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(date);
   return match?match[3]+'-'+match[2]+'-'+match[1]:today();
 }
-function stateForExistingTicket(key){
-  const ticket=tickets()[key];if(!ticket)return null;
+function stateForExistingTicket(key,cloudTicket){
+  const ticket=cloudTicket||tickets()[key];if(!ticket)return null;
   const supplierName=String(ticket.fornecedor||ticket.fornecedorNome||ticket.forn||'').trim();
   const supplier=supplierByName(supplierName);
   if(!supplier)throw new Error('Fornecedor do pedido não está mais ativo no cadastro.');
@@ -996,7 +1032,9 @@ function stateForExistingTicket(key){
     item.codigo=String(ticket.itens?.[index]?.codigo||'');
   });
   return {
-    editKey:key,supplierName:supplier.nome,supplierCode:supplier.cod||'',
+    editKey:key,cloudSnapshot:cloudTicket?purchaseStableSnapshot(cloudTicket):'',
+    ticketSnapshot:cloudTicket?JSON.stringify(cloudTicket):'',
+    supplierName:supplier.nome,supplierCode:supplier.cod||'',
     items:items.length?items:[newItem()],
     discount:Number(ticket.descontoCompra??po.desconto??0)||0,
     freight:Number(ticket.freteCompra??po.frete??0)||0,
@@ -1006,7 +1044,7 @@ function stateForExistingTicket(key){
     dueDate:isoDate(ticket.vencimentoSaldo||po.vencimentoSaldo||ticket.data),
     sourceTicketKeys:[],adts:[],cheques:[],previousCredit:0,
     appliedAdvance:Number(ticket.adiantamento||0)||0,
-    originalBalance:Math.max(0,Number(ticket.saldoPagar||0)),
+    originalBalance:Number(ticket.saldoPagar||0),
     originalTotal:Number(ticket.totalGeral||0)||0,
     // Preserve legacy extras/taxes outside the product grid (e.g. extra services).
     legacyExtra:Math.round(((Number(ticket.totalGeral||0)||0)-
@@ -1015,14 +1053,21 @@ function stateForExistingTicket(key){
     notes:String(ticket.observacoesPedido||po.observacoes||'')
   };
 }
-global.phase4PurchaseEditTicket=function(ticketRef){
+global.phase4PurchaseEditTicket=async function(ticketRef){
   const ref=String(ticketRef||'').trim();
   const entry=tickets()[ref]?[ref,tickets()[ref]]:Object.entries(tickets()).find(function(e){return String(e[1]?.ticket||'')===ref;});
   if(!entry){try{showToast('Pedido não encontrado.','error');}catch(e){}return;}
   if(entry[1].status==='Aguard. Preço'||entry[1]._balSessao||entry[1]._rodEntrada){
     try{showToast('Finalize primeiro a pesagem antes de editar o pedido.','error');}catch(e){}return;
   }
-  let state;try{state=stateForExistingTicket(entry[0]);}catch(e){try{showToast(e.message,'error');}catch(_){}return;}
+  let state;
+  try{
+    const remote=await purchaseCloudRef(entry[0]).once('value');
+    const confirmed=remote?.val?.();
+    if(!confirmed||typeof confirmed!=='object')throw new Error('Pedido não encontrado na nuvem. Nenhuma edição foi iniciada.');
+    if(confirmed.status==='Aguard. Preço'||confirmed._balSessao||confirmed._rodEntrada)throw new Error('Finalize a pesagem antes de editar este pedido.');
+    state=stateForExistingTicket(entry[0],confirmed);
+  }catch(e){try{showToast(e.message||'Não foi possível consultar o pedido no Firebase.','error',7500);}catch(_){}return;}
   manualMode=false;
   if(typeof global.csTab==='function')global.csTab('lancamento');
   setTimeout(function(){
@@ -1039,12 +1084,12 @@ global.phase4PurchaseEditTicket=function(ticketRef){
   },0);
 };
 function saveEditedTicket(state,totals){
-  const ticket=tickets()[state.editKey];
+  const ticket=state.ticketSnapshot?JSON.parse(state.ticketSnapshot):null;
   if(!ticket)throw new Error('O pedido não existe mais. Atualize o histórico.');
   const oldTotal=Number(ticket.totalGeral||0);
   if(Math.abs(oldTotal-Number(state.originalTotal||0))>0.01 || Math.abs(Number(ticket.saldoPagar||0)-Number(state.originalBalance||0))>0.01)
     throw new Error('O pedido foi alterado por outra operação. Reabra-o para editar os valores atuais.');
-  if(totals.balance< -0.005)throw new Error('O total editado ficou abaixo do que já foi pago/abatido. Ajuste o pedido e os pagamentos antes de salvar.');
+  if(totals.balance< -0.005 && Number(state.originalBalance||0)>=-0.005 && Number(state.appliedAdvance||0)<=0)throw new Error('O total editado ficou abaixo de pagamento já registrado. Faça a conciliação financeira antes de salvar.');
   const supplier=supplierByName(state.supplierName);
   if(!supplier||String(supplier.cod||'')!==String(state.supplierCode||''))throw new Error('Fornecedor do pedido divergente.');
   const items=(state.items||[]).filter(function(item){return String(item.mat||'').trim()&&Number(item.quantidade||0)>0;});
@@ -1071,9 +1116,8 @@ function saveEditedTicket(state,totals){
   ticket.dataCompra=state.purchaseDate;
   ticket.vencimentoSaldo=state.dueDate;
   ticket.observacoesPedido=String(state.notes||'').trim();
-  ticket.saldoPagar=Math.max(0,totals.balance);
-  if(totals.balance>0.005)ticket.status='Pendente';
-  else ticket.status='Pago';
+  ticket.saldoPagar=totals.balance;
+  ticket.status=totals.balance>0.005?'Pendente':'Pago';
   ticket.pedidoCompra=Object.assign({},ticket.pedidoCompra||{}, {
     numero:ticket.numeroPedido,ordemCompra:state.purchaseOrder,dataCompra:state.purchaseDate,
     vencimentoSaldo:state.dueDate,observacoes:ticket.observacoesPedido,
@@ -1081,6 +1125,9 @@ function saveEditedTicket(state,totals){
   });
   // Do not touch ADT_POR_FORN, CHEQUES_POR_FORN or reciboFinanceiro: they were
   // settled during creation. Only update the residual payable for this ticket.
+  return ticket;
+}
+function afterConfirmedPurchaseEdit(ticket,state,totals){
   try{
     let cp=(CONTAS_PAGAR||[]).find(function(c){return String(c.ticket||'')===String(ticket.ticket||state.editKey)&&c.status!=='Pago';});
     if(totals.balance>0.005){
@@ -1096,13 +1143,10 @@ function saveEditedTicket(state,totals){
     }else if(cp && !cp.valorPago && !(cp.pagamentos||[]).length){
       const index=CONTAS_PAGAR.indexOf(cp);if(index>=0)CONTAS_PAGAR.splice(index,1);
     }
-    if(!global.__ERP_PURCHASE_IN_PROGRESS__ && typeof saveContasPagar==='function')saveContasPagar();
+    if(typeof saveContasPagar==='function')saveContasPagar();
   }catch(e){console.warn('[purchase-order] conta vinculada',e);throw new Error('Não foi possível atualizar a conta a pagar do pedido.');}
-  try{if(!global.__ERP_PURCHASE_IN_PROGRESS__)saveDB();}catch(e){throw new Error('Não foi possível persistir a edição.');}
-  try{if(typeof fbSalvarImediato==='function')fbSalvarImediato();}catch(e){}
   try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Pedido editado',String(ticket.ticket||state.editKey),ticket,{ticket:ticket.ticket||state.editKey});}catch(e){}
   ['renderTickets','renderContasPagar','renderEstoque','renderDashboard','renderFluxo'].forEach(function(name){try{if(typeof global[name]==='function')global[name]();}catch(e){}});
-  return ticket;
 }
 function stateForSourceTicket(ticketKey){
   const t=tickets()[ticketKey];if(!t)return null;

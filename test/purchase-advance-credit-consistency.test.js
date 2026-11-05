@@ -76,5 +76,5 @@ test('baixa envia a data escolhida sem referência a date inexistente',()=>{
 
 test('front publicado carrega os assets com revisão para não usar o JavaScript antigo',()=>{
   assert.match(bootstrap,/script\.src = src \+ '\?v=' \+ assetRevision/);
-  assert.match(html,/app\/bootstrap\.js\?v=20261105-supplier-repasses-cheque-dup-v1/);
+  assert.match(html,/app\/bootstrap\.js\?v=20261105-paid-order-reconciliation-t198-v2/);
 });
