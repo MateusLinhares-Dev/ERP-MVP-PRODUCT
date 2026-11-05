@@ -21,7 +21,7 @@
       bar = document.createElement('div');
       bar.id = id;
       bar.className = 'erp-list-pager';
-      anchor.insertAdjacentElement('afterend', bar);
+      anchor.insertAdjacentElement(key === 'compra-historico' ? 'beforebegin' : 'afterend', bar);
     }
     if (opts.searchable) {
       let input = document.getElementById(id + '-search');

@@ -751,6 +751,11 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   }
 
   async function _fbSalvarAgoraInterno() {
+    // A compra é confirmada por transação individual, não pelo sincronizador genérico.
+    if(window.__ERP_PURCHASE_IN_PROGRESS__===true){
+      window.__ERP_PURCHASE_DEFERRED_SAVE__=true;
+      return;
+    }
     const _versaoSalvar=_fbChangeVersion;
     if(window.__ERP_RESTORING__){console.warn('Salvamento suspenso durante restauração.');return;}
 
@@ -1003,6 +1008,11 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       
       const _ticketsParaSalvar = {};
       Object.keys(TICKETS_DB).forEach(function(k){
+        if(window.__ERP_PURCHASE_PENDING_KEYS__?.has(String(k)))return;
+        // Não criar pedidos novos pela sincronização genérica: exigem transação
+        // create-only e confirmação explícita da tela de compra.
+        if(!Object.prototype.hasOwnProperty.call(_ticketsSnapJSON,k)
+           && TICKETS_DB[k]?._consolidado===true)return;
         if(JSON.stringify(TICKETS_DB[k]) !== _ticketsSnapJSON[k]) _ticketsParaSalvar[k] = TICKETS_DB[k];
       });
       const _ticketsEnviadosJson={};
@@ -2120,6 +2130,14 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
             if(ativo&&!digitando){ renderBalanceiro(); try{balRenderHistorico();}catch(e){} }
           }catch(e){}
           try{
+            const compras=document.getElementById('tab-compra_sucata');
+            const active=compras&&compras.classList.contains('active');
+            if(active){
+              if(typeof _csSubTabAtiva!=='undefined'&&_csSubTabAtiva==='historico'&&typeof renderTickets==='function')renderTickets();
+              if(typeof _csSubTabAtiva!=='undefined'&&_csSubTabAtiva==='pesagens'&&typeof csRenderPesagens==='function')csRenderPesagens();
+            }
+          }catch(e){}
+          try{
             const rod=document.getElementById('tab-rod_balanca');
             const ativo=rod&&rod.classList.contains('active');
             const campo=document.activeElement;
@@ -2132,6 +2150,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         if(typeof TICKETS_DB==='undefined') return;
         const tid=String(snap&&snap.key||'');
         if(!tid) return;
+        if(window.__ERP_PURCHASE_PENDING_KEYS__?.has(tid))return;
         if(typeof TICKETS_DELETED!=='undefined'&&TICKETS_DELETED.has&&TICKETS_DELETED.has(tid)) return;
         const val=snap&&snap.val?snap.val():null;
         if(!val||typeof val!=='object') return;
@@ -2161,6 +2180,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       ticketsRef.on('child_removed',function(snap){
         if(typeof TICKETS_DB==='undefined') return;
         const tid=String(snap&&snap.key||'');
+        if(window.__ERP_PURCHASE_PENDING_KEYS__?.has(tid))return;
         if(tid&&TICKETS_DB[tid]!==undefined) delete TICKETS_DB[tid];
         conflictMessages.delete(tid);
         ticketsUi();
