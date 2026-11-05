@@ -176,6 +176,7 @@ export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
   const chequeSituation=clean(input.chequeSituation||'A',1);
   if(isCheque&&!['A','C'].includes(chequeSituation))failure(422,'INVALID_CHEQUE_STATUS','Situação do cheque inválida.');
   const chequeItems=isCheque?input.cheques:[];
+  const confirmDuplicates=input.confirmDuplicates===true;
   if(isCheque&&(!Array.isArray(chequeItems)||chequeItems.length===0||chequeItems.length>200))
     failure(422,'INVALID_CHEQUES','Informe de 1 a 200 cheques.');
   const cheques=isCheque?chequeItems.map(raw=>{
@@ -188,11 +189,22 @@ export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
     const totalCents=cheques.reduce((sum,c)=>sum+Math.round(c.v*100),0);
     if(totalCents!==Math.round(value*100))failure(422,'CHEQUE_TOTAL_MISMATCH','A soma dos cheques deve ser igual ao valor do adiantamento.');
     const ids=new Set();
+    const duplicateRows=[];
     for(const c of cheques){
+      // Own cheques are uniquely identified by bank and number. A third-party
+      // cheque is only accepted repeatedly after an explicit operator review.
+      if(forma==='Cheque de Terceiro'&&!c.cli)
+        failure(422,'CHEQUE_DRAWER_REQUIRED','Informe o dono/emitente de cada cheque de terceiro.');
       const key=(c.b+'|'+c.n).toLocaleLowerCase('pt-BR');
-      if(ids.has(key))failure(409,'DUPLICATE_CHEQUE','Cheque repetido na lista.');
+      if(ids.has(key)){
+        if(forma==='Cheque')failure(409,'DUPLICATE_CHEQUE','Cheque próprio repetido na lista: '+c.b+' nº '+c.n+'.');
+        duplicateRows.push(c);
+      }
       ids.add(key);
     }
+    if(duplicateRows.length&&!confirmDuplicates)
+      failure(409,'CHEQUE_DUPLICATE_CONFIRMATION_REQUIRED',
+        'Há '+duplicateRows.length+' cheque(s) de terceiro com banco e número repetidos nesta lista (ex.: '+duplicateRows[0].b+' nº '+duplicateRows[0].n+'). Confirme conscientemente para continuar.');
   }
   const operationKey=pathKey(String(identity.uid||identity.erpUser||'user').replace(/[^\w-]/g,'_'))+'_'+operationId;
   const opRef=db.ref('erp/financeAdvanceOperations/'+operationKey);
@@ -228,11 +240,21 @@ export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
     const createdCheques=[];
     if(isCheque){
       const previousCheques=Object.values(chequesSnap.val()||{}).filter(c=>c&&typeof c==='object');
-      for(const c of cheques){
-        if(previousCheques.some(old=>String(old.b||'').trim().toLocaleLowerCase('pt-BR')===c.b.toLocaleLowerCase('pt-BR')&&String(old.n||'').trim().toLocaleLowerCase('pt-BR')===c.n.toLocaleLowerCase('pt-BR')))
-          failure(409,'CHEQUE_ALREADY_EXISTS','O cheque '+c.n+' de '+c.b+' já está cadastrado no controle.');
+      for(const [chequeIndex,c] of cheques.entries()){
+        const duplicatedInBatch=cheques.slice(0,chequeIndex).some(old=>
+          old.b.toLocaleLowerCase('pt-BR')===c.b.toLocaleLowerCase('pt-BR')&&
+          old.n.toLocaleLowerCase('pt-BR')===c.n.toLocaleLowerCase('pt-BR'));
+        const duplicated=previousCheques.some(old=>
+          String(old.b||'').trim().toLocaleLowerCase('pt-BR')===c.b.toLocaleLowerCase('pt-BR')&&
+          String(old.n||'').trim().toLocaleLowerCase('pt-BR')===c.n.toLocaleLowerCase('pt-BR'));
+        if(duplicated&&forma==='Cheque')
+          failure(409,'CHEQUE_ALREADY_EXISTS','Cheque próprio '+c.n+' de '+c.b+' já cadastrado.');
+        if(duplicated&&!confirmDuplicates)
+          failure(409,'CHEQUE_DUPLICATE_CONFIRMATION_REQUIRED',
+            'Cheque de terceiro nº '+c.n+' do banco '+c.b+' já existe. Confira o emitente ('+c.cli+'), valor e documento e confirme para manter ambos.');
         const slug=c.b.replace(/[^a-zA-Z0-9]/g,'').slice(0,8).toUpperCase()||'XX';
-        const chequeId='CC'+slug+c.n;
+        // The old CC+bank+number key silently collided for distinct third-party cheques.
+        const chequeId='CC'+slug+c.n+'-'+uuid().replace(/-/g,'').slice(0,12)+'-'+chequeIndex.toString(36);
         if(chequeId.length>100||createdCheques.some(item=>item.id===chequeId)||(chequesSnap.val()||{})[chequeId])
           failure(409,'CHEQUE_ID_CONFLICT','Identificador de cheque já utilizado.');
         const d=c.d.split('-').reverse().join('/');
@@ -240,7 +262,7 @@ export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
         const supplierName=clean(supplier?.nome,240)||fornCod;
         const cheque={id:chequeId,b:c.b,n:c.n,c:c.cli?c.cli+' → '+supplierName:supplierName,
           emitente:c.cli,dest:supplierName,v:c.v,d,venc,cd:chequeSituation==='C'?d:'',s:chequeSituation,dc:true,
-          advanceCode:id,fornCod};
+          advanceCode:id,fornCod,tipoCheque:forma,duplicidadeConfirmada:Boolean(duplicated||duplicatedInBatch)};
         if(empresa)cheque.origem=empresa;
         createdCheques.push(cheque);
         updates['chequesControle/'+chequeId]=cheque;

@@ -157,6 +157,18 @@
         ".read": "auth != null && auth.token.erpAccess == true",
         ".write": false
       },
+      "fornecedorRepasses": {
+        ".read": false,
+        ".write": false
+      },
+      "fornecedorRepassesCaixa": {
+        ".read": false,
+        ".write": false
+      },
+      "fornecedorRepasseOperations": {
+        ".read": false,
+        ".write": false
+      },
       "_ts": {
         ".read": "auth != null && auth.token.erpAccess == true",
         ".write": "auth != null && auth.token.erpAccess == true",
@@ -783,6 +795,10 @@
       ".write": false
     },
     "erpTraining": {
+      ".read": false,
+      ".write": false
+    },
+    "erpSupplierRepasseLocks": {
       ".read": false,
       ".write": false
     },

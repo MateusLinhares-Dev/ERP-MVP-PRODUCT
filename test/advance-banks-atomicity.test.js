@@ -277,3 +277,42 @@ test('sincronização limpa cache bancário antigo quando perfil não tem canBan
   assert.match(sync,/LANC_BANCO_DB\.splice\(0\)/);
   assert.match(sync,/localStorage\.removeItem\(key\)/);
 });
+
+test('cheque de terceiro repetido exige confirmação; mesmo número de emissores distintos mantém ambos',async()=>{
+  const db=fakeDb();
+  const rows=[
+    {b:'Cheque de Terceiro',n:'175',v:500,d:'2026-11-05',cli:'EMERSON WARMLING'},
+    {b:'Cheque de Terceiro',n:'175',v:800,d:'2026-11-05',cli:'RESTAURANTE RAÍZES CHOPERIA'}
+  ];
+  const third={...chequeInput,forma:'Cheque de Terceiro',valor:1300,cheques:rows};
+  await assert.rejects(()=>createAdvance(finance,third,{db}),{code:'CHEQUE_DUPLICATE_CONFIRMATION_REQUIRED'});
+  assert.equal(db.updates,0);
+  const done=await createAdvance(finance,{...third,confirmDuplicates:true},{db});
+  assert.equal(done.cheques.length,2);
+  assert.notEqual(done.cheques[0].id,done.cheques[1].id);
+  assert.equal(done.cheques[0].emitente,'EMERSON WARMLING');
+  assert.equal(done.cheques[1].emitente,'RESTAURANTE RAÍZES CHOPERIA');
+  assert.equal(done.cheques[1].duplicidadeConfirmada,true);
+  assert.equal(Object.keys(db.state.erp.chequesControle).length,2);
+  const other={...third,operationId:'50d55897-08dc-44aa-a2f4-bfef8c79d55e',valor:300,cheques:[{b:'Cheque de Terceiro',n:'175',v:300,d:'2026-11-05',cli:'NOVO EMITENTE'}]};
+  await assert.rejects(()=>createAdvance(finance,other,{db}),{code:'CHEQUE_DUPLICATE_CONFIRMATION_REQUIRED'});
+  const repeated=await createAdvance(finance,{...other,confirmDuplicates:true},{db});
+  assert.equal(repeated.cheques[0].duplicidadeConfirmada,true);
+  assert.equal(Object.keys(db.state.erp.chequesControle).length,3);
+});
+
+test('cheque próprio nunca aceita repetição mesmo com override',async()=>{
+  const db=fakeDb();
+  await createAdvance(finance,chequeInput,{db});
+  const own={...chequeInput,operationId:'1f810a9e-29d5-4f73-93cc-83621df18e13',cheques:[{b:'Banco Azul',n:'100',v:600,d:'2026-11-05'}],confirmDuplicates:true};
+  await assert.rejects(()=>createAdvance(finance,own,{db}),{code:'CHEQUE_ALREADY_EXISTS'});
+  assert.equal(db.updates,1);
+});
+
+test('cheque de terceiro sem emitente é rejeitado antes de movimentar caixa',async()=>{
+  const db=fakeDb();
+  const third={...chequeInput,forma:'Cheque de Terceiro',valor:100,
+    cheques:[{b:'Terceiro',n:'175',v:100,d:'2026-11-05',cli:''}]};
+  await assert.rejects(()=>createAdvance(finance,third,{db}),{code:'CHEQUE_DRAWER_REQUIRED'});
+  assert.equal(db.updates,0);
+});
