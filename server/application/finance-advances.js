@@ -55,14 +55,36 @@ async function resolveDatabase(db){
   return getFirebaseAdmin().db;
 }
 
+function supplierTombstones(raw){
+  if(Array.isArray(raw))return new Set(raw.filter(value=>value!=null).map(value=>String(value)));
+  if(!raw||typeof raw!=='object')return new Set();
+  return new Set(Object.entries(raw).filter(([,value])=>value===true||value===1||value==='true').map(([key])=>String(key)));
+}
+
+function supplierOptions(raw,deletedCodes,deletedIds){
+  const byCode=new Map();
+  for(const [key,supplier] of Object.entries(raw&&typeof raw==='object'?raw:{})){
+    if(!supplier||typeof supplier!=='object'||Array.isArray(supplier))continue;
+    const cod=clean(supplier.cod),nome=clean(supplier.nome,240),id=clean(supplier.id||key);
+    if(!cod||!nome||supplier.ativo===false||supplier.excluido===true||
+      ['inativo','desativado','excluido','excluído'].includes(String(supplier.status||'').trim().toLocaleLowerCase('pt-BR'))||
+      deletedCodes.has(cod)||deletedCodes.has(id)||deletedIds.has(id)||deletedIds.has(cod)||deletedIds.has(key))continue;
+    const candidate={cod,nome};
+    if(!byCode.has(cod))byCode.set(cod,candidate);
+  }
+  return Array.from(byCode.values()).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR',{sensitivity:'base'})||a.cod.localeCompare(b.cod,'pt-BR'));
+}
+
 export async function listAdvanceBankOptions(identity,{db}={}){
   requireFinance(identity);
   db=await resolveDatabase(db);
-  const [snapshot,suppliersSnapshot]=await Promise.all([db.ref('erp/bancos').get(),db.ref('erp/fornecedores').get()]);
-  const banks=bankEntries(snapshot.val()).map(({cod,banco})=>({cod,banco}));
+  const paths=['erp/bancos','erp/fornecedores','erp/fornDeleted','erp/fornDeletedV2','erp/fornecedoresDeleted','erp/fornecedoresDeletedV2'];
+  const snapshots=await Promise.all(paths.map(path=>db.ref(path).get()));
+  const banks=bankEntries(snapshots[0].val()).map(({cod,banco})=>({cod,banco}));
   banks.sort((a,b)=>a.banco.localeCompare(b.banco,'pt-BR')||a.cod.localeCompare(b.cod,'pt-BR'));
-  const suppliers=Object.values(suppliersSnapshot.val()||{}).filter(s=>s&&typeof s==='object'&&s.ativo!==false&&!['inativo','desativado','excluido'].includes(String(s.status||'').trim().toLowerCase())).map(s=>({cod:clean(s.cod),nome:clean(s.nome,240)})).filter(s=>s.cod&&s.nome);
-  suppliers.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+  const deletedCodes=new Set([...supplierTombstones(snapshots[2].val()),...supplierTombstones(snapshots[3].val())]);
+  const deletedIds=new Set([...supplierTombstones(snapshots[4].val()),...supplierTombstones(snapshots[5].val())]);
+  const suppliers=supplierOptions(snapshots[1].val(),deletedCodes,deletedIds);
   return {banks,suppliers};
 }
 
