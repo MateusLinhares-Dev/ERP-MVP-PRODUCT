@@ -112,11 +112,11 @@ test('editar pedido altera materiais sem reaplicar adiantamentos e atualiza apen
   assert.equal(edited.saldoPagar,900);
   ctx.edited=edited;
   runInNewContext(`${code}\nafterConfirmedPurchaseEdit(edited,state,{total:1200,productTotal:1200,balance:900})`,ctx);
-  assert.equal(cp.valor,900);
+  assert.equal(cp.valor,700);
   assert.equal(ticket.adiantamento,300);
   assert.equal(ticket.reciboFinanceiro.adiantamentos[0].valorAplicado,300);
   assert.equal(adts[0].status,'Quitado');
-  assert.equal(saved,0);assert.equal(savedCp,1);
+  assert.equal(saved,0);assert.equal(savedCp,0);
 });
 
 test('edição impede preço total inferior ao já pago/abatido',()=>{

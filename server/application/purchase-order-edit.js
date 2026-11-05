@@ -80,12 +80,33 @@ function assemble(original,input){
     totalProdutos:round(totalProducts),totalPedido:round(total)};
   return {ticket:next,oldTotal,total,balance,difference:total-oldTotal};
 }
-function adjustReceipt(original,next,total){
-  const source=clone(original.reciboFinanceiro||{});
-  const advances=Array.isArray(source.adiantamentos)?source.adiantamentos:[];
-  const cheques=Array.isArray(source.cheques)?source.cheques:[];
-  if(cheques.some(row=>cash(Number(row.valorAplicado||0))>0))reject(409,'CHEQUE_RECONCILIATION_REQUIRED','Esta compra possui cheques aplicados. A alteração exige conciliação específica.');
-  if(!advances.length)reject(409,'ADVANCE_RECEIPT_MISSING','Não foi encontrado o recibo do adiantamento.');
+function trustedLegacyReceipt(original,raw,ticketNo){
+  const oldTotal=cash(Number(original.totalGeral||0));
+  const originalAdvance=cash(Number(original.adiantamento||0));
+  const originalCredit=-cash(Number(original.saldoPagar||0));
+  if(oldTotal<=0||originalCredit<=0||originalAdvance!==oldTotal+originalCredit)return null;
+  const candidates=rowEntries(readRows(raw)).filter(([,row])=>{
+    if(!row.cod||row.status!=='Pendente'||String(row.forma||'').toLowerCase().includes('cheque'))return false;
+    if(row.ticket&&String(row.ticket)!==ticketNo)return false;
+    const remaining=cash(Number(row.valor||0));
+    const already=cash(Number(row.valorCompensado||0));
+    const originalValue=cash(Number(row.valorOriginal??(remaining+already)/100));
+    return remaining===originalCredit&&already===oldTotal&&originalValue===originalAdvance;
+  });
+  if(candidates.length!==1)return null;
+  const source=candidates[0][1];
+  return {versao:1,total:round(originalAdvance),adiantamentos:[{
+    cod:String(source.cod),data:String(source.data||''),forma:String(source.forma||''),bancoNome:String(source.bancoNome||''),
+    valorOriginal:round(originalAdvance),valorAplicado:round(oldTotal),valorPendente:round(originalCredit)
+  }],cheques:[]};
+}
+function adjustReceipt(original,next,total,ledger,ticketNo){
+  const existing=clone(original.reciboFinanceiro||{});
+  if((existing.cheques||[]).some(row=>cash(Number(row.valorAplicado||0))>0))reject(409,'CHEQUE_RECONCILIATION_REQUIRED','Esta compra possui cheques aplicados. A alteração exige conciliação específica.');
+  const source=Array.isArray(existing.adiantamentos)&&existing.adiantamentos.length
+    ?existing:trustedLegacyReceipt(original,ledger,ticketNo);
+  if(!source)reject(409,'ADVANCE_RECONCILIATION_REQUIRED','O adiantamento deste pedido antigo não possui vínculo financeiro único. Não foi alterado.');
+  const advances=source.adiantamentos;
   const oldApplied=advances.reduce((sum,row)=>sum+cash(Number(row.valorAplicado||0)),0);
   if(Math.abs(oldApplied-cash(Number(original.totalGeral||0)))>1)reject(409,'ADVANCE_RECEIPT_MISMATCH','O recibo possui abatimentos diferentes do total original. Confira as baixas antes de editar.');
   let remaining=total;
@@ -127,15 +148,34 @@ function adjustLedger(raw,changes,ticketNo){
   }
   return records;
 }
-function adjustPayable(raw,ticketNo,oldBalance,nextBalance){
-  const matches=rowEntries(raw).filter(([,row])=>String(row.ticket||'')===ticketNo&&row.status!=='Pago');
-  if(matches.length!==1)reject(409,'PAYABLE_MISSING','A conta a pagar do pedido não foi encontrada ou está duplicada.');
-  const [path,row]=matches[0];
-  if(row.status!=='Pendente'||cash(Number(row.valor||0))!==oldBalance||Number(row.valorPago||0)>0||
-    (Array.isArray(row.pagamentos)&&row.pagamentos.length>0))
-    reject(409,'PAYABLE_CHANGED','Esta compra já tem baixa ou foi alterada em Contas a Pagar.');
-  const updated={...row,valor:round(nextBalance),status:nextBalance===0?'Pago':'Pendente'};
-  if(nextBalance===0)updated.dataPgto='';
+function adjustPayable(raw,ticketNo,oldBalance,nextBalance,operationId,supplierCode,original){
+  const entriesAll=rowEntries(raw);
+  const active=entriesAll.filter(([,row])=>String(row.ticket||'')===ticketNo&&row.status!=='Pago');
+  if(active.length>1)reject(409,'PAYABLE_DUPLICATE','Há mais de uma conta em aberto para este pedido.');
+  if(active.length===1){
+    const [path,row]=active[0];
+    if(row.status!=='Pendente'||cash(Number(row.valor||0))!==oldBalance)
+      reject(409,'PAYABLE_CHANGED','O saldo da conta foi alterado. Atualize o pedido antes de editar.');
+    if(nextBalance<0)reject(409,'PAYABLE_RECONCILIATION_REQUIRED','A alteração geraria crédito a restituir.');
+    const updated={...row,valor:round(nextBalance),status:nextBalance===0?'Pago':'Pendente'};
+    if(nextBalance===0){
+      const historical=cash(Number(row.valorPago||0))+cash(Number(row.adtCompensado||0));
+      updated.valor=round(historical>0?historical:0);
+      updated.dataPgto=String(row.dataPgto||new Date().toISOString().slice(0,10));
+    }
+    return {path,updated};
+  }
+  if(oldBalance!==0||nextBalance<=0)reject(409,'PAYABLE_CHANGED','O saldo do pedido não corresponde às contas financeiras disponíveis.');
+  const id='CP-AJUSTE-'+ticketNo+'-'+operationId.slice(0,8);
+  if(entriesAll.some(([,row])=>String(row.id||'')===id))reject(409,'PAYABLE_CHANGED','Ajuste já registrado. Atualize o histórico.');
+  const taken=new Set(entriesAll.map(([path])=>path));
+  const path=Array.isArray(raw)?String(raw.length):id;
+  if(taken.has(path))reject(409,'PAYABLE_CHANGED','Não foi possível reservar um registro financeiro único.');
+  const date=String(original.dataCompra||original.data||'').replace(/^(\d{2})\/(\d{2})\/(\d{4})$/,'$3-$2-$1');
+  const due=String(original.vencimentoSaldo||date);
+  const updated={id,ticket:ticketNo,fornCod:supplierCode,cred:String(original.fornecedor||''),cat:'Compra de Sucata',tipoForn:'compra',
+    desc:'Diferença após correção do pedido '+ticketNo,lancto:date,venc:due,valor:round(nextBalance),
+    status:'Pendente',dataPgto:'',bancoCod:'',bancoNome:'',pagamentos:[],obs:'Ajuste confirmado após pagamento anterior'};
   return {path,updated};
 }
 function adjustmentOfCredit(raw,before,after,ticketNo){
@@ -180,10 +220,10 @@ export async function editPurchaseOrder(identity,input,{db,now=()=>Date.now(),uu
     if(changed){
       const oldBalance=cash(Number(previous.saldoPagar||0));
       const payments=Object.values(snaps[4].val()||{}).filter(row=>row&&String(row.ticket||'')===ticketNo);
-      if(payments.some(row=>Number(row.valorPago||0)>0||(row.pagamentos||[]).some(p=>Number(p.valor||0)>0)))
-        reject(409,'PAYMENT_ALREADY_RECORDED','Há pagamentos bancários já registrados nesta compra.');
       if(oldBalance<0&&result.balance<=0&&advancesUsed){
-        const changes=adjustReceipt(previous,result.ticket,result.total);
+        if(payments.some(row=>Number(row.valorPago||0)>0||(row.pagamentos||[]).some(p=>Number(p.valor||0)>0)))
+          reject(409,'PAID_AND_ADVANCE_RECONCILIATION_REQUIRED','Existem pagamentos e adiantamentos vinculados ao mesmo pedido. É necessária conciliação específica.');
+        const changes=adjustReceipt(previous,result.ticket,result.total,snaps[1].val(),ticketNo);
         updates['adiantamentos/'+code]=adjustLedger(snaps[1].val(),changes,ticketNo);
         const oldCredit=-oldBalance,newCredit=Math.max(0,-result.balance);
         const saldo=adjustmentOfCredit(snaps[2].val(),oldCredit,newCredit,ticketNo);
@@ -191,7 +231,7 @@ export async function editPurchaseOrder(identity,input,{db,now=()=>Date.now(),uu
         if(saldo!==null)updates['saldos/'+code]=saldo;
         if(legacy!==null)updates['saldoDevedor/'+code]=legacy;
       }else if(oldBalance>=0&&result.balance>=0){
-        const payable=adjustPayable(snaps[4].val()||[],ticketNo,oldBalance,result.balance);
+        const payable=adjustPayable(snaps[4].val()||[],ticketNo,oldBalance,result.balance,opId,code,previous);
         updates['contasPagar/'+payable.path]=payable.updated;
       }else reject(409,'FINANCE_RECONCILIATION_REQUIRED','O valor altera a natureza do saldo do pedido. Essa mudança exige conciliação específica.');
     }

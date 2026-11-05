@@ -209,7 +209,7 @@
         <div style="display:flex;flex-wrap:wrap;gap:10px;padding:0 0 10px;align-items:center">
           <div style="display:flex;align-items:center;gap:6px">
             <label style="font-size:.78rem;font-weight:700;color:var(--gray);text-transform:uppercase">Status:</label>
-            <select id="filt-compra-status" onchange="renderTickets()" style="font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:5px">
+            <select id="filt-compra-status" onchange="window.ERPListPager?.reset('compra-historico');renderTickets()" style="font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:5px">
               <option value="todos" selected>Todos</option>
               <option value="pendente">Pendentes</option>
               <option value="pago">Quitados</option>
@@ -217,16 +217,16 @@
           </div>
           <div style="display:flex;align-items:center;gap:6px">
             <label style="font-size:.78rem;font-weight:700;color:var(--gray);text-transform:uppercase">Fornecedor:</label>
-            <input id="filt-compra-forn" list="filt-compra-forn-list" placeholder="🔍 Digite o nome..." oninput="renderTickets()" autocomplete="off" style="font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:5px;min-width:180px">
+            <input id="filt-compra-forn" list="filt-compra-forn-list" placeholder="🔍 Digite o nome..." oninput="window.ERPListPager?.reset('compra-historico');renderTickets()" autocomplete="off" style="font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:5px;min-width:180px">
             <datalist id="filt-compra-forn-list"></datalist>
           </div>
           <div style="display:flex;align-items:center;gap:6px">
             <label style="font-size:.78rem;font-weight:700;color:var(--gray);text-transform:uppercase">De:</label>
-            <input type="date" id="filt-compra-de" onchange="renderTickets()" style="font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:5px">
+            <input type="date" id="filt-compra-de" onchange="window.ERPListPager?.reset('compra-historico');renderTickets()" style="font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:5px">
           </div>
           <div style="display:flex;align-items:center;gap:6px">
             <label style="font-size:.78rem;font-weight:700;color:var(--gray);text-transform:uppercase">Até:</label>
-            <input type="date" id="filt-compra-ate" onchange="renderTickets()" style="font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:5px">
+            <input type="date" id="filt-compra-ate" onchange="window.ERPListPager?.reset('compra-historico');renderTickets()" style="font-size:.82rem;padding:4px 8px;border:1px solid var(--border);border-radius:5px">
           </div>
           <button onclick="limparFiltrosCompra()" style="font-size:.78rem;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:#fff;cursor:pointer;color:var(--gray)">✕ Limpar</button>
           <span id="filt-compra-count" style="font-size:.78rem;color:var(--gray);margin-left:auto"></span>
@@ -4145,6 +4145,6 @@
 
 
 
-<script type="module" src="/app/bootstrap.js?v=20261105-paid-order-reconciliation-t198-v2"></script>
+<script type="module" src="/app/bootstrap.js?v=20261105-erp-purchases-company-sync-v3"></script>
 </body>
 </html>
