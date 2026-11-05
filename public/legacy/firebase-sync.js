@@ -1746,12 +1746,26 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     _fbListenerAtivo = true;
 
-    window._fbDB.ref('erp/companyDirectory').on('value',snap=>{
-      try{
-        const cfg=snap&&snap.val?snap.val():null;
-        if(cfg&&cfg.schemaVersion===3&&typeof window.__erpApplyCompanyDirectory==='function')window.__erpApplyCompanyDirectory({employeeCompanies:cfg.companies,inactiveCompanies:cfg.inactiveCompanies,deletedCompanies:cfg.deletedCompanies,companyDirectoryRevision:cfg.revision});
-      }catch(error){console.warn('Cadastro de empresas: falha ao atualizar lista',error);}
-    },error=>{console.warn('Cadastro de empresas indisponível',error);});
+    let lastCompaniesRefresh=0;
+    let companyRefreshInProgress=false;
+    function applyCompanySnapshot(snap){
+      const cfg=snap?.val?.();
+      if(cfg?.schemaVersion!==3||typeof window.__erpApplyCompanyDirectory!=='function')return;
+      window.__erpApplyCompanyDirectory({employeeCompanies:cfg.companies,inactiveCompanies:cfg.inactiveCompanies,deletedCompanies:cfg.deletedCompanies,companyDirectoryRevision:cfg.revision});
+    }
+    function refreshCompaniesOnReturn(){
+      if(!window._fbDB||!_fbTemUsuarioAuth()||companyRefreshInProgress||Date.now()-lastCompaniesRefresh<15000)return;
+      lastCompaniesRefresh=Date.now();
+      companyRefreshInProgress=true;
+      window._fbDB.ref('erp/companyDirectory').once('value').then(applyCompanySnapshot).catch(error=>{
+        console.warn('Cadastro central de empresas indisponível para esta sessão',error?.code||'falha de leitura');
+      }).finally(()=>{companyRefreshInProgress=false;});
+    }
+    window._fbDB.ref('erp/companyDirectory').on('value',applyCompanySnapshot,error=>{
+      console.warn('Cadastro de empresas: leitura em tempo real indisponível',error?.code||'erro');
+    });
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshCompaniesOnReturn();});
+    window.addEventListener('focus',refreshCompaniesOnReturn);
 
     window._fbDB.ref('.info/connected').on('value', snap => {
       _fbOnline = !!snap.val();

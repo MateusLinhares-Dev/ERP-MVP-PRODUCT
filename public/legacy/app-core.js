@@ -3773,13 +3773,15 @@ function _erpApplyCompanyDirectory(config){
   const deletedCompanies=Array.isArray(config.deletedCompanies)?config.deletedCompanies.slice():[];
   const revision=Number(config.companyDirectoryRevision)||0;
   if(revision<(Number(window.__ERP_COMPANY_DIRECTORY_REVISION__)||0))return false;
-  const oldCompanies=ERP_BUSINESS_CONFIG.employeeCompanies||[];
-  const oldInactive=ERP_BUSINESS_CONFIG.inactiveCompanies||[];
-  const oldDeleted=ERP_BUSINESS_CONFIG.deletedCompanies||[];
-  if(JSON.stringify(oldCompanies)===JSON.stringify(companies)&&JSON.stringify(oldInactive)===JSON.stringify(inactiveCompanies)&&JSON.stringify(oldDeleted)===JSON.stringify(deletedCompanies)){window.__ERP_COMPANY_DIRECTORY_REVISION__=revision;window.__ERP_COMPANY_DIRECTORY_STATE__={companies:companies.slice(),inactiveCompanies:inactiveCompanies.slice(),deletedCompanies:deletedCompanies.slice(),revision};ERP_BUSINESS_CONFIG.companyDirectoryRevision=revision;return false;}
+  const previous=window.__ERP_COMPANY_DIRECTORY_STATE__;
+  const changed=!previous||revision!==previous.revision||JSON.stringify(previous.companies)!==JSON.stringify(companies)||JSON.stringify(previous.inactiveCompanies)!==JSON.stringify(inactiveCompanies)||JSON.stringify(previous.deletedCompanies)!==JSON.stringify(deletedCompanies);
+  if(!changed)return false;
   if(!_erpAplicarCadastroEmpresas({companies,inactiveCompanies,deletedCompanies,revision}))return false;
-  if(document.getElementById('rh-empresas-atuais'))_erpRenderEmpresasAdministracao();
-  return true;
+  if(changed){
+    if(document.getElementById('rh-empresas-atuais'))_erpRenderEmpresasAdministracao();
+    try{document.dispatchEvent(new CustomEvent('erp:companies-changed',{detail:{revision}}));}catch(e){}
+  }
+  return changed;
 }
 window.__erpApplyCompanyDirectory=_erpApplyCompanyDirectory;
 function gerenciarEmpresasFuncionarios(){
@@ -10269,25 +10271,6 @@ function renderTickets(){
   
   
   
-  try{
-    if(typeof CONTAS_PAGAR!=='undefined' && Array.isArray(CONTAS_PAGAR) && typeof TICKETS_DB!=='undefined'){
-      let _reconcMudou=false;
-      Object.values(TICKETS_DB).forEach(function(tk){
-        if(!tk || tk._balSessao || tk._rodEntrada || tk.status==='Aguard. Saída' || tk.status==='Aguard. Preço') return;
-        const _saldoAtual=Number(tk.saldoPagar);
-        if(tk.status==='Pago' || (Number.isFinite(_saldoAtual)&&_saldoAtual<=0.01)) return; 
-        var cps=CONTAS_PAGAR.filter(function(cp){ return cp && cp.ticket && String(cp.ticket)===String(tk.ticket); });
-        if(!cps.length) return;                       
-        var temAberta=cps.some(function(cp){ return cp.status!=='Pago'; });
-        if(!temAberta){                               
-          tk.saldoPagar=0; tk.status='Pago';
-          if(!tk.dataPgto){ var _ult=cps[cps.length-1]; tk.dataPgto=(_ult&&_ult.dataPgto)||new Date().toLocaleDateString('pt-BR'); }
-          tk._upd=Date.now(); _reconcMudou=true;
-        }
-      });
-      if(_reconcMudou){ try{ saveDB(); }catch(e){} }
-    }
-  }catch(e){ console.warn('reconc compras↔contas:',e); }
 
   
   const filtStatus=(document.getElementById('filt-compra-status')?.value)||'todos';
@@ -10316,7 +10299,7 @@ function renderTickets(){
   
   
   
-  let _ticketsReparados=false; Object.values(TICKETS_DB).forEach(function(tk){ if(_normalizarTicketFinanceiro(tk)) _ticketsReparados=true; }); if(_ticketsReparados){ try{ saveDB(); }catch(e){} }
+
   const baseTodos=Object.values(TICKETS_DB).filter(tk=>!tk._balSessao && !tk._rodEntrada && tk.status!=='Aguard. Saída');
   const creditosTodos=[];
   Object.entries(ADT_POR_FORN).forEach(([cod,lista])=>{
@@ -10366,12 +10349,14 @@ function renderTickets(){
   if(countEl) countEl.textContent=all.length+' registro'+(all.length!==1?'s':'');
 
   if(all.length===0&&creditos.length===0){
+    window.ERPListPager?.slice('compra-historico',[],'tb-compras',renderTickets,{alwaysShow:false});
     tbody.innerHTML=`<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum registro encontrado</td></tr>`;
     return;
   }
   all.sort(compararTicketsHistorico);
+  const pageTickets=window.ERPListPager?.slice('compra-historico',all,'tb-compras',renderTickets,{alwaysShow:false})||all;
 
-  let rows=all.map(tk=>{
+  let rows=pageTickets.map(tk=>{
     const statusEspecial=tk.status==='Aguard. Preço'||tk.status==='Consolidado';
     const saldoNum=Number(tk.saldoPagar);
     const saldoFinito=Number.isFinite(saldoNum);
@@ -10408,7 +10393,7 @@ function renderTickets(){
         ${isPago
           ? (tk._pagoUndo
             ? '<button onclick="desmarcarCompraPaga(\''+tk._dbKey+'\')" title="Desfazer marcação manual de pago" style="background:#e0e7ef;color:#556;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem;font-weight:700">↩️</button>'
-            : '<span title="Compra quitada: para corrigir o pedido use Editar, sem desfazer o pagamento" style="color:#207d52;font-weight:700;font-size:.73rem">Quitado</span>')
+            : '<button type="button" onclick="phase4PurchaseEditTicket(\''+tk._dbKey+'\')" title="Reabrir o formulário de edição sem estornar adiantamentos ou PIX" style="background:#e9f3ed;color:#24633f;border:1px solid #b6d8c4;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.72rem;font-weight:700">↩ Reabrir edição</button>')
           : '<button onclick="marcarCompraPaga(\''+tk._dbKey+'\')" title="Marcar como paga (quando o pagamento já está lançado na Ficha) — não cria adiantamento nem duplica" style="background:#1a7f4b;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem;font-weight:700">✅ Pago</button>'}
         <button onclick="phase4PurchaseEditTicket('${tk._dbKey}')" title="Editar pedido completo na aba Lançamento" style="background:#1a3a2a;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem">✏️</button>
         <button class="btn-edit-danger" onclick="excluirEntradaCompra('${tk._dbKey}')" title="Excluir entrada" style="font-size:.75rem">🗑️</button>

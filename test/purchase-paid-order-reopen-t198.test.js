@@ -72,7 +72,7 @@ test('conflito no adiantamento não regrava ticket nem conta',async()=>{
 });
 test('pagamento bancário preexistente impede recomposição de crédito',async()=>{
  const x=setup();x.data['erp/contasPagar']=[{ticket:'T198',valorPago:100,pagamentos:[{valor:100}]}];
- await assert.rejects(editPurchaseOrder(identity,x.input,{db:x.db,uuid:()=>operation}),{code:'PAYMENT_ALREADY_RECORDED'});
+ await assert.rejects(editPurchaseOrder(identity,x.input,{db:x.db,uuid:()=>operation}),{code:'PAID_AND_ADVANCE_RECONCILIATION_REQUIRED'});
  assert.equal(x.changes.length,0);
 });
 test('perfil sem compras não consegue alterar o pedido',async()=>{

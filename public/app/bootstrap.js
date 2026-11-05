@@ -4,7 +4,7 @@ import { createLegacyDatabaseAdapter } from './legacy-db-adapter.js';
 import { createRealtimeBusinessRepository } from './realtime-business-repository.js';
 import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 
-const assetRevision = '20261105-paid-order-reconciliation-t198-v2';
+const assetRevision = '20261105-erp-purchases-company-sync-v3';
 
 function loadClassic(src) {
   return new Promise((resolve, reject) => {
@@ -116,7 +116,12 @@ function applyPublicBranding(publicConfig) {
   ].filter(Boolean).join(' · ');
   setText('[data-brand-address-contacts]', [company.enderecoCurto || company.endereco || '', contacts ? `📞 ${contacts}` : ''].filter(Boolean).join(' · '));
   if (branding.title) document.title = branding.title;
-  window.__PUBLIC_BUSINESS_CONFIG__ = publicConfig || {};
+  const currentDirectory=window.__ERP_COMPANY_DIRECTORY_STATE__;
+  const currentRevision=Number(currentDirectory?.revision)||0;
+  const brandRevision=Number(publicConfig?.companyDirectoryRevision)||0;
+  window.__PUBLIC_BUSINESS_CONFIG__ = currentDirectory&&currentRevision>brandRevision
+    ? {...(publicConfig||{}),employeeCompanies:currentDirectory.companies.slice(),inactiveCompanies:(currentDirectory.inactiveCompanies||[]).slice(),deletedCompanies:(currentDirectory.deletedCompanies||[]).slice(),companyDirectoryRevision:currentRevision}
+    : (publicConfig||{});
 }
 
 window.__applyPublicBranding = applyPublicBranding;
