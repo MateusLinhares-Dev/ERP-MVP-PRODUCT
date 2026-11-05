@@ -1,4 +1,4 @@
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 
 const fail=(status,code,message)=>{const error=new Error(message);error.status=status;error.code=code;throw error;};
 const clean=(value,max=160)=>String(value??'').trim().slice(0,max);
@@ -12,6 +12,25 @@ const bankListClaims=['canFinance','canAdvances','canPayables','canReceivables',
 const canList=identity=>identity?.erpAccess===true&&bankListClaims.some(claim=>identity[claim]===true);
 async function database(db){return db||(await import('../infrastructure/firebase-admin.js')).getFirebaseAdmin().db;}
 const banks=value=>entries(value).map(([id,b])=>({cod:clean(b.cod||b.codigo||b.id||id),banco:clean(b.banco||b.nomeBanco||b.nome)})).filter(b=>b.cod&&b.banco);
+const LOCK_TTL_MS=120000;
+// Nunca roubar um bloqueio ainda válido. A operação poderá ter gravado no Firebase
+// mesmo quando a resposta HTTP se perdeu: nesse caso o comprovante é a fonte da verdade.
+async function recoverPaymentResult(opRef,originalLock,operationKey,{sleep}){
+  const waits=originalLock?.operationKey===operationKey?6:1;
+  for(let attempt=0;attempt<waits;attempt++){
+    const operation=(await opRef.get()).val();
+    if(operation?.result)return operation;
+    if(attempt+1<waits)await sleep(250);
+  }
+  return null;
+}
+function inProgress(lock,now){
+  const seconds=Math.max(1,Math.min(120,Math.ceil((Number(lock?.expiresAt||0)-now())/1000)));
+  const error=new Error('Há uma baixa em processamento para este título. Não confirme novamente antes da conclusão ou do prazo informado.');
+  error.status=409;error.code='PAYMENT_IN_PROGRESS';error.retryAfterSeconds=seconds;
+  throw error;
+}
+
 
 export async function listPaymentBanks(identity,{db}={}){
   if(!canList(identity))fail(403,'PAYMENT_BANKS_FORBIDDEN','Seu perfil não pode consultar as opções de pagamento.');
@@ -21,7 +40,7 @@ export async function listPaymentBanks(identity,{db}={}){
   return {banks:items};
 }
 
-export async function payPayable(identity,input,{db,now=()=>Date.now(),uuid=randomUUID}={}){
+export async function payPayable(identity,input,{db,now=()=>Date.now(),uuid=randomUUID,sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms))}={}){
   if(identity?.erpAccess!==true||identity.canPayables!==true)fail(403,'PAYABLES_REQUIRED','Sem acesso a Contas a Pagar.');
   if(!input||typeof input!=='object'||Array.isArray(input))fail(400,'INVALID_INPUT','Solicitação inválida.');
   const id=key(input.payableId),operationId=key(input.operationId),bankCode=input.bankCode?key(input.bankCode):'',date=dateISO(input.date);
@@ -33,17 +52,36 @@ export async function payPayable(identity,input,{db,now=()=>Date.now(),uuid=rand
   const instance=await database(db);
   const opKey=key(String(identity.uid||identity.erpUser||'user').replace(/[^a-zA-Z0-9_-]/g,'_'))+'_'+operationId;
   const opRef=instance.ref('erp/financePayableOperations/'+opKey);
-  const previous=(await opRef.get()).val();
-  if(previous?.result)return {...previous.result,alreadyCommitted:true};
   const expected=input.expected||{};
   if(typeof expected!=='object'||Array.isArray(expected))fail(422,'INVALID_EXPECTED','Versão esperada inválida.');
+  const signature=createHash('sha256').update(JSON.stringify({id,date,bankCode,payCents,advanceCents,fornCod:clean(input.fornCod),expected})).digest('hex');
+  const resultIfCommitted=record=>{
+    if(!record?.result)return null;
+    if(record.requestSignature&&record.requestSignature!==signature)fail(409,'OPERATION_USED','Esta tentativa já foi usada com outros dados. Atualize a conta antes de tentar novamente.');
+    return {...record.result,alreadyCommitted:true};
+  };
+  const previous=(await opRef.get()).val();
+  const replay=resultIfCommitted(previous);
+  if(replay)return replay;
   const lockRef=instance.ref('erpFinancePayableLocks/'+id),owner=uuid();
-  const claimed=await lockRef.transaction(current=>current&&current.expiresAt>now()?undefined:{owner,expiresAt:now()+120000},undefined,false);
-  if(!claimed.committed)fail(409,'PAYMENT_IN_PROGRESS','Outra baixa deste título está em andamento.');
+  let claimed=await lockRef.transaction(current=>current&&current.expiresAt>now()?undefined:{owner,operationKey:opKey,expiresAt:now()+LOCK_TTL_MS},undefined,false);
+  if(!claimed.committed){
+    const lock=claimed.snapshot?.val?.()||(await lockRef.get()).val();
+    const completed=await recoverPaymentResult(opRef,lock,opKey,{sleep});
+    const recovered=resultIfCommitted(completed);
+    if(recovered)return recovered;
+    // A requisição que reteve o lock pode ter sido interrompida. Se o prazo já
+    // terminou durante a espera, só o próprio transaction pode reassumir o lock.
+    if(Number(lock?.expiresAt||0)<=now()){
+      claimed=await lockRef.transaction(current=>current&&current.expiresAt>now()?undefined:{owner,operationKey:opKey,expiresAt:now()+LOCK_TTL_MS},undefined,false);
+    }
+    if(!claimed.committed)inProgress(claimed.snapshot?.val?.()||(await lockRef.get()).val(),now);
+  }
   let supplierLock=null,ticketLock=null;
   try{
     const committed=(await opRef.get()).val();
-    if(committed?.result)return {...committed.result,alreadyCommitted:true};
+    const committedResult=resultIfCommitted(committed);
+    if(committedResult)return committedResult;
     const rawPayables=(await instance.ref('erp/contasPagar').get()).val();
     const found=entries(rawPayables).find(([path,row])=>path===id||String(row.id)===id);
     if(!found)fail(404,'PAYABLE_NOT_FOUND','Título não encontrado na nuvem.');
@@ -139,7 +177,7 @@ export async function payPayable(identity,input,{db,now=()=>Date.now(),uuid=rand
       updates['tickets/'+key(original.ticket)]=ticket;
     }
     const result={payable:updated,bankMovement:movement,advanceEntries:advanceList,fornCod:supplier,ticket,ticketKey:original.ticket||''};
-    updates['financePayableOperations/'+opKey]={result,createdAt:now(),actor:clean(identity.erpUser)};
+    updates['financePayableOperations/'+opKey]={result,requestSignature:signature,createdAt:now(),actor:clean(identity.erpUser)};
     await instance.ref('erp').update(updates);
     return result;
   }finally{

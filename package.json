@@ -31,7 +31,8 @@
     "audit:purchases": "node scripts/audit-purchase-sync.mjs",
     "provision:engineer": "node scripts/provision-engineer.mjs",
     "generate:rules:candidate": "node scripts/generate-granular-database-rules.mjs",
-    "audit:security:strict": "ERP_SECURITY_STRICT=1 node scripts/release-security-check.mjs"
+    "audit:security:strict": "ERP_SECURITY_STRICT=1 node scripts/release-security-check.mjs",
+    "audit:payment-lock": "node scripts/audit-payment-lock.mjs"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",

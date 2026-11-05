@@ -19010,6 +19010,8 @@ async function _cpConsultarContasBancarias(selectId,current=''){
   return allowed&&_erpBankDirectory.banks.length>0;
 }
 
+const _cpPendingPayments=new Map();
+
 function pagarContaRapido(idx,id){
   if(id){const fresh=_cpIdxPorId(id);if(fresh>=0)idx=fresh;}
   const c=CONTAS_PAGAR[idx];if(!c)return;
@@ -19039,7 +19041,14 @@ function pagarContaRapido(idx,id){
     (totalAdtDisp>0?'<button class="btn-save" type="button" id="btn-so-compensar">Compensar adiantamento</button>':'')+
     '<button class="btn-save" type="button" id="btn-pagar-tudo">✅ Confirmar Pagamento</button></div>';
   document.getElementById('modal-ov').classList.add('open');
-  body.dataset.paymentOperation=crypto.randomUUID();
+  const pending=_cpPendingPayments.get(String(c.id||''));
+  if(pending&&pending.expiresAt>Date.now()){
+    body.dataset.paymentOperation=pending.operationId;
+    body.dataset.paymentLockedUntil=String(pending.blockedUntil||0);
+  }else{
+    _cpPendingPayments.delete(String(c.id||''));
+    body.dataset.paymentOperation=crypto.randomUUID();
+  }
   _cpConsultarContasBancarias('pcp-banco',c.bancoCod||'');
   atualizarLiquidoCP(valorCP);
   document.getElementById('btn-so-compensar')?.addEventListener('click',()=>confirmarPagarCP('so-compensar'));
@@ -19062,6 +19071,12 @@ function atualizarLiquidoCP(valorCP){
 async function confirmarPagarCP(modo){
   const modal=document.getElementById('modal-body'),id=document.getElementById('pcp-id')?.value;
   const idx=_cpIdxPorId(id),c=CONTAS_PAGAR[idx];if(!c||!modal||modal.dataset.paymentBusy==='true')return;
+  const blockedUntil=Number(modal.dataset.paymentLockedUntil||0);
+  if(blockedUntil>Date.now()){
+    const seconds=Math.ceil((blockedUntil-Date.now())/1000);
+    showToast('Existe uma baixa sendo processada. Aguarde '+seconds+' segundo(s) antes de consultar novamente. Não registre outro pagamento.','warning',6500);
+    return;
+  }
   const total=Number(document.getElementById('pcp-valor-pagar')?.value);
   const adt=Number(document.getElementById('pcp-adt')?.value||0);
   const onlyAdvance=modo==='so-compensar';
@@ -19082,10 +19097,29 @@ async function confirmarPagarCP(modo){
   buttons.forEach(button=>button.disabled=true);
   try{
     const token=await user.getIdToken(true);
+    _cpPendingPayments.set(id,{operationId:modal.dataset.paymentOperation,expiresAt:Date.now()+180000,blockedUntil:0});
     const response=await fetch('/api/finance/payables-payment',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operationId:modal.dataset.paymentOperation,payableId:id,expected:{valor:c.valor,status:c.status,paymentsCount:Array.isArray(c.pagamentos)?c.pagamentos.length:0},date:paymentDate,bankCode:banco,amount,advanceAmount,fornCod:document.getElementById('pcp-forn-cod')?.value||'',obs:document.getElementById('pcp-obs')?.value||''})});
     const result=await response.json();
-    if(!response.ok)throw new Error((result.message||'Falha ao confirmar pagamento.')+(result.code?' ['+result.code+']':''));
+    if(!response.ok){
+      if(result.code==='PAYMENT_IN_PROGRESS'){
+        const seconds=Math.max(1,Math.min(120,Math.ceil(Number(result.retryAfterSeconds)||10)));
+        // Respeite o lease retornado pelo servidor; tentativas a cada 15s apenas
+        // repetiam o conflito e induziam o operador a clicar novamente.
+        const blockedUntil=Date.now()+seconds*1000;
+        modal.dataset.paymentLockedUntil=String(blockedUntil);
+        _cpPendingPayments.set(id,{operationId:modal.dataset.paymentOperation,expiresAt:Date.now()+180000,blockedUntil});
+        const progress=new Error('Há uma baixa em processamento para este título. Aguarde '+seconds+' segundo(s) e confira o histórico financeiro antes de tentar a mesma operação. Nenhum novo pagamento foi solicitado por esta mensagem.');
+        progress.code='PAYMENT_IN_PROGRESS';
+        throw progress;
+      }
+      if(result.code==='PAYABLE_CHANGED'){
+        _cpPendingPayments.delete(id);
+        throw new Error('Esta conta foi alterada ou quitada em outra sessão. Feche a janela e atualize a listagem antes de tentar novamente.');
+      }
+      throw new Error(result.message||'Falha ao confirmar pagamento.');
+    }
     if(firebase?.auth?.().currentUser?.uid!==user.uid)throw new Error('Sessão alterada. Atualize a página.');
+    _cpPendingPayments.delete(id);
     CONTAS_PAGAR[idx]=result.payable;
     if(result.advanceEntries&&result.fornCod)ADT_POR_FORN[result.fornCod]=result.advanceEntries;
     if(result.ticket&&result.ticketKey)TICKETS_DB[result.ticketKey]=result.ticket;
@@ -19095,7 +19129,7 @@ async function confirmarPagarCP(modo){
     try{renderFluxo();renderDashboard();}catch(error){console.error('financeiro.render',error);}
     cm();
     showToast(result.payable?.status==='Pago'?'Conta quitada e operação confirmada.':'Compensação ou pagamento parcial confirmado.','success');
-  }catch(error){showToast(error.message||'Não foi possível confirmar o pagamento.','error',6500);}
+  }catch(error){showToast(error.message||'Não foi possível confirmar o pagamento.',error?.code==='PAYMENT_IN_PROGRESS'?'warning':'error',6500);}
   finally{modal.dataset.paymentBusy='false';buttons.forEach(button=>button.disabled=false);}
 }
 

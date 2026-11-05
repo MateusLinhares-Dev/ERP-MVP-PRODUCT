@@ -1,0 +1,144 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
+import {payPayable} from '../server/application/finance-payment.js';
+import {inspectPaymentLock} from '../scripts/audit-payment-lock.mjs';
+
+const actor={uid:'erp:elaine',erpUser:'elaine',erpAccess:true,canPayables:true};
+const op='6b3e5d56-51e2-418c-9b09-804142c88d8f';
+const payment={payableId:'CP-T275',operationId:op,amount:230,advanceAmount:0,bankCode:'BC-005',date:'2026-11-05',expected:{valor:230,status:'Pendente',paymentsCount:0}};
+const owner='e1a4e083-e734-40fd-a7a9-d665643a7ac6';
+const operationKey='erp_elaine_'+op;
+
+function fakeDb(){
+  const state={erp:{contasPagar:{'CP-T275':{id:'CP-T275',ticket:'T275',fornCod:'FT',cred:'TESTE NAO APAGAR',valor:230,status:'Pendente',pagamentos:[]}},tickets:{T275:{ticket:'T275',saldoPagar:230,status:'Pendente'}},bancos:{a:{cod:'BC-005',banco:'Banco de Teste'}}}};
+  let writes=0,fail=false,beforeUpdate=null;
+  const get=p=>p.split('/').filter(Boolean).reduce((obj,k)=>obj?.[k],state);
+  const put=(p,v)=>{const parts=p.split('/').filter(Boolean),last=parts.pop();let curr=state;for(const part of parts)curr=curr[part]??={};if(v===null)delete curr[last];else curr[last]=structuredClone(v);};
+  const db={state,get writes(){return writes;},setBeforeUpdate(fn){beforeUpdate=fn;},failOnce(){fail=true;},ref(path){return {
+    async get(){return {val:()=>structuredClone(get(path)??null),exists:()=>get(path)!=null};},
+    async transaction(fn){const prev=structuredClone(get(path)??null),next=fn(prev);if(next===undefined)return {committed:false,snapshot:{val:()=>prev}};put(path,next);return {committed:true,snapshot:{val:()=>next}};},
+    async update(changes){if(beforeUpdate)await beforeUpdate();if(fail){fail=false;throw Error('permission_denied');}for(const [name,value] of Object.entries(changes))put(path+'/'+name,value);writes++;}
+  };}};
+  return db;
+}
+
+test('bloqueio ativo não gera baixa adicional e informa quanto resta',async()=>{
+  const db=fakeDb();db.state.erpFinancePayableLocks={'CP-T275':{owner:'other',expiresAt:190000}};
+  let waits=0;
+  await assert.rejects(()=>payPayable(actor,payment,{db,now:()=>100000,sleep:async()=>{waits++;}}),error=>{
+    assert.equal(error.code,'PAYMENT_IN_PROGRESS');assert.equal(error.status,409);
+    assert.equal(error.retryAfterSeconds,90);return true;
+  });
+  assert.equal(waits,0);assert.equal(db.writes,0);assert.equal(db.state.erp.lancBanco,undefined);
+});
+
+test('resultado gravado durante bloqueio recupera a operação sem criar outro débito',async()=>{
+  const db=fakeDb();db.state.erpFinancePayableLocks={'CP-T275':{owner:'other',operationKey,expiresAt:190000}};
+  const result={payable:{id:'CP-T275',status:'Pago',valor:230},bankMovement:{id:'LB-EXISTENTE'}};
+  let waits=0;
+  const received=await payPayable(actor,payment,{db,now:()=>100000,sleep:async()=>{
+    waits++;
+    db.state.erp.financePayableOperations={[operationKey]:{result}};
+  }});
+  assert.equal(received.alreadyCommitted,true);assert.equal(received.bankMovement.id,'LB-EXISTENTE');
+  assert.equal(waits,1);assert.equal(db.writes,0);
+});
+
+test('bloqueio abandonado e expirado é assumido por transação; grava um pagamento e libera o lock',async()=>{
+  const db=fakeDb();db.state.erpFinancePayableLocks={'CP-T275':{owner:'dead-worker',expiresAt:99999}};
+  const saved=await payPayable(actor,payment,{db,now:()=>100000,uuid:()=>owner,sleep:async()=>{}});
+  assert.equal(db.writes,1);assert.equal(saved.payable.status,'Pago');
+  assert.equal(Object.keys(db.state.erp.lancBanco).length,1);
+  assert.equal(db.state.erpFinancePayableLocks['CP-T275'],undefined);
+  assert.equal((await payPayable(actor,payment,{db})).alreadyCommitted,true);
+  assert.equal(db.writes,1);
+});
+
+test('repetição da mesma operação aceita, mas reutilizar UUID com valores alterados é proibido',async()=>{
+  const db=fakeDb();await payPayable(actor,payment,{db});
+  assert.equal((await payPayable(actor,payment,{db})).alreadyCommitted,true);
+  await assert.rejects(()=>payPayable(actor,{...payment,amount:50},{db}),{code:'OPERATION_USED'});
+  assert.equal(db.writes,1);
+});
+
+test('falha antes da gravação limpa bloqueio para nova tentativa da MESMA operação',async()=>{
+  const db=fakeDb();db.failOnce();
+  await assert.rejects(()=>payPayable(actor,payment,{db}),/permission_denied/);
+  assert.equal(db.state.erpFinancePayableLocks?.['CP-T275'],undefined);
+  const saved=await payPayable(actor,payment,{db});
+  assert.equal(saved.payable.status,'Pago');assert.equal(db.writes,1);
+});
+
+test('duas chamadas simultâneas com o mesmo UUID terminam com apenas uma movimentação',async()=>{
+  const db=fakeDb();let proceed,notify;
+  const gate=new Promise(resolve=>{proceed=resolve;});
+  const started=new Promise(resolve=>{notify=resolve;});
+  db.setBeforeUpdate(async()=>{notify();await gate;});
+  const first=payPayable(actor,payment,{db});await started;
+  const second=payPayable(actor,payment,{db,sleep:async()=>{proceed();await first;}});
+  const a=await first,b=await second;
+  assert.equal(a.alreadyCommitted,undefined);assert.equal(b.alreadyCommitted,true);
+  assert.equal(db.writes,1);assert.equal(Object.keys(db.state.erp.lancBanco).length,1);
+});
+
+test('interface mostra conflito em linguagem compreensível e não reenvia com lock ativo',async()=>{
+  const core=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
+  const start=core.indexOf('async function confirmarPagarCP('),end=core.indexOf('function _baixarSaldoTicket(',start);
+  assert.ok(start>=0&&end>start);
+  const messages=[],modal={dataset:{paymentOperation:op},querySelectorAll:()=>[{disabled:false}]};
+  const fields={'modal-body':modal,'pcp-id':{value:'CP-T275'},'pcp-valor-pagar':{value:'230'},'pcp-adt':{value:'0',max:'0'},'pcp-banco':{value:'BC-005'},'pcp-data':{value:'2026-11-05'},'pcp-forn-cod':{value:'FT'},'pcp-obs':{value:''}};
+  const payable={id:'CP-T275',valor:230,status:'Pendente',pagamentos:[]};let calls=0;
+  const user={uid:'elaine',getIdToken:async()=> 'token'};
+  const scope={document:{getElementById:id=>fields[id]},CONTAS_PAGAR:[payable],_cpIdxPorId:()=>0,
+    firebase:{auth:()=>({currentUser:user})},fetch:async()=>{calls++;return {ok:false,json:async()=>({code:'PAYMENT_IN_PROGRESS',retryAfterSeconds:90,message:'Outra baixa deste título está em andamento.'})};},
+    showToast:(msg)=>messages.push(msg),console};
+  runInNewContext('const _cpPendingPayments=new Map();'+core.slice(start,end)+';this.submit=confirmarPagarCP;',scope);
+  await scope.submit('pagar-tudo');await scope.submit('pagar-tudo');
+  assert.equal(calls,1);assert.equal(messages.length,2);
+  assert.match(messages[0],/Há uma baixa em processamento/);
+  assert.match(messages[1],/Aguarde/);
+  assert.ok(Number(modal.dataset.paymentLockedUntil)>Date.now()+80000,'bloqueio local deve respeitar 90 segundos do servidor');
+  assert.doesNotMatch(messages.join(' '),/PAYMENT_IN_PROGRESS/);
+});
+
+test('auditoria somente leitura identifica bloqueio do T275 e confere movimento existente',()=>{
+  const db=fakeDb();
+  db.state.erpFinancePayableLocks={'CP-T275':{owner:'other',expiresAt:200000,operationKey}};
+  db.state.erp.contasPagar['CP-T275'].pagamentos=[{valor:100,movBancoId:'LB-X'}];
+  db.state.erp.lancBanco={'LB-X':{id:'LB-X',valor:100}};
+  const before=JSON.stringify(db.state);
+  const report=inspectPaymentLock({database:db.state,ticketNo:'T275',now:100000});
+  assert.equal(report.length,1);
+  assert.equal(report[0].payableId,'CP-T275');
+  assert.equal(report[0].lock.secondsRemaining,100);
+  assert.equal(report[0].bankMovements[0].exists,true);
+  assert.equal(JSON.stringify(db.state),before);
+});
+
+test('duas pessoas com UUID diferentes não lançam duas baixas durante bloqueio ativo',async()=>{
+  const db=fakeDb();let proceed,notify;
+  const gate=new Promise(resolve=>{proceed=resolve;});
+  const started=new Promise(resolve=>{notify=resolve;});
+  db.setBeforeUpdate(async()=>{notify();await gate;});
+  const first=payPayable(actor,payment,{db});
+  await started;
+  const second={...payment,operationId:'d42e7a7a-39d5-4d7c-a989-f96e246a9104'};
+  await assert.rejects(()=>payPayable(actor,second,{db,sleep:async()=>{}}),{code:'PAYMENT_IN_PROGRESS',status:409});
+  proceed();
+  const saved=await first;
+  assert.equal(saved.payable.status,'Pago');
+  assert.equal(db.writes,1);
+  assert.equal(Object.keys(db.state.erp.lancBanco).length,1);
+  await assert.rejects(()=>payPayable(actor,second,{db}),{code:'PAYABLE_CHANGED'});
+  assert.equal(db.writes,1);
+});
+
+test('tentar novamente durante bloqueio válido não estende a expiração',async()=>{
+  const db=fakeDb();const expiry=220000;
+  db.state.erpFinancePayableLocks={'CP-T275':{owner:'another-worker',expiresAt:expiry}};
+  await assert.rejects(()=>payPayable(actor,payment,{db,now:()=>100000,sleep:async()=>{}}),{code:'PAYMENT_IN_PROGRESS'});
+  assert.equal(db.state.erpFinancePayableLocks['CP-T275'].expiresAt,expiry);
+  assert.equal(db.writes,0);
+});
