@@ -64,11 +64,11 @@ test('cheque salva o código do fornecedor escolhido, não o código de cliente 
 });
 
 test('adiantamentos recém-cadastrados prevalecem sobre dataset financeiro vazio',()=>{
-  const code=extract(purchase,'function historicalAppliedAdvances(','function currentState(body){');
+  const code=extract(purchase,'function financialData(body,supplierCode,sourceTicketKeys=[]){','function currentState(body){');
   const ctx={
     jsonDataset:(b,k,f)=>JSON.parse(b.dataset[k]||'null')??f,
     ADT_POR_FORN:{F3:[{cod:'A1',valor:100000,status:'Pendente',forma:'PIX'},{cod:'A2',valor:50000,status:'Pendente',forma:'PIX'},{cod:'A3',valor:35000,status:'Pendente',forma:'PIX'}]},
-    CHEQUES_POR_FORN:{},SALDO_DEVEDOR_FORN:{},tickets:()=>({}),console
+    CHEQUES_POR_FORN:{},SALDO_DEVEDOR_FORN:{},tickets(){return {};},linkedPurchase(){return null;}
   };
   const body={dataset:{fornCod:'F3',adtsData:'[]',cheqsData:'[]',saldoAnterior:'0'}};
   ctx.body=body;

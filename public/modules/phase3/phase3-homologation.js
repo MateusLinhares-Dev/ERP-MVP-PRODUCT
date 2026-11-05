@@ -105,7 +105,7 @@ global.phase3EnsureTicketKey=ensureTicketKey;
 
 /* Bancos múltiplos em cliente e fornecedor + compatibilidade com legado */
 let partyBanks={};
-async function loadPartyBanks(){if(!store)return;partyBanks=await store.load('partyBanks',{});decoratePartyBanks();}
+async function loadPartyBanks(){if(!store)return;try{partyBanks=await store.load('partyBanks',{});decoratePartyBanks();}catch(error){console.warn('Contas de fornecedores indisponíveis:',error.message);}}
 function partyEntity(kind,key){try{return kind==='fornecedor'?(FORNECEDORES||[]).find(x=>String(x.cod)===String(key)):(CLIENTES||[]).find((x,i)=>String(x.cod||('C'+String(i+1).padStart(3,'0')))===String(key));}catch(e){return null;}}
 function bankKey(kind,key){return `${kind}-${key}`;}
 function hasCanonicalBankList(kind,key){return Object.prototype.hasOwnProperty.call(partyBanks,bankKey(kind,key)) && Array.isArray(partyBanks[bankKey(kind,key)]);}
@@ -984,7 +984,7 @@ if(typeof legacySaveEditTrip==='function')global.salvarEditViagem=function(){
 };
 
 /* Fiscal + Vendas + Contas a Receber: vínculo explícito */
-let fiscalLinks={};async function loadFiscalLinks(){if(!store)return;fiscalLinks=await store.load('fiscalLinks',{});decorateReceivables();}
+let fiscalLinks={};async function loadFiscalLinks(){if(!store)return;try{fiscalLinks=await store.load('fiscalLinks',{});decorateReceivables();}catch(error){console.warn('Vínculos fiscais indisponíveis:',error.message);}}
 function parseCurrencyText(v){return parseBR(String(v||'').replace('R$',''));}
 function findReceivableForRow(row){const cells=row.cells;if(!cells||cells.length<10)return null;const date=String(cells[0]?.textContent||'').trim(),nf=String(cells[1]?.textContent||'').trim(),cli=String(cells[2]?.textContent||'').trim(),val=parseCurrencyText(cells[3]?.textContent),venc=String(cells[6]?.textContent||'').trim();try{return (CONTAS_RECEBER||[]).find(c=>String(fmtDate?fmtDate(c.data):toBR(c.data)).trim()===date&&String(c.cli||'').trim()===cli&&Math.abs(Number(c.valor||0)-val)<0.01&&String(fmtDate?fmtDate(c.venc):toBR(c.venc)).trim()===venc&&(nf==='—'||String(c.nf||'—').trim()===nf));}catch(e){return null;}}
 function decorateReceivables(){const tab=$('#tab-contas_receber');if(!tab)return;let note=$('#p3-cr-fiscal-note');if(!note){note=document.createElement('div');note.id='p3-cr-fiscal-note';note.className='p3-cr-fiscal-note';note.innerHTML='<b>Fluxo consolidado</b><span><strong>Venda</strong> gera Conta a Receber. A Conta a Receber pode ser ligada ao <strong>Cliente Fiscal</strong> para emissão/controle fiscal, mantendo os cadastros Comercial e Fiscal separados.</span>';tab.querySelector('.kpi-grid')?.insertAdjacentElement('afterend',note);}const body=$('#tb-contas-receber');if(!body)return;Array.from(body.rows).forEach(row=>{if(row.querySelector('.p3-fiscal-link-btn'))return;const cr=findReceivableForRow(row);if(!cr)return;const cell=row.cells[row.cells.length-1],id=String(cr.id||CONTAS_RECEBER.indexOf(cr));const b=document.createElement('button');b.className='p3-fiscal-link-btn';b.textContent=cr.fiscalPartyId?'🧾 Fiscal ✓':'🧾 Fiscal';b.title='Vincular este recebimento ao Cliente Fiscal';b.onclick=()=>phase3ReceivableFiscal(id);cell.prepend(b);});}

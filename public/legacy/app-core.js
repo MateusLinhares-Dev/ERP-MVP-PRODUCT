@@ -3735,28 +3735,36 @@ function _cfgEmployeeCompanyOptionsHtml(sel){
   return '<option value="">— Selecione —</option>'+values.map(function(v){return '<option value="'+esc(v)+'"'+(_companyKey(v)===_companyKey(sel)?' selected':'')+'>'+esc(v)+'</option>';}).join('');
 }
 function _erpAplicarCadastroEmpresas(result){
-  if(!result||!Array.isArray(result.companies))return;
+  if(!result||!Array.isArray(result.companies))return false;
+  const revision=Number(result.revision)||0;
+  if(revision<(Number(window.__ERP_COMPANY_DIRECTORY_REVISION__)||0))return false;
+  window.__ERP_COMPANY_DIRECTORY_REVISION__=revision;
   const cfg=window.__PUBLIC_BUSINESS_CONFIG__||{};
   cfg.employeeCompanies=result.companies.slice();
   cfg.inactiveCompanies=Array.isArray(result.inactiveCompanies)?result.inactiveCompanies.slice():[];
   cfg.deletedCompanies=Array.isArray(result.deletedCompanies)?result.deletedCompanies.slice():[];
+  cfg.companyDirectoryRevision=revision;
   window.__PUBLIC_BUSINESS_CONFIG__=cfg;
   ERP_BUSINESS_CONFIG.employeeCompanies=result.companies.slice();
   ERP_BUSINESS_CONFIG.inactiveCompanies=cfg.inactiveCompanies.slice();
   ERP_BUSINESS_CONFIG.deletedCompanies=cfg.deletedCompanies.slice();
+  ERP_BUSINESS_CONFIG.companyDirectoryRevision=revision;
   _erpRefreshCompanySources();
   try{_popularEmpresasDespesa();if(document.getElementById('kpi-row'))despAtualizar();}catch(e){}
+  return true;
 }
 function _erpApplyCompanyDirectory(config){
   if(!config||typeof config!=='object')return false;
   const companies=Array.isArray(config.employeeCompanies)?config.employeeCompanies.slice():[];
   const inactiveCompanies=Array.isArray(config.inactiveCompanies)?config.inactiveCompanies.slice():[];
   const deletedCompanies=Array.isArray(config.deletedCompanies)?config.deletedCompanies.slice():[];
+  const revision=Number(config.companyDirectoryRevision)||0;
+  if(revision<(Number(window.__ERP_COMPANY_DIRECTORY_REVISION__)||0))return false;
   const oldCompanies=ERP_BUSINESS_CONFIG.employeeCompanies||[];
   const oldInactive=ERP_BUSINESS_CONFIG.inactiveCompanies||[];
   const oldDeleted=ERP_BUSINESS_CONFIG.deletedCompanies||[];
-  if(JSON.stringify(oldCompanies)===JSON.stringify(companies)&&JSON.stringify(oldInactive)===JSON.stringify(inactiveCompanies)&&JSON.stringify(oldDeleted)===JSON.stringify(deletedCompanies))return false;
-  _erpAplicarCadastroEmpresas({companies,inactiveCompanies,deletedCompanies});
+  if(JSON.stringify(oldCompanies)===JSON.stringify(companies)&&JSON.stringify(oldInactive)===JSON.stringify(inactiveCompanies)&&JSON.stringify(oldDeleted)===JSON.stringify(deletedCompanies)){window.__ERP_COMPANY_DIRECTORY_REVISION__=revision;ERP_BUSINESS_CONFIG.companyDirectoryRevision=revision;return false;}
+  if(!_erpAplicarCadastroEmpresas({companies,inactiveCompanies,deletedCompanies,revision}))return false;
   if(document.getElementById('rh-empresas-atuais'))_erpRenderEmpresasAdministracao();
   return true;
 }
@@ -3792,21 +3800,30 @@ function _erpRenderEmpresasAdministracao(){
     button.onclick=function(){_erpMudarSituacaoEmpresa(button.dataset.companyAction,button.dataset.companyName);};
   });
 }
+let _erpEmpresaAlteracaoEmCurso=false;
 async function _erpEnviarEmpresa(action,name){
+  if(_erpEmpresaAlteracaoEmCurso)throw new Error('Outra alteração de empresa está em andamento.');
+  _erpEmpresaAlteracaoEmCurso=true;
+  try{
   const user=firebase?.auth?.().currentUser;
   if(!user)throw new Error('Sessão expirada. Entre novamente no ERP.');
   const token=await user.getIdToken();
   const response=await fetch('/api/admin/employee-companies',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({action,name})});
   const result=await response.json();
   if(!response.ok)throw new Error(result.message||'Não foi possível atualizar as empresas.');
+  if(!result.ok||!Array.isArray(result.companies)||!Array.isArray(result.deletedCompanies)||!Number.isSafeInteger(Number(result.revision))||Number(result.revision)<1)throw new Error('Servidor não confirmou a versão do cadastro.');
+  if(action==='delete'&&!result.deletedCompanies.some(v=>_companyKey(v)===_companyKey(name)))throw new Error('Exclusão não confirmada pelo servidor.');
+  if(action==='create'&&!result.companies.some(v=>_companyKey(v)===_companyKey(name)))throw new Error('Inclusão não confirmada pelo servidor.');
   _erpAplicarCadastroEmpresas(result);
   _erpRenderEmpresasAdministracao();
   return result;
+  }finally{_erpEmpresaAlteracaoEmCurso=false;}
 }
 async function _erpMudarSituacaoEmpresa(action,name){
   if(!name)return;
   if(action==='delete'&&!confirm('Excluir definitivamente a empresa "'+name+'" do cadastro e de todas as listas? Os lançamentos históricos não serão apagados.'))return;
   const button=Array.from(document.querySelectorAll('#rh-empresas-atuais [data-company-action]')).find(b=>b.dataset.companyName===name);
+  if(_erpEmpresaAlteracaoEmCurso){showToast('Aguarde a operação anterior terminar.','error');return;}
   if(button)button.disabled=true;
   try{await _erpEnviarEmpresa(action,name);showToast(action==='delete'?'Empresa excluída definitivamente do cadastro.':'Empresa atualizada.','success');}
   catch(error){showToast(error.message,'error',7000);}
