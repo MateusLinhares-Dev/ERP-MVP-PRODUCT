@@ -11178,7 +11178,85 @@ function salvarCompra(forcar, ignorarFaltantes){
   }catch(e){ console.error('salvarCompra',e); showToast('Erro ao salvar: '+e.message,'error',7000); }
 }
 
+let _adtSalvamentoAtivo=false;
+// Um recibo pendente sobrevive ao F5 para não nascer uma segunda operação.
+function _adtPendenteKey(uid){return 'mm_finance_advance_pending_v1_'+String(uid||'').replace(/[^a-zA-Z0-9_-]/g,'_');}
+function _adtLerPendente(uid){
+  try{
+    const saved=JSON.parse(localStorage.getItem(_adtPendenteKey(uid))||'null');
+    if(saved?.uid===uid&&saved?.operationId&&saved?.fornCod)return saved;
+  }catch(error){console.warn('adiantamento.recibo.local',error);}
+  return null;
+}
+function _adtMarcarReciboPendente(uid,fornCod,operationId){
+  try{localStorage.setItem(_adtPendenteKey(uid),JSON.stringify({uid,fornCod,operationId,createdAt:Date.now()}));}catch(error){console.warn('adiantamento.recibo.salvar',error);}
+}
+function _adtLimparPendente(uid,operationId){
+  try{
+    const old=_adtLerPendente(uid);
+    if(!old||old.operationId===operationId)localStorage.removeItem(_adtPendenteKey(uid));
+  }catch(error){console.warn('adiantamento.recibo.limpar',error);}
+}
+function _adtBloquearInteracao(mensagem){
+  _adtSalvamentoAtivo=true;
+  if(!document.body)return;
+  let tela=document.getElementById('adt-saving-lock');
+  if(!tela){
+    tela=document.createElement('div');
+    tela.id='adt-saving-lock';
+    tela.setAttribute('role','alertdialog');
+    tela.setAttribute('aria-modal','true');
+    tela.setAttribute('aria-label','Confirmação financeira em andamento');
+    tela.style.cssText='position:fixed;inset:0;z-index:2147483640;background:rgba(11,36,26,.72);display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;cursor:wait';
+    tela.innerHTML='<div style="background:#fff;border-radius:12px;box-shadow:0 12px 48px #0005;padding:30px;max-width:460px;width:100%;text-align:center;color:#173e2d"><div style="font-size:30px;margin-bottom:12px">⏳</div><strong style="font-size:18px">Confirmando adiantamento</strong><p id="adt-saving-message" style="line-height:1.5;margin-top:12px"></p><small>Não feche ou atualize a página. Uma nova baixa não será enviada durante esta confirmação.</small></div>';
+    document.body.appendChild(tela);
+  }
+  const aviso=document.getElementById('adt-saving-message');
+  if(aviso)aviso.textContent=mensagem||'Aguardando a confirmação do Firebase...';
+}
+function _adtLiberarInteracao(){
+  _adtSalvamentoAtivo=false;
+  document.getElementById('adt-saving-lock')?.remove();
+}
+function _adtChecarTeclasDuranteEnvio(event){
+  if(!_adtSalvamentoAtivo)return;
+  if(event.key==='Escape'||event.key==='Enter'){
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+}
+document.addEventListener('keydown',_adtChecarTeclasDuranteEnvio,true);
+
+async function _adtConsultarStatus(opId,fornCod,token){
+  const params=new URLSearchParams({operationId:opId,fornCod});
+  const response=await fetch('/api/finance/advance-status?'+params.toString(),{
+    method:'GET',credentials:'same-origin',cache:'no-store',headers:{Authorization:'Bearer '+token,Accept:'application/json'}
+  });
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.message||'Consulta de confirmação indisponível ('+response.status+').');
+  return data;
+}
+async function _adtRecuperarResposta(opId,fornCod,token){
+  const delays=[350,700,1200,2000,3000,4000];
+  let last=null;
+  for(const delay of delays){
+    await new Promise(resolve=>setTimeout(resolve,delay));
+    try{
+      last=await _adtConsultarStatus(opId,fornCod,token);
+      if(last.state==='confirmed')return last;
+      if(last.state==='not_found')return last;
+      _adtBloquearInteracao('O Firebase está processando outra operação. Conferindo a confirmação, sem reenviar a baixa...');
+    }catch(error){
+      console.warn('adiantamentos.status',error);
+    }
+  }
+  return last||{state:'unknown'};
+}
+
 async function salvarAdiantamento(){
+  // O bloqueio é global: impede confirmação duplicada, fechamento ou novo cadastro
+  // enquanto uma requisição financeira do navegador está sem resposta.
+  if(_adtSalvamentoAtivo)return false;
   const fornBusca=document.getElementById('adt-forn-busca');
   const data=document.getElementById('adt-data')?.value;
   let valor=_r2(_adtParseVal(document.getElementById('adt-valor')?.value||''));
@@ -11188,64 +11266,119 @@ async function salvarAdiantamento(){
   const _chqLista=_ehCheque?_adtChqLer():[];
   const bancoSel=document.getElementById('adt-banco');
   const bancoCod=bancoSel?.value||'';
-  const _bancosList=window.__ERP_ADVANCE_BANK_OPTIONS__||[];
-  const bancoNome=bancoCod?(_bancosList.find(b=>b.cod===bancoCod||b.banco===bancoCod)?.banco||bancoCod):'Não informado';
   const empresa=(document.getElementById('adt-empresa')?.value||'').trim();
   const ticket=document.getElementById('adt-ticket')?.value.trim()||'';
   const obs=document.getElementById('adt-obs')?.value.trim()||'';
   const fornCod=document.getElementById('adt-forn')?.value||'';
-  
-  if(_ehCheque && _chqLista.length){
-    const somaChq=_chqLista.reduce(function(s,c){ return s+(c.v||0); },0);
-    if(somaChq>0) valor=somaChq;
+  if(_ehCheque&&_chqLista.length){
+    const somaChq=_chqLista.reduce((s,c)=>s+(c.v||0),0);
+    if(somaChq>0)valor=somaChq;
   }
-  if(_ehCheque && !_chqLista.length){ alert('Adicione pelo menos um cheque na lista (banco, nº e valor).'); return; }
+  if(_ehCheque&&!_chqLista.length){alert('Adicione pelo menos um cheque na lista (banco, nº e valor).');return false;}
   if(!fornCod||!data||valor<=0){
     alert(fornBusca&&fornBusca.value.trim()&&!fornCod
       ? 'Fornecedor "'+fornBusca.value.trim()+'" não encontrado — escolha um nome da lista de sugestões.'
       : 'Preencha fornecedor, data e valor!');
-    return;
+    return false;
   }
   const dataFmt=data.split('-').reverse().join('/');
   if(!_ehCheque&&!bancoCod){showToast('Selecione o banco de saída para registrar o adiantamento.','error',5500);return false;}
-  if(!_ehCheque&&!window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__){
-    const loaded=await _adtCarregarContasPermitidas();
-    if(!loaded)return false;
-  }
-  if(!_ehCheque&&!(window.__ERP_ADVANCE_BANK_OPTIONS__||[]).some(b=>b.cod===bancoCod)){
-    showToast('A conta selecionada não está mais disponível. Selecione novamente.','error',6000);
-    return false;
-  }
   const button=document.querySelector('#modal-body .btn-save');
   if(button?.disabled)return false;
-  if(button)button.disabled=true;
+  const payload={fornCod,data,valor,forma,bancoCod,empresa,ticket,obs,
+    ...(_ehCheque?{cheques:_chqLista,chequeSituation:_chqSit}:{})};
+  const payloadKey=JSON.stringify(payload);
+  if(button?.dataset.operationSent==='1'&&button?.dataset.operationPayload&&button.dataset.operationPayload!==payloadKey){
+    showToast('A confirmação anterior ainda é incerta. Não altere o adiantamento até conferir a operação anterior.','warning',8500);
+    return false;
+  }
+  if(button?.dataset.operationSent!=='1'&&button?.dataset.operationPayload!==payloadKey){
+    delete button.dataset.operationId;
+  }
   const opId=button?.dataset.operationId||(crypto.randomUUID?crypto.randomUUID():('00000000-0000-4000-8000-'+String(Date.now()).padStart(12,'0').slice(-12)));
-  if(button)button.dataset.operationId=opId;
+  if(button){button.dataset.operationId=opId;button.dataset.operationPayload=payloadKey;button.disabled=true;}
+  payload.operationId=opId;
+  _adtBloquearInteracao('Verificando conta bancária e enviando o lançamento ao Firebase...');
   try{
+    if(!_ehCheque&&!window.__ERP_ADVANCE_BANK_OPTIONS_LOADED__){
+      const loaded=await _adtCarregarContasPermitidas();
+      if(!loaded)throw new Error('Não foi possível confirmar a conta bancária. Nenhum envio foi realizado.');
+    }
+    if(!_ehCheque&&!(window.__ERP_ADVANCE_BANK_OPTIONS__||[]).some(b=>b.cod===bancoCod))
+      throw new Error('A conta selecionada não está mais disponível. Selecione novamente.');
     const user=firebase?.auth?.().currentUser;
     if(!user)throw new Error('Sua sessão expirou. Entre novamente no sistema.');
     const token=await user.getIdToken();
-    const payload={operationId:opId,fornCod,data,valor,forma,bancoCod,empresa,ticket,obs,
-      ...(_ehCheque?{cheques:_chqLista,chequeSituation:_chqSit}:{})};
-    const enviar=async()=>{
-      const response=await fetch('/api/finance/advances',{
-        method:'POST',credentials:'same-origin',
-        headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
-        body:JSON.stringify(payload)
-      });
-      return {response,result:await response.json().catch(()=>({}))};
-    };
-    let {response,result}=await enviar();
-    if(!response.ok&&result.code==='CHEQUE_DUPLICATE_CONFIRMATION_REQUIRED'&&forma==='Cheque de Terceiro'){
-      const confirmado=window.confirm('ATENÇÃO: cheques de terceiros com banco e número repetidos.\n\n'+
-        String(result.message||'Confirme os dados antes de aceitar a duplicidade.')+'\n\n'+
-        'Confira emitente, número, valor e se não é o mesmo título cadastrado duas vezes.\n'+
-        'Deseja manter os cheques repetidos e prosseguir?');
-      if(!confirmado)return false;
-      payload.confirmDuplicates=true;
-      ({response,result}=await enviar());
+    // Um refresh ou uma aba diferente não pode criar outro adiantamento enquanto
+    // houver um recibo incerto para esta conta autenticada.
+    const pending=_adtLerPendente(user.uid);
+    if(pending&&pending.operationId!==opId){
+      _adtBloquearInteracao('Conferindo o lançamento anterior após a atualização da página...');
+      const previous=await _adtConsultarStatus(pending.operationId,pending.fornCod,token);
+      if(previous.state==='confirmed'){
+        if(Array.isArray(previous.entries)){
+          ADT_POR_FORN[pending.fornCod]=previous.entries;
+          if(typeof _fbAdiantamentoConfirmado==='function')_fbAdiantamentoConfirmado(pending.fornCod,previous.entries);
+          try{renderAdiantamentos();}catch(error){console.warn('adiantamento.render.recuperacao',error);}
+        }
+        _adtLimparPendente(user.uid,pending.operationId);
+        throw new Error('O lançamento anterior foi confirmado no Firebase. Confira o Histórico antes de criar outro.');
+      }
+      if(previous.state!=='not_found')throw new Error('A operação financeira anterior ainda está sendo verificada. Nenhum novo lançamento foi enviado.');
+      _adtLimparPendente(user.uid,pending.operationId);
     }
-    if(!response.ok||!result.advance)throw new Error(result.message||'Não foi possível confirmar o lançamento no servidor.');
+    // Sempre verifica o identificador antigo ANTES de qualquer nova tentativa.
+    let result=null;
+    if(button?.dataset.operationSent==='1'){
+      const prior=await _adtConsultarStatus(opId,fornCod,token);
+      if(prior.state==='confirmed')result=prior;
+      else if(prior.state==='processing')throw new Error('O adiantamento anterior continua em processamento. Aguarde a confirmação antes de tentar novamente.');
+    }
+    if(!result){
+      const enviar=async()=>{
+        if(button)button.dataset.operationSent='1';
+        _adtMarcarReciboPendente(user.uid,fornCod,opId);
+        _adtBloquearInteracao('Gravando o adiantamento e o débito bancário na mesma transação...');
+        const response=await fetch('/api/finance/advances',{
+          method:'POST',credentials:'same-origin',
+          headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+          body:JSON.stringify(payload)
+        });
+        return {response,result:await response.json().catch(()=>({}))};
+      };
+      let response=null,reply=null,networkError=null;
+      try{
+        ({response,result:reply}=await enviar());
+        if(!response.ok&&reply.code==='CHEQUE_DUPLICATE_CONFIRMATION_REQUIRED'&&forma==='Cheque de Terceiro'){
+          const confirmado=window.confirm('ATENÇÃO: cheques de terceiros com banco e número repetidos.\n\n'+
+            String(reply.message||'Confirme os dados antes de aceitar a duplicidade.')+'\n\n'+
+            'Confira emitente, número, valor e documento e confirme antes de continuar.');
+          if(!confirmado){
+            _adtLimparPendente(user.uid,opId);
+            if(button){delete button.dataset.operationSent;delete button.dataset.operationId;delete button.dataset.operationPayload;}
+            return false;
+          }
+          payload.confirmDuplicates=true;
+          ({response,result:reply}=await enviar());
+        }
+      }catch(error){networkError=error;}
+      if(response?.ok&&reply?.advance)result=reply;
+      else if(networkError||!response||response.status>=500||reply?.code==='ADVANCE_IN_PROGRESS'){
+        _adtBloquearInteracao('A resposta não confirmou a gravação. Consultando o recibo no Firebase, sem criar outro lançamento...');
+        const status=await _adtRecuperarResposta(opId,fornCod,token);
+        if(status.state==='confirmed')result=status;
+        else if(status.state==='processing')
+          throw new Error('Outra operação financeira ainda está em processamento. Nenhum novo adiantamento foi enviado. Aguarde e utilize o mesmo botão para verificar novamente.');
+        else
+          throw new Error('Não foi possível confirmar se o Firebase gravou o lançamento. O mesmo identificador foi preservado; verifique o Histórico antes de tentar novamente.');
+      }else{
+        // Rejeição conhecida: o servidor não iniciou nenhuma gravação.
+        _adtLimparPendente(user.uid,opId);
+        if(button){delete button.dataset.operationSent;delete button.dataset.operationId;delete button.dataset.operationPayload;}
+        throw new Error(reply?.message||'O servidor recusou o adiantamento ('+response.status+').');
+      }
+    }
+    if(!result?.advance)throw new Error('Não foi recebida uma confirmação válida do Firebase.');
     const records=Array.isArray(result.entries)?result.entries:null;
     if(records)ADT_POR_FORN[fornCod]=records;
     else{
@@ -11266,15 +11399,21 @@ async function salvarAdiantamento(){
       const nome=(FORNECEDORES.find(f=>f.cod===fornCod)||window.__ERP_ADVANCE_SUPPLIER_OPTIONS__?.find(f=>f.cod===fornCod)||{}).nome||fornCod;
       registrarHistorico('Adiantamento','Criado',nome+' — R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+' — '+dataFmt+' — '+(result.advance.bancoNome||forma),null,{fornCod,cod:result.advance.cod});
     }catch(e){}
+    // A interface só libera uma nova operação após confirmação do Firebase.
+    _adtLimparPendente(user.uid,opId);
+    _adtLiberarInteracao();
     cm();
     showToast('Adiantamento confirmado no Firebase! R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+' | '+(_ehCheque?result.cheques.length+' cheque(s)':result.advance.bancoNome),'success',6000);
     return true;
   }catch(error){
-    showToast('Não foi possível concluir o adiantamento: '+error.message,'error',8000);
+    console.warn('adiantamento.gravacao',error);
+    showToast('Não foi possível concluir o adiantamento: '+esc(String(error.message||'Falha de confirmação.')),'error',8500);
     return false;
-  }finally{if(button)button.disabled=false;}
+  }finally{
+    _adtLiberarInteracao();
+    if(button)button.disabled=false;
+  }
 }
-
 
 function gerarSerieCheques(){
   const inicio=parseInt(document.getElementById('qs-inicio')?.value)||0;
@@ -21092,6 +21231,7 @@ function salvarEditVenda(){
 
 
 function om(k){
+  if(_adtSalvamentoAtivo)return;
   
   const oldOv=document.getElementById('modal-ov');
   if(oldOv && oldOv.parentNode) oldOv.parentNode.removeChild(oldOv);
@@ -21210,6 +21350,7 @@ function om(k){
 }
 
 function cm(){
+  if(_adtSalvamentoAtivo)return;
   document.querySelectorAll('.modal-ov').forEach(ov=>{
     ov.classList.remove('open');
     

@@ -144,6 +144,32 @@ function advanceRecords(value){
   failure(409,'INVALID_SUPPLIER_ADVANCES','Cadastro de adiantamentos do fornecedor está inconsistente.');
 }
 
+/** Consulta somente leitura: confirma o resultado de um POST cujo retorno foi perdido.
+ * A identidade integra a chave; um usuário não consegue consultar operações de outro.
+ */
+export async function getAdvanceOperationStatus(identity,input,{db,now=()=>Date.now()}={}){
+  requireFinance(identity);
+  if(!input||typeof input!=='object'||Array.isArray(input))failure(400,'INVALID_INPUT','Dados inválidos.');
+  const operationId=pathKey(input.operationId);
+  if(!/^[a-f\d-]{36}$/i.test(operationId))failure(422,'INVALID_OPERATION','Identificador da operação inválido.');
+  const fornCod=pathKey(input.fornCod);
+  db=await resolveDatabase(db);
+  const operationKey=pathKey(String(identity.uid||identity.erpUser||'user').replace(/[^\w-]/g,'_'))+'_'+operationId;
+  const record=(await db.ref('erp/financeAdvanceOperations/'+operationKey).get()).val();
+  if(record?.advance){
+    if(record.fornCod&&record.fornCod!==fornCod)failure(409,'ADVANCE_SUPPLIER_MISMATCH','Operação não corresponde ao fornecedor selecionado.');
+    const entries=advanceRecords((await db.ref('erp/adiantamentos/'+fornCod).get()).val());
+    if(!entries.some(entry=>entry.cod===record.advance.cod))
+      failure(409,'ADVANCE_SUPPLIER_MISMATCH','Operação não corresponde ao fornecedor selecionado.');
+    return {state:'confirmed',advance:record.advance,bankMovement:record.bankMovement||null,
+      cheques:record.cheques||[],entries,alreadyCommitted:true};
+  }
+  const lock=(await db.ref('erpFinanceAdvanceLocks/'+fornCod).get()).val();
+  const remaining=Number(lock?.expiresAt)-now();
+  if(Number.isFinite(remaining)&&remaining>0)return {state:'processing',retryAfterSeconds:Math.max(1,Math.ceil(remaining/1000))};
+  return {state:'not_found'};
+}
+
 async function acquireAdvanceLock(ref,owner,now){
   const delays=[0,160,280,420,640,900,1200,1600];
   for(const delay of delays){
@@ -206,10 +232,18 @@ export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
       failure(409,'CHEQUE_DUPLICATE_CONFIRMATION_REQUIRED',
         'Há '+duplicateRows.length+' cheque(s) de terceiro com banco e número repetidos nesta lista (ex.: '+duplicateRows[0].b+' nº '+duplicateRows[0].n+'). Confirme conscientemente para continuar.');
   }
+  // A mesma chave de idempotência não pode ser reaproveitada para outro valor.
+  const requestFingerprint=createHash('sha256').update(JSON.stringify({
+    fornCod,date,value,forma,bankCode,ticket,empresa,obs,chequeSituation:isCheque?chequeSituation:'',
+    cheques:isCheque?cheques:[]
+  })).digest('hex');
   const operationKey=pathKey(String(identity.uid||identity.erpUser||'user').replace(/[^\w-]/g,'_'))+'_'+operationId;
   const opRef=db.ref('erp/financeAdvanceOperations/'+operationKey);
   const existing=(await opRef.get()).val();
-  if(existing?.advance)return {advance:existing.advance,bankMovement:existing.bankMovement||null,cheques:existing.cheques||[],entries:advanceRecords((await db.ref('erp/adiantamentos/'+fornCod).get()).val()),alreadyCommitted:true};
+  if(existing?.advance){
+    if(existing.requestFingerprint&&existing.requestFingerprint!==requestFingerprint)failure(409,'OPERATION_REUSED','A identificação já foi usada por outro adiantamento.');
+    return {advance:existing.advance,bankMovement:existing.bankMovement||null,cheques:existing.cheques||[],entries:advanceRecords((await db.ref('erp/adiantamentos/'+fornCod).get()).val()),alreadyCommitted:true};
+  }
   const owner=uuid(),locks=[];
   const keys=(isCheque?[fornCod,'__global_cheques__']:[fornCod]).sort();
   try{
@@ -220,7 +254,10 @@ export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
       locks.push(lockRef);
     }
     const committed=(await opRef.get()).val();
-    if(committed?.advance)return {advance:committed.advance,bankMovement:committed.bankMovement||null,cheques:committed.cheques||[],entries:advanceRecords((await db.ref('erp/adiantamentos/'+fornCod).get()).val()),alreadyCommitted:true};
+    if(committed?.advance){
+      if(committed.requestFingerprint&&committed.requestFingerprint!==requestFingerprint)failure(409,'OPERATION_REUSED','A identificação já foi usada por outro adiantamento.');
+      return {advance:committed.advance,bankMovement:committed.bankMovement||null,cheques:committed.cheques||[],entries:advanceRecords((await db.ref('erp/adiantamentos/'+fornCod).get()).val()),alreadyCommitted:true};
+    }
     const [banksSnap,suppliersSnap,advancesSnap,chequesSnap]=await Promise.all([
       isCheque?Promise.resolve(null):db.ref('erp/bancos').get(),
       db.ref('erp/fornecedores').get(),db.ref('erp/adiantamentos/'+fornCod).get(),
@@ -278,7 +315,7 @@ export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
     }
     const entries=[...records,advance];
     updates['adiantamentos/'+fornCod]=entries;
-    updates['financeAdvanceOperations/'+operationKey]={advance,bankMovement:movement,cheques:createdCheques,
+    updates['financeAdvanceOperations/'+operationKey]={advance,bankMovement:movement,cheques:createdCheques,requestFingerprint,fornCod,
       createdAt:new Date(now()).toISOString(),createdBy:clean(identity.erpUser||identity.uid)};
     updates._ts=now();
     await db.ref('erp').update(updates);
