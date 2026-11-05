@@ -119,7 +119,7 @@ test('navegador envia a data correta para a API e não exige banco se compensaç
     showToast(){},renderContasPagar(){},renderAdiantamentos(){},renderTickets(){},renderFluxo(){},renderDashboard(){},
     cm(){closed=true;},console
   };
-  runInNewContext(core.slice(start,end)+';this.submit=confirmarPagarCP;',ctx);
+  runInNewContext('const _cpPendingPayments=new Map();'+core.slice(start,end)+';this.submit=confirmarPagarCP;',ctx);
   await ctx.submit('pagar-tudo');
   assert.equal(sent.body.date,'2026-11-04');
   assert.equal(sent.body.amount,0);
@@ -143,7 +143,7 @@ test('pagamento bancário envia data e banco sem referência JavaScript indefini
     fetch:async(url,opts)=>{sent=JSON.parse(opts.body);return {ok:true,json:async()=>({payable:{...payable,status:'Pago'}})};},
     showToast(){},renderContasPagar(){},renderAdiantamentos(){},renderTickets(){},renderFluxo(){},renderDashboard(){},cm(){},console
   };
-  runInNewContext(core.slice(start,end)+';this.submit=confirmarPagarCP;',ctx);
+  runInNewContext('const _cpPendingPayments=new Map();'+core.slice(start,end)+';this.submit=confirmarPagarCP;',ctx);
   await ctx.submit('pagar-tudo');
   assert.equal(sent.date,'2026-11-03');
   assert.equal(sent.bankCode,'BC-007');
