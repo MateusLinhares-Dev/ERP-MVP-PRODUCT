@@ -4,7 +4,7 @@ import { createLegacyDatabaseAdapter } from './legacy-db-adapter.js';
 import { createRealtimeBusinessRepository } from './realtime-business-repository.js';
 import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 
-const assetRevision = '20261105-company-directory-authoritative-v3';
+const assetRevision = '20261105-company-directory-isolation-v4';
 
 function loadClassic(src) {
   return new Promise((resolve, reject) => {

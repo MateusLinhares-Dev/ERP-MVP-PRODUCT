@@ -267,10 +267,21 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     try{
       var cfg=d&&d.config;
       if(!cfg || typeof cfg!=='object') return;
-      const latest=typeof ERP_BUSINESS_CONFIG!=='undefined'?ERP_BUSINESS_CONFIG:null;
-      const latestRevision=Math.max(Number(window.__ERP_COMPANY_DIRECTORY_REVISION__)||0,Number(latest?.companyDirectoryRevision)||0);
-      if(latest&&latestRevision>(Number(cfg.companyDirectoryRevision)||0)){
-        cfg={...cfg,companyDirectoryRevision:latestRevision,employeeCompanies:Array.isArray(latest.employeeCompanies)?latest.employeeCompanies.slice():[],inactiveCompanies:Array.isArray(latest.inactiveCompanies)?latest.inactiveCompanies.slice():[],deletedCompanies:Array.isArray(latest.deletedCompanies)?latest.deletedCompanies.slice():[]};
+      const currentDirectory=window.__ERP_COMPANY_DIRECTORY_STATE__;
+      const publicDirectory=window.__PUBLIC_BUSINESS_CONFIG__;
+      const source=currentDirectory&&Array.isArray(currentDirectory.companies)?{
+        companies:currentDirectory.companies,
+        inactiveCompanies:currentDirectory.inactiveCompanies,
+        deletedCompanies:currentDirectory.deletedCompanies,
+        revision:currentDirectory.revision
+      }:publicDirectory&&Array.isArray(publicDirectory.employeeCompanies)?{
+        companies:publicDirectory.employeeCompanies,
+        inactiveCompanies:publicDirectory.inactiveCompanies,
+        deletedCompanies:publicDirectory.deletedCompanies,
+        revision:publicDirectory.companyDirectoryRevision
+      }:null;
+      if(source){
+        cfg={...cfg,employeeCompanies:source.companies.slice(),inactiveCompanies:(source.inactiveCompanies||[]).slice(),deletedCompanies:(source.deletedCompanies||[]).slice(),companyDirectoryRevision:Number(source.revision)||0};
       }
       if(typeof ERP_BUSINESS_CONFIG!=='undefined'){ Object.keys(ERP_BUSINESS_CONFIG).forEach(function(k){delete ERP_BUSINESS_CONFIG[k];}); Object.assign(ERP_BUSINESS_CONFIG,cfg); }
       if(typeof EMPRESAS_INFO!=='undefined' && cfg.companies && typeof cfg.companies==='object'){
@@ -1735,10 +1746,10 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     _fbListenerAtivo = true;
 
-    window._fbDB.ref('erp/config').on('value',snap=>{
+    window._fbDB.ref('erp/companyDirectory').on('value',snap=>{
       try{
         const cfg=snap&&snap.val?snap.val():null;
-        if(cfg&&typeof window.__erpApplyCompanyDirectory==='function')window.__erpApplyCompanyDirectory(cfg);
+        if(cfg&&cfg.schemaVersion===3&&typeof window.__erpApplyCompanyDirectory==='function')window.__erpApplyCompanyDirectory({employeeCompanies:cfg.companies,inactiveCompanies:cfg.inactiveCompanies,deletedCompanies:cfg.deletedCompanies,companyDirectoryRevision:cfg.revision});
       }catch(error){console.warn('Cadastro de empresas: falha ao atualizar lista',error);}
     },error=>{console.warn('Cadastro de empresas indisponível',error);});
 

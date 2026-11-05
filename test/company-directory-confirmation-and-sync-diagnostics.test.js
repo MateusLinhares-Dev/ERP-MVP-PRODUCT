@@ -30,9 +30,9 @@ test('POST atualizado usa GET antes de gravar e confirma revisao',async()=>{
   const calls=[];
   const client=companyClient(async(url,options)=>{
     calls.push(options.method);
-    if(options.method==='GET')return respond(200,{ok:true,companies:['Manuela Metais'],inactiveCompanies:[],deletedCompanies:[],revision:2,apiVersion:2});
+    if(options.method==='GET')return respond(200,{ok:true,companies:['Manuela Metais'],inactiveCompanies:[],deletedCompanies:[],revision:2,apiVersion:3});
     assert.equal(JSON.parse(options.body).expectedRevision,2);
-    return respond(200,{ok:true,companies:['Manuela Metais','Rafael'],inactiveCompanies:[],deletedCompanies:[],revision:3,apiVersion:2});
+    return respond(200,{ok:true,companies:['Manuela Metais','Rafael'],inactiveCompanies:[],deletedCompanies:[],revision:3,apiVersion:3});
   });
   const result=await client.run('create','Rafael');
   assert.equal(result.revision,3);
@@ -49,7 +49,7 @@ test('POST sem revisão pode ser confirmado por GET sem reenviar escrita',async(
       created=true;
       return respond(200,{ok:true,companies:['Manuela Metais','Rafael'],deletedCompanies:[]});
     }
-    return respond(200,{ok:true,companies:created?['Manuela Metais','Rafael']:['Manuela Metais'],inactiveCompanies:[],deletedCompanies:[],revision:8,apiVersion:2});
+    return respond(200,{ok:true,companies:created?['Manuela Metais','Rafael']:['Manuela Metais'],inactiveCompanies:[],deletedCompanies:[],revision:8,apiVersion:3});
   });
   const result=await client.run('create','Rafael');
   assert.equal(result.revision,8);
@@ -71,7 +71,7 @@ test('servidor que recusa POST não tem segundo envio',async()=>{
   const calls=[];
   const client=companyClient(async(url,options)=>{
     calls.push(options.method);
-    if(options.method==='GET')return respond(200,{ok:true,companies:['Manuela Metais','Rafael'],inactiveCompanies:[],deletedCompanies:[],revision:2,apiVersion:2});
+    if(options.method==='GET')return respond(200,{ok:true,companies:['Manuela Metais','Rafael'],inactiveCompanies:[],deletedCompanies:[],revision:2,apiVersion:3});
     return respond(403,{message:'Permissao negada'});
   });
   await assert.rejects(client.run('delete','Rafael'),/Permissao negada/);
@@ -81,8 +81,8 @@ test('servidor que recusa POST não tem segundo envio',async()=>{
 test('GET administrativo permite leitura de confirmacao com revisao e nao expõe dados sem identidade',()=>{
   assert.match(api,/if\(req\.method==='GET'\)/);
   assert.match(api,/await requireIdentity\(req,\{admin:true\}\)/);
-  assert.match(api,/Cache-Control','no-store'/);
-  assert.match(api,/revision:Number\(cfg\.companyDirectoryRevision\)\|\|0,apiVersion:2/);
+  assert.match(api,/Cache-Control','no-store, max-age=0'/);
+  assert.match(api,/companyDirectoryResponse\(await getCompanyDirectory\(db\)\)/);
 });
 
 test('salvamento global aguarda todos os grupos e identifica a colecao rejeitada',async()=>{

@@ -65,12 +65,12 @@ test('evento Firebase ou resposta antiga não restaura uma empresa excluída',()
 });
 
 test('configuração antiga não sobrescreve nova revisão durante sincronização geral',()=>{
-  assert.match(sync,/latestRevision>\(Number\(cfg\.companyDirectoryRevision\)\|\|0\)/);
-  assert.match(sync,/deletedCompanies:Array\.isArray\(latest\.deletedCompanies\)/);
+  assert.match(sync,/const currentDirectory=window\.__ERP_COMPANY_DIRECTORY_STATE__/);
+  assert.match(sync,/deletedCompanies:\(source\.deletedCompanies\|\|\[\]\)\.slice\(\)/);
   assert.match(core,/revision<\(Number\(window\.__ERP_COMPANY_DIRECTORY_REVISION__\)\|\|0\)/);
   assert.match(api,/companyDirectoryRevision=/);
   assert.match(branding,/companyDirectoryRevision:/);
-  assert.match(api,/return res\.status\(200\)\.json\(\{ok:true,[^\n]*revision:/);
+  assert.match(api,/companyDirectoryResponse\(await getCompanyDirectory\(db\)\)/);
 });
 
 test('UI não aceita confirmação de inclusão ou exclusão sem resposta consistente do servidor',()=>{

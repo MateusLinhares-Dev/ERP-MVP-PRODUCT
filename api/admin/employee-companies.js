@@ -1,5 +1,6 @@
 import '../../server/config/load-local-env.js';
 import {getFirebaseAdmin} from '../../server/infrastructure/firebase-admin.js';
+import {getCompanyDirectory,changeCompanyDirectory,companyDirectoryResponse} from '../../server/domain/company-directory.js';
 import {requireIdentity} from '../../server/http/auth.js';
 import {applyApiSecurityHeaders,assertJsonBody,assertMethod,assertSameOrigin,sendError} from '../../server/http/http.js';
 
@@ -56,14 +57,12 @@ export function changeCompanyConfig(current,action,name,expectedRevision){
 }
 export default async function handler(req,res){
   applyApiSecurityHeaders(res,req);
-  res.setHeader('Cache-Control','no-store');
+  res.setHeader('Cache-Control','no-store, max-age=0');
   try{
     if(req.method==='GET'){
       await requireIdentity(req,{admin:true});
       const {db}=getFirebaseAdmin();
-      const cfg=(await db.ref('erp/config').get()).val()||{};
-      res.setHeader('Cache-Control','no-store');
-      return res.status(200).json({ok:true,companies:normalizeEmployeeCompanies(cfg.employeeCompanies),inactiveCompanies:normalizeEmployeeCompanies(cfg.inactiveCompanies),deletedCompanies:normalizeEmployeeCompanies(cfg.deletedCompanies),revision:Number(cfg.companyDirectoryRevision)||0,apiVersion:2});
+      return res.status(200).json(companyDirectoryResponse(await getCompanyDirectory(db)));
     }
     assertMethod(req,'POST');
     assertSameOrigin(req,{required:true});
@@ -71,18 +70,17 @@ export default async function handler(req,res){
     const actor=await requireIdentity(req,{admin:true});
     const name=typeof req.body?.name==='string'?req.body.name.trim().replace(/\s+/g,' '):'';
     const action=String(req.body?.action||'create');
-    if(!name||name.length>80||/[<>\u0000-\u001f]/.test(name)||!['create','archive','restore','delete'].includes(action)){
-      const error=new Error('Informe uma empresa e uma operação válidas.');error.status=400;throw error;
-    }
     const expectedRevision=req.body?.expectedRevision;
-    if(expectedRevision!==undefined&&(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)){
-      const error=new Error('Versão do cadastro inválida.');error.status=400;throw error;
+    if(!name||name.length>80||/[<>\u0000-\u001f]/.test(name)||!['create','delete'].includes(action)||!Number.isSafeInteger(expectedRevision)||expectedRevision<0){
+      const error=new Error('Informe nome, operação e versão válidos.');error.status=400;throw error;
     }
     const {db}=getFirebaseAdmin();
-    const result=await db.ref('erp/config').transaction(current=>changeCompanyConfig(current,action,name,expectedRevision));
-    if(!result.committed){const error=new Error('O cadastro foi alterado em outra sessão ou a empresa já foi excluída. A lista será atualizada; confira e tente novamente.');error.status=409;throw error;}
-    const cfg=result.snapshot.val()||{};
-    try{await db.ref('erpAudit').push({action:'company-'+action,module:'config',actorLogin:actor.erpUser,company:name,at:new Date().toISOString()});}catch(error){console.error('Falha ao registrar auditoria de empresa',error);}
-    return res.status(200).json({ok:true,companies:normalizeEmployeeCompanies(cfg.employeeCompanies),inactiveCompanies:normalizeEmployeeCompanies(cfg.inactiveCompanies),deletedCompanies:normalizeEmployeeCompanies(cfg.deletedCompanies),revision:Number(cfg.companyDirectoryRevision)||0,apiVersion:2});
+    await getCompanyDirectory(db);
+    const ref=db.ref('erp/companyDirectory');
+    const result=await ref.transaction(current=>changeCompanyDirectory(current,action,name,expectedRevision));
+    if(!result.committed){const error=new Error('O cadastro mudou em outra sessão. A lista será atualizada; confira antes de repetir.');error.status=409;throw error;}
+    const state=result.snapshot.val();
+    try{await db.ref('erpAudit').push({action:'company-'+action,module:'companyDirectory',actorLogin:actor.erpUser,company:name,revision:state.revision,at:new Date().toISOString()});}catch(error){console.error('Falha ao registrar auditoria de empresa',error);}
+    return res.status(200).json(companyDirectoryResponse(state));
   }catch(error){return sendError(res,error);}
 }

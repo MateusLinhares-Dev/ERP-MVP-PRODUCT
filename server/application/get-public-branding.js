@@ -1,4 +1,6 @@
 import { FirebaseBusinessConfigRepository } from '../infrastructure/business-config-repository.js';
+import { getFirebaseAdmin } from '../infrastructure/firebase-admin.js';
+import { getCompanyDirectory } from '../domain/company-directory.js';
 
 function text(value) {
   return value == null ? '' : String(value);
@@ -10,6 +12,7 @@ function stringList(value) {
 
 export async function getPublicBranding(repository = new FirebaseBusinessConfigRepository()) {
   const cfg = await repository.getConfig();
+  const directory = await getCompanyDirectory(getFirebaseAdmin().db);
   const companies = cfg.companies && typeof cfg.companies === 'object' ? cfg.companies : {};
   const primaryKey = text(cfg.primaryCompanyKey) || Object.keys(companies)[0] || '';
   const rawCompany = primaryKey && companies[primaryKey] && typeof companies[primaryKey] === 'object'
@@ -40,10 +43,10 @@ export async function getPublicBranding(repository = new FirebaseBusinessConfigR
     },
     companyKeys: Object.keys(companies),
     financeCompanies: stringList(cfg.financeCompanies),
-    employeeCompanies: stringList(cfg.employeeCompanies),
-    companyDirectoryRevision: Number(cfg.companyDirectoryRevision) || 0,
-    inactiveCompanies: stringList(cfg.inactiveCompanies),
-    deletedCompanies: stringList(cfg.deletedCompanies),
+    employeeCompanies: stringList(directory.companies),
+    companyDirectoryRevision: directory.revision,
+    inactiveCompanies: stringList(directory.inactiveCompanies),
+    deletedCompanies: stringList(directory.deletedCompanies),
     expenseGroups: stringList(cfg.expenseGroups),
     expenseGroupCompanyMap: cfg.expenseGroupCompanyMap && typeof cfg.expenseGroupCompanyMap==='object' ? cfg.expenseGroupCompanyMap : {},
     chequeCompanies: stringList(cfg.chequeCompanies),
