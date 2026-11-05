@@ -4,7 +4,7 @@ import { createLegacyDatabaseAdapter } from './legacy-db-adapter.js';
 import { createRealtimeBusinessRepository } from './realtime-business-repository.js';
 import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 
-const assetRevision = '20261105-supplier-repasses-cheque-dup-v1';
+const assetRevision = '20261105-paid-order-reconciliation-t198-v2';
 
 function loadClassic(src) {
   return new Promise((resolve, reject) => {

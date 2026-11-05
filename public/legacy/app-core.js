@@ -10406,7 +10406,9 @@ function renderTickets(){
       <td>${statusBadge}</td>
       <td style="display:flex;gap:4px;align-items:center">
         ${isPago
-          ? '<button onclick="desmarcarCompraPaga(\''+tk._dbKey+'\')" title="Desmarcar pago (volta a pendente)" style="background:#e0e7ef;color:#556;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem;font-weight:700">↩️</button>'
+          ? (tk._pagoUndo
+            ? '<button onclick="desmarcarCompraPaga(\''+tk._dbKey+'\')" title="Desfazer marcação manual de pago" style="background:#e0e7ef;color:#556;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem;font-weight:700">↩️</button>'
+            : '<span title="Compra quitada: para corrigir o pedido use Editar, sem desfazer o pagamento" style="color:#207d52;font-weight:700;font-size:.73rem">Quitado</span>')
           : '<button onclick="marcarCompraPaga(\''+tk._dbKey+'\')" title="Marcar como paga (quando o pagamento já está lançado na Ficha) — não cria adiantamento nem duplica" style="background:#1a7f4b;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem;font-weight:700">✅ Pago</button>'}
         <button onclick="phase4PurchaseEditTicket('${tk._dbKey}')" title="Editar pedido completo na aba Lançamento" style="background:#1a3a2a;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem">✏️</button>
         <button class="btn-edit-danger" onclick="excluirEntradaCompra('${tk._dbKey}')" title="Excluir entrada" style="font-size:.75rem">🗑️</button>
@@ -10481,6 +10483,10 @@ function excluirEntradaCompra(ticket){
 function marcarCompraPaga(dbKey){
   var tk=TICKETS_DB[dbKey];
   if(!tk){ showToast('Ticket não encontrado.','error'); return; }
+  if(Number(tk.saldoPagar||0)<=0.005 && Number(tk.adiantamento||0)>0){
+    showToast('A compra já está coberta por adiantamento. Para alterar os dados, use Editar; não faça nova baixa.','info',6500);
+    return;
+  }
   var _fmt=function(v){ return Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2}); };
   if(!confirm('Marcar a compra '+(tk.ticket||'')+' (R$ '+_fmt(tk.totalGeral)+') como PAGA?\n\nUse quando o pagamento JÁ está lançado na Ficha (adiantamento). Não cria pagamento novo e não duplica a Ficha. Dá pra desfazer no ↩️.')) return;
   
@@ -10508,34 +10514,46 @@ function marcarCompraPaga(dbKey){
 window['marcarCompraPaga']=marcarCompraPaga;
 
 
-function desmarcarCompraPaga(dbKey){
-  var tk=TICKETS_DB[dbKey];
-  if(!tk){ showToast('Ticket não encontrado.','error'); return; }
-  if(!confirm('Desmarcar o pago da compra '+(tk.ticket||'')+'? Ela volta a ficar pendente.')) return;
-  if(tk._pagoUndo){
-    tk.adiantamento=Number(tk._pagoUndo.adiantamento||0);
-    tk.saldoPagar=Number(tk._pagoUndo.saldoPagar||0);
-    tk.status=tk._pagoUndo.status||'Pendente';
-    delete tk._pagoUndo;
-  } else {
-    tk.status='Pendente';
-    tk.saldoPagar=_r2(Number(tk.totalGeral||0)-Number(tk.adiantamento||0)+Number(tk.saldoAnterior||0));
+async function desmarcarCompraPaga(dbKey){
+  const ticket=TICKETS_DB[dbKey];
+  if(!ticket){showToast('Ticket não encontrado.','error');return;}
+  if(!ticket._pagoUndo){
+    showToast('Compra quitada por adiantamento ou abatimento. É possível editar o pedido pelo lápis, sem desmarcar o pagamento.','info',6500);
+    if(typeof window.phase4PurchaseEditTicket==='function')await window.phase4PurchaseEditTicket(dbKey);
+    return;
   }
-  
+  if(!confirm('Desfazer a marcação manual de pago do pedido '+(ticket.ticket||dbKey)+'?'))return;
+  const ref=window._fbDB&&window._fbDB.ref&&window._fbDB.ref('erp/tickets/'+dbKey);
+  if(!ref||!window.firebase?.auth?.()?.currentUser){showToast('Firebase indisponível. Nenhuma alteração foi salva.','error');return;}
+  const undo=ticket._pagoUndo;
   try{
-    var cps=CONTAS_PAGAR.filter(function(c){ return c && c.ticket===tk.ticket; });
-    cps.forEach(function(c){
-      if(Array.isArray(c.pagamentos)){
-        c.pagamentos=c.pagamentos.filter(function(p){ return !(p && Number(p.valor||0)===0 && String(p.obs||'').indexOf('Coberto por adiantamento (Ficha)')>=0); });
-      }
-      if(c.status==='Pago'){ c.status='Pendente'; c.dataPgto=''; }
+    const tx=await ref.transaction(function(current){
+      if(!current||!current._pagoUndo||JSON.stringify(current._pagoUndo)!==JSON.stringify(undo))return;
+      const restored=Object.assign({},current,{
+        adiantamento:Number(current._pagoUndo.adiantamento||0),
+        saldoPagar:Number(current._pagoUndo.saldoPagar||0),
+        status:current._pagoUndo.status||'Pendente'
+      });
+      delete restored._pagoUndo;
+      return restored;
+    },undefined,false);
+    if(!tx?.committed)throw new Error('O pedido foi alterado em outra sessão. Atualize o histórico antes de tentar novamente.');
+    const checked=await ref.once('value');
+    const restored=checked?.val?.();
+    if(!restored||restored._pagoUndo)throw new Error('O Firebase não confirmou a reversão da marcação.');
+    TICKETS_DB[dbKey]=restored;
+    try{if(typeof _ticketsSnapJSON!=='undefined')_ticketsSnapJSON[dbKey]=JSON.stringify(restored);}catch(e){}
+    const payables=(CONTAS_PAGAR||[]).filter(c=>c&&c.ticket===restored.ticket);
+    payables.forEach(function(c){
+      if(Array.isArray(c.pagamentos))c.pagamentos=c.pagamentos.filter(p=>!(p&&Number(p.valor||0)===0&&String(p.obs||'').includes('Coberto por adiantamento (Ficha)')));
+      if(c.status==='Pago'){c.status='Pendente';c.dataPgto='';}
       c._upd=Date.now();
     });
-    if(cps.length){ saveContasPagar(); try{ renderContasPagar(); }catch(e){} }
-  }catch(e){}
-  saveDB();
-  try{ renderTickets(); renderFluxo(); renderDashboard(); }catch(e){}
-  showToast('↩️ Compra '+(tk.ticket||'')+' voltou a pendente.','info');
+    if(payables.length){saveContasPagar();try{renderContasPagar();}catch(e){}}
+    saveDB();
+    try{renderTickets();renderFluxo();renderDashboard();}catch(e){}
+    showToast('Marcação manual do pedido '+restored.ticket+' desfeita e confirmada.','success');
+  }catch(error){showToast(error.message||'Não foi possível desfazer a marcação.','error',7500);}
 }
 window['desmarcarCompraPaga']=desmarcarCompraPaga;
 
