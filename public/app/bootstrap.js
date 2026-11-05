@@ -4,7 +4,7 @@ import { createLegacyDatabaseAdapter } from './legacy-db-adapter.js';
 import { createRealtimeBusinessRepository } from './realtime-business-repository.js';
 import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 
-const assetRevision = '20261105-supplier-advance-tombstones-v6';
+const assetRevision = '20261105-supplier-repasses-cheque-dup-v1';
 
 function loadClassic(src) {
   return new Promise((resolve, reject) => {
@@ -253,6 +253,8 @@ async function main() {
   loadStyle('/modules/fiscal/fiscal-stock-origins.css');
   await loadClassic('/modules/fiscal/fiscal-stock-origins.js');
   await loadClassic('/modules/finance/advance-actions.js');
+  loadStyle('/modules/finance/supplier-cash-repasses.css');
+  await loadClassic('/modules/finance/supplier-cash-repasses.js');
   loadStyle('/modules/engineering/engineering.css');
   await loadClassic('/modules/engineering/engineering.js');
 

@@ -7273,6 +7273,8 @@ function renderFluxo(){
   
   const cats=[
     {key:'vendas',   lbl:'Vendas de Metais',        tipo:'entrada', fn:(m,y)=>fluxoSumCR(m,y)},
+    {key:'receb-repasse',lbl:'Dinheiro recebido para repasse',tipo:'entrada',fn:(m,y)=>window.SupplierCashRepasse?.flowTotal(m,y,'entradas')||0},
+    {key:'pag-repasse',lbl:'PIX de repasse a fornecedores',tipo:'saida',fn:(m,y)=>window.SupplierCashRepasse?.flowTotal(m,y,'saidas')||0},
     {key:'sucata',   lbl:'Adiantamentos Forn.',      tipo:'saida',   fn:(m,y)=>fluxoSumAdt(m,y)},
     {key:'saldo',    lbl:'Saldo Compra Sucata',       tipo:'saida',   fn:(m,y)=>fluxoSumCP('sucata',m,y)},
     {key:'folha',    lbl:'Folha de Pagamento',        tipo:'saida',   fn:(m,y)=>fluxoSumCP('folha',m,y)},
@@ -11209,13 +11211,26 @@ async function salvarAdiantamento(){
     const user=firebase?.auth?.().currentUser;
     if(!user)throw new Error('Sua sessão expirou. Entre novamente no sistema.');
     const token=await user.getIdToken();
-    const response=await fetch('/api/finance/advances',{
-      method:'POST',credentials:'same-origin',
-      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
-      body:JSON.stringify({operationId:opId,fornCod,data,valor,forma,bancoCod,empresa,ticket,obs,
-        ...(_ehCheque?{cheques:_chqLista,chequeSituation:_chqSit}:{})})
-    });
-    const result=await response.json().catch(()=>({}));
+    const payload={operationId:opId,fornCod,data,valor,forma,bancoCod,empresa,ticket,obs,
+      ...(_ehCheque?{cheques:_chqLista,chequeSituation:_chqSit}:{})};
+    const enviar=async()=>{
+      const response=await fetch('/api/finance/advances',{
+        method:'POST',credentials:'same-origin',
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+        body:JSON.stringify(payload)
+      });
+      return {response,result:await response.json().catch(()=>({}))};
+    };
+    let {response,result}=await enviar();
+    if(!response.ok&&result.code==='CHEQUE_DUPLICATE_CONFIRMATION_REQUIRED'&&forma==='Cheque de Terceiro'){
+      const confirmado=window.confirm('ATENÇÃO: cheques de terceiros com banco e número repetidos.\n\n'+
+        String(result.message||'Confirme os dados antes de aceitar a duplicidade.')+'\n\n'+
+        'Confira emitente, número, valor e se não é o mesmo título cadastrado duas vezes.\n'+
+        'Deseja manter os cheques repetidos e prosseguir?');
+      if(!confirmado)return false;
+      payload.confirmDuplicates=true;
+      ({response,result}=await enviar());
+    }
     if(!response.ok||!result.advance)throw new Error(result.message||'Não foi possível confirmar o lançamento no servidor.');
     const records=Array.isArray(result.entries)?result.entries:null;
     if(records)ADT_POR_FORN[fornCod]=records;
@@ -22915,6 +22930,7 @@ function initDespesas(){
         btnSaldo.style.display='';
         btnSaldo.onclick=function(){ registrarSaldoDevedor(cod, sF); };
       } else { btnSaldo.style.display='none'; }
+      try{document.dispatchEvent(new CustomEvent('erp:supplier-ficha-rendered',{detail:{fornCod:cod,nome:forn.nome}}));}catch(error){console.warn('supplier.ficha.event',error);}
       }
 
       function ffImprimir(){

@@ -72,6 +72,10 @@ partyBankRule.$partyKey.$index.$other={'.validate':false};
 // Matrícula de cursos e documentos é gerenciada somente por API autenticada.
 // O Firebase Admin SDK escreve em erpTraining; clientes não acessam os dados diretamente.
 candidate.rules.erpTraining={'.read':false,'.write':false};
+for(const node of ['fornecedorRepasses','fornecedorRepassesCaixa','fornecedorRepasseOperations']){
+  candidate.rules.erp[node]={'.read':false,'.write':false};
+}
+candidate.rules.erpSupplierRepasseLocks={'.read':false,'.write':false};
 delete candidate.rules.erp.$node;
 for(const node of nodes){
   if(explicit.has(node))continue;

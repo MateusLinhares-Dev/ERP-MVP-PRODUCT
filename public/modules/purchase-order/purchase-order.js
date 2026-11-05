@@ -1426,6 +1426,23 @@ function printPaymentSnapshot(key,ticket,total){
   return {priorDebt,amountDue,advance,balance,settled,
     sincePurchase:Math.max(0,settled-advance),payments};
 }
+// Balance of supplier advances still available AFTER the purchase. This is not the
+// purchase payable (which can be zero), nor a new receivable or repasse.
+function supplierUnappliedAdvance(ticket){
+  const code=String(ticket.fornecedorCod||ticket.fornCod||'').trim();
+  let ledger=[];
+  try{ledger=(ADT_POR_FORN[code]||[]).filter(a=>a&&String(a.status||'Pendente').toLowerCase()==='pendente');}catch(e){}
+  const amount=ledger.reduce((sum,a)=>{
+    const current=Math.max(0,Number(a.valor||0));
+    const original=Math.max(current,Number(a.valorOriginal||0));
+    const applied=Math.max(0,Number(a.valorCompensado||0));
+    return sum+Math.min(current,Math.max(0,original-applied));
+  },0);
+  // Only use the ticket receipt as fallback if the supplier ledger is not loaded.
+  if(ledger.length)return Math.round(amount*100)/100;
+  const rows=ticket?.reciboFinanceiro?.adiantamentos||[];
+  return Math.round(rows.reduce((sum,row)=>sum+Math.max(0,Number(row.valorPendente||0)),0)*100)/100;
+}
 function printHtml(key,ticket){
   const info=companyInfo();
   const supplier=supplierInfo(ticket);
@@ -1447,6 +1464,7 @@ function printHtml(key,ticket){
   const finance=printPaymentSnapshot(key,ticket,total);
   const advance=finance.advance;
   const balance=finance.balance;
+  const supplierCredit=supplierUnappliedAdvance(ticket);
   const sumQty=items.reduce(function(sum,item){return sum+Number(item.quantidade||item.pesoLiq||0);},0);
   const orderNotes=String(ticket.observacoesPedido||po.observacoes||'').trim();
   const supplierAddress=[supplier.rua||supplier.logradouro||'',supplier.num||supplier.numero||'',supplier.bairro||'',supplier.cidade||'',supplier.uf||''].filter(Boolean).join(', ');
@@ -1481,7 +1499,8 @@ function printHtml(key,ticket){
     '<tr><th>Adiantamentos / abatimentos no fechamento</th><td>R$ '+money(advance)+'</td></tr>'+
     '<tr><th>Pagamentos e abatimentos posteriores</th><td>R$ '+money(finance.sincePurchase)+'</td></tr>'+
     '<tr class="paid"><th>Total pago / abatido</th><td>R$ '+money(finance.settled)+'</td></tr>'+
-    '<tr class="due"><th>Saldo a pagar</th><td>R$ '+money(balance)+'</td></tr>'+
+    '<tr class="due"><th>Saldo a pagar</th><td>R$ '+money(balance)+'</td></tr>'+ 
+    (supplierCredit>0?'<tr class="supplier-credit"><th>Saldo devedor do fornecedor (adiantamento não utilizado, disponível para próximas compras)</th><td>R$ '+money(supplierCredit)+'</td></tr>':'')+
     '</tbody></table></section>';
   const advanceRows=printAppliedAdvances(key,ticket,advance);
   const advanceDetails=advance>0

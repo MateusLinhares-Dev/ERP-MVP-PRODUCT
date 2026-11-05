@@ -218,3 +218,13 @@ test('edição de ticket anterior prioriza identificador definitivo',()=>{
   assert.match(source,/ticket\.numeroPedido=String\(ticket\.ticket\|\|state\.editKey\)/);
   assert.match(source,/numero:ticket\.numeroPedido,ordemCompra:state\.purchaseOrder/);
 });
+
+test('notinha mostra saldo devedor remanescente do fornecedor sem confundir com saldo da compra',()=>{
+  const ticket={...base,totalGeral:76850.85,adiantamento:76850.85,saldoPagar:0,
+    reciboFinanceiro:{adiantamentos:[{cod:'ADT-79K',valorOriginal:79949.50,valorAplicado:76850.85,valorPendente:3098.65}]}};
+  const advances={F1:[{cod:'ADT-79K',status:'Pendente',valor:3098.65,valorOriginal:79949.50,valorCompensado:76850.85}]};
+  const {html,printedTicket}=makePrint(ticket,[],advances);
+  assert.match(html,/Saldo a pagar<\/th><td>R\$ 0,00/);
+  assert.match(html,/Saldo devedor do fornecedor \(adiantamento não utilizado, disponível para próximas compras\)<\/th><td>R\$ 3\.098,65/);
+  assert.deepEqual(printedTicket,ticket);
+});
