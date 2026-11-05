@@ -79,8 +79,10 @@ export function changeCompanyDirectory(current, action, name, expectedRevision) 
   const hasName = companies.some(value => keyOf(value) === key);
   const wasDeleted = deletedCompanies.some(value => keyOf(value) === key);
   if (action === 'create') {
-    if (hasName || wasDeleted || companies.length >= 100) return undefined;
+    if (hasName || companies.length >= 100) return undefined;
     companies.push(name);
+    const deletedIndex = deletedCompanies.findIndex(value => keyOf(value) === key);
+    if (deletedIndex >= 0) deletedCompanies.splice(deletedIndex, 1);
   } else if (action === 'delete') {
     if (!hasName || wasDeleted) return undefined;
     companies.splice(companies.findIndex(value => keyOf(value) === key), 1);

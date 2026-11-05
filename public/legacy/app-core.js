@@ -3798,12 +3798,15 @@ function gerenciarEmpresasFuncionarios(){
 }
 function _erpRenderEmpresasAdministracao(){
   const host=document.getElementById('rh-empresas-atuais');if(!host)return;
-  const cfg=ERP_BUSINESS_CONFIG||{},pub=_cfgPublicBusiness();
-  const inactive=_cfgInactiveCompanies(),deleted=_cfgDeletedCompanies(),seen=new Set(),all=[];
-  for(const source of [_cfgRegisteredCompanies(),cfg.expenseGroups,pub.expenseGroups,cfg.chequeCompanies,cfg.inactiveCompanies,pub.inactiveCompanies]){
-    if(!Array.isArray(source))continue;
-    source.forEach(function(v){const key=_companyKey(v);if(key&&!deleted.has(key)&&!seen.has(key)){seen.add(key);all.push(String(v));}});
-  }
+  const state=window.__ERP_COMPANY_DIRECTORY_STATE__;
+  if(!state||!Array.isArray(state.companies)){host.textContent='Carregando cadastro confirmado...';return;}
+  const deleted=new Set((Array.isArray(state.deletedCompanies)?state.deletedCompanies:[]).map(_companyKey));
+  const inactive=new Set((Array.isArray(state.inactiveCompanies)?state.inactiveCompanies:[]).map(_companyKey));
+  const seen=new Set(),all=[];
+  state.companies.forEach(function(value){
+    const name=String(value||'').trim(),key=_companyKey(name);
+    if(key&&!seen.has(key)&&!deleted.has(key)){seen.add(key);all.push(name);}
+  });
   host.innerHTML=all.map(function(v){
     const principal=_companyKey(v)===_companyKey(ERP_BUSINESS_CONFIG.primaryCompanyKey||_cfgPublicBusiness().company?.key);
     return '<div class="erp-company-row"><span>'+esc(v)+(inactive.has(_companyKey(v))?' <small>Inativa</small>':'')+'</span>'+(principal?'<span>Empresa principal</span>':'<button type="button" class="btn-cancel" data-company-action="delete" data-company-name="'+esc(v)+'">Excluir</button>')+'</div>';
@@ -3848,31 +3851,37 @@ async function _erpEnviarEmpresa(action,name){
     const user=firebase?.auth?.().currentUser;
     if(!user)throw new Error('Sessão expirada. Entre novamente no ERP.');
     const token=await user.getIdToken();
-    const before=await _erpConsultarEmpresasServidor(token);
+    let before=await _erpConsultarEmpresasServidor(token);
     _erpAplicarCadastroEmpresas(before);
     _erpRenderEmpresasAdministracao();
-    if(_erpEmpresaEstadoDesejado(before,action,name))return before;
-    let response=null,result=null,requestError=null;
-    try{
-      response=await fetch('/api/admin/employee-companies',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({action,name,expectedRevision:before.revision})});
-      try{result=await response.json();}catch(error){}
-    }catch(error){requestError=error;}
-    if(response&&!response.ok){
-      if(response.status===409){
-        try{const latest=await _erpConsultarEmpresasServidor(token);_erpAplicarCadastroEmpresas(latest);_erpRenderEmpresasAdministracao();}catch(error){}
+    for(let attempt=0;attempt<2;attempt++){
+      if(_erpEmpresaEstadoDesejado(before,action,name))return before;
+      let response=null,result=null,requestError=null;
+      try{
+        response=await fetch('/api/admin/employee-companies',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({action,name,expectedRevision:before.revision})});
+        try{result=await response.json();}catch(error){}
+      }catch(error){requestError=error;}
+      if(response&&response.status===409){
+        const latest=await _erpConsultarEmpresasServidor(token);
+        _erpAplicarCadastroEmpresas(latest);
+        _erpRenderEmpresasAdministracao();
+        if(_erpEmpresaEstadoDesejado(latest,action,name))return latest;
+        if(attempt===0&&latest.revision>before.revision){before=latest;continue;}
+        throw new Error(result?.message||'A operação foi recusada pelo cadastro. Confira os dados atualizados.');
       }
-      throw new Error(result?.message||'Não foi possível alterar o cadastro de empresas.');
+      if(response&&!response.ok)throw new Error(result?.message||'Não foi possível alterar o cadastro de empresas.');
+      if(!_erpEmpresaRespostaValida(result)||result.revision<=before.revision||!_erpEmpresaEstadoDesejado(result,action,name)){
+        let latest=null;
+        try{latest=await _erpConsultarEmpresasServidor(token);}catch(error){}
+        if(latest&&latest.revision>=before.revision&&_erpEmpresaEstadoDesejado(latest,action,name))result=latest;
+        else if(requestError)throw new Error('Não foi possível confirmar a gravação. Confira a conexão e reabra o cadastro antes de repetir a operação.');
+        else throw new Error('O servidor não confirmou a alteração com a versão esperada. Confira a publicação da API e reabra o cadastro.');
+      }
+      _erpAplicarCadastroEmpresas(result);
+      _erpRenderEmpresasAdministracao();
+      return result;
     }
-    if(!_erpEmpresaRespostaValida(result)||result.revision<=before.revision||!_erpEmpresaEstadoDesejado(result,action,name)){
-      let latest=null;
-      try{latest=await _erpConsultarEmpresasServidor(token);}catch(error){}
-      if(latest&&latest.revision>=before.revision&&_erpEmpresaEstadoDesejado(latest,action,name))result=latest;
-      else if(requestError)throw new Error('Não foi possível confirmar a gravação. Confira a conexão e reabra o cadastro antes de repetir a operação.');
-      else throw new Error('O servidor não confirmou a alteração com a versão esperada. Confira a publicação da API e reabra o cadastro.');
-    }
-    _erpAplicarCadastroEmpresas(result);
-    _erpRenderEmpresasAdministracao();
-    return result;
+    throw new Error('A versão do cadastro mudou durante a operação. Reabra o cadastro e tente novamente.');
   }finally{_erpEmpresaAlteracaoEmCurso=false;}
 }
 async function _erpMudarSituacaoEmpresa(action,name){

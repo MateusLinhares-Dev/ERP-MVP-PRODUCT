@@ -78,7 +78,15 @@ export default async function handler(req,res){
     await getCompanyDirectory(db);
     const ref=db.ref('erp/companyDirectory');
     const result=await ref.transaction(current=>changeCompanyDirectory(current,action,name,expectedRevision));
-    if(!result.committed){const error=new Error('O cadastro mudou em outra sessão. A lista será atualizada; confira antes de repetir.');error.status=409;throw error;}
+    if(!result.committed){
+      const latest=await getCompanyDirectory(db);
+      const changed=latest.revision!==expectedRevision;
+      const registered=latest.companies.some(item=>companyKey(item)===companyKey(name));
+      const error=new Error(changed?'O cadastro foi atualizado em outra sessão. A lista será recarregada.':action==='create'&&registered?'Esta empresa já está cadastrada.':action==='delete'&&!registered?'Esta empresa já não está no cadastro.':'A operação não foi aceita pelo cadastro de empresas.');
+      error.status=409;
+      error.code=changed?'COMPANY_REVISION_CONFLICT':'COMPANY_OPERATION_CONFLICT';
+      throw error;
+    }
     const state=result.snapshot.val();
     try{await db.ref('erpAudit').push({action:'company-'+action,module:'companyDirectory',actorLogin:actor.erpUser,company:name,revision:state.revision,at:new Date().toISOString()});}catch(error){console.error('Falha ao registrar auditoria de empresa',error);}
     return res.status(200).json(companyDirectoryResponse(state));
