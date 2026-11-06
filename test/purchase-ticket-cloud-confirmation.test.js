@@ -71,10 +71,10 @@ test('formulário só encerra após confirmação, e listener comum aguarda comm
  assert.match(core,/if\(__integratedPurchase\) return ticketNum;/);
  assert.match(phase1,/const result=await original\.confirmPurchase\.apply/);
  assert.match(purchase,/const result=await legacy\.confirmPurchase\.call/);
- assert.match(purchase,/await purchaseConfirmCloud\(key,ticket,\{create:true\}\)/);
- assert.ok(purchase.indexOf('await purchaseConfirmCloud(key,ticket,{create:true})')<purchase.indexOf('finishPurchaseSave(body,key,ticket,totals);'));
+ assert.match(purchase,/await purchaseCreateAtomic\(key,ticket,state,body\)/);
+ assert.ok(purchase.indexOf('await purchaseCreateAtomic(key,ticket,state,body)')<purchase.indexOf('finishPurchaseSave(body,key,TICKETS_DB[key],totals);'));
  assert.match(purchase,/if\(global\.__ERP_PURCHASE_IN_PROGRESS__\)/);
- assert.match(purchase,/finishPurchaseDeferredSave\(purchaseCommitted\)/);
+ assert.match(purchase,/finishPurchaseDeferredSave\(false\)/);
 });
 test('histórico não expõe a consulta técnica do Firebase ao usuário',()=>{
  assert.doesNotMatch(purchase,/global\.phase4PurchaseFindCloudTicket=purchaseFindCloudTicket/);

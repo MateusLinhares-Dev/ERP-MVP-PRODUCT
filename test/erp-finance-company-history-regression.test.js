@@ -144,7 +144,7 @@ test('nova compra consulta número disponível na nuvem antes do legado criar',a
  assert.equal(next,'T233');
  assert.equal(store.hw,232);
  assert.equal(ctx.getNextTicketId(),'T233');
- assert.match(purchase,/const availableNumber=await checkAvailablePurchaseNumber\(\)/);
+ assert.match(purchase,/const availableNumber=body\.dataset\.purchaseReservedNumber\|\|await checkAvailablePurchaseNumber\(\)/);
 });
 
 test('sincronização de empresas aplica eventos mais novos e preserva versão por sessão',()=>{

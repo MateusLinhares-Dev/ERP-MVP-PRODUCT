@@ -73,17 +73,45 @@ export function createLegacyDatabaseAdapter(rawDb, storage) {
             const dataUrl = joinChunks(value);
             if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return target.set(value);
             const { blob, contentType } = dataUrlToBlob(dataUrl);
-            const fileRef = storage.ref(storagePath);
+            // Uma nova versao nao sobrescreve o arquivo que o metadado antigo aponta.
+            // Isso permite compensar falhas do RTDB sem perder documentos existentes.
+            const version = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,12)}`;
+            const newStoragePath = `${storagePath}--v-${version}`;
+            const fileRef = storage.ref(newStoragePath);
             await fileRef.put(blob, { contentType, cacheControl: 'private,max-age=3600' });
-            const result = await target.set({
-              __storageV: 1,
-              path: storagePath,
-              contentType,
-              size: blob.size,
-              updatedAt: Date.now(),
-            });
+            try {
+              await target.set({
+                __storageV: 1,
+                path: newStoragePath,
+                contentType,
+                size: blob.size,
+                updatedAt: Date.now(),
+              });
+            } catch (error) {
+              // Uma resposta perdida nao significa que o RTDB nao confirmou a escrita.
+              // Nunca apagar um arquivo que talvez ja esteja referenciado no Database.
+              let resultadoConfirmado = false;
+              let exclusaoSegura = false;
+              try {
+                const atual = (await target.once('value')).val();
+                resultadoConfirmado = atual?.__storageV === 1 && atual.path === newStoragePath;
+                exclusaoSegura = !resultadoConfirmado;
+              } catch (verifyError) {
+                console.warn('[Documentos] Upload com resultado indeterminado; mantendo arquivo para verificacao:', verifyError);
+              }
+              if (resultadoConfirmado) {
+                auditManagedFile('file_upload', path);
+                return;
+              }
+              if (exclusaoSegura) {
+                try { await fileRef.delete(); } catch (cleanupError) {
+                  console.warn('[Documentos] Falha em compensar upload sem metadados:', cleanupError);
+                  auditManagedFile('file_cleanup_pending', path);
+                }
+              } else auditManagedFile('file_cleanup_pending', path);
+              throw error;
+            }
             auditManagedFile('file_upload', path);
-            return result;
           };
         }
         if (prop === 'once') {
@@ -100,15 +128,20 @@ export function createLegacyDatabaseAdapter(rawDb, storage) {
         }
         if (prop === 'remove') {
           return async () => {
-            try {
-              const snapshot = await target.once('value');
-              const value = snapshot.val();
-              if (value && value.__storageV === 1 && value.path) {
-                try { await storage.ref(value.path).delete(); } catch (_) {}
-              }
-            } catch (_) {}
+            // Se a remocao do RTDB for recusada, o arquivo deve permanecer acessivel.
+            const snapshot = await target.once('value');
+            const value = snapshot.val();
             const result = await target.remove();
             auditManagedFile('file_delete', path);
+            if (value && value.__storageV === 1 && typeof value.path === 'string' &&
+                (value.path === storagePath || value.path.startsWith(storagePath + '--v-'))) {
+              try { await storage.ref(value.path).delete(); }
+              catch (error) {
+                // Metadado ja removido: deixar o objeto orfao para limpeza auditada.
+                console.warn('[Documentos] Metadado removido, limpeza do Storage pendente:', error);
+                auditManagedFile('file_cleanup_pending', path);
+              }
+            }
             return result;
           };
         }

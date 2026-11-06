@@ -85,22 +85,24 @@ test('GET administrativo permite leitura de confirmacao com revisao e nao expõe
   assert.match(api,/companyDirectoryResponse\(await getCompanyDirectory\(db\)\)/);
 });
 
-test('salvamento global aguarda todos os grupos e identifica a colecao rejeitada',async()=>{
+test('salvamento global usa uma unica atualizacao atomica e rejeita todo o lote se faltar permissao',async()=>{
   const start=sync.indexOf('async function _enviarMapaErp(dados){');
   const end=sync.indexOf('\n  async function _enviarDadosEmLotes(',start);
   assert.ok(start>=0&&end>start);
-  let successful=false;
+  const calls=[],state={};
   const ctx={
-    Promise,
     _agruparAtualizacoesErp:()=>({vales:{temValor:false,patch:{a:1}},tickets:{temValor:false,patch:{b:2}}}),
     _comTimeoutFirebase:promise=>promise,
-    window:{_fbDB:{ref:path=>({update:async()=>{
-      if(path==='erp/vales')throw new Error('permission_denied');
-      await new Promise(resolve=>setTimeout(resolve,5));
-      successful=true;
+    window:{_fbDB:{ref:path=>({update:async update=>{
+      calls.push({path,update});
+      if(Object.keys(update).some(key=>key.startsWith('vales/')))throw new Error('permission_denied');
+      Object.assign(state,update);
     }})}}
   };
   runInNewContext(sync.slice(start,end)+'\nthis.run=_enviarMapaErp;',ctx);
-  await assert.rejects(ctx.run({}),/erp\/vales.*permission_denied/);
-  assert.equal(successful,true);
+  await assert.rejects(ctx.run({}),/vales.*tickets.*permission_denied/);
+  assert.deepEqual(state,{});
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].path,'erp');
+  assert.deepEqual(Object.keys(calls[0].update).sort(),['tickets/b','vales/a']);
 });

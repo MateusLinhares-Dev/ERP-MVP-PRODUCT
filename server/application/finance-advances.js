@@ -432,7 +432,18 @@ export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
     return {...receipt,entries:advanceRecords(source.val()),targetEntries:target?advanceRecords(target.val()):null,alreadyCommitted:true};
   }
   const operationKey=opPath.slice('erp/financeAdvanceOperations/'.length);
-  const keys=[...new Set([fornCod,newFornCod,'__global_cheques__'])].sort();
+  // PIX/TED/Dinheiro nunca devem competir pelo mutex global de cheques.
+  // O mutex do fornecedor continua protegendo o cadastro e o débito atômico.
+  // Cheques exigem o lock global para proteger a leitura dos cheques Controle.
+  // Decidimos antes de obter os locks para manter a MESMA ordem (sort())
+  // da criação de cheques e evitar ciclos de espera entre duas requisições.
+  const candidate=advanceRecords((await db.ref('erp/adiantamentos/'+fornCod).get()).val())
+    .find(row=>String(row.cod)===adtCod);
+  const touchesCheques=Boolean(candidate&&(
+    (Array.isArray(candidate.chequeIds)&&candidate.chequeIds.length>0)||
+    ['Cheque','Cheque de Terceiro'].includes(candidate.forma)
+  ));
+  const keys=[...new Set([fornCod,newFornCod,...(touchesCheques?['__global_cheques__']:[])])].sort();
   const owner=uuid();
   const locks=[];
   let committedAndUnlocked=false;
@@ -490,6 +501,8 @@ export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
       if(!['PIX','TED','Dinheiro','Cheque','Cheque de Terceiro','Transferência','Crédito'].includes(forma))
         failure(422,'INVALID_PAYMENT_METHOD','Forma de pagamento inválida.');
       const isBankTransfer=['PIX','TED','Dinheiro','Transferência'].includes(forma);
+      if(['Cheque','Cheque de Terceiro'].includes(forma))
+        failure(422,'CHEQUE_EDIT_RESTRICTED','Não é possível transformar um adiantamento em cheque pela edição. Cadastre os cheques pela operação específica.');
       const bankCode=isBankTransfer?pathKey(input.bancoCod):'';
       const bank=isBankTransfer?bankEntries(banksSnap.val()).find(b=>b.cod===bankCode):null;
       if(isBankTransfer&&!bank)failure(422,'BANK_NOT_FOUND','Conta bancária não encontrada.');
