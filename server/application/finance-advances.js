@@ -170,17 +170,64 @@ export async function getAdvanceOperationStatus(identity,input,{db,now=()=>Date.
   return {state:'not_found'};
 }
 
-async function acquireAdvanceLock(ref,owner,now){
+/**
+ * A lock belongs to an operation receipt. If a previous serverless invocation
+ * finished the atomic update but failed to release its lock, a subsequent
+ * invocation may reclaim it ONLY after finding that exact committed receipt.
+ * A lock without a verifiable receipt remains protected until lease expiry.
+ */
+async function acquireAdvanceLock(ref,owner,now,{db,operationKey='',fornCod='',kind='',requestFingerprint='',sleep}={}){
   const delays=[0,160,280,420,640,900,1200,1600];
+  const pause=sleep||((ms)=>new Promise(resolve=>setTimeout(resolve,ms)));
+  const nextLock=()=>({owner,operationKey,fornCod,kind,requestFingerprint,startedAt:now(),expiresAt:now()+120000});
   for(const delay of delays){
-    if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
+    if(delay)await pause(delay);
     const acquired=await ref.transaction(current=>{
       if(current&&Number(current.expiresAt)>now())return;
-      return {owner,expiresAt:now()+120000};
+      return nextLock();
     },undefined,false);
     if(acquired.committed)return true;
+
+    // A recusa de uma trava ainda ativa não deve provocar um segundo débito.
+    // Somente o recibo atômico DA PRÓPRIA operação dona da trava autoriza
+    // recuperar uma trava abandonada antes do vencimento.
+    if(!db)continue;
+    const lock=(await ref.get()).val();
+    if(!lock?.owner||!lock.operationKey||!lock.kind||!lock.fornCod)continue;
+    if(!/^[\w-]{1,120}$/.test(String(lock.operationKey)))continue;
+    const receipt=(await db.ref('erp/financeAdvanceOperations/'+lock.operationKey).get()).val();
+    const confirmed=lock.kind==='create'
+      ?Boolean(receipt?.advance&&receipt.fornCod===lock.fornCod&&
+        receipt.requestFingerprint&&receipt.requestFingerprint===lock.requestFingerprint)
+      :lock.kind==='change'&&Boolean(receipt?.result&&['edit','delete'].includes(receipt.action)&&
+        (lock.fornCod==='__global_cheques__'||receipt.result.fornCod===lock.fornCod||receipt.result.newFornCod===lock.fornCod));
+    if(!confirmed)continue;
+    // Compare-and-swap: never take ownership if a third request acquired it.
+    const recovered=await ref.transaction(current=>{
+      if(current?.owner!==lock.owner||current?.operationKey!==lock.operationKey||
+        current?.kind!==lock.kind||current?.fornCod!==lock.fornCod)return;
+      return nextLock();
+    },undefined,false);
+    if(recovered.committed)return true;
   }
   return false;
+}
+
+async function releaseAdvanceLocks(locks,owner){
+  for(const ref of locks.reverse()){
+    for(let attempt=0;attempt<3;attempt++){
+      try{
+        const released=await ref.transaction(current=>current?.owner===owner?null:undefined,undefined,false);
+        if(released.committed)break;
+        const active=(await ref.get()).val();
+        if(!active||active.owner!==owner)break;
+        if(attempt===2)console.error('finance.advance.lock.release',new Error('Trava própria permaneceu ativa após três tentativas de liberação.'));
+      }catch(error){
+        if(attempt===2)console.error('finance.advance.lock.release',error);
+      }
+      if(attempt<2)await new Promise(resolve=>setTimeout(resolve,120*(attempt+1)));
+    }
+  }
 }
 
 export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=randomUUID}={}){
@@ -249,8 +296,15 @@ export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
   try{
     for(const key of keys){
       const lockRef=db.ref('erpFinanceAdvanceLocks/'+key);
-      const acquired=await acquireAdvanceLock(lockRef,owner,now);
-      if(!acquired)failure(409,'ADVANCE_IN_PROGRESS','Outra operação financeira está em andamento. Tente novamente.');
+      const acquired=await acquireAdvanceLock(lockRef,owner,now,{db,operationKey,fornCod,kind:'create',requestFingerprint});
+      if(!acquired){
+        const active=(await lockRef.get()).val();
+        const wait=Math.max(1,Math.ceil((Number(active?.expiresAt)-now())/1000));
+        const error=new Error('Outra operação financeira está em andamento. Aguarde a confirmação antes de tentar novamente.');
+        error.status=409;error.code='ADVANCE_IN_PROGRESS';
+        if(Number.isFinite(wait))error.retryAfterSeconds=Math.min(wait,120);
+        throw error;
+      }
       locks.push(lockRef);
     }
     const committed=(await opRef.get()).val();
@@ -321,9 +375,7 @@ export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
     await db.ref('erp').update(updates);
     return {advance,bankMovement:movement,cheques:createdCheques,entries,alreadyCommitted:false};
   }finally{
-    for(const lockRef of locks.reverse()){
-      try{await lockRef.transaction(current=>current?.owner===owner?null:undefined,undefined,false);}catch(error){console.error('finance.advance.lock.release',error);}
-    }
+    await releaseAdvanceLocks(locks,owner);
   }
 }
 
@@ -352,13 +404,14 @@ export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
     const [source,target]=await Promise.all([db.ref('erp/adiantamentos/'+receipt.fornCod).get(),receipt.newFornCod!==receipt.fornCod?db.ref('erp/adiantamentos/'+receipt.newFornCod).get():Promise.resolve(null)]);
     return {...receipt,entries:advanceRecords(source.val()),targetEntries:target?advanceRecords(target.val()):null,alreadyCommitted:true};
   }
+  const operationKey=opPath.slice('erp/financeAdvanceOperations/'.length);
   const keys=[...new Set([fornCod,newFornCod,'__global_cheques__'])].sort();
   const owner=uuid();
   const locks=[];
   try{
     for(const key of keys){
       const lockRef=db.ref('erpFinanceAdvanceLocks/'+key);
-      const acquired=await acquireAdvanceLock(lockRef,owner,now);
+      const acquired=await acquireAdvanceLock(lockRef,owner,now,{db,operationKey,fornCod:key,kind:'change'});
       if(!acquired)failure(409,'ADVANCE_IN_PROGRESS','Outra alteração está em andamento para este fornecedor. Tente novamente.');
       locks.push(lockRef);
     }
@@ -451,9 +504,6 @@ export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
     await db.ref('erp').update(updates);
     return {...result,alreadyCommitted:false};
   }finally{
-    for(const lockRef of locks.reverse()){
-      try{await lockRef.transaction(current=>current?.owner===owner?null:undefined,undefined,false);}
-      catch(error){console.error('finance.advance.lock.release',error);}
-    }
+    await releaseAdvanceLocks(locks,owner);
   }
 }
