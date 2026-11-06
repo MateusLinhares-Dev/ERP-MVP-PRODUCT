@@ -6190,7 +6190,13 @@ async function _adtCommitTransacional(payload,button){
       body:JSON.stringify({...payload,operationId:id})
     });
     const result=await response.json().catch(()=>({}));
-    if(!response.ok||!result.action)throw new Error(result.message||'O Firebase não confirmou a operação.');
+    if(!response.ok||!result.action){
+      const error=new Error(result.message||'O servidor não confirmou a operação.');
+      error.code=String(result.code||'REQUEST_FAILED');
+      error.status=response.status;
+      if(Number.isFinite(Number(result.retryAfterSeconds)))error.retryAfterSeconds=Number(result.retryAfterSeconds);
+      throw error;
+    }
     ADT_POR_FORN[result.fornCod]=result.entries||[];
     if(typeof _fbAdiantamentoConfirmado==='function')_fbAdiantamentoConfirmado(result.fornCod,ADT_POR_FORN[result.fornCod]);
     if(result.newFornCod!==result.fornCod){

@@ -125,7 +125,8 @@ test('negação de permissão mantém histórico, banco e cache local intactos',
   assert.equal(db.state.erp.lancBanco['LB-ADV-1'].valor,114770);
   assert.equal(ctx.ADT_POR_FORN.F001.length,2);
   assert.equal(calls.histories.length,0);
-  assert.ok(calls.alerts.some(message=>message.includes('permission_denied')));
+  assert.ok(calls.alerts.some(message=>message.includes('não tem permissão para excluir este adiantamento')));
+  assert.ok(calls.alerts.every(message=>!message.includes('permission_denied')));
 });
 
 test('falha no update remoto não remove o adiantamento nem o movimento',async()=>{
