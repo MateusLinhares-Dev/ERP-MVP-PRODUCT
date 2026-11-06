@@ -6290,9 +6290,29 @@ function _bancoValorMonetarioValido(valor){
   return Number.isFinite(valor) && valor>0 && Number.isSafeInteger(Math.round(valor*100));
 }
 
+// Movimentos criados por Adiantamentos são parte de uma operação financeira
+// atômica. Alterações diretas pelo extrato quebram o vínculo e provocam 409.
+function _movimentoPertenceAdiantamento(movement){
+  if(!movement)return false;
+  if(movement.source==='advance'||movement.advanceCode)return true;
+  if(/^Adiantamento: /i.test(String(movement.descricao||'')))return true;
+  try{
+    return Object.values(ADT_POR_FORN||{}).some(list=>
+      (Array.isArray(list)?list:Object.values(list||{})).some(a=>a&&a.movBancoId===movement.id));
+  }catch(e){return false;}
+}
+function _bloquearEdicaoMovimentoAdiantamento(movement){
+  if(!_movimentoPertenceAdiantamento(movement))return false;
+  const msg='Este movimento pertence a um adiantamento. Edite ou exclua o adiantamento em Financeiro → Adiantamentos para manter o banco conciliado.';
+  if(typeof showToast==='function')showToast(msg,'error',8000);
+  else alert(msg);
+  return true;
+}
+
 function editLancBanco(id, cod){
   const l=LANC_BANCO_DB.find(x=>x.id===id);
   if(!l){alert('Lançamento não encontrado.');return;}
+  if(_bloquearEdicaoMovimentoAdiantamento(l))return;
   om('editLancBanco');
   const body=document.getElementById('modal-body');
   if(!body) return;
@@ -6315,6 +6335,7 @@ function editLancBanco(id, cod){
 function salvarEditLancBanco(id, cod){
   const l=LANC_BANCO_DB.find(x=>x.id===id);
   if(!l){alert('Não encontrado.');return;}
+  if(_bloquearEdicaoMovimentoAdiantamento(l))return;
   const data=document.getElementById('elb-data').value;
   const descricao=document.getElementById('elb-desc').value.trim();
   const tipo=document.getElementById('elb-tipo').value;
@@ -20394,9 +20415,10 @@ function salvarLancBanco(cod){
 }
 
 function excluirLancBanco(id,cod){
-  if(!confirm('Excluir este lançamento?')) return;
   const i=LANC_BANCO_DB.findIndex(l=>l.id===id);
   if(i<0)return;
+  if(_bloquearEdicaoMovimentoAdiantamento(LANC_BANCO_DB[i]))return;
+  if(!confirm('Excluir este lançamento?'))return;
   _syncLancBanco.remover(i);
   saveBancos();
   renderBancos();

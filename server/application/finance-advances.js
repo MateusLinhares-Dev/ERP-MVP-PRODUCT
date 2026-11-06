@@ -390,7 +390,7 @@ export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
       const movementId='LB-'+now()+'-'+uuid().replace(/-/g,'').slice(0,8);
       advance.movBancoId=movementId;
       movement={id:movementId,bancoCod:bank.cod,data:dataFmt,
-        descricao:'Adiantamento: '+(clean(supplier?.nome)||fornCod)+(ticket?' Ticket '+ticket:''),tipo:'Saida',valor:value};
+        descricao:'Adiantamento: '+(clean(supplier?.nome)||fornCod)+(ticket?' Ticket '+ticket:''),tipo:'Saida',valor:value,advanceCode:id,source:'advance'};
       updates['lancBanco/'+movementId]=movement;
     }
     const entries=[...records,advance];
@@ -403,6 +403,31 @@ export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
     return {advance,bankMovement:movement,cheques:createdCheques,entries,alreadyCommitted:false};
   }finally{
     if(!committedAndUnlocked)await releaseAdvanceLocks(locks,owner);
+  }
+}
+
+/** A divergência já persistida não pode ser resolvida repetindo o POST.
+ * Verifique antes de reservar o fornecedor e novamente dentro da reserva.
+ * Nunca exclua um movimento bancário que possa pertencer a outra operação.
+ */
+function assertLinkedBankMovement(advance,movement){
+  const movementId=clean(advance?.movBancoId||'');
+  if(!movementId)return;
+  const wrong=[];
+  if(!movement||typeof movement!=='object')wrong.push('ausente');
+  else{
+    const value=Number(movement.valor);
+    const advanceValue=Number(advance.valor);
+    if(!Number.isFinite(value)||!Number.isFinite(advanceValue)||Math.abs(value-advanceValue)>0.009)wrong.push('valor');
+    if(String(movement.bancoCod??'')!==String(advance.bancoCod??''))wrong.push('conta');
+    if(!String(movement.descricao||'').startsWith('Adiantamento: '))wrong.push('origem');
+    if(movement.advanceCode&&String(movement.advanceCode)!==String(advance.cod))wrong.push('identificador');
+  }
+  if(wrong.length){
+    const error=new Error('O movimento bancário deste adiantamento está divergente ('+wrong.join(', ')+'). A exclusão foi impedida para proteger os saldos. É necessária conciliação financeira, não repetição do clique.');
+    error.status=409;
+    error.code='BANK_LEDGER_CHANGED';
+    throw error;
   }
 }
 
@@ -439,6 +464,16 @@ export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
   // da criação de cheques e evitar ciclos de espera entre duas requisições.
   const candidate=advanceRecords((await db.ref('erp/adiantamentos/'+fornCod).get()).val())
     .find(row=>String(row.cod)===adtCod);
+  // Preflight read-only: registros já divergentes não devem disputar locks.
+  // O estado é verificado de novo após adquirir o lock para cobrir concorrência.
+  if(candidate&&expectedMatches(candidate,input.expected)){
+    if(Number(candidate.valorCompensado||0)>0||candidate.origem==='compensacao_cp')
+      failure(409,'ADVANCE_ALREADY_COMPENSATED','Adiantamento já compensado total ou parcialmente. Para alterar ou excluir, faça o estorno financeiro auditado.');
+    if(candidate.movBancoId){
+      const movement=(await db.ref('erp/lancBanco/'+pathKey(candidate.movBancoId)).get()).val();
+      assertLinkedBankMovement(candidate,movement);
+    }
+  }
   const touchesCheques=Boolean(candidate&&(
     (Array.isArray(candidate.chequeIds)&&candidate.chequeIds.length>0)||
     ['Cheque','Cheque de Terceiro'].includes(candidate.forma)
@@ -492,9 +527,7 @@ export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
     if(newFornCod!==fornCod&&!supplierExists(suppliersSnap.val(),newFornCod))failure(422,'SUPPLIER_NOT_FOUND','Fornecedor de destino não encontrado.');
     const oldMovementId=clean(previous.movBancoId||'');
     const originalMovement=oldMovementId?(await db.ref('erp/lancBanco/'+pathKey(oldMovementId)).get()).val():null;
-    if(oldMovementId&&(!originalMovement||Math.abs(Number(originalMovement.valor)-Number(previous.valor))>0.009||
-      originalMovement.bancoCod!==previous.bancoCod||!String(originalMovement.descricao||'').startsWith('Adiantamento: ')))
-      failure(409,'BANK_LEDGER_CHANGED','Movimento bancário vinculado foi alterado. A operação foi bloqueada para evitar divergências.');
+    assertLinkedBankMovement(previous,originalMovement);
     let changed=null;
     let movement=null;
     let movementRemovedId='';
@@ -536,7 +569,7 @@ export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
         changed.movBancoId=movementId;
         const supplier=Object.values(suppliersSnap.val()||{}).find(s=>s&&String(s.cod)===newFornCod);
         movement={id:movementId,bancoCod:bank.cod,data:dataFmt,
-          descricao:'Adiantamento: '+(clean(supplier?.nome)||newFornCod)+(changed.ticket?' Ticket '+changed.ticket:''),tipo:'Saida',valor:value};
+          descricao:'Adiantamento: '+(clean(supplier?.nome)||newFornCod)+(changed.ticket?' Ticket '+changed.ticket:''),tipo:'Saida',valor:value,advanceCode:adtCod,source:'advance'};
         updates['lancBanco/'+movementId]=movement;
       }else{
         delete changed.movBancoId;

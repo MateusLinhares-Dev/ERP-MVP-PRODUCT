@@ -1040,7 +1040,23 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       _patchIncremental(dados, 'afazeres', _syncAfazeres.paraObjeto(), _syncAfazeres.deletedSet);
       _patchIncremental(dados, 'vendas', _syncVendas.paraObjeto(), _syncVendas.deletedSet);
       delete dados.valesDeleted;
-      _patchIncremental(dados, 'lancBanco', _syncLancBanco.paraObjeto(), _syncLancBanco.deletedSet);
+      // Não reenviar lançamentos de adiantamentos administrados pela API.
+      // Uma gravação legada atrasada poderia reconstituir um débito já excluído
+      // ou sobrescrever a versão confirmada na operação financeira atômica.
+      const _lancamentosLegados=_syncLancBanco.paraObjeto();
+      const _idsDeAdiantamentosAPI=new Set();
+      try{ Object.values(ADT_POR_FORN||{}).forEach(list=>{
+        (Array.isArray(list)?list:Object.values(list||{})).forEach(a=>{
+          if(a&&a.movBancoId)_idsDeAdiantamentosAPI.add(String(a.movBancoId));
+        });
+      }); }catch(e){}
+      Object.keys(_lancamentosLegados).forEach(id=>{
+        const movement=_lancamentosLegados[id];
+        if(_idsDeAdiantamentosAPI.has(String(id))||movement?.source==='advance'||movement?.advanceCode||
+          /^Adiantamento: /i.test(String(movement?.descricao||'')))delete _lancamentosLegados[id];
+      });
+      const _tombstonesBancoLegado=new Set([..._syncLancBanco.deletedSet].filter(id=>!_idsDeAdiantamentosAPI.has(String(id))));
+      _patchIncremental(dados,'lancBanco',_lancamentosLegados,_tombstonesBancoLegado);
       _patchIncremental(dados, 'viagem', _syncViagem.paraObjeto(), _syncViagem.deletedSet);
       _patchIncremental(dados, 'combustivel', _syncCombustivel.paraObjeto(), _syncCombustivel.deletedSet);
       _patchIncremental(dados, 'tanque', _syncTanque.paraObjeto(), _syncTanque.deletedSet);
