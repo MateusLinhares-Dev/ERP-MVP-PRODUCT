@@ -124,7 +124,7 @@ test('recibo antigo de criação sem fornCod: exclusão confirmada remove regist
  assert.equal(JSON.stringify(db.get('erp/lancBanco')),beforeLedger);
 });
 
-test('recibo de criação sem fornecedor e movimento divergente não autoriza recuperação',async()=>{
+test('recibo antigo com representação bancária divergente não prevalece sobre exclusão já confirmada',async()=>{
  const db=memoryDB(),created=await create(db);
  const receipt=db.get('erp/financeAdvanceOperations/u1_'+op(1));
  delete receipt.fornCod;
@@ -132,8 +132,10 @@ test('recibo de criação sem fornecedor e movimento divergente não autoriza re
  db.state.erp.financeAdvanceOperations['u1_'+op(1)]=receipt;
  await remove(db,created.advance,2);
  db.state.erp.adiantamentos.F675=[copy(created.advance)];
- await assert.rejects(()=>remove(db,created.advance,3),{code:'BANK_LEDGER_CHANGED'});
- assert.equal(db.get('erp/adiantamentos/F675').length,1);
+ const result=await remove(db,created.advance,3);
+ assert.equal(result.restoredDeletion,true);
+ assert.equal(db.get('erp/adiantamentos/F675').length,0);
+ assert.equal(db.get('erp/lancBanco/'+created.bankMovement.id),undefined);
 });
 
 test('recibo antigo com fornecedor divergente não permite recuperação',async()=>{
@@ -142,6 +144,74 @@ test('recibo antigo com fornecedor divergente não permite recuperação',async(
  receipt.fornCod='OUTRO_FORNECEDOR';
  db.state.erp.financeAdvanceOperations['u1_'+op(1)]=receipt;
  await remove(db,created.advance,2);
+ db.state.erp.adiantamentos.F675=[copy(created.advance)];
+ await assert.rejects(()=>remove(db,created.advance,3),{code:'BANK_LEDGER_CHANGED'});
+ assert.equal(db.get('erp/adiantamentos/F675').length,1);
+});
+
+
+test('recibo historico sem bankMovement e sem fornCod ainda permite concluir exclusao previamente confirmada',async()=>{
+ const db=memoryDB(),created=await create(db);
+ await remove(db,created.advance,2);
+ const receipt=db.get('erp/financeAdvanceOperations/u1_'+op(1));
+ delete receipt.fornCod;
+ delete receipt.bankMovement; // historical receipts may have only the advance snapshot
+ db.state.erp.financeAdvanceOperations['u1_'+op(1)]=receipt;
+ db.state.erp.adiantamentos.F675=[copy(created.advance)];
+ const before=JSON.stringify(db.get('erp/lancBanco'));
+ const restored=await remove(db,created.advance,3);
+ assert.equal(restored.restoredDeletion,true);
+ assert.equal(db.get('erp/adiantamentos/F675').length,0);
+ assert.equal(JSON.stringify(db.get('erp/lancBanco')),before);
+});
+
+test('campos bancarios opcionais ausentes sao compativeis, campos explicitamente diferentes continuam bloqueados',async()=>{
+ const db=memoryDB(),created=await create(db);
+ await remove(db,created.advance,2);
+ const receipt=db.get('erp/financeAdvanceOperations/u1_'+op(1));
+ delete receipt.fornCod;
+ receipt.bankMovement={id:created.advance.movBancoId};
+ db.state.erp.financeAdvanceOperations['u1_'+op(1)]=receipt;
+ db.state.erp.adiantamentos.F675=[copy(created.advance)];
+ assert.equal((await remove(db,created.advance,3)).restoredDeletion,true);
+ db.state.erp.adiantamentos.F675=[copy(created.advance)];
+ receipt.bankMovement={id:created.advance.movBancoId,bancoCod:'BC-OUTRA'};
+ db.state.erp.financeAdvanceOperations['u1_'+op(1)]=receipt;
+ const restored=await remove(db,created.advance,4);
+ assert.equal(restored.restoredDeletion,true);
+ assert.equal(db.get('erp/adiantamentos/F675').length,0);
+});
+
+test('nem mesmo exclusao confirmada permite re-remover se o registro recebeu uso posterior',async()=>{
+ const db=memoryDB(),created=await create(db);
+ await remove(db,created.advance,2);
+ const receipt=db.get('erp/financeAdvanceOperations/u1_'+op(1));
+ delete receipt.fornCod;
+ delete receipt.bankMovement;
+ db.state.erp.financeAdvanceOperations['u1_'+op(1)]=receipt;
+ db.state.erp.adiantamentos.F675=[copy(created.advance)];
+ db.state.erp.contasPagar={CP_X:{adiantamentoId:created.advance.cod}};
+ await assert.rejects(()=>remove(db,created.advance,3),{code:'ADVANCE_USED'});
+ assert.equal(db.get('erp/adiantamentos/F675').length,1);
+});
+
+
+test('recibo de criacao com valor ou banco originais realmente diferentes bloqueia reparo',async()=>{
+ const db=memoryDB(),created=await create(db);
+ await remove(db,created.advance,2);
+ const receipt=db.get('erp/financeAdvanceOperations/u1_'+op(1));
+ delete receipt.fornCod;
+ receipt.advance.valor=999;
+ db.state.erp.financeAdvanceOperations['u1_'+op(1)]=receipt;
+ db.state.erp.adiantamentos.F675=[copy(created.advance)];
+ await assert.rejects(()=>remove(db,created.advance,3),{code:'BANK_LEDGER_CHANGED'});
+ assert.equal(db.get('erp/adiantamentos/F675').length,1);
+});
+
+test('recibo de exclusao sozinho sem comprovante de criacao nao remove outro adiantamento',async()=>{
+ const db=memoryDB(),created=await create(db);
+ await remove(db,created.advance,2);
+ delete db.state.erp.financeAdvanceOperations['u1_'+op(1)];
  db.state.erp.adiantamentos.F675=[copy(created.advance)];
  await assert.rejects(()=>remove(db,created.advance,3),{code:'BANK_LEDGER_CHANGED'});
  assert.equal(db.get('erp/adiantamentos/F675').length,1);
