@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {createAdvance,changeAdvance} from '../server/application/finance-advances.js';
+import {previewOrphanAdvance} from '../server/application/advance-orphan-recovery.js';
 
 const copy=x=>x===undefined?undefined:structuredClone(x);
 function memoryDB(){
@@ -98,4 +99,50 @@ test('o browser não contém escrita direta de adiantamentos nem restauração p
  assert.doesNotMatch(core,/\.ref\(['"]erp\/adiantamentos/);
  assert.match(core,/advance\.legacy\.write\.blocked/);
  assert.match(core,/A restauração financeira pelo histórico antigo foi desativada|Não é possível restaurar um adiantamento pelo histórico/);
+});
+
+
+test('recibo antigo de criação sem fornCod: exclusão confirmada remove registro reaparecido',async()=>{
+ const db=memoryDB(),created=await create(db);
+ // Reproduz o backup real de 05/11: o recibo de criação não trazia
+ // fornCod na raiz, mas preservava o avanço e o movimento original.
+ const receipt=db.get('erp/financeAdvanceOperations/u1_'+op(1));
+ delete receipt.fornCod;
+ db.state.erp.financeAdvanceOperations['u1_'+op(1)]=receipt;
+ const advance=created.advance,movement=created.bankMovement;
+ await remove(db,advance,2);
+ db.state.erp.adiantamentos.F675=[copy(advance)];
+ const beforeLedger=JSON.stringify(db.get('erp/lancBanco'));
+ const reviewed=await previewOrphanAdvance({...actor,canBanking:true},
+   {fornCod:'F675',adtCod:advance.cod},{db});
+ assert.equal(reviewed.eligible,false);
+ assert.ok(reviewed.issues.some(message=>message.includes('já confirmou a exclusão')));
+ assert.equal(reviewed.issues.some(message=>message.includes('Outra operação financeira utiliza')),false);
+ const repaired=await remove(db,advance,3);
+ assert.equal(repaired.restoredDeletion,true);
+ assert.equal(db.get('erp/adiantamentos/F675').length,0);
+ assert.equal(JSON.stringify(db.get('erp/lancBanco')),beforeLedger);
+});
+
+test('recibo de criação sem fornecedor e movimento divergente não autoriza recuperação',async()=>{
+ const db=memoryDB(),created=await create(db);
+ const receipt=db.get('erp/financeAdvanceOperations/u1_'+op(1));
+ delete receipt.fornCod;
+ receipt.bankMovement.advanceCode='OUTRO_ADIANTAMENTO';
+ db.state.erp.financeAdvanceOperations['u1_'+op(1)]=receipt;
+ await remove(db,created.advance,2);
+ db.state.erp.adiantamentos.F675=[copy(created.advance)];
+ await assert.rejects(()=>remove(db,created.advance,3),{code:'BANK_LEDGER_CHANGED'});
+ assert.equal(db.get('erp/adiantamentos/F675').length,1);
+});
+
+test('recibo antigo com fornecedor divergente não permite recuperação',async()=>{
+ const db=memoryDB(),created=await create(db);
+ const receipt=db.get('erp/financeAdvanceOperations/u1_'+op(1));
+ receipt.fornCod='OUTRO_FORNECEDOR';
+ db.state.erp.financeAdvanceOperations['u1_'+op(1)]=receipt;
+ await remove(db,created.advance,2);
+ db.state.erp.adiantamentos.F675=[copy(created.advance)];
+ await assert.rejects(()=>remove(db,created.advance,3),{code:'BANK_LEDGER_CHANGED'});
+ assert.equal(db.get('erp/adiantamentos/F675').length,1);
 });
