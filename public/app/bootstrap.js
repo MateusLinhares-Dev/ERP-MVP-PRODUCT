@@ -4,7 +4,7 @@ import { createLegacyDatabaseAdapter } from './legacy-db-adapter.js';
 import { createRealtimeBusinessRepository } from './realtime-business-repository.js';
 import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 
-const assetRevision = '20261106-advance-delete-replay-v4';
+const assetRevision = '20261106-payables-choice-v1';
 
 function loadClassic(src) {
   return new Promise((resolve, reject) => {
