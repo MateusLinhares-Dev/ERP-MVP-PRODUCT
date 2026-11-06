@@ -109,11 +109,38 @@ export async function payPayable(identity,input,{db,now=()=>Date.now(),uuid=rand
       advanceCents?instance.ref('erp/adiantamentos/'+supplier).get():Promise.resolve(null),
       original.ticket?instance.ref('erp/tickets/'+key(original.ticket)).get():Promise.resolve(null)
     ]);
+    // Guardar a integridade do histórico antes de adicionar outra baixa.
+    // Um snapshot legado pode ter restaurado a conta como pendente depois de uma
+    // confirmação real. Nesse caso os recibos não autorizam cobrar de novo.
+    if(original.ticket&&String(id).startsWith('CPPO_')){
+      const rawHistory=Array.isArray(original.pagamentos)?original.pagamentos:[];
+      const ticketNominalCents=cents(Number(ticketSnap?.val?.()?.totalGeral??ticketSnap?.val?.()?.pedidoCompra?.totalPedido??0),true);
+      const registeredCents=rawHistory.reduce((sum,row)=>sum+cents(Number(row?.valor||0),true)+cents(Number(row?.adt||0),true),0);
+      const declaredCents=cents(Number(original.valorPago||0),true)+cents(Number(original.adtCompensado||0),true);
+      if(ticketNominalCents>0&&(registeredCents>ticketNominalCents||declaredCents>ticketNominalCents||registeredCents+payCents+advanceCents>ticketNominalCents))
+        fail(409,'PAYABLE_RECONCILIATION_REQUIRED','O histórico deste título ultrapassa o valor da compra. Nenhuma nova baixa foi registrada.');
+      const priorBankMovements=rawHistory.filter(row=>Number(row?.valor||0)>0);
+      const movementChecks=await Promise.all(priorBankMovements.map(async row=>{
+        if(!row?.movBancoId)return false;
+        const movement=(await instance.ref('erp/lancBanco/'+key(row.movBancoId)).get()).val();
+        return !!movement&&String(movement.payableId||'')===id&&cents(Number(movement.valor||0),true)===cents(Number(row.valor),true);
+      }));
+      if(movementChecks.some(exists=>!exists))
+        fail(409,'PAYABLE_RECONCILIATION_REQUIRED','Existem baixas sem lançamento bancário correspondente. Nenhum novo pagamento foi registrado.');
+    }
     const bank=payCents?banks(bankSnap.val()).find(b=>b.cod===bankCode):null;
     if(payCents&&!bank)fail(422,'BANK_NOT_FOUND','Banco não encontrado. Atualize as opções.');
     const advanceList=advanceCents?(Array.isArray(advanceSnap.val())?advanceSnap.val():Object.values(advanceSnap.val()||{}).filter(Boolean)).map(x=>({...x})):null;
     if(advanceCents&&!Array.isArray(advanceList))fail(409,'ADVANCES_INVALID','Saldo de adiantamentos inconsistente.');
     const ticketRecord=ticketSnap?.val?.()||null;
+    // Nunca baixar só a conta deixando a Compra de Sucata pendente.
+    // Esse era um caminho possível quando a referência do ticket estava ausente.
+    if(original.ticket&&!ticketRecord)fail(409,'PURCHASE_TICKET_MISSING','Compra vinculada não localizada. Nenhuma baixa foi registrada.');
+    if(ticketRecord){
+      const ticketBalance=cents(Number(ticketRecord.saldoPagar||0),true);
+      if(ticketBalance<payCents+advanceCents)fail(409,'PURCHASE_BALANCE_CHANGED','O saldo da compra não corresponde ao pagamento. Nenhuma baixa foi registrada.');
+      if(ticketBalance===0)fail(409,'PURCHASE_ALREADY_PAID','A compra já está quitada. Confira o Histórico antes de pagar.');
+    }
     if(advanceCents&&ticketRecord?.fornecedorCod&&String(ticketRecord.fornecedorCod)!==supplier)
       fail(409,'SUPPLIER_MISMATCH','O ticket está associado a outro fornecedor.');
     if(advanceCents&&!original.fornCod&&!ticketRecord?.fornecedorCod){
@@ -178,11 +205,78 @@ export async function payPayable(identity,input,{db,now=()=>Date.now(),uuid=rand
     }
     const result={payable:updated,bankMovement:movement,advanceEntries:advanceList,fornCod:supplier,ticket,ticketKey:original.ticket||''};
     updates['financePayableOperations/'+opKey]={result,requestSignature:signature,createdAt:now(),actor:clean(identity.erpUser)};
-    await instance.ref('erp').update(updates);
+    // Confirmar recibo, título, ticket, movimento e LIBERAÇÃO dos três locks
+    // em uma única operação RTDB. Uma execução interrompida depois do commit
+    // não pode deixar a próxima baixa bloqueada por até 120 segundos.
+    const atomicUpdates=Object.fromEntries(Object.entries(updates).map(([path,value])=>['erp/'+path,value]));
+    atomicUpdates['erpFinancePayableLocks/'+id]=null;
+    if(ticketLock)atomicUpdates['erpFinancePayableTicketLocks/'+key(original.ticket)]=null;
+    if(supplierLock)atomicUpdates['erpFinanceAdvanceLocks/'+supplier]=null;
+    try{
+      await instance.ref().update(atomicUpdates);
+    }catch(error){
+      // Se o servidor gravou e a resposta se perdeu, nunca reenviar a baixa.
+      const stored=(await opRef.get().catch(()=>({val:()=>null}))).val();
+      const recovered=resultIfCommitted(stored);
+      if(recovered)return recovered;
+      throw error;
+    }
     return result;
   }finally{
     if(supplierLock){try{await supplierLock.transaction(current=>current?.owner===owner?null:undefined,undefined,false);}catch{}}
     if(ticketLock){try{await ticketLock.transaction(current=>current?.owner===owner?null:undefined,undefined,false);}catch{}}
     try{await lockRef.transaction(current=>current?.owner===owner?null:undefined,undefined,false);}catch{}
   }
+}
+
+// Consulta somente leitura para confirmar a baixa antes de qualquer nova tentativa.
+// Não cria movimentos, não altera travas e não substitui a operação de pagamento.
+export async function inspectPayablePayment(identity,input,{db,now=()=>Date.now()}={}){
+  if(identity?.erpAccess!==true||identity.canPayables!==true)fail(403,'PAYABLES_REQUIRED','Sem acesso a Contas a Pagar.');
+  const id=key(input?.payableId);
+  const instance=await database(db);
+  const payables=(await instance.ref('erp/contasPagar').get()).val();
+  const found=entries(payables).find(([path,row])=>path===id||String(row.id)===id);
+  if(!found) return {state:'not_found'};
+  const [,payable]=found;
+  const ticketId=String(payable.ticket||'').trim();
+  const ticketIdKey=ticketId?key(ticketId):'';
+  const ticket=ticketIdKey?(await instance.ref('erp/tickets/'+ticketIdKey).get()).val():null;
+  let operation=null;
+  if(input?.operationId){
+    const operationId=key(input.operationId);
+    if(!/^[a-f0-9-]{36}$/i.test(operationId))fail(422,'INVALID_OPERATION','Identificador de operação inválido.');
+    const opKey=key(String(identity.uid||identity.erpUser||'user').replace(/[^a-zA-Z0-9_-]/g,'_'))+'_'+operationId;
+    operation=(await instance.ref('erp/financePayableOperations/'+opKey).get()).val();
+  }
+  const lock=(await instance.ref('erpFinancePayableLocks/'+id).get()).val();
+  const remains=Math.max(0,Math.ceil((Number(lock?.expiresAt||0)-now())/1000));
+  const paid=String(payable.status||'')==='Pago';
+  const ticketMarkedPaid=!!ticket&&['Pago','Quitado'].includes(String(ticket.status));
+  const ticketZero=!!ticket&&Number(ticket.saldoPagar||0)<=0.005;
+  // Detectar histórico com baixas repetidas ou lançamentos ausentes. Esta consulta
+  // é apenas leitura e nunca altera o saldo ou remove pagamentos.
+  const payments=Array.isArray(payable.pagamentos)?payable.pagamentos:[];
+  const ticketNominal=Number(ticket?.totalGeral??ticket?.pedidoCompra?.totalPedido??0);
+  const totalInHistory=payments.reduce((sum,row)=>sum+Number(row?.valor||0)+Number(row?.adt||0),0);
+  const reported=Number(payable.valorPago||0)+Number(payable.adtCompensado||0);
+  const historyErrors=[];
+  if(ticketNominal>0&&(totalInHistory>ticketNominal+0.005||reported>ticketNominal+0.005))
+    historyErrors.push('PAYMENTS_EXCEED_PURCHASE');
+  const bankPayments=payments.filter(row=>Number(row?.valor||0)>0);
+  const bankChecks=await Promise.all(bankPayments.map(async row=>{
+    if(!row?.movBancoId)return false;
+    const movement=(await instance.ref('erp/lancBanco/'+key(row.movBancoId)).get()).val();
+    return !!movement&&String(movement.payableId||'')===id&&Math.abs(Number(movement.valor||0)-Number(row.valor||0))<0.005;
+  }));
+  if(bankChecks.some(check=>!check))historyErrors.push('BANK_MOVEMENT_MISSING');
+  if(historyErrors.length)return {state:'needs_review',reasons:historyErrors,payable,ticket,ticketKey:ticketIdKey};
+  // Não oferecer uma segunda baixa quando a conta e a compra divergem em qualquer direção.
+  const mismatch=Boolean(ticketIdKey)&&(!ticket||ticketMarkedPaid!==ticketZero||paid!==ticketMarkedPaid);
+  if(mismatch||(!paid&&operation?.result?.payable?.status==='Pago')){
+    return {state:'needs_review',payable,ticket,ticketKey:ticketIdKey};
+  }
+  if(paid){return {state:'confirmed',payable,ticket,ticketKey:ticketIdKey,receiptFound:!!operation?.result};}
+  if(remains>0)return {state:'processing',retryAfterSeconds:remains};
+  return {state:'pending',payable,ticket,ticketKey:ticketIdKey};
 }

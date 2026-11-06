@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {payPayable} from '../server/application/finance-payment.js';
+import {payPayable,inspectPayablePayment} from '../server/application/finance-payment.js';
 import {inspectPaymentLock} from '../scripts/audit-payment-lock.mjs';
 
 const actor={uid:'erp:elaine',erpUser:'elaine',erpAccess:true,canPayables:true};
@@ -13,13 +13,13 @@ const operationKey='erp_elaine_'+op;
 
 function fakeDb(){
   const state={erp:{contasPagar:{'CP-T275':{id:'CP-T275',ticket:'T275',fornCod:'FT',cred:'TESTE NAO APAGAR',valor:230,status:'Pendente',pagamentos:[]}},tickets:{T275:{ticket:'T275',saldoPagar:230,status:'Pendente'}},bancos:{a:{cod:'BC-005',banco:'Banco de Teste'}}}};
-  let writes=0,fail=false,beforeUpdate=null;
+  let writes=0,fail=false,beforeUpdate=null,afterUpdate=null,lastChanges=null;
   const get=p=>p.split('/').filter(Boolean).reduce((obj,k)=>obj?.[k],state);
   const put=(p,v)=>{const parts=p.split('/').filter(Boolean),last=parts.pop();let curr=state;for(const part of parts)curr=curr[part]??={};if(v===null)delete curr[last];else curr[last]=structuredClone(v);};
-  const db={state,get writes(){return writes;},setBeforeUpdate(fn){beforeUpdate=fn;},failOnce(){fail=true;},ref(path){return {
+  const db={state,get writes(){return writes;},setBeforeUpdate(fn){beforeUpdate=fn;},setAfterUpdate(fn){afterUpdate=fn;},get lastChanges(){return lastChanges;},failOnce(){fail=true;},ref(path){return {
     async get(){return {val:()=>structuredClone(get(path)??null),exists:()=>get(path)!=null};},
     async transaction(fn){const prev=structuredClone(get(path)??null),next=fn(prev);if(next===undefined)return {committed:false,snapshot:{val:()=>prev}};put(path,next);return {committed:true,snapshot:{val:()=>next}};},
-    async update(changes){if(beforeUpdate)await beforeUpdate();if(fail){fail=false;throw Error('permission_denied');}for(const [name,value] of Object.entries(changes))put(path+'/'+name,value);writes++;}
+    async update(changes){if(beforeUpdate)await beforeUpdate();if(fail){fail=false;throw Error('permission_denied');}lastChanges=structuredClone(changes);for(const [name,value] of Object.entries(changes))put((path?path+'/':'')+name,value);writes++;if(afterUpdate)await afterUpdate();}
   };}};
   return db;
 }
@@ -141,4 +141,85 @@ test('tentar novamente durante bloqueio válido não estende a expiração',asyn
   await assert.rejects(()=>payPayable(actor,payment,{db,now:()=>100000,sleep:async()=>{}}),{code:'PAYMENT_IN_PROGRESS'});
   assert.equal(db.state.erpFinancePayableLocks['CP-T275'].expiresAt,expiry);
   assert.equal(db.writes,0);
+});
+
+test('T309: commit de pagamento libera a trava ATOMICAMENTE com conta, ticket e débito',async()=>{
+  const db=fakeDb();
+  const result=await payPayable(actor,payment,{db,now:()=>100000,uuid:()=>owner});
+  assert.equal(result.payable.status,'Pago');
+  assert.equal(db.writes,1);
+  assert.equal(db.lastChanges['erpFinancePayableLocks/CP-T275'],null);
+  assert.equal(db.lastChanges['erpFinancePayableTicketLocks/T275'],null);
+  assert.equal(db.lastChanges['erp/contasPagar/CP-T275'].status,'Pago');
+  assert.equal(db.lastChanges['erp/tickets/T275'].saldoPagar,0);
+  assert.equal(db.state.erpFinancePayableLocks?.['CP-T275'],undefined);
+});
+
+test('resposta perdida APÓS commit não deixa lock, não gera segunda baixa',async()=>{
+  const db=fakeDb();
+  let lost=true;
+  db.setAfterUpdate(()=>{if(lost){lost=false;throw Error('response lost after commit');}});
+  const first=await payPayable(actor,payment,{db,now:()=>100000,uuid:()=>owner});
+  assert.equal(first.alreadyCommitted,true);
+  assert.equal(db.state.erpFinancePayableLocks?.['CP-T275'],undefined);
+  assert.equal(db.writes,1);
+  const replay=await payPayable(actor,payment,{db});
+  assert.equal(replay.alreadyCommitted,true);
+  assert.equal(db.writes,1);
+  assert.equal(Object.keys(db.state.erp.lancBanco).length,1);
+});
+
+test('consulta somente leitura identifica T309 pendente em processamento sem criar débito',async()=>{
+  const db=fakeDb();
+  db.state.erpFinancePayableLocks={'CP-T275':{owner:'other',expiresAt:190000}};
+  const state=JSON.stringify(db.state);
+  const result=await inspectPayablePayment(actor,{payableId:'CP-T275',operationId:op},{db,now:()=>100000});
+  assert.equal(result.state,'processing');
+  assert.equal(result.retryAfterSeconds,90);
+  assert.equal(JSON.stringify(db.state),state);
+  assert.equal(db.writes,0);
+});
+
+test('consulta retorna confirmação e ticket real depois de pagamento',async()=>{
+  const db=fakeDb();await payPayable(actor,payment,{db});
+  const result=await inspectPayablePayment(actor,{payableId:'CP-T275',operationId:op},{db});
+  assert.equal(result.state,'confirmed');
+  assert.equal(result.payable.status,'Pago');
+  assert.equal(result.ticket.saldoPagar,0);
+  assert.equal(result.ticketKey,'T275');
+  assert.equal(result.receiptFound,true);
+});
+
+test('conta paga mas ticket T309 pendente exige revisão, SEM nova baixa',async()=>{
+  const db=fakeDb();await payPayable(actor,payment,{db});
+  db.state.erp.tickets.T275.saldoPagar=230;
+  db.state.erp.tickets.T275.status='Pendente';
+  const state=JSON.stringify(db.state);
+  const result=await inspectPayablePayment(actor,{payableId:'CP-T275'},{db});
+  assert.equal(result.state,'needs_review');
+  assert.equal(JSON.stringify(db.state),state);
+});
+
+test('ticket marcado como pago com conta pendente também bloqueia nova baixa',async()=>{
+  const db=fakeDb();
+  db.state.erp.tickets.T275.saldoPagar=0;
+  db.state.erp.tickets.T275.status='Pago';
+  const result=await inspectPayablePayment(actor,{payableId:'CP-T275'},{db});
+  assert.equal(result.state,'needs_review');
+  assert.equal(db.writes,0);
+});
+
+test('ticket T309 ausente não pode receber baixa apenas na conta a pagar',async()=>{
+  const db=fakeDb();delete db.state.erp.tickets.T275;
+  await assert.rejects(()=>payPayable(actor,payment,{db}),{code:'PURCHASE_TICKET_MISSING',status:409});
+  assert.equal(db.writes,0);
+  assert.equal(db.state.erp.contasPagar['CP-T275'].status,'Pendente');
+  assert.equal(db.state.erp.lancBanco,undefined);
+});
+
+test('saldo de compra já quitado não pode gerar novo débito',async()=>{
+  const db=fakeDb();db.state.erp.tickets.T275.saldoPagar=0;db.state.erp.tickets.T275.status='Pago';
+  await assert.rejects(()=>payPayable(actor,payment,{db}),{code:'PURCHASE_BALANCE_CHANGED',status:409});
+  assert.equal(db.writes,0);
+  assert.equal(db.state.erp.lancBanco,undefined);
 });

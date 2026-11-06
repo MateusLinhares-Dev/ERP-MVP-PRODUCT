@@ -26,7 +26,7 @@ function fakeDb(){
   return {state,get updates(){return updates;},failOnce(){fail=true;},ref(path){return {
     async get(){return {val:()=>structuredClone(get(path)??null)};},
     async transaction(fn){const old=structuredClone(get(path)??null),next=fn(old);if(next===undefined)return {committed:false};put(path,next);return {committed:true};},
-    async update(changes){if(fail){fail=false;throw Error('permission_denied');}for(const [name,value] of Object.entries(changes))put(path+'/'+name,value);updates++;}
+    async update(changes){if(fail){fail=false;throw Error('permission_denied');}for(const [name,value] of Object.entries(changes))put((path?path+'/':'')+name,value);updates++;}
   };}};
 }
 
