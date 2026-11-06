@@ -88,6 +88,24 @@ test('bloqueio 409 jamais reenvia POST durante o lock e conserva operationId par
   assert.equal(ui.count().checks,7);
 });
 
+test('409 de outra operação já concluída tenta novamente uma única vez com o mesmo UUID e confirma só um adiantamento',async()=>{
+  const payloads=[];
+  const ui=makeUI({
+    post:async(_url,options)=>{
+      payloads.push(JSON.parse(options.body));
+      if(payloads.length===1)return {ok:false,status:409,json:async()=>({code:'ADVANCE_IN_PROGRESS'})};
+      return {ok:true,status:200,json:async()=>({advance:{cod:'ADT2',valor:500,bancoNome:'Conta principal'},entries:[{cod:'ADT2',valor:500}]})};
+    },
+    getStatus:async()=>({state:'not_found'})
+  });
+  assert.equal(await ui.call(),true);
+  assert.equal(ui.count().posts,2);
+  assert.equal(ui.count().checks,1);
+  assert.equal(payloads[0].operationId,payloads[1].operationId);
+  assert.equal(ui.ctx.ADT_POR_FORN['F-001'].length,1);
+  assert.equal(ui.count().closed,1);
+});
+
 test('falha incerta jamais permite modificar valores com o mesmo identificador',async()=>{
   const ui=makeUI({post:async()=>({ok:false,status:500,json:async()=>({code:'INTERNAL_ERROR'})}),
     getStatus:async()=>({state:'not_found'})});

@@ -11368,8 +11368,25 @@ async function salvarAdiantamento(){
         const status=await _adtRecuperarResposta(opId,fornCod,token);
         if(status.state==='confirmed')result=status;
         else if(status.state==='processing')
-          throw new Error('Outra operação financeira ainda está em processamento. Nenhum novo adiantamento foi enviado. Aguarde e utilize o mesmo botão para verificar novamente.');
-        else
+          throw new Error('Outra operação financeira ainda está em processamento. Nenhum novo adiantamento foi enviado. Aguarde a confirmação antes de tentar novamente.');
+        else if(status.state==='not_found'&&response?.status===409&&reply?.code==='ADVANCE_IN_PROGRESS'){
+          // O primeiro POST foi recusado ANTES da gravação. Quando a trava
+          // deixa de existir, é seguro tentar UMA vez com a MESMA operação.
+          // A chave de idempotência nunca muda neste segundo envio.
+          _adtBloquearInteracao('A operação anterior foi concluída. Confirmando este adiantamento, sem criar duplicidades...');
+          let retryResponse=null,retryReply=null;
+          try{({response:retryResponse,result:retryReply}=await enviar());}
+          catch(error){console.warn('adiantamento.retentativa.resposta',error);}
+          if(retryResponse?.ok&&retryReply?.advance)result=retryReply;
+          else{
+            const retryStatus=await _adtRecuperarResposta(opId,fornCod,token);
+            if(retryStatus.state==='confirmed')result=retryStatus;
+            else if(retryStatus.state==='processing')
+              throw new Error('O lançamento ainda está em processamento. Nenhuma nova tentativa será enviada automaticamente.');
+            else
+              throw new Error('A confirmação ainda não está disponível. Verifique o Histórico antes de repetir a tentativa.');
+          }
+        }else
           throw new Error('Não foi possível confirmar se o Firebase gravou o lançamento. O mesmo identificador foi preservado; verifique o Histórico antes de tentar novamente.');
       }else{
         // Rejeição conhecida: o servidor não iniciou nenhuma gravação.
