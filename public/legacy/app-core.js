@@ -10391,7 +10391,7 @@ function renderTickets(){
           ? (tk._pagoUndo
             ? '<button onclick="desmarcarCompraPaga(\''+tk._dbKey+'\')" title="Desfazer marcação manual de pago" style="background:#e0e7ef;color:#556;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem;font-weight:700">↩️</button>'
             : '<button type="button" onclick="phase4PurchaseEditTicket(\''+tk._dbKey+'\')" title="Reabrir o formulário de edição sem estornar adiantamentos ou PIX" style="background:#e9f3ed;color:#24633f;border:1px solid #b6d8c4;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.72rem;font-weight:700">↩ Reabrir edição</button>')
-          : '<button onclick="marcarCompraPaga(\''+tk._dbKey+'\')" title="Marcar como paga (quando o pagamento já está lançado na Ficha) — não cria adiantamento nem duplica" style="background:#1a7f4b;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem;font-weight:700">✅ Pago</button>'}
+          : '<button type="button" data-ticket="'+esc(String(tk.ticket||''))+'" onclick="abrirBaixaCompraNoFinanceiro(this.dataset.ticket)" title="Abrir a baixa financeira deste ticket em Contas a Pagar" style="background:#1a7f4b;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem;font-weight:700">💳 Pagar</button>'}
         <button onclick="phase4PurchaseEditTicket('${tk._dbKey}')" title="Editar pedido completo na aba Lançamento" style="background:#1a3a2a;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.75rem">✏️</button>
         <button class="btn-edit-danger" onclick="excluirEntradaCompra('${tk._dbKey}')" title="Excluir entrada" style="font-size:.75rem">🗑️</button>
       </td>
@@ -10461,6 +10461,26 @@ function excluirEntradaCompra(ticket){
 
 
 
+
+// A baixa financeira deve passar pelo mesmo serviço transacional de Contas a Pagar.
+// Nunca marcar o ticket como pago alterando só o estado local do navegador.
+function abrirBaixaCompraNoFinanceiro(ticketNumero){
+  const codigo=String(ticketNumero||'').trim();
+  const abertas=(CONTAS_PAGAR||[]).filter(c=>c&&String(c.ticket||'').trim()===codigo&&c.status!=='Pago'&&Number(c.valor||0)>0);
+  if(abertas.length!==1){
+    showToast(abertas.length>1
+      ?'Existem várias contas em aberto para esta compra. Consulte Financeiro → Contas a Pagar para escolher a conta correta.'
+      :'Nenhuma conta a pagar em aberto foi localizada para esta compra. Confira a situação no Financeiro → Contas a Pagar.',
+      'warning',6500);
+    return;
+  }
+  const conta=abertas[0],indice=CONTAS_PAGAR.indexOf(conta);
+  if(indice<0||typeof pagarContaRapido!=='function'){
+    showToast('Não foi possível abrir a baixa. Acesse Financeiro → Contas a Pagar.','error',6500);
+    return;
+  }
+  pagarContaRapido(indice,String(conta.id||''));
+}
 
 function marcarCompraPaga(dbKey){
   var tk=TICKETS_DB[dbKey];
@@ -19169,8 +19189,10 @@ function pagarContaRapido(idx,id){
   const totalAdtDisp=adtsPendentes.reduce((sum,a)=>sum+Math.max(0,Number(a.valor)||0),0);
   const valorCP=Number(c.valor),adtSugerido=Math.min(totalAdtDisp,valorCP);
   const bloqueados=todosAdiantamentos.filter(a=>a&&a.status==='Pendente'&&a.ticket&&String(a.ticket).trim()!==ticket);
+  // Não consumir créditos automaticamente: uma baixa bancária precisa ser uma
+  // escolha explícita, e o banco não deve nascer desabilitado por um desconto presumido.
   const adtBlock=totalAdtDisp>0
-    ?'<div class="fg"><label>Compensar crédito disponível (R$)</label><input id="pcp-adt" type="number" min="0" step="0.01" max="'+adtSugerido.toFixed(2)+'" value="'+adtSugerido.toFixed(2)+'" oninput="atualizarLiquidoCP('+valorCP+')"><small>Disponível para este ticket: R$ '+fmt(totalAdtDisp)+'.'+(totalAdtDisp>valorCP?' Após quitar esta compra, restará R$ '+fmt(totalAdtDisp-valorCP)+' de crédito do fornecedor.':'')+'</small></div>':'<div class="fg"><small>Nenhum adiantamento disponível para esta compra.</small></div>';
+    ?'<div class="fg"><label>Abater adiantamento nesta operação (R$)</label><input id="pcp-adt" type="number" min="0" step="0.01" max="'+adtSugerido.toFixed(2)+'" value="0.00" oninput="atualizarLiquidoCP('+valorCP+')"><small>Crédito disponível: R$ '+fmt(totalAdtDisp)+'. Para pagar pelo banco, mantenha 0,00. Para compensar crédito, informe o valor que deseja usar.'+(totalAdtDisp>valorCP?' Crédito acima do valor desta compra continuará disponível.':'')+'</small></div>':'<div class="fg"><small>Nenhum adiantamento disponível para esta compra.</small></div>';
   const avisoVinculo=bloqueados.length?'<div style="font-size:.78rem;color:#75511b;margin-bottom:10px">Há adiantamentos vinculados a outras compras. Eles não serão utilizados neste pagamento.</div>':'';
   body.innerHTML='<h3>💳 Baixar Pagamento</h3>'+
     '<div style="background:#fde8e8;border-radius:8px;padding:12px;margin-bottom:14px"><b>'+esc(c.desc||c.cred)+'</b><div>Saldo em aberto: R$ '+fmt(valorCP)+'</div></div>'+
