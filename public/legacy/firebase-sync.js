@@ -1026,6 +1026,9 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       const _ticketsParaSalvar = {};
       Object.keys(TICKETS_DB).forEach(function(k){
         if(window.__ERP_PURCHASE_PENDING_KEYS__?.has(String(k)))return;
+        // Compra criada pela API: status, saldo e baixa pertencem ao servidor.
+        // Nunca voltar a escrever o snapshot local de outra sessão.
+        if(TICKETS_DB[k]?._purchaseOperationId)return;
         // Não criar pedidos novos pela sincronização genérica: exigem transação
         // create-only e confirmação explícita da tela de compra.
         if(!Object.prototype.hasOwnProperty.call(_ticketsSnapJSON,k)
@@ -1041,7 +1044,16 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       _patchIncremental(dados, 'pontoBatidas', _syncPontoBatidas.paraObjeto(), _syncPontoBatidas.deletedSet);
       _patchIncremental(dados, 'folha', FOLHA_DB, null);
       _patchIncremental(dados, 'fornDespesa', _syncFornDespesa.paraObjeto(), _syncFornDespesa.deletedSet);
-      _patchIncremental(dados, 'contasPagar', _cpParaObjeto(), CONTAS_PAGAR_DELETED);
+      // Títulos CPPO_ são criados e pagos somente pelas APIs financeiras.
+      // A fotografia local não pode reverter status Pago para Pendente ou
+      // ressuscitar uma baixa após o servidor confirmar a operação.
+      const _contasLegadas=_cpParaObjeto();
+      Object.keys(_contasLegadas).forEach(id=>{
+        const tk=String(_contasLegadas[id]?.ticket||'').trim();
+        if(String(id).startsWith('CPPO_')||(tk&&TICKETS_DB?.[tk]?._purchaseOperationId))delete _contasLegadas[id];
+      });
+      const _tombstonesCPLegadas=new Set([...CONTAS_PAGAR_DELETED].filter(id=>!String(id).startsWith('CPPO_')));
+      _patchIncremental(dados, 'contasPagar', _contasLegadas, _tombstonesCPLegadas);
       Object.keys(_cpDeletedParaObjeto()).forEach(function(id){ dados['contasPagarDeleted/'+id] = true; });
       _patchIncremental(dados, 'contasReceber', _syncContasReceber.paraObjeto(), _syncContasReceber.deletedSet);
       _patchIncremental(dados, 'afazeres', _syncAfazeres.paraObjeto(), _syncAfazeres.deletedSet);
@@ -1060,9 +1072,11 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       Object.keys(_lancamentosLegados).forEach(id=>{
         const movement=_lancamentosLegados[id];
         if(_idsDeAdiantamentosAPI.has(String(id))||movement?.source==='advance'||movement?.advanceCode||
-          /^Adiantamento: /i.test(String(movement?.descricao||'')))delete _lancamentosLegados[id];
+          /^Adiantamento: /i.test(String(movement?.descricao||''))||
+          String(id).startsWith('LB-PG-')||String(movement?.payableId||'').startsWith('CPPO_'))delete _lancamentosLegados[id];
       });
-      const _tombstonesBancoLegado=new Set([..._syncLancBanco.deletedSet].filter(id=>!_idsDeAdiantamentosAPI.has(String(id))));
+      const _tombstonesBancoLegado=new Set([..._syncLancBanco.deletedSet].filter(id=>
+        !_idsDeAdiantamentosAPI.has(String(id))&&!String(id).startsWith('LB-PG-')));
       _patchIncremental(dados,'lancBanco',_lancamentosLegados,_tombstonesBancoLegado);
       _patchIncremental(dados, 'viagem', _syncViagem.paraObjeto(), _syncViagem.deletedSet);
       _patchIncremental(dados, 'combustivel', _syncCombustivel.paraObjeto(), _syncCombustivel.deletedSet);

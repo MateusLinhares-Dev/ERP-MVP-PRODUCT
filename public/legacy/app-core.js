@@ -19203,6 +19203,7 @@ function pagarContaRapido(idx,id){
     '<div class="fg"><label>Conta Bancária (Debitada)</label><select id="pcp-banco" disabled><option value="">Carregando bancos autorizados...</option></select></div>'+
     '<div class="fg"><label>Observação</label><input id="pcp-obs" placeholder="Opcional"></div>'+
     '<div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button>'+
+    '<button class="btn-cancel" type="button" id="btn-verificar-baixa">🔎 Verificar situação</button>'+ 
     (totalAdtDisp>0?'<button class="btn-save" type="button" id="btn-so-compensar">Compensar adiantamento</button>':'')+
     '<button class="btn-save" type="button" id="btn-pagar-tudo">✅ Confirmar Pagamento</button></div>';
   document.getElementById('modal-ov').classList.add('open');
@@ -19218,6 +19219,10 @@ function pagarContaRapido(idx,id){
   atualizarLiquidoCP(valorCP);
   document.getElementById('btn-so-compensar')?.addEventListener('click',()=>confirmarPagarCP('so-compensar'));
   document.getElementById('btn-pagar-tudo')?.addEventListener('click',()=>confirmarPagarCP('pagar-tudo'));
+  document.getElementById('btn-verificar-baixa')?.addEventListener('click',()=>_cpVerificarSituacaoPagamento());
+  if(Number(body.dataset.paymentLockedUntil||0)>Date.now()){
+    body.querySelectorAll('#btn-pagar-tudo,#btn-so-compensar').forEach(button=>button.disabled=true);
+  }
 }
 
 function atualizarLiquidoCP(valorCP){
@@ -19231,6 +19236,54 @@ function atualizarLiquidoCP(valorCP){
     if(liquido===0){banco.dataset.erpBankPrevious=banco.value;banco.value='';banco.disabled=true;}
     else if(banco.options.length>1){banco.disabled=false;}
   }
+}
+
+// Verificação SOMENTE LEITURA. Não reenvia a baixa e não altera o banco.
+async function _cpVerificarSituacaoPagamento(){
+  const modal=document.getElementById('modal-body');
+  const id=document.getElementById('pcp-id')?.value;
+  if(!modal||!id||modal.dataset.paymentStatusBusy==='true')return;
+  const user=firebase?.auth?.().currentUser;
+  if(!user){showToast('Sessão expirada. Entre novamente.','error');return;}
+  const verifyButton=document.getElementById('btn-verificar-baixa');
+  modal.dataset.paymentStatusBusy='true';
+  if(verifyButton)verifyButton.disabled=true;
+  try{
+    const token=await user.getIdToken(true);
+    const params=new URLSearchParams({payableId:id,operationId:modal.dataset.paymentOperation||''});
+    const response=await fetch('/api/finance/payables-status?'+params,{credentials:'same-origin',headers:{Authorization:'Bearer '+token}});
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.message||'Não foi possível consultar o pagamento.');
+    if(firebase?.auth?.().currentUser?.uid!==user.uid)throw new Error('Sua sessão mudou. Entre novamente.');
+    if(data.state==='confirmed'){
+      const idx=_cpIdxPorId(id);
+      if(idx>=0)CONTAS_PAGAR[idx]=data.payable;
+      if(data.ticket&&data.ticketKey)TICKETS_DB[data.ticketKey]=data.ticket;
+      _cpPendingPayments.delete(id);
+      try{renderContasPagar();renderTickets();renderFluxo();renderDashboard();}catch(error){console.error('pagamento.render',error);}
+      cm();
+      showToast('Pagamento confirmado no Firebase. Compra e conta atualizadas.','success',6500);
+    }else if(data.state==='processing'){
+      const seconds=Math.max(1,Math.min(120,Number(data.retryAfterSeconds)||10));
+      const blockedUntil=Date.now()+seconds*1000;
+      modal.dataset.paymentLockedUntil=String(blockedUntil);
+      _cpPendingPayments.set(id,{operationId:modal.dataset.paymentOperation,expiresAt:Date.now()+180000,blockedUntil});
+      modal.querySelectorAll('#btn-pagar-tudo,#btn-so-compensar').forEach(button=>button.disabled=true);
+      showToast('A baixa ainda está em processamento. Nenhum novo pagamento foi enviado. Confira novamente após '+seconds+' segundos.','warning',6500);
+    }else if(data.state==='pending'){
+      modal.dataset.paymentLockedUntil='0';
+      _cpPendingPayments.set(id,{operationId:modal.dataset.paymentOperation,expiresAt:Date.now()+180000,blockedUntil:0});
+      modal.querySelectorAll('#btn-pagar-tudo,#btn-so-compensar').forEach(button=>button.disabled=false);
+      showToast('O Firebase ainda mostra esta conta como pendente. Confira o extrato antes de confirmar novamente.','warning',6500);
+    }else if(data.state==='needs_review'){
+      modal.querySelectorAll('#btn-pagar-tudo,#btn-so-compensar').forEach(button=>button.disabled=true);
+      showToast('A conta e a compra mostram situações diferentes. Nenhum pagamento foi enviado. É necessário conferir o histórico financeiro.','error',7500);
+    }else{
+      modal.querySelectorAll('#btn-pagar-tudo,#btn-so-compensar').forEach(button=>button.disabled=true);
+      showToast('Conta não localizada no Firebase. Nenhum pagamento foi enviado.','error',6500);
+    }
+  }catch(error){showToast(error.message||'Falha ao consultar o pagamento. Nenhuma baixa foi enviada.','error',6500);}
+  finally{modal.dataset.paymentStatusBusy='false';if(verifyButton)verifyButton.disabled=false;}
 }
 
 async function confirmarPagarCP(modo){
@@ -19273,7 +19326,7 @@ async function confirmarPagarCP(modo){
         const blockedUntil=Date.now()+seconds*1000;
         modal.dataset.paymentLockedUntil=String(blockedUntil);
         _cpPendingPayments.set(id,{operationId:modal.dataset.paymentOperation,expiresAt:Date.now()+180000,blockedUntil});
-        const progress=new Error('Há uma baixa em processamento para este título. Aguarde '+seconds+' segundo(s) e confira o histórico financeiro antes de tentar a mesma operação. Nenhum novo pagamento foi solicitado por esta mensagem.');
+        const progress=new Error('Há uma baixa em processamento para este título. Use “Verificar situação” após '+seconds+' segundo(s). Nenhum novo pagamento foi enviado por este aviso.');
         progress.code='PAYMENT_IN_PROGRESS';
         throw progress;
       }
@@ -19295,7 +19348,7 @@ async function confirmarPagarCP(modo){
     cm();
     showToast(result.payable?.status==='Pago'?'Conta quitada e operação confirmada.':'Compensação ou pagamento parcial confirmado.','success');
   }catch(error){showToast(error.message||'Não foi possível confirmar o pagamento.',error?.code==='PAYMENT_IN_PROGRESS'?'warning':'error',6500);}
-  finally{modal.dataset.paymentBusy='false';buttons.forEach(button=>button.disabled=false);}
+  finally{modal.dataset.paymentBusy='false';buttons.forEach(button=>button.disabled=Number(modal.dataset.paymentLockedUntil||0)>Date.now());}
 }
 
 

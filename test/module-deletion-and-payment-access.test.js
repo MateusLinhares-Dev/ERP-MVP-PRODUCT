@@ -18,7 +18,7 @@ function fakeDB(){
   return {state,get updates(){return updates;},failOnce(){fail=true;},ref(p){return {
     async get(){return {val:()=>structuredClone(get(p)??null)};},
     async transaction(fn){const previous=structuredClone(get(p)??null),next=fn(previous);if(next===undefined)return {committed:false,snapshot:{val:()=>previous}};put(p,next);return {committed:true,snapshot:{val:()=>next}};},
-    async update(changes){if(fail){fail=false;throw new Error('permission_denied');}for(const [k,v] of Object.entries(changes))put(p+'/'+k,v);updates++;}
+    async update(changes){if(fail){fail=false;throw new Error('permission_denied');}for(const [k,v] of Object.entries(changes))put((p?p+'/':'')+k,v);updates++;}
   };}};
 }
 const thais={uid:'erp:thais',erpUser:'thais',erpAccess:true,canPayables:true,canFinance:true,canBanking:false};
