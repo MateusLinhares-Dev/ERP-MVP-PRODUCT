@@ -454,20 +454,22 @@ async function restoreConfirmedDelete(identity,{db,now,uuid,fornCod,adtCod,previ
   const related=Object.values(operations).filter(r=>r&&typeof r==='object'&&(
     r.adtCod===adtCod||r.advance?.cod===adtCod||r.result?.removedCode===adtCod));
   const creates=related.filter(r=>{
+    // Older creation receipts did not consistently persist supplierCode at the
+    // root, or all bankMovement fields. The creation itself is identified by
+    // the advance snapshot; the *confirmed deletion receipt* provides the
+    // stronger proof of which supplier and bank movement were removed.
     if(r.advance?.cod!==adtCod||r.action||r.result||
-      r.advance.movBancoId!==movementId||
+      String(r.advance.movBancoId||'')!==movementId||
       Number(r.advance.valor)!==Number(previous.valor)||
-      r.advance.bancoCod!==previous.bancoCod)return false;
-    // Recibos antigos foram persistidos sem fornCod na raiz. Nesse caso a
-    // identidade da operação deve ser demonstrada PELO movimento criado no
-    // mesmo recibo (ID, fornecedor via advanceCode, conta e valor). Não
-    // ignoramos divergências de fornecedor em recibos que contêm fornCod.
-    if(r.fornCod!=null&&r.fornCod!=='')return r.fornCod===fornCod;
-    return Boolean(r.bankMovement&&
-      String(r.bankMovement.id||'')===movementId&&
-      String(r.bankMovement.advanceCode||'')===adtCod&&
-      String(r.bankMovement.bancoCod||'')===String(previous.bancoCod||'')&&
-      Number(r.bankMovement.valor)===Number(previous.valor));
+      String(r.advance.bancoCod||'')!==String(previous.bancoCod||''))return false;
+    if(r.fornCod!=null&&String(r.fornCod).trim()!==''&&String(r.fornCod)!==fornCod)return false;
+    // The bank movement was already removed by a previously COMMITTED
+    // delete. Historical creation receipts could contain a partial or
+    // reserialized bankMovement; it is not a second source of truth for a
+    // debit that no longer exists. We only use this compatibility path when
+    // a delete receipt independently verifies the exact supplier, advance
+    // code and removed movement, and all later-use checks pass.
+    return true;
   });
   const deletes=related.filter(r=>r.action==='delete'&&r.result?.removedCode===adtCod&&
     r.result?.fornCod===fornCod&&r.result?.movementRemovedId===movementId);
