@@ -62,7 +62,16 @@ async function inspect(db,fornCod,adtCod){
       if(containsId(paths[name],adtCod))issues.push('Referência financeira detectada em '+name+'.');
     }
     const receipts=items(paths.financeAdvanceOperations).filter(([,op])=>containsId(op,adtCod));
+    const previousDeleteConfirmed=receipts.some(([,op])=>op.action==='delete'&&
+      op.result?.removedCode===adtCod&&op.result?.fornCod===fornCod&&
+      String(op.result?.movementRemovedId||'')===String(advance.movBancoId||''));
     for(const [,op] of receipts){
+      // Um DELETE já concluído não é utilização de crédito. O registro pode
+      // ter sido restaurado por um cliente antigo; apenas a API de exclusão
+      // pode reaplicar a baixa confirmada, sem manipular o banco novamente.
+      if(op.action==='delete'&&op.result?.removedCode===adtCod&&
+        op.result?.fornCod===fornCod&&
+        String(op.result?.movementRemovedId||'')===String(advance.movBancoId||''))continue;
       // Uma criação original não é aplicação de saldo. Preservaremos o recibo.
       if(String(op.advance?.cod)!==adtCod||op.action||op.result||
         (op.fornCod&&op.fornCod!==fornCod)){
@@ -76,6 +85,8 @@ async function inspect(db,fornCod,adtCod){
         issues.push('O recibo original não corresponde ao adiantamento atual.');
       }
     }
+    if(previousDeleteConfirmed)
+      issues.push('O servidor já confirmou a exclusão anterior. Feche esta conferência e use a lixeira do adiantamento para finalizar a retirada do registro que reapareceu, sem nova movimentação bancária.');
     if(items(paths.financeAdvanceRecoveryAudit).some(([,op])=>op.adtCod===adtCod))
       issues.push('Este adiantamento já possui recuperação registrada.');
   }
