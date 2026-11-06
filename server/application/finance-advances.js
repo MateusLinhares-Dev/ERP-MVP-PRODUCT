@@ -213,6 +213,31 @@ async function acquireAdvanceLock(ref,owner,now,{db,operationKey='',fornCod='',k
   return false;
 }
 
+/** Commit the financial records and remove every lease in ONE RTDB multi-location
+ * update. A separate transaction to release the lease after a successful bank
+ * debit can be interrupted by a serverless shutdown, leaving the next advance
+ * blocked for the entire TTL even though the previous receipt is confirmed.
+ *
+ * This helper is called only by the invocation that acquired all those leases.
+ * On write failure no release is included and the caller's finally block cleans
+ * up its own leases. Never use it for a partial financial update.
+ */
+async function commitAdvanceAndRelease(db,updates,keys,owner,now){
+  // Check that the request still owns each unexpired lease before committing.
+  // In particular, don't delete a lease that has already been taken by a
+  // different operation after expiration.
+  for(const key of keys){
+    const current=(await db.ref('erpFinanceAdvanceLocks/'+key).get()).val();
+    if(current?.owner!==owner||Number(current.expiresAt)<=now())
+      failure(409,'ADVANCE_LOCK_LOST','A confirmação financeira perdeu a reserva. Confira o resultado antes de tentar novamente.');
+  }
+  const batch=Object.fromEntries(Object.entries(updates).map(([path,value])=>['erp/'+path,value]));
+  for(const key of keys)batch['erpFinanceAdvanceLocks/'+key]=null;
+  // Including the receipt and the lease deletion in the same server update
+  // means a confirmed advance can never leave *its own* lock behind.
+  await db.ref('/').update(batch);
+}
+
 async function releaseAdvanceLocks(locks,owner){
   for(const ref of locks.reverse()){
     for(let attempt=0;attempt<3;attempt++){
@@ -293,6 +318,7 @@ export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
   }
   const owner=uuid(),locks=[];
   const keys=(isCheque?[fornCod,'__global_cheques__']:[fornCod]).sort();
+  let committedAndUnlocked=false;
   try{
     for(const key of keys){
       const lockRef=db.ref('erpFinanceAdvanceLocks/'+key);
@@ -372,10 +398,11 @@ export async function createAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
     updates['financeAdvanceOperations/'+operationKey]={advance,bankMovement:movement,cheques:createdCheques,requestFingerprint,fornCod,
       createdAt:new Date(now()).toISOString(),createdBy:clean(identity.erpUser||identity.uid)};
     updates._ts=now();
-    await db.ref('erp').update(updates);
+    await commitAdvanceAndRelease(db,updates,keys,owner,now);
+    committedAndUnlocked=true;
     return {advance,bankMovement:movement,cheques:createdCheques,entries,alreadyCommitted:false};
   }finally{
-    await releaseAdvanceLocks(locks,owner);
+    if(!committedAndUnlocked)await releaseAdvanceLocks(locks,owner);
   }
 }
 
@@ -408,6 +435,7 @@ export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
   const keys=[...new Set([fornCod,newFornCod,'__global_cheques__'])].sort();
   const owner=uuid();
   const locks=[];
+  let committedAndUnlocked=false;
   try{
     for(const key of keys){
       const lockRef=db.ref('erpFinanceAdvanceLocks/'+key);
@@ -501,9 +529,10 @@ export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
     const {entries,targetEntries,...receipt}=result;
     updates['financeAdvanceOperations/'+opPath.slice('erp/financeAdvanceOperations/'.length)]={action,adtCod,result:receipt,createdAt:new Date(now()).toISOString(),createdBy:clean(identity.erpUser)};
     updates._ts=now();
-    await db.ref('erp').update(updates);
+    await commitAdvanceAndRelease(db,updates,keys,owner,now);
+    committedAndUnlocked=true;
     return {...result,alreadyCommitted:false};
   }finally{
-    await releaseAdvanceLocks(locks,owner);
+    if(!committedAndUnlocked)await releaseAdvanceLocks(locks,owner);
   }
 }
