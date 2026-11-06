@@ -164,6 +164,7 @@ export async function recoverOrphanAdvance(identity,input,{db,now=()=>Date.now()
     // Adiantamento, comprovante da recuperação e liberação da trava na mesma gravação.
     await db.ref('/').update({
       ['erp/adiantamentos/'+fornCod]:entries,
+      ['erp/financeAdvanceDeleted/'+fornCod+'/'+adtCod]:{removedCode:adtCod,removedAt:now(),reason:'audited_orphan_delete'},
       ['erp/financeAdvanceRecoveryAudit/'+opKey]:receipt,
       'erp/_ts':now(),
       ['erpFinanceAdvanceLocks/'+fornCod]:null

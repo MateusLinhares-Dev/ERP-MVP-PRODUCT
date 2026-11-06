@@ -1268,10 +1268,21 @@
         ]
       },
       "write": {
+        "mode": "none",
+        "claims": []
+      }
+    },
+    "financeAdvanceDeleted": {
+      "read": {
         "mode": "claims",
         "claims": [
-          "canFinance"
+          "canFinance",
+          "canAdvances"
         ]
+      },
+      "write": {
+        "mode": "none",
+        "claims": []
       }
     },
     "cheques": {

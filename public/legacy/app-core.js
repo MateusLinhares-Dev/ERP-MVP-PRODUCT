@@ -242,6 +242,11 @@ function _adtTemCod(arr, cod){
   return false;
 }
 function _adtReporPendentes(target, remote){
+  // API confirmation is authoritative; a pending local copy is NEVER evidence
+  // that a record still exists, and must never override a trusted cloud list.
+  if(window.__ERP_ADVANCES_CLOUD_AUTHORITATIVE__===true){
+    window._ADT_PENDENTES={};return;
+  }
   try{
     var agora=Date.now();
     Object.keys(window._ADT_PENDENTES).forEach(function(chave){
@@ -259,15 +264,11 @@ function _adtReporPendentes(target, remote){
 }
 
 function _adtSalvarNaNuvem(fornCod){
-  try{
-    if(!fornCod) return;
-    var arr = ADT_POR_FORN[fornCod];
-    if(Array.isArray(arr)) arr.forEach(function(it){ if(it) _adtMarcarPendente(fornCod, it); });
-    if(window._fbDB){
-      window._fbDB.ref('erp/adiantamentos/'+fornCod).set((arr&&arr.length)?arr:null);
-      window._fbDB.ref('erp/_ts').set(Date.now());
-    }
-  }catch(e){}
+  // DESATIVADO: nenhuma lista financeira completa pode ser escrita pelo navegador.
+  // Criação/edição/exclusão usam APIs transacionais; chamadas legadas não devem
+  // reintroduzir lançamentos já excluídos nem simular sucesso local.
+  console.warn('advance.legacy.write.blocked',String(fornCod||''));
+  return false;
 }
 
 function _mergeAdtCloudManda(local, remote, target, fbConfiavel, cloudTinhaAdt){
@@ -5777,17 +5778,8 @@ function restaurarHistorico(histId){
   if(!h||!h.registro){ alert('Este registro não tem dados pra restaurar.'); return; }
   if(!confirm('Restaurar este registro excluído?')) return;
   if(h.modulo==='Adiantamento'){
-    const fornCod=h.extra&&h.extra.fornCod;
-    if(!fornCod){ alert('Não foi possível identificar o fornecedor deste adiantamento.'); return; }
-    if(!ADT_POR_FORN[fornCod]) ADT_POR_FORN[fornCod]=[];
-    if(ADT_POR_FORN[fornCod].some(a=>a.cod===h.registro.cod)){ alert('Este adiantamento já existe — não precisa restaurar.'); return; }
-    ADT_POR_FORN[fornCod].push(Object.assign({}, h.registro));
-    saveDB();
-    _adtSalvarNaNuvem(fornCod);   
-    try{ renderAdiantamentos(); }catch(e){}
-    registrarHistorico('Adiantamento','Restaurado','Restaurado do histórico: '+(h.registro.cod||''), null, {fornCod});
-    cm();
-    alert('✅ Adiantamento restaurado! Se ele tinha lançamento bancário vinculado, use o botão "🔄 Sincronizar c/ Bancos" pra recriar.');
+    alert('Não é possível restaurar um adiantamento pelo histórico. Faça a conferência no módulo Financeiro.');
+    return;
   } else if(h.modulo==='Cheque'){
     const fornCod=h.extra&&h.extra.fornCod;
     if(!fornCod){ alert('Não foi possível identificar o fornecedor deste cheque.'); return; }
@@ -6382,90 +6374,22 @@ function _removerMovBancoDeAdiantamento(fornCod, a){
   if(i>=0){ _syncLancBanco.remover(i); saveBancos(); renderBancos(); }
 }
 
+// Exclusão antiga que regravava a lista inteira DESATIVADA. Somente API transacional.
 function excluirAdiantamento(fornCod, adtCod){
-  if(!confirm('Excluir este adiantamento?')) return;
-  const lista = ADT_POR_FORN[fornCod];
-  if(!lista) return;
-  const idx = lista.findIndex(a=>a.cod===adtCod);
-  if(idx<0) return;
-  const _removido=lista[idx];
-  _removerMovBancoDeAdiantamento(fornCod, lista[idx]);
-  lista.splice(idx,1);
-  try{ delete window._ADT_PENDENTES[fornCod+'::'+adtCod]; }catch(e){}
-  
-  
-  
-  
-  _DEL_SETS.adtItens.add(fornCod+'::'+adtCod);
-  try{ localStorage.setItem(_DEL_LS_KEY.adtItens, JSON.stringify([..._DEL_SETS.adtItens])); }catch(e){}
-  saveDB();
-  
-  try{ if(window._fbDB){ var _v=ADT_POR_FORN[fornCod]; window._fbDB.ref('erp/adiantamentos/'+fornCod).set((_v&&_v.length)?_v:null); window._fbDB.ref('erp/_ts').set(Date.now()); } }catch(e){}
-  {
-    const _forn=FORNECEDORES.find(f=>f.cod===fornCod);
-    registrarHistorico('Adiantamento','Excluído',
-      (_forn?_forn.nome:fornCod)+' '+adtCod+' — R$ '+Number(_removido.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+' ('+(_removido.data||'')+')',
-      _removido, {fornCod});
-  }
-  
-  onCanhotFornChange();
-  renderAdiantamentos();
+  if(window.ERPAdvanceActions?.deleteAdvance)return window.ERPAdvanceActions.deleteAdvance(fornCod,adtCod);
+  alert('Serviço financeiro indisponível. Reabra Adiantamentos e tente novamente.');
 }
-
 function excluirAdiantamentoLista(btn){
-  const fornNome = btn.dataset.forn;
-  const adtCod   = btn.dataset.cod;
-  if(!confirm('Excluir adiantamento '+adtCod+'?')) return;
-  
-  const forn = FORNECEDORES.find(f=>f.nome===fornNome);
-  const fornCod = forn ? forn.cod : Object.keys(ADT_POR_FORN).find(k=>{
-    return (ADT_POR_FORN[k]||[]).some(a=>a.cod===adtCod);
-  });
-  if(!fornCod) return;
-  const lista = ADT_POR_FORN[fornCod];
-  if(!lista) return;
-  const idx = lista.findIndex(a=>a.cod===adtCod);
-  if(idx<0) return;
-  const _removido2=lista[idx];
-  _removerMovBancoDeAdiantamento(fornCod, lista[idx]);
-  lista.splice(idx,1);
-  try{ delete window._ADT_PENDENTES[fornCod+'::'+adtCod]; }catch(e){}
-  saveDB();
-  
-  try{ if(window._fbDB){ var _v=ADT_POR_FORN[fornCod]; window._fbDB.ref('erp/adiantamentos/'+fornCod).set((_v&&_v.length)?_v:null); window._fbDB.ref('erp/_ts').set(Date.now()); } }catch(e){}
-  registrarHistorico('Adiantamento','Excluído',
-    (fornNome||fornCod)+' '+adtCod+' — R$ '+Number(_removido2.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+' ('+(_removido2.data||'')+')',
-    _removido2, {fornCod});
-  renderAdiantamentos();
+  const adtCod=btn?.dataset?.cod;
+  const fornCod=Object.keys(ADT_POR_FORN||{}).find(k=>(ADT_POR_FORN[k]||[]).some(a=>a.cod===adtCod));
+  if(fornCod&&window.ERPAdvanceActions?.deleteAdvance)
+    return window.ERPAdvanceActions.deleteAdvance(fornCod,adtCod,btn);
+  alert('Serviço financeiro indisponível. Reabra Adiantamentos e tente novamente.');
 }
-
-
 
 async function zerarTodosAdiantamentos(){
-  if(typeof _usuarioAtualEhAdmin==='function' && !_usuarioAtualEhAdmin()){
-    alert('Somente administradores podem zerar adiantamentos.');return;
-  }
-  var qt=0; Object.keys(ADT_POR_FORN||{}).forEach(function(fc){ qt+=(ADT_POR_FORN[fc]||[]).length; });
-  if(!qt){ alert('Não há adiantamentos pra apagar. Já está zerado.'); return; }
-  if(!confirm('APAGAR TODOS os '+qt+' adiantamento(s) pra você começar do zero?\n\nFaço backup antes. Depois você lança os certos de novo — e eles NÃO vão mais voltar nem sumir.')) return;
-  if(!confirm('Tem certeza? Isso apaga TODOS os adiantamentos agora.')) return;
-  try{
-    var ts=Date.now();
-    var copia=JSON.parse(JSON.stringify(ADT_POR_FORN));
-    if(!window._fbDB)throw new Error('Banco indisponível para o backup.');
-    await window._fbDB.ref('erp/advanceBackups/'+ts).set({quando:new Date().toISOString(), adiantamentos:copia});
-    localStorage.setItem('mm_bkp_zerar_adt', JSON.stringify({ts:ts, adiantamentos:copia}));
-  }catch(e){alert('Falha ao criar o backup no Firebase. Nenhum adiantamento foi apagado.');return;}
-  
-  Object.keys(ADT_POR_FORN).forEach(function(fc){ delete ADT_POR_FORN[fc]; });
-  try{ window._ADT_PENDENTES={}; }catch(e){}
-  try{ _DEL_SETS.adtItens.clear(); _DEL_SETS.adtPorForn.clear(); localStorage.removeItem(_DEL_LS_KEY.adtItens); localStorage.removeItem(_DEL_LS_KEY.adtPorForn); }catch(e){}
-  saveDB();
-  
-  try{ if(window._fbDB){ window._fbDB.ref('erp/adiantamentos').set(null); window._fbDB.ref('erp/adtItensDeleted').set(null); window._fbDB.ref('erp/adtPorFornDeleted').set(null); window._fbDB.ref('erp/_ts').set(Date.now()); } }catch(e){}
-  try{ registrarHistorico('Adiantamento','Zerado tudo','Apaguei todos os '+qt+' adiantamentos (recomeçar)', null, null); }catch(e){}
-  try{ renderAdiantamentos(); }catch(e){}
-  alert('✅ Pronto! Apaguei todos os adiantamentos (na nuvem também). Agora está ZERADO. Pode lançar os certos — eles vão ficar. Tem backup, se precisar.');
+  alert('A exclusão geral de adiantamentos foi desativada por segurança financeira.');
+  return false;
 }
 window['zerarTodosAdiantamentos']=zerarTodosAdiantamentos;
 

@@ -18,7 +18,7 @@ const groups={
   canFinance:`custosCasa contasPagar contasPagarDeleted contasReceber contasReceberDeleted saldos cheques fcSaldoIni fcSaldoIniDeleted fcLanc adtCli chequesCli`,
   canSales:`vendas vendasDeleted`,
   canBanking:`bancos bancosDeleted lancBanco lancBancoDeleted`,
-  canAdvances:`adiantamentos`,
+  canAdvances:`adiantamentos financeAdvanceDeleted`,
   canHR:`funcEdit funcEditDel ponto pontoDeleted pontoBatidas pontoBatidasDeleted vales valesDeleted advertencias advertenciasDeleted epi epiDeleted`,
   canPayroll:`folha`,
   canFleet:`veicPess manutPess tanque tanqueDeleted tanqueDeletedV2 viagemLimite viagem viagemDeleted combustivel combustivelDeleted frota frotaDeleted manutencao manutencaoDeleted`,
@@ -100,6 +100,13 @@ for(const [node,access] of Object.entries(directNodes)){
   const grant=(perm)=>perm==='admin'?`${auth} && auth.token.admin == true`:`${auth} && auth.token.${perm} == true`;
   candidate.rules.erp[node]={'.read':grant(access.read),'.write':grant(access.write)};
 }
+// Financeiro transacional: somente Firebase Admin SDK pode gravar.
+// A regra negada impede que clientes antigos regravem adiantamentos excluídos.
+candidate.rules.erp.adiantamentos['.write']=false;
+candidate.rules.erp.financeAdvanceDeleted={
+  '.read':`${auth} && (auth.token.canFinance == true || auth.token.canAdvances == true)`,
+  '.write':false
+};
 // Categorias de documentos são acessadas diretamente pelo Phase1Store.
 // Restringir esta coleção ao domínio de documentos e validar cada cadastro;
 // não habilitar o acesso genérico do nó pai.
@@ -164,7 +171,7 @@ for(const name of legacyNames){
 }
 candidate.rules.erp.adiantamentos={
   '.read':`${auth} && (auth.token.canFinance == true || auth.token.canAdvances == true)`,
-  '.write':`${auth} && auth.token.canFinance == true`
+  '.write':false // Somente APIs Firebase Admin; proíbe ressuscitar lista via cliente.
 };
 // Protege também o marcador de versão usado pelo frontend, não coberto pelo array.
 candidate.rules.erp._appBuild={'.read':auth,'.write':`${auth} && auth.token.admin == true`};

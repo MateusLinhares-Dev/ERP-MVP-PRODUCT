@@ -525,7 +525,11 @@
       },
       "adiantamentos": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true || auth.token.canAdvances == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.canFinance == true"
+        ".write": false
+      },
+      "financeAdvanceDeleted": {
+        ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true || auth.token.canAdvances == true)",
+        ".write": false
       },
       "cheques": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
