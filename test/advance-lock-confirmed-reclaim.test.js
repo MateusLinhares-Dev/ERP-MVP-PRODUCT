@@ -13,16 +13,22 @@ function memoryDb(){
   const state={erp:{bancos:{b1:{cod:'BC-003',banco:'Conta de teste'}},fornecedores:{f1:{cod:'F-001',nome:'Teste Não Apagar'}},adiantamentos:{'F-001':[]}}};
   const valueOf=path=>path.split('/').filter(Boolean).reduce((v,k)=>v?.[k],state);
   const assign=(path,value)=>{const parts=path.split('/').filter(Boolean),key=parts.pop();let target=state;for(const part of parts)target=target[part]??={};if(value===null)delete target[key];else target[key]=structuredClone(value);};
-  let failReleaseOnce=false;
-  const db={state,
+  let failReleaseOnce=false,failReleaseAlways=false;
+  const updateCalls=[];
+  const db={state,updateCalls,
     failOneRelease(){failReleaseOnce=true;},
+    failEveryRelease(){failReleaseAlways=true;},
     ref(path){return {
       async get(){return {val:()=>structuredClone(valueOf(path)??null)};},
-      async update(batch){for(const [key,value] of Object.entries(batch))assign(path+'/'+key,value);},
+      async update(batch){
+        updateCalls.push({path,keys:Object.keys(batch),removedLocks:Object.entries(batch).filter(([key,value])=>key.startsWith('erpFinanceAdvanceLocks/')&&value===null).map(([key])=>key)});
+        for(const [key,value] of Object.entries(batch))assign(path+'/'+key,value);
+      },
       async transaction(transform){
         const old=structuredClone(valueOf(path)??null);
         const next=transform(old);
         if(next===undefined)return {committed:false,snapshot:{val:()=>old}};
+        if(failReleaseAlways&&path.startsWith('erpFinanceAdvanceLocks/')&&next===null)throw new Error('Release endpoint unavailable');
         if(failReleaseOnce&&path.startsWith('erpFinanceAdvanceLocks/')&&next===null){failReleaseOnce=false;throw new Error('Temporary release failure');}
         assign(path,next);
         return {committed:true,snapshot:{val:()=>structuredClone(next)}};
@@ -93,4 +99,39 @@ test('falha transitória ao liberar a trava é recuperada, sem bloquear o próxi
   await createAdvance(actor,{...base,operationId:operationId2,valor:2},{db,now:()=>100100});
   assert.equal(db.state.erp.adiantamentos['F-001'].length,2);
   assert.equal(Object.keys(db.state.erp.lancBanco).length,2);
+});
+
+
+test('regressao: backend confirma um adiantamento e remove a trava NO MESMO update atomico',async()=>{
+  const db=memoryDb();
+  // Reproduz o problema de serverless: liberar a trava em uma segunda transacao
+  // nunca funcionaria, apesar de o recibo e o debito ja terem sido gravados.
+  db.failEveryRelease();
+  const first=await createAdvance(actor,base,{db,now:()=>100000});
+  const batch=db.updateCalls[0];
+  assert.equal(batch.path,'/');
+  assert.ok(batch.keys.includes('erp/adiantamentos/F-001'));
+  assert.ok(batch.keys.some(key=>key.startsWith('erp/lancBanco/')));
+  assert.ok(batch.keys.includes('erp/financeAdvanceOperations/user1_'+operationId1));
+  assert.deepEqual(batch.removedLocks,['erpFinanceAdvanceLocks/F-001']);
+  assert.equal(db.state.erpFinanceAdvanceLocks?.['F-001'],undefined);
+  assert.equal(db.state.erp.financeAdvanceOperations['user1_'+operationId1].advance.cod,first.advance.cod);
+
+  const second=await createAdvance(actor,{...base,operationId:operationId2,valor:2},{db,now:()=>100100});
+  assert.equal(second.advance.valor,2);
+  assert.equal(db.state.erp.adiantamentos['F-001'].length,2);
+  assert.equal(Object.keys(db.state.erp.lancBanco).length,2);
+  assert.equal(Object.keys(db.state.erp.financeAdvanceOperations).length,2);
+  assert.equal(db.state.erpFinanceAdvanceLocks?.['F-001'],undefined);
+});
+
+test('lote de cheques confirma recibo e remove as duas travas sem segunda liberacao',async()=>{
+  const db=memoryDb();db.failEveryRelease();
+  const result=await createAdvance(actor,{...base,forma:'Cheque',bancoCod:'',valor:10,cheques:[
+    {b:'Banco Exemplo',n:'123',v:10,d:'2026-11-05'}
+  ]},{db,now:()=>100000});
+  assert.equal(result.cheques.length,1);
+  assert.deepEqual(db.updateCalls[0].removedLocks.sort(),['erpFinanceAdvanceLocks/F-001','erpFinanceAdvanceLocks/__global_cheques__'].sort());
+  assert.equal(db.state.erpFinanceAdvanceLocks?.['F-001'],undefined);
+  assert.equal(db.state.erpFinanceAdvanceLocks?.__global_cheques__,undefined);
 });
