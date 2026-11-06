@@ -437,6 +437,78 @@ function expectedMatches(previous,expected){
   return fields.every(key=>String(previous[key]??'')===String(expected[key]??''));
 }
 
+/**
+ * Repairs the narrow historical case where a DELETE was committed atomically,
+ * including the bank movement removal, but a stale browser later restored the
+ * advance list with a legacy .set(). This is NOT a generic orphan deletion.
+ * Require both the original creation receipt and the successful delete receipt,
+ * matching exactly this advance and bank movement, and reject later financial use.
+ */
+async function restoreConfirmedDelete(identity,{db,now,uuid,fornCod,adtCod,previous,operationKey}){
+  const movementId=clean(previous?.movBancoId||'');
+  if(!movementId||previous.status!=='Pendente'||previous.ticket||previous.ticketOrigem||
+    previous.adiantamentoOrigem||Number(previous.valorCompensado||0)>0||
+    Number(previous.valorAplicado||0)>0||previous.origem||
+    (previous.chequeIds&&previous.chequeIds.length))return null;
+  const operations=(await db.ref('erp/financeAdvanceOperations').get()).val()||{};
+  const related=Object.values(operations).filter(r=>r&&typeof r==='object'&&(
+    r.adtCod===adtCod||r.advance?.cod===adtCod||r.result?.removedCode===adtCod));
+  const creates=related.filter(r=>r.advance?.cod===adtCod&&!r.action&&!r.result&&
+    r.fornCod===fornCod&&r.advance.movBancoId===movementId&&
+    Number(r.advance.valor)===Number(previous.valor)&&r.advance.bancoCod===previous.bancoCod);
+  const deletes=related.filter(r=>r.action==='delete'&&r.result?.removedCode===adtCod&&
+    r.result?.fornCod===fornCod&&r.result?.movementRemovedId===movementId);
+  // Several verified deletions may exist if an obsolete client restored the
+  // same list more than once before the database rules were deployed.
+  if(creates.length!==1||deletes.length===0||
+    related.some(receipt=>!creates.includes(receipt)&&!deletes.includes(receipt)))return null;
+  const createdAt=Date.parse(creates[0].createdAt||'');
+  if(!Number.isFinite(createdAt)||deletes.some(receipt=>
+    !Number.isFinite(Date.parse(receipt.createdAt||''))||Date.parse(receipt.createdAt)<createdAt))return null;
+  const deletion=deletes.reduce((latest,current)=>Date.parse(current.createdAt)>Date.parse(latest.createdAt)?current:latest);
+  const lockRef=db.ref('erpFinanceAdvanceLocks/'+fornCod),owner=uuid();
+  const acquired=await acquireAdvanceLock(lockRef,owner,now,{db,operationKey,fornCod,kind:'change'});
+  if(!acquired)failure(409,'ADVANCE_IN_PROGRESS','Aguarde a conclusão da operação anterior.');
+  let committed=false;
+  try{
+    const source=advanceRecords((await db.ref('erp/adiantamentos/'+fornCod).get()).val());
+    const matches=source.filter(row=>row?.cod===adtCod);
+    if(matches.length!==1||!expectedMatches(matches[0],previous))
+      failure(409,'ADVANCE_CHANGED','O adiantamento foi alterado. Atualize a consulta.');
+    if((await db.ref('erp/lancBanco/'+pathKey(movementId)).get()).val())
+      failure(409,'BANK_LEDGER_CHANGED','O lançamento bancário reapareceu; é necessária conferência.');
+    // Conservatively check all sources capable of applying a credit or payment.
+    const referencedPaths=['tickets','contasPagar','chequesControle','chequesCli','financePayableOperations',
+      'purchaseCreateOperations','purchaseEditOperations','saldoDevedor','saldos','cheques'];
+    const readings=await Promise.all(referencedPaths.map(path=>db.ref('erp/'+path).get()));
+    for(let i=0;i<readings.length;i++){
+      if(JSON.stringify(readings[i].val()??null).includes(JSON.stringify(adtCod)))
+        failure(409,'ADVANCE_USED','Encontrada utilização financeira posterior; não é possível remover automaticamente.');
+    }
+    const fullLedger=(await db.ref('erp/lancBanco').get()).val()||{};
+    if(Object.values(fullLedger).some(item=>item&&String(item.advanceCode||'')===adtCod||
+      item&&String(item.id||'')===movementId))
+      failure(409,'BANK_LEDGER_CHANGED','Outro movimento bancário pode estar vinculado ao adiantamento.');
+    const tombstone={removedAt:now(),removedCode:adtCod,movementRemovedId:movementId,
+      reason:'confirmed_delete_receipt_reappeared',originalDeletedAt:deletion.createdAt||null};
+    const result={action:'delete',advance:null,removedCode:adtCod,bankMovement:null,
+      movementRemovedId:movementId,entries:source.filter(row=>row?.cod!==adtCod),
+      targetEntries:null,fornCod,newFornCod:fornCod,restoredDeletion:true};
+    const {entries,targetEntries,...receipt}=result;
+    await commitAdvanceAndRelease(db,{
+      ['adiantamentos/'+fornCod]:entries,
+      ['financeAdvanceDeleted/'+fornCod+'/'+adtCod]:tombstone,
+      ['financeAdvanceOperations/'+operationKey]:{action:'delete',adtCod,result:receipt,
+        createdAt:new Date(now()).toISOString(),createdBy:clean(identity.erpUser),recoveredFromReceipt:true},
+      _ts:now()
+    },[fornCod],owner,now);
+    committed=true;
+    return {...result,alreadyCommitted:false};
+  }finally{
+    if(!committed)await releaseAdvanceLocks([lockRef],owner);
+  }
+}
+
 export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=randomUUID}={}){
   requireFinance(identity);
   db=await resolveDatabase(db);
@@ -464,6 +536,17 @@ export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
   // da criação de cheques e evitar ciclos de espera entre duas requisições.
   const candidate=advanceRecords((await db.ref('erp/adiantamentos/'+fornCod).get()).val())
     .find(row=>String(row.cod)===adtCod);
+  // One historical exception: the API already confirmed this exact deletion,
+  // but an older browser re-uploaded its stale list afterwards. Repair using
+  // the receipts without requiring a second nonexistent bank debit.
+  if(action==='delete'&&candidate&&expectedMatches(candidate,input.expected)&&candidate.movBancoId){
+    const bankMovement=(await db.ref('erp/lancBanco/'+pathKey(candidate.movBancoId)).get()).val();
+    if(!bankMovement){
+      const repaired=await restoreConfirmedDelete(identity,{db,now,uuid,fornCod,adtCod,
+        previous:candidate,operationKey});
+      if(repaired)return repaired;
+    }
+  }
   // Preflight read-only: registros já divergentes não devem disputar locks.
   // O estado é verificado de novo após adquirir o lock para cobrir concorrência.
   if(candidate&&expectedMatches(candidate,input.expected)){
@@ -585,6 +668,10 @@ export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
       (newFornCod===fornCod?nextSource:target).push(changed);
     }
     updates['adiantamentos/'+fornCod]=nextSource;
+    if(action==='delete')updates['financeAdvanceDeleted/'+fornCod+'/'+adtCod]={
+      removedAt:now(),removedCode:adtCod,movementRemovedId:oldMovementId||'',
+      reason:'confirmed_financial_delete'
+    };
     if(newFornCod!==fornCod)updates['adiantamentos/'+newFornCod]=target;
     const result={action,advance:changed,removedCode:action==='delete'?adtCod:null,
       bankMovement:movement,movementRemovedId,entries:nextSource,

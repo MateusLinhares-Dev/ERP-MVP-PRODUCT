@@ -39,9 +39,9 @@ const profiles=[
   {tabs:['afazeres']},
 ];
 
-test('99 coleções compartilhadas têm políticas equivalentes no frontend e no servidor',()=>{
+test('100 coleções compartilhadas têm políticas equivalentes no frontend e no servidor',()=>{
   const nodes=Object.keys(policy.nodes);
-  assert.equal(nodes.length,99);
+  assert.equal(nodes.length,100);
   for(const profile of profiles){
     const claims={erpAccess:true,admin:false,erpUser:'operator',...buildSecurityClaims(profile)};
     for(const node of nodes){
@@ -89,8 +89,8 @@ test('metadados impedem falsificação de autoria e backups sem administrador',(
   assert.match(rules.erp._untomb['.write'],/auth\.token\.admin/);
   const core=read('public/legacy/app-core.js');
   assert.match(core,/async function zerarTodosAdiantamentos/);
-  assert.match(core,/await window\._fbDB\.ref\('erp\/advanceBackups\//);
-  assert.match(core,/Nenhum adiantamento foi apagado/);
+  assert.match(core,/A exclusão geral de adiantamentos foi desativada/);
+  assert.doesNotMatch(core,/\.ref\('erp\/adiantamentos/);
 });
 
 test('sincronizador filtra leituras e gravações pelo token e aplica política obrigatória',()=>{

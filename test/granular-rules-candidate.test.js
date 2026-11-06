@@ -20,8 +20,8 @@ test('regra candidata mantém negação global e remove wildcard permissivo',()=
   assert.equal(hardened.rules.security['.write'],false);
 });
 
-test('cada um dos 99 nós sincronizados tem regra explícita',()=>{
-  assert.equal(nodes.length,99);
+test('cada um dos 100 nós sincronizados tem regra explícita',()=>{
+  assert.equal(nodes.length,100);
   for(const node of nodes){
     assert.equal(typeof hardened.rules.erp[node]?.['.read'],'string',node+' read');
     assert.notEqual(hardened.rules.erp[node]?.['.write'],undefined,node+' write');

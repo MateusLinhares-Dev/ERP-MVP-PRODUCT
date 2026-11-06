@@ -1,8 +1,8 @@
 {
   "erp": {
     "_appBuild": "2026-09-05-1800-v212-dinheiro-2-casas",
-    "_ts": 1793973367688,
-    "_user": "thais",
+    "_ts": 1793985070974,
+    "_user": "elaine",
     "adiantamentos": {
       "F006": [
         {
@@ -588,19 +588,6 @@
         {
           "bancoCod": "BC-005",
           "bancoNome": "acred gratus",
-          "cod": "ADTMW493XON5F008A0F",
-          "data": "05/11/2026",
-          "empresa": "Gratus Metais",
-          "forma": "PIX",
-          "movBancoId": "LB-1793925809750-84b58ec3",
-          "obs": "",
-          "status": "Pendente",
-          "ticket": "",
-          "valor": 12322333
-        },
-        {
-          "bancoCod": "BC-005",
-          "bancoNome": "acred gratus",
           "cod": "ADTMW40UMZE93A671D7",
           "data": "05/11/2026",
           "empresa": "Gratus Metais",
@@ -623,32 +610,6 @@
           "status": "Pendente",
           "ticket": "",
           "valor": 124
-        },
-        {
-          "bancoCod": "BC-005",
-          "bancoNome": "acred gratus",
-          "cod": "ADTMW4ZFEW543339991",
-          "data": "06/11/2026",
-          "empresa": "Gratus Metais",
-          "forma": "PIX",
-          "movBancoId": "LB-1793970015284-fbf5589b",
-          "obs": "",
-          "status": "Pendente",
-          "ticket": "",
-          "valor": 12
-        },
-        {
-          "bancoCod": "BC-005",
-          "bancoNome": "acred gratus",
-          "cod": "ADTMW4ZESCA627DB0F2",
-          "data": "06/11/2026",
-          "empresa": "Gratus Metais",
-          "forma": "PIX",
-          "movBancoId": "LB-1793969986049-f61d72ee",
-          "obs": "",
-          "status": "Pendente",
-          "ticket": "",
-          "valor": 2223
         }
       ]
     },
@@ -4216,7 +4177,7 @@
         "676572616c": {
           "conv": "geral",
           "login": "elaine",
-          "ts": "2026-11-06T13:29:00.462Z"
+          "ts": "2026-11-06T17:03:59.635Z"
         }
       },
       "erp:engadministrator": {
@@ -18524,6 +18485,19 @@
         "createdAt": "2026-11-05T20:10:04.443Z",
         "createdBy": "elaine"
       },
+      "erp_elaine_1dbe3c3b-560a-4b36-afe2-1e2654061c52": {
+        "action": "delete",
+        "adtCod": "ADTMW586HMM1EA797F6",
+        "createdAt": "2026-11-06T17:06:30.409Z",
+        "createdBy": "elaine",
+        "result": {
+          "action": "delete",
+          "fornCod": "F675",
+          "movementRemovedId": "LB-1793984715463-6dac12ba",
+          "newFornCod": "F675",
+          "removedCode": "ADTMW586HMM1EA797F6"
+        }
+      },
       "erp_elaine_25e697bd-3217-420f-9e39-c1f1834de40d": {
         "action": "delete",
         "adtCod": "ADTMW3ZCB9K3E9382B3",
@@ -18879,6 +18853,48 @@
           "removedCode": "ADTMW48LU3L6D79C234"
         }
       },
+      "erp_elaine_75a1d6eb-41f9-41f9-8e67-911ca46bad7b": {
+        "advance": {
+          "bancoCod": "BC-005",
+          "bancoNome": "acred gratus",
+          "cod": "ADTMW58A1I5B9201237",
+          "data": "06/11/2026",
+          "empresa": "Gratus Metais",
+          "forma": "PIX",
+          "movBancoId": "LB-1793984881196-1b8b33f2",
+          "obs": "",
+          "status": "Pendente",
+          "ticket": "",
+          "valor": 15
+        },
+        "bankMovement": {
+          "advanceCode": "ADTMW58A1I5B9201237",
+          "bancoCod": "BC-005",
+          "data": "06/11/2026",
+          "descricao": "Adiantamento: TESTE NAO APAGAR",
+          "id": "LB-1793984881196-1b8b33f2",
+          "source": "advance",
+          "tipo": "Saida",
+          "valor": 15
+        },
+        "createdAt": "2026-11-06T17:08:01.196Z",
+        "createdBy": "elaine",
+        "fornCod": "F675",
+        "requestFingerprint": "98ff849b2242295acb8e6bbfe4baa6f3c6b6d57d30e2815e41b5426b5bcf9090"
+      },
+      "erp_elaine_7fede037-bc56-4f14-bbb3-2fd14c765432": {
+        "action": "delete",
+        "adtCod": "ADTMW4ZFEW543339991",
+        "createdAt": "2026-11-06T17:11:09.415Z",
+        "createdBy": "elaine",
+        "result": {
+          "action": "delete",
+          "fornCod": "F675",
+          "movementRemovedId": "LB-1793970015284-fbf5589b",
+          "newFornCod": "F675",
+          "removedCode": "ADTMW4ZFEW543339991"
+        }
+      },
       "erp_elaine_8decc21c-9375-4129-beed-33b8b1f4f220": {
         "action": "edit",
         "adtCod": "ADTMW4ZESCA627DB0F2",
@@ -18911,6 +18927,35 @@
           "movementRemovedId": "",
           "newFornCod": "F675"
         }
+      },
+      "erp_elaine_8eeb21d5-0977-4bec-aa6c-a0d379304344": {
+        "advance": {
+          "bancoCod": "BC-005",
+          "bancoNome": "acred gratus",
+          "cod": "ADTMW58A8U335766157",
+          "data": "06/11/2026",
+          "empresa": "Gratus Metais",
+          "forma": "PIX",
+          "movBancoId": "LB-1793984890694-72dfd579",
+          "obs": "",
+          "status": "Pendente",
+          "ticket": "",
+          "valor": 20
+        },
+        "bankMovement": {
+          "advanceCode": "ADTMW58A8U335766157",
+          "bancoCod": "BC-005",
+          "data": "06/11/2026",
+          "descricao": "Adiantamento: TESTE NAO APAGAR",
+          "id": "LB-1793984890694-72dfd579",
+          "source": "advance",
+          "tipo": "Saida",
+          "valor": 20
+        },
+        "createdAt": "2026-11-06T17:08:10.695Z",
+        "createdBy": "elaine",
+        "fornCod": "F675",
+        "requestFingerprint": "b1868e8d0dc6804749a7ce7570645df07553c421d67af198af25f4eb34091d43"
       },
       "erp_elaine_9ab272d2-85b1-4c0d-90b7-f34b4f042c7c": {
         "advance": {
@@ -18964,6 +19009,61 @@
         "createdAt": "2026-11-05T20:54:29.926Z",
         "createdBy": "elaine"
       },
+      "erp_elaine_ab688c20-c341-4e1d-b7fb-72bd0c846679": {
+        "action": "delete",
+        "adtCod": "ADTMW58A8U335766157",
+        "createdAt": "2026-11-06T17:08:44.595Z",
+        "createdBy": "elaine",
+        "result": {
+          "action": "delete",
+          "fornCod": "F675",
+          "movementRemovedId": "LB-1793984890694-72dfd579",
+          "newFornCod": "F675",
+          "removedCode": "ADTMW58A8U335766157"
+        }
+      },
+      "erp_elaine_aed921fb-9b43-4367-aed4-782e23813247": {
+        "action": "delete",
+        "adtCod": "ADTMW4ZESCA627DB0F2",
+        "createdAt": "2026-11-06T17:11:11.050Z",
+        "createdBy": "elaine",
+        "result": {
+          "action": "delete",
+          "fornCod": "F675",
+          "movementRemovedId": "LB-1793969986049-f61d72ee",
+          "newFornCod": "F675",
+          "removedCode": "ADTMW4ZESCA627DB0F2"
+        }
+      },
+      "erp_elaine_c0098588-96e5-4d83-87db-018fbb2bff4e": {
+        "advance": {
+          "bancoCod": "BC-005",
+          "bancoNome": "acred gratus",
+          "cod": "ADTMW586HMM1EA797F6",
+          "data": "06/11/2026",
+          "empresa": "Gratus Metais",
+          "forma": "PIX",
+          "movBancoId": "LB-1793984715463-6dac12ba",
+          "obs": "",
+          "status": "Pendente",
+          "ticket": "",
+          "valor": 10
+        },
+        "bankMovement": {
+          "advanceCode": "ADTMW586HMM1EA797F6",
+          "bancoCod": "BC-005",
+          "data": "06/11/2026",
+          "descricao": "Adiantamento: TESTE NAO APAGAR",
+          "id": "LB-1793984715463-6dac12ba",
+          "source": "advance",
+          "tipo": "Saida",
+          "valor": 10
+        },
+        "createdAt": "2026-11-06T17:05:15.463Z",
+        "createdBy": "elaine",
+        "fornCod": "F675",
+        "requestFingerprint": "4c7863375fed406986b3e03366cf55a4b176cbd0527580729c70a8af2f5ef550"
+      },
       "erp_elaine_c89a4fe4-822a-49c9-a205-966276fbd71b": {
         "action": "delete",
         "adtCod": "ADTMW4ZLL9ODD810513",
@@ -18975,6 +19075,32 @@
           "movementRemovedId": "LB-1793970303472-8c128f28",
           "newFornCod": "F675",
           "removedCode": "ADTMW4ZLL9ODD810513"
+        }
+      },
+      "erp_elaine_dbeb6e92-7c7a-474d-8ada-afc7d8ad5e25": {
+        "action": "delete",
+        "adtCod": "ADTMW493XON5F008A0F",
+        "createdAt": "2026-11-06T17:11:05.712Z",
+        "createdBy": "elaine",
+        "result": {
+          "action": "delete",
+          "fornCod": "F675",
+          "movementRemovedId": "LB-1793925809750-84b58ec3",
+          "newFornCod": "F675",
+          "removedCode": "ADTMW493XON5F008A0F"
+        }
+      },
+      "erp_elaine_e489ba30-8a11-45df-a90c-c065ebd90fbf": {
+        "action": "delete",
+        "adtCod": "ADTMW58A1I5B9201237",
+        "createdAt": "2026-11-06T17:08:41.896Z",
+        "createdBy": "elaine",
+        "result": {
+          "action": "delete",
+          "fornCod": "F675",
+          "movementRemovedId": "LB-1793984881196-1b8b33f2",
+          "newFornCod": "F675",
+          "removedCode": "ADTMW58A1I5B9201237"
         }
       },
       "erp_elaine_e4c7be39-2751-4af5-b600-96257a43deab": {
@@ -147905,6 +148031,195 @@
         "resumo": "TESTE NAO APAGAR — R$ 500,00 — 06/11/2026 — acred gratus",
         "ts": 1793970303286,
         "usuario": "Elaine"
+      },
+      "HIST1793984715163vyklz": {
+        "acao": "Criado",
+        "data": "06/11/2026, 14:05:15",
+        "extra": {
+          "cod": "ADTMW586HMM1EA797F6",
+          "fornCod": "F675"
+        },
+        "id": "HIST1793984715163vyklz",
+        "modulo": "Adiantamento",
+        "resumo": "TESTE NAO APAGAR — R$ 10,00 — 06/11/2026 — acred gratus",
+        "ts": 1793984715163,
+        "usuario": "Elaine"
+      },
+      "HIST1793984790139l1p5m": {
+        "acao": "Excluído",
+        "data": "06/11/2026, 14:06:30",
+        "extra": {
+          "fornCod": "F675"
+        },
+        "id": "HIST1793984790139l1p5m",
+        "modulo": "Adiantamento",
+        "registro": {
+          "bancoCod": "BC-005",
+          "bancoNome": "acred gratus",
+          "cod": "ADTMW586HMM1EA797F6",
+          "data": "06/11/2026",
+          "empresa": "Gratus Metais",
+          "forma": "PIX",
+          "movBancoId": "LB-1793984715463-6dac12ba",
+          "obs": "",
+          "status": "Pendente",
+          "ticket": "",
+          "valor": 10
+        },
+        "resumo": "F675 ADTMW586HMM1EA797F6 — R$ 10.00 (06/11/2026)",
+        "ts": 1793984790139,
+        "usuario": "Elaine"
+      },
+      "HIST1793984880884h5dgg": {
+        "acao": "Criado",
+        "data": "06/11/2026, 14:08:00",
+        "extra": {
+          "cod": "ADTMW58A1I5B9201237",
+          "fornCod": "F675"
+        },
+        "id": "HIST1793984880884h5dgg",
+        "modulo": "Adiantamento",
+        "resumo": "TESTE NAO APAGAR — R$ 15,00 — 06/11/2026 — acred gratus",
+        "ts": 1793984880884,
+        "usuario": "Elaine"
+      },
+      "HIST1793984890410bmnt5": {
+        "acao": "Criado",
+        "data": "06/11/2026, 14:08:10",
+        "extra": {
+          "cod": "ADTMW58A8U335766157",
+          "fornCod": "F675"
+        },
+        "id": "HIST1793984890410bmnt5",
+        "modulo": "Adiantamento",
+        "resumo": "TESTE NAO APAGAR — R$ 20,00 — 06/11/2026 — acred gratus",
+        "ts": 1793984890410,
+        "usuario": "Elaine"
+      },
+      "HIST17939849216151xu7d": {
+        "acao": "Excluído",
+        "data": "06/11/2026, 14:08:41",
+        "extra": {
+          "fornCod": "F675"
+        },
+        "id": "HIST17939849216151xu7d",
+        "modulo": "Adiantamento",
+        "registro": {
+          "bancoCod": "BC-005",
+          "bancoNome": "acred gratus",
+          "cod": "ADTMW58A1I5B9201237",
+          "data": "06/11/2026",
+          "empresa": "Gratus Metais",
+          "forma": "PIX",
+          "movBancoId": "LB-1793984881196-1b8b33f2",
+          "obs": "",
+          "status": "Pendente",
+          "ticket": "",
+          "valor": 15
+        },
+        "resumo": "F675 ADTMW58A1I5B9201237 — R$ 15.00 (06/11/2026)",
+        "ts": 1793984921615,
+        "usuario": "Elaine"
+      },
+      "HIST1793984924291rlp9c": {
+        "acao": "Excluído",
+        "data": "06/11/2026, 14:08:44",
+        "extra": {
+          "fornCod": "F675"
+        },
+        "id": "HIST1793984924291rlp9c",
+        "modulo": "Adiantamento",
+        "registro": {
+          "bancoCod": "BC-005",
+          "bancoNome": "acred gratus",
+          "cod": "ADTMW58A8U335766157",
+          "data": "06/11/2026",
+          "empresa": "Gratus Metais",
+          "forma": "PIX",
+          "movBancoId": "LB-1793984890694-72dfd579",
+          "obs": "",
+          "status": "Pendente",
+          "ticket": "",
+          "valor": 20
+        },
+        "resumo": "F675 ADTMW58A8U335766157 — R$ 20.00 (06/11/2026)",
+        "ts": 1793984924291,
+        "usuario": "Elaine"
+      },
+      "HIST17939850654359gxq0": {
+        "acao": "Excluído",
+        "data": "06/11/2026, 14:11:05",
+        "extra": {
+          "fornCod": "F675"
+        },
+        "id": "HIST17939850654359gxq0",
+        "modulo": "Adiantamento",
+        "registro": {
+          "bancoCod": "BC-005",
+          "bancoNome": "acred gratus",
+          "cod": "ADTMW493XON5F008A0F",
+          "data": "05/11/2026",
+          "empresa": "Gratus Metais",
+          "forma": "PIX",
+          "movBancoId": "LB-1793925809750-84b58ec3",
+          "obs": "",
+          "status": "Pendente",
+          "ticket": "",
+          "valor": 12322333
+        },
+        "resumo": "F675 ADTMW493XON5F008A0F — R$ 12322333.00 (05/11/2026)",
+        "ts": 1793985065435,
+        "usuario": "Elaine"
+      },
+      "HIST1793985069102tb3l3": {
+        "acao": "Excluído",
+        "data": "06/11/2026, 14:11:09",
+        "extra": {
+          "fornCod": "F675"
+        },
+        "id": "HIST1793985069102tb3l3",
+        "modulo": "Adiantamento",
+        "registro": {
+          "bancoCod": "BC-005",
+          "bancoNome": "acred gratus",
+          "cod": "ADTMW4ZFEW543339991",
+          "data": "06/11/2026",
+          "empresa": "Gratus Metais",
+          "forma": "PIX",
+          "movBancoId": "LB-1793970015284-fbf5589b",
+          "obs": "",
+          "status": "Pendente",
+          "ticket": "",
+          "valor": 12
+        },
+        "resumo": "F675 ADTMW4ZFEW543339991 — R$ 12.00 (06/11/2026)",
+        "ts": 1793985069102,
+        "usuario": "Elaine"
+      },
+      "HIST1793985070736vg6bk": {
+        "acao": "Excluído",
+        "data": "06/11/2026, 14:11:10",
+        "extra": {
+          "fornCod": "F675"
+        },
+        "id": "HIST1793985070736vg6bk",
+        "modulo": "Adiantamento",
+        "registro": {
+          "bancoCod": "BC-005",
+          "bancoNome": "acred gratus",
+          "cod": "ADTMW4ZESCA627DB0F2",
+          "data": "06/11/2026",
+          "empresa": "Gratus Metais",
+          "forma": "PIX",
+          "movBancoId": "LB-1793969986049-f61d72ee",
+          "obs": "",
+          "status": "Pendente",
+          "ticket": "",
+          "valor": 2223
+        },
+        "resumo": "F675 ADTMW4ZESCA627DB0F2 — R$ 2223.00 (06/11/2026)",
+        "ts": 1793985070736,
+        "usuario": "Elaine"
       }
     },
     "lancBanco": {
@@ -148299,30 +148614,6 @@
         "id": "LB-1793901394583-25fb103f",
         "tipo": "Saida",
         "valor": 20000
-      },
-      "LB-1793925809750-84b58ec3": {
-        "bancoCod": "BC-005",
-        "data": "05/11/2026",
-        "descricao": "Adiantamento: TESTE NAO APAGAR",
-        "id": "LB-1793925809750-84b58ec3",
-        "tipo": "Saida",
-        "valor": 12322333
-      },
-      "LB-1793969986049-f61d72ee": {
-        "bancoCod": "BC-005",
-        "data": "06/11/2026",
-        "descricao": "Adiantamento: TESTE NAO APAGAR",
-        "id": "LB-1793969986049-f61d72ee",
-        "tipo": "Saida",
-        "valor": 2223
-      },
-      "LB-1793970015284-fbf5589b": {
-        "bancoCod": "BC-005",
-        "data": "06/11/2026",
-        "descricao": "Adiantamento: TESTE NAO APAGAR",
-        "id": "LB-1793970015284-fbf5589b",
-        "tipo": "Saida",
-        "valor": 12
       },
       "LB-PG-1793809534105-43ad5f21": {
         "bancoCod": "BC-007",
@@ -182301,6 +182592,65 @@
       "scope": "",
       "source": "browser",
       "ts": 1793973369039
+    },
+    "-P5lCfcUgolXFNbEspCC": {
+      "action": "logout",
+      "actorLogin": "elaine",
+      "actorUid": "erp:elaine",
+      "entityId": "",
+      "entityType": "session",
+      "module": "auth",
+      "scope": "",
+      "source": "browser",
+      "ts": 1793974516481
+    },
+    "-P5lG_m3OsbU53Q99oCG": {
+      "action": "logout",
+      "actorLogin": "elaine",
+      "actorUid": "erp:elaine",
+      "entityId": "",
+      "entityType": "session",
+      "module": "auth",
+      "scope": "",
+      "source": "browser",
+      "ts": 1793975541352
+    },
+    "-P5lHGB2EjG0jdYvevmB": {
+      "action": "login",
+      "actorLogin": "elaine",
+      "actorUid": "erp:elaine",
+      "entityId": "",
+      "entityType": "session",
+      "ipHash": "fbf1f4d0dd8971bfc54b45be19526c177b8fe5a5de0618306993aac7d8a0c360",
+      "module": "auth",
+      "outcome": "success",
+      "scope": "",
+      "source": "server",
+      "ts": 1793975718672
+    },
+    "-P5lhCSz26KR6NLUMMpB": {
+      "action": "logout",
+      "actorLogin": "elaine",
+      "actorUid": "erp:elaine",
+      "entityId": "",
+      "entityType": "session",
+      "module": "auth",
+      "scope": "",
+      "source": "browser",
+      "ts": 1793982810652
+    },
+    "-P5loHL2FxewdDOgH_bf": {
+      "action": "login",
+      "actorLogin": "elaine",
+      "actorUid": "erp:elaine",
+      "entityId": "",
+      "entityType": "session",
+      "ipHash": "fbf1f4d0dd8971bfc54b45be19526c177b8fe5a5de0618306993aac7d8a0c360",
+      "module": "auth",
+      "outcome": "success",
+      "scope": "",
+      "source": "server",
+      "ts": 1793984636304
     }
   },
   "erpAuth": {
@@ -182756,15 +183106,6 @@
     "F663": {
       "expiresAt": 1793912947275,
       "owner": "33f06b87-92eb-4580-940e-8351934fbca8"
-    },
-    "F675": {
-      "expiresAt": 1793971779767,
-      "fornCod": "F675",
-      "kind": "change",
-      "operationKey": "erp_elaine_9143191b-135c-4a10-b3fb-2dab827ffb0f",
-      "owner": "d8e62e6e-1e7e-4928-90fe-024203481b00",
-      "requestFingerprint": "",
-      "startedAt": 1793971659767
     }
   },
   "erpFinancePayableLocks": {

@@ -76,5 +76,5 @@ test('baixa envia a data escolhida sem referência a date inexistente',()=>{
 
 test('front publicado carrega os assets com revisão para não usar o JavaScript antigo',()=>{
   assert.match(bootstrap,/script\.src = src \+ '\?v=' \+ assetRevision/);
-  assert.match(html,/app\/bootstrap\.js\?v=20261106-finance-guided-reconciliation-v3/);
+  assert.match(html,/app\/bootstrap\.js\?v=20261106-advance-delete-replay-v4/);
 });

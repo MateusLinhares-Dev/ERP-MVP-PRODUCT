@@ -28,7 +28,11 @@ if(generic && (String(generic['.read']||'').includes('erpAccess == true') || Str
 }
 const candidate=JSON.parse(fs.readFileSync(path.join(process.cwd(),'docs','database.rules.candidate.json'),'utf8'));
 const policy=JSON.parse(fs.readFileSync(path.join(process.cwd(),'public','app','rtdb-collection-policy.json'),'utf8'));
-if(JSON.stringify(rules)!==JSON.stringify(candidate)||policy.version!==1||Object.keys(policy.nodes||{}).length!==99){
+const sync=fs.readFileSync(path.join(process.cwd(),'public','legacy','firebase-sync.js'),'utf8');
+const listed=/const _ERP_NOS_SINCRONIZADOS\s*=\s*\[([\s\S]*?)\];/.exec(sync);
+const names=listed?[...listed[1].matchAll(/'([^']+)'/g)].map(entry=>entry[1]):[];
+if(JSON.stringify(rules)!==JSON.stringify(candidate)||policy.version!==1||names.length===0||
+  Object.keys(policy.nodes||{}).length!==names.length||names.some(name=>!policy.nodes[name])){
   console.error('[DEPLOY] BLOQUEADO: regras ou catálogo divergentes. Execute npm run generate:rules:candidate.');
   process.exit(2);
 }
