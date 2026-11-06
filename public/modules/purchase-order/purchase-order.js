@@ -177,18 +177,46 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
     });
     const legacyExcess=recordedTicket?Math.max(0,Number(recordedTicket.adiantamento||0)-Number(recordedTicket.totalGeral||0)):0;
     const legacyDuplicate=legacyExcess>0&&Math.abs(legacyExcess-persisted)<0.01;
-    if(!all.length&&(linkedAdvance||legacyDuplicate)){
+    // Crédito de sobra de compra antiga (ex.: T284: 500 adiantados, 300 comprados).
+    // Os demais adiantamentos pendentes NÃO são cópias desse saldo: podem coexistir.
+    // Só disponibilizar a sobra quando a origem, o pagamento original, o saldo
+    // persistido e o consumo posterior forem consistentes (fail-closed).
+    const sourceAdvances=(ADT_POR_FORN[code]||[]).filter(function(a){
+      return a&&a.status==='Quitado'&&String(a.ticket||'')===persistedTicket&&
+        !String(a.forma||'').toLowerCase().includes('cheque');
+    });
+    const laterUsed=historical.reduce(function(sum,ticket){
+      return sum+(String(ticket?.creditoFornecedorOrigem||'')===persistedTicket?
+        Math.max(0,Number(ticket.creditoFornecedorAplicado||0)):0);
+    },0);
+    const legacyVerified=!!(recordedTicket&&
+      ['Pago','Quitado'].includes(String(recordedTicket.status||''))&&
+      sourceAdvances.length===1&&
+      Math.abs(Number(sourceAdvances[0].valor||0)-Number(recordedTicket.adiantamento||0))<0.01&&
+      legacyExcess>0&&Math.abs(legacyExcess-laterUsed-persisted)<0.01);
+    const sourceReceipts=recordedTicket?.reciboFinanceiro?.adiantamentos||[];
+    const residualAlreadyInAdvance=eligible.some(function(a){
+      return sourceReceipts.some(function(row){return String(row.cod||'')===String(a.cod||'')})&&
+        Math.abs(Number(a.valor||0)-persisted)<0.01;
+    });
+    if(residualAlreadyInAdvance){
+      // Comprovado no adiantamento pendente; jamais disponibilizar novamente em saldoDevedor.
+      balance=0;
+    }else if(legacyVerified){
+      balance=persisted;
+      creditSource=persistedTicket;
+    }else if(!all.length&&(linkedAdvance||legacyDuplicate)){
       issues.push('O saldo anterior pode ser duplicação de um adiantamento já utilizado. É necessário conferir o histórico financeiro.');
-    }else if(all.length){
-      if(!trackedSource){
-        issues.push('Há um saldo antigo e um adiantamento pendente para o mesmo fornecedor sem conciliação comprovada. Não é seguro somar os dois.');
-        adts=[];
-        cheques=supplierCheques;
-      }
+    }else if(all.length&&!trackedSource){
+      issues.push('Há um saldo antigo e adiantamentos pendentes sem conciliação comprovada. Não é seguro somar os dois.');
+      adts=[];
+      cheques=supplierCheques;
     }else if(persistedTicket&&!recordedTicket){
       issues.push('O saldo anterior aponta para um ticket excluído ou indisponível. Confira o histórico financeiro antes de aplicá-lo.');
-    }else{
+    }else if(!all.length&&!persistedTicket){
       balance=persisted;
+    }else{
+      issues.push('Saldo residual sem origem financeira validada. Solicite conciliação.');
     }
   }
   return {adts,cheques,balance,creditSource,issues};
@@ -198,6 +226,11 @@ function validatePurchaseCredits(state){
   const latest=financialData(null,state.supplierCode,state.sourceTicketKeys);
   if(latest.issues.length)throw new Error(latest.issues.join(' '));
   const available=new Map(latest.adts.concat(latest.cheques).map(function(a){return [String(a.cod||a.id||a.num||a.numero||''),Number(a.valor)];}));
+  const creditSelected=Boolean(document.getElementById('cssdv')?.checked&&Number(state.previousCredit||0)>0);
+  const otherSelected=state.adts.some(function(_,i){return document.getElementById('csadt-'+i)?.checked;})||
+    state.cheques.some(function(_,i){return document.getElementById('cscheq-'+i)?.checked;});
+  if(creditSelected&&otherSelected)
+    throw new Error('Selecione somente o crédito residual OU outros adiantamentos/cheques. Não é seguro misturar as fontes na mesma compra.');
   const selected=state.adts.concat(state.cheques).filter(function(item,index){
     const prefix=index<state.adts.length?'csadt-':'cscheq-';
     const pos=index<state.adts.length?index:index-state.adts.length;
@@ -354,13 +387,13 @@ function paymentHtml(state){
       'A edição dos itens não cria uma nova baixa nem reutiliza pagamentos. Alterações financeiras protegidas exigem conciliação.</div>';
   }
   const adts=(state.adts||[]).map(function(a,index){
-    return '<label class="phase4-po-pay-row"><input type="checkbox" id="csadt-'+index+'" value="'+Number(a.valor||0)+'" checked onchange="phase4PurchaseRecalc()"><span><b>'+esc(a.cod||'Adiantamento')+'</b><small>'+esc(a.data||'')+' · '+esc(a.forma||a.bancoNome||'')+'</small></span><strong>R$ '+money(a.valor)+'</strong></label>';
+    return '<label class="phase4-po-pay-row"><input type="checkbox" id="csadt-'+index+'" value="'+Number(a.valor||0)+'" onchange="phase4PurchaseRecalc()"><span><b>'+esc(a.cod||'Adiantamento')+'</b><small>'+esc(a.data||'')+' · '+esc(a.forma||a.bancoNome||'')+'</small></span><strong>R$ '+money(a.valor)+'</strong></label>';
   }).join('');
   const cheques=(state.cheques||[]).map(function(c,index){
-    return '<label class="phase4-po-pay-row"><input type="checkbox" id="cscheq-'+index+'" value="'+Number(c.valor||0)+'" checked onchange="phase4PurchaseRecalc()"><span><b>Cheque '+esc(c.num||c.cod||'')+'</b><small>'+esc(c.bomPara||c.data||'')+' · '+esc(c.banco||c.bancoNome||c.forma||'')+'</small></span><strong>R$ '+money(c.valor)+'</strong></label>';
+    return '<label class="phase4-po-pay-row"><input type="checkbox" id="cscheq-'+index+'" value="'+Number(c.valor||0)+'" onchange="phase4PurchaseRecalc()"><span><b>Cheque '+esc(c.num||c.cod||'')+'</b><small>'+esc(c.bomPara||c.data||'')+' · '+esc(c.banco||c.bancoNome||c.forma||'')+'</small></span><strong>R$ '+money(c.valor)+'</strong></label>';
   }).join('');
   const credit=state.previousCredit>0
-    ? '<label class="phase4-po-pay-row credit"><input type="checkbox" id="cssdv" value="'+Number(state.previousCredit||0)+'" checked onchange="phase4PurchaseRecalc()"><span><b>Crédito restante do fornecedor</b><small>Saldo disponível após compensações anteriores</small></span><strong>R$ '+money(state.previousCredit)+'</strong></label>'
+    ? '<label class="phase4-po-pay-row credit"><input type="checkbox" id="cssdv" value="'+Number(state.previousCredit||0)+'" onchange="phase4PurchaseRecalc()"><span><b>Crédito restante do fornecedor</b><small>Saldo disponível após compensações anteriores</small></span><strong>R$ '+money(state.previousCredit)+'</strong></label>'
     : '';
   const issues=(state.creditIssues||[]).length?'<div class="phase4-po-empty-pay" role="alert">Conciliação financeira necessária: '+(state.creditIssues||[]).map(esc).join(' ')+'</div>':'';
   if(!adts&&!cheques&&!credit&&!issues)return '<div class="phase4-po-empty-pay">Nenhum adiantamento, cheque ou crédito pendente para este fornecedor.</div>';
@@ -526,6 +559,7 @@ global.phase4PurchaseRecalc=function(){
     // Editing only changes the outstanding amount by the difference in gross total.
     advances=Math.max(0,Number(state.appliedAdvance||0));
   }
+  if(!state.editKey)advances=Math.min(total,advances);
   const balance=state.editKey
     ? Math.round((Number(state.originalBalance||0)+(total-Number(state.originalTotal||0)))*100)/100
     : Math.round((total-advances)*100)/100;
@@ -863,6 +897,43 @@ async function purchaseConfirmCloud(key,ticket,options={}){
   return saved;
 }
 global.__ERP_PURCHASE_COMMIT_TICKET__=purchaseConfirmCloud;
+async function purchaseCreateAtomic(key,ticket,state,body){
+  const user=global.firebase?.auth?.()?.currentUser;
+  if(!user?.getIdToken)throw new Error('Sessão Firebase inválida. Nenhuma compra foi registrada.');
+  const advanceCodes=(state.adts||[]).filter(function(_,i){return document.getElementById('csadt-'+i)?.checked;}).map(function(a){return String(a.cod||'');});
+  const chequeIds=(state.cheques||[]).filter(function(c,i){return document.getElementById('cscheq-'+i)?.checked&&!c.cod;}).map(function(c){return String(c.id||c.num||c.numero||'');});
+  (state.cheques||[]).filter(function(c,i){return document.getElementById('cscheq-'+i)?.checked&&c.cod;}).forEach(function(c){advanceCodes.push(String(c.cod));});
+  const useLegacyCredit=Boolean(document.getElementById('cssdv')?.checked&&state.previousCredit>0);
+  if(useLegacyCredit&&(advanceCodes.length||chequeIds.length))throw new Error('Selecione somente o crédito residual OU outros adiantamentos/cheques nesta compra.');
+  const operationId=body.dataset.purchaseOperationId;
+  const response=await fetch('/api/finance/purchase-order-create',{
+    method:'POST',credentials:'same-origin',
+    headers:{Authorization:'Bearer '+await user.getIdToken(),'Content-Type':'application/json'},
+    body:JSON.stringify({operationId,ticketNo:key,fornecedorCod:state.supplierCode,ticket,
+      advanceCodes,chequeIds,useLegacyCredit,sourceTicketKeys:state.sourceTicketKeys||[]})
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ticket)throw new Error(result.message||'Não foi possível confirmar a compra e seus créditos no servidor. Verifique o histórico antes de repetir.');
+  if(result.ticket.ticket!==key)throw new Error('A confirmação do pedido retornou identificador divergente.');
+  const clone=function(v){return v==null?v:JSON.parse(JSON.stringify(v));};
+  const arrayRows=function(v){return Array.isArray(v)?clone(v):Object.values(clone(v)||{});};
+  TICKETS_DB[key]=clone(result.ticket);
+  for(const source of state.sourceTicketKeys||[]){
+    if(TICKETS_DB[source]){TICKETS_DB[source]._consolidadoEm=key;TICKETS_DB[source].status='Consolidado';TICKETS_DB[source]._balFinalizado=false;}
+  }
+  ADT_POR_FORN[state.supplierCode]=arrayRows(result.advances);
+  CHEQUES_POR_FORN[state.supplierCode]=arrayRows(result.cheques);
+  if(result.saldo==null)delete SALDO_DEVEDOR_FORN[state.supplierCode];
+  else SALDO_DEVEDOR_FORN[state.supplierCode]=clone(result.saldo);
+  try{localStorage.setItem('mm_saldo_devedor',JSON.stringify(SALDO_DEVEDOR_FORN));}catch(_e){}
+  if(Array.isArray(CONTAS_PAGAR)){
+    for(let i=CONTAS_PAGAR.length-1;i>=0;i--)if(String(CONTAS_PAGAR[i]?.ticket||'')===key)CONTAS_PAGAR.splice(i,1);
+    if(result.payable)CONTAS_PAGAR.push(clone(result.payable));
+  }
+  try{if(typeof _ticketsSnapJSON!=='undefined')_ticketsSnapJSON[key]=JSON.stringify(result.ticket);}catch(_e){}
+  return result.ticket;
+}
+
 
 function sourceSignature(keys){
   return (keys||[]).map(String).filter(Boolean).sort().join('|');
@@ -904,7 +975,7 @@ function setSaving(value){
 }
 function resetOrderState(body){
   if(!body)return;
-  ['phase4Order','itensData','ticketKeys','adtsData','cheqsData','saldoAnterior','fornCod','itensCount','adtCount','cheqsCount','phase1Extras','phase1Enhanced','purchaseOperationId'].forEach(function(key){delete body.dataset[key];});
+  ['phase4Order','itensData','ticketKeys','adtsData','cheqsData','saldoAnterior','fornCod','itensCount','adtCount','cheqsCount','phase1Extras','phase1Enhanced','purchaseOperationId','purchaseReservedNumber'].forEach(function(key){delete body.dataset[key];});
   body.querySelectorAll('.phase4-po-legacy-price').forEach(function(el){el.remove();});
   body.innerHTML='<div class="phase4-po-saved-empty">Pedido concluído. Selecione uma nova pesagem em <b>Pesagens a fechar</b> ou use <b>+ Nova Entrada</b>.</div>';
   const select=document.getElementById('cs-lanc-forn');if(select)select.value='';
@@ -1087,7 +1158,8 @@ global.phase4PurchaseSave=async function(){
   let purchaseCommitted=false;
   let snapshot=null;
   try{
-    const availableNumber=await checkAvailablePurchaseNumber();
+    const availableNumber=body.dataset.purchaseReservedNumber||await checkAvailablePurchaseNumber();
+    body.dataset.purchaseReservedNumber=availableNumber;
     state.orderNumber=availableNumber;
     global.__ERP_PURCHASE_SELECTED_NUMBER__=availableNumber;
     const numberInput=document.getElementById('phase4-po-number');
@@ -1112,22 +1184,14 @@ global.phase4PurchaseSave=async function(){
     if(!ticket)throw new Error('A compra não pôde ser preparada para confirmação.');
     ticket._purchaseOperationId=body.dataset.purchaseOperationId;
     purchasePendingKeys.add(key);
-    try{await purchaseConfirmCloud(key,ticket,{create:true});}
-    catch(error){
-      // O ACK pode ter se perdido depois da transação ter sido gravada.
-      // Consulte a MESMA chave antes de classificar como falha; nunca crie outro número.
-      let confirmed=null;
-      try{confirmed=(await purchaseCloudRef(key).once('value')).val();}catch(_error){}
-      if(!confirmed || confirmed._purchaseOperationId!==ticket._purchaseOperationId
-        || purchaseStableSnapshot(confirmed)!==purchaseStableSnapshot(ticket))throw error;
-      TICKETS_DB[key]=confirmed;
-      try{_ticketsSnapJSON[key]=JSON.stringify(confirmed);}catch(_e){}
+    try{
+      await purchaseCreateAtomic(key,ticket,state,body);
     }finally{purchasePendingKeys.delete(key);}
-    try{if(typeof saveContasPagar==='function')saveContasPagar();}catch(e){}
-    try{if(typeof saveDB==='function')saveDB();}catch(e){}
+    // Sem saveContasPagar/fbSalvar aqui: o backend já confirmou todas as
+    // coleções num único commit, e regravar cache local causaria corrida.
     purchaseCommitted=true;
     delete body.dataset.purchaseOperationId;
-    finishPurchaseSave(body,key,ticket,totals);
+    finishPurchaseSave(body,key,TICKETS_DB[key],totals);
     return result;
   }catch(error){
     // Rollback apenas quando o resultado é negativo ou desconhecido; se o ACK
@@ -1141,7 +1205,8 @@ global.phase4PurchaseSave=async function(){
   }finally{
     delete global.__ERP_PURCHASE_SELECTED_NUMBER__;
     delete global.__ERP_PURCHASE_APPROVED_ADVANCES__;
-    finishPurchaseDeferredSave(purchaseCommitted);
+    // A operação já foi persistida atomicamente; não republicar o snapshot legado.
+    finishPurchaseDeferredSave(false);
     setSaving(false);
   }
 };

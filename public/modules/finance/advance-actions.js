@@ -61,5 +61,21 @@ const alertUser=(message,type='error')=>{if(typeof global.showToast==='function'
   };
   global.excluirAdiantamento = (supplierCode, advanceCode) => deleteAdvance(String(supplierCode), String(advanceCode));
 
+// Na inclusão sequencial de cheques, o próximo herda o banco escolhido
+// na última linha. A escolha explícita de banco (p.ex., gerar sequência)
+// continua prevalecendo. Não altera nenhum cheque já preenchido.
+const legacyAddCheque=global._adtChqAddRow;
+if(typeof legacyAddCheque==='function'){
+  global._adtChqAddRow=function(banco,...rest){
+    let selected=banco;
+    if(!selected){
+      const rows=global.document?.querySelectorAll?.('#adt-chq-rows .adt-chq-row .rb');
+      const previous=rows?.length?rows[rows.length-1]:null;
+      selected=String(previous?.value||'').trim()||undefined;
+    }
+    return legacyAddCheque.call(this,selected,...rest);
+  };
+}
+
 global.ERPAdvanceActions={deleteAdvance,candidatesForAdvance};
 })(window);

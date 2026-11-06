@@ -597,6 +597,17 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       try{ _fbEnviadoOk[k]=JSON.stringify(objLote[k]); }catch(e){}
     });
   }
+  function _fbRegistrarBaseConfirmada(d){
+    if(!d||typeof d!=='object')return;
+    // O retorno e uma fotografia confirmada do servidor, nao do cache local.
+    // Se uma entidade foi modificada localmente, a diferenca continua detectavel.
+    Object.entries(d).forEach(function([no,registros]){
+      if(no.startsWith('_') || !registros || typeof registros!=='object' || Array.isArray(registros))return;
+      Object.entries(registros).forEach(function([id,valor]){
+        try{ _fbEnviadoOk[no+'/'+id]=JSON.stringify(valor); }catch(e){}
+      });
+    });
+  }
   function _dividirEmLotes(dados, limiteBytes, maxItens){
     maxItens = maxItens || MAX_ITENS_POR_LOTE;
     let entradas=[];
@@ -659,27 +670,26 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   }
 
   async function _enviarMapaErp(dados){
+    // Um lote e uma unica operacao multi-caminho: ou todas as colecoes passam
+    // nas regras do RTDB, ou nenhuma delas e alterada.
     const grupos=_agruparAtualizacoesErp(dados);
-    const entradas=Object.entries(grupos);
-    const concorrencia=8;
-    for(let inicio=0;inicio<entradas.length;inicio+=concorrencia){
-      const faixa=entradas.slice(inicio,inicio+concorrencia);
-      const respostas=await Promise.allSettled(faixa.map(async function(par){
-        const raiz=par[0],grupo=par[1];
-        const ref=window._fbDB.ref('erp/'+raiz);
-        if(grupo.temValor){
-          await _comTimeoutFirebase(ref.set(grupo.valor),75000);
-          if(Object.keys(grupo.patch).length)await _comTimeoutFirebase(ref.update(grupo.patch),75000);
-        }else if(Object.keys(grupo.patch).length){
-          await _comTimeoutFirebase(ref.update(grupo.patch),75000);
-        }
-      }));
-      const falhas=respostas.map(function(resultado,index){
-        if(resultado.status!=='rejected')return null;
-        const err=resultado.reason;
-        return 'erp/'+faixa[index][0]+': '+String(err?.message||err||'Falha desconhecida');
-      }).filter(Boolean);
-      if(falhas.length)throw new Error('Gravação não confirmada em '+falhas.join(' | ').slice(0,700));
+    const patch={};
+    Object.entries(grupos).forEach(function([raiz,grupo]){
+      if(grupo.temValor){
+        const value=grupo.valor;
+        const filhos=Object.entries(grupo.patch);
+        if(!filhos.length){ patch[raiz]=value; return; }
+        // Uma atualizacao que misture o pai e o filho nao pode ter caminhos sobrepostos.
+        // Falhar em vez de produzir uma gravação parcial/ambigua.
+        throw new Error('Lote com caminhos sobrepostos em erp/'+raiz);
+      }
+      Object.entries(grupo.patch).forEach(function([sub,val]){patch[raiz+'/'+sub]=val;});
+    });
+    if(!Object.keys(patch).length)return;
+    try{
+      await _comTimeoutFirebase(window._fbDB.ref('erp').update(patch),75000);
+    }catch(error){
+      throw new Error('Atualizacao atomica RTDB recusada para '+Object.keys(grupos).join(', ')+': '+String(error?.message||error));
     }
   }
 
@@ -1628,6 +1638,8 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         _fbAtualizando = false;
         _fcRedesenharSeAberta();
         _fbDadosCarregados = true;window.__FB_DATA_READY__=true;
+        // So registrar o snapshot confiavel de leitura; nao descartar pendencias locais.
+        if(_fbConfiavel) _fbRegistrarBaseConfirmada(d);
         _fbSetStatus('ok');
 
         
@@ -1816,7 +1828,8 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       },1200);
     }
 
-    window._fbDB.ref('erp/_ts').on('value', snap => {
+    const _fbTsRef=window._fbDB.ref('erp/_ts');
+    const _fbTsOnValue = snap => {
       if(_fbAtualizando) return;
       const ts = snap.val();
       if(!ts) return;
@@ -2054,6 +2067,9 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
             Object.assign(FISCAL_APUR, d.fiscalApur);
             try{ localStorage.setItem('mm_fiscal_apur',JSON.stringify(FISCAL_APUR)); }catch(_){}
           }
+          // Atualiza o baseline após um snapshot remoto confiável. Não trata edição
+          // local pendente como confirmada, nem envia dados da sessão ao servidor.
+          if(_fbConf2) _fbRegistrarBaseConfirmada(d);
         } catch(e){}
         _fbAtualizando = false;
         
@@ -2100,16 +2116,24 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         }
         if(_temPendenteLocal) setTimeout(function(){ try{ _fbSalvarAgora(); }catch(e){} },0);
       });
-    }, function(errCancel){
-      
-      
-      
-      _fbListenerAtivo = false;
-      if(window.__ERP_LOGOUT_IN_PROGRESS__) return;
-      console.warn('Listener erp/_ts cancelado:', errCancel && errCancel.code);
+    };
+    let _fbTsRetryTimer=null;
+    function _fbTsOnCancel(errCancel){
+      if(window.__ERP_LOGOUT_IN_PROGRESS__)return;
+      console.warn('Listener erp/_ts cancelado:',errCancel&&errCancel.code);
       _fbSetStatus('error');
-      _fbRestaurarAuthEExecutar(fbIniciarListener,3000);
-    });
+      // Apenas este listener caiu; os listeners de tickets, fiscal, chat e empresas
+      // seguem ativos. Reiniciar fbIniciarListener() aqui duplicaria suas assinaturas.
+      try{_fbTsRef.off('value',_fbTsOnValue);}catch(e){}
+      clearTimeout(_fbTsRetryTimer);
+      _fbTsRetryTimer=setTimeout(function(){
+        if(window.__ERP_LOGOUT_IN_PROGRESS__)return;
+        if(!_fbTemUsuarioAuth()){
+          _fbRestaurarAuthEExecutar(function(){_fbTsRef.on('value',_fbTsOnValue,_fbTsOnCancel);},1500);
+        }else _fbTsRef.on('value',_fbTsOnValue,_fbTsOnCancel);
+      },3000);
+    }
+    _fbTsRef.on('value',_fbTsOnValue,_fbTsOnCancel);
 
     
     
@@ -2171,7 +2195,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         conflictMessages.delete(tid);
         TICKETS_DB[tid]=Object.assign({},TICKETS_DB[tid]||{},val);
         try{ if(typeof _normalizarTicketFinanceiro==='function') _normalizarTicketFinanceiro(TICKETS_DB[tid]); }catch(e){}
-        delete _fbEnviadoOk['tickets/'+tid];
+        try{_fbEnviadoOk['tickets/'+tid]=JSON.stringify(TICKETS_DB[tid]);}catch(e){}
         try{_ticketsSnapJSON[tid]=JSON.stringify(TICKETS_DB[tid]);}catch(e){}
         ticketsUi();
       }

@@ -343,12 +343,29 @@ let _cpMigracaoEmAndamento=false;
 function _cpMigrarParaFormatoPorChave(){
   if(_cpMigracaoEmAndamento || !window._fbDB) return;
   _cpMigracaoEmAndamento=true;
-  try{
-    window._fbDB.ref('erp/contasPagar').set(_cpParaObjeto())
-      .then(function(){ console.info('Contas a Pagar migrado pro formato por-chave na nuvem.'); })
-      .catch(function(e){ console.warn('Falha ao migrar Contas a Pagar pro formato por-chave:', e); })
-      .finally(function(){ _cpMigracaoEmAndamento=false; });
-  }catch(e){ _cpMigracaoEmAndamento=false; }
+  // Migração segura: nunca publicar uma fotografia local da coleção inteira.
+  // O callback recebe o estado ATUAL do servidor, e aborta se outro usuário
+  // já tiver convertido a coleção (ou se ela tiver sido excluída).
+  return window._fbDB.ref('erp/contasPagar').transaction(function(atual){
+    if(!Array.isArray(atual)) return;
+    const destino={};
+    let duplicado=false;
+    atual.forEach(function(conta){
+      if(!conta || typeof conta!=='object')return;
+      const id=String(conta.id||_cpIdDeterministico(conta));
+      if(Object.prototype.hasOwnProperty.call(destino,id)){
+        duplicado=true; // exigirá saneamento explícito, não perda silenciosa.
+        return;
+      }
+      destino[id]=Object.assign({},conta,{id});
+    });
+    if(duplicado)return; // aborta a transação sem perder nenhuma conta.
+    return destino;
+  },undefined,false).then(function(result){
+    if(result?.committed)console.info('Contas a Pagar migradas por transação confirmada.');
+  }).catch(function(error){
+    console.warn('Migração de Contas a Pagar não confirmada:',error);
+  }).finally(function(){_cpMigracaoEmAndamento=false;});
 }
 
 
@@ -2335,7 +2352,9 @@ function _adtsDescontadosTicket(tk){
 }
 
 function _reciboFinanceiroDoTicket(tk){
-  const alvo=Math.max(0,_numFinito(tk&&tk.adiantamento,0));
+  // Excedente de compra antiga não foi aplicado integralmente no ticket;
+  // o recibo exibe abatimento real, sem apagar o PIX original.
+  const alvo=Math.max(0,_numFinito(_compraAdiantamentoAplicado(tk),0));
   const snap=tk&&tk.reciboFinanceiro;
   if(snap&&typeof snap==='object'&&(Array.isArray(snap.adiantamentos)||Array.isArray(snap.cheques))){
     return {
@@ -10267,6 +10286,21 @@ function _compraHistoricoVisivel(ticket){
   return true;
 }
 
+// O histórico legado guarda o adiantamento ORIGINAL, inclusive o excedente.
+// Para KPIs mostrar apenas a parcela aplicada, sem alterar o lançamento bancário.
+function _compraAdiantamentoAplicado(tk){
+  const original=Math.max(0,Number(tk?.adiantamento||0));
+  const total=Math.max(0,Number(tk?.totalGeral||0));
+  if(original<=total||!Number.isFinite(original)||!Number.isFinite(total))return original;
+  const codigo=String(tk.fornecedorCod||tk.fornCod||'');
+  const linked=(ADT_POR_FORN[codigo]||[]).filter(function(a){
+    return a.status==='Quitado'&&String(a.ticket||'')===String(tk.ticket||'')&&
+      !String(a.forma||'').toLowerCase().includes('cheque');
+  });
+  if(linked.length===1&&Math.abs(Number(linked[0].valor||0)-original)<0.01)return total;
+  return original; // legado ambíguo: nunca inventar abatimento sem origem unívoca
+}
+
 function renderTickets(){
   const tbody=document.getElementById('tb-compras');
   if(!tbody)return;
@@ -10317,7 +10351,7 @@ function renderTickets(){
     lista.filter(a=>a.forma==='Crédito'&&a.status==='Pendente').forEach(a=>{ creditosTodos.push(a); });
   });
   const totalCompradoKpi=baseTodos.reduce((s,tk)=>s+(Number(tk.totalGeral)||0),0);
-  const totalAdtKpi=baseTodos.reduce((s,tk)=>s+(Number(tk.adiantamento)||0),0);
+  const totalAdtKpi=baseTodos.reduce((s,tk)=>s+_compraAdiantamentoAplicado(tk),0);
   const totalSaldoKpi=baseTodos.reduce((s,tk)=>s+Math.max(0,(Number(tk.saldoPagar)||0)),0)
                     - creditosTodos.reduce((s,c)=>s+Number(c.valor),0);
   { const kpiT=document.getElementById('kpi-tickets-mes');
@@ -10390,7 +10424,8 @@ function renderTickets(){
           ?'<span style="color:#27ae60;font-weight:800">✅ Quitado</span>'
           :'<b style="color:var(--primary)">R$ '+fmt(saldoNum)+'</b>';
     const totalCell=(tk.status==='Aguard. Preço'||!totalFinito)?'—':'R$ '+fmt(tk.totalGeral);
-    const adtCell=(tk.status==='Aguard. Preço'||!adtFinito)?'—':'R$ '+fmt(tk.adiantamento);
+    const appliedAdvance=_compraAdiantamentoAplicado(tk);
+    const adtCell=(tk.status==='Aguard. Preço'||!adtFinito)?'—':'<span title="'+(Number(tk.adiantamento||0)>appliedAdvance?'Adiantamento original R$ '+fmt(tk.adiantamento)+'; excedente de R$ '+fmt(Number(tk.adiantamento)-appliedAdvance)+' registrado como saldo do fornecedor':'Valor efetivamente aplicado')+'">R$ '+fmt(appliedAdvance)+'</span>';
     return `<tr style="${bgRow}">
       <td><b>${tk.ticket}</b></td>
       <td>${fmtDate(tk.data)||'—'}</td>
@@ -10435,7 +10470,7 @@ function renderTickets(){
   if(all.length>0){
     const totPeso=all.reduce((s,tk)=>s+(tk.itens?tk.itens.reduce((ss,i)=>ss+Number(i.pesoLiq||0),0):0),0);
     const totVal=all.reduce((s,tk)=>s+Number(tk.totalGeral||0),0);
-    const totAdt=all.reduce((s,tk)=>s+Number(tk.adiantamento||0),0);
+    const totAdt=all.reduce((s,tk)=>s+_compraAdiantamentoAplicado(tk),0);
     const totSaldo=all.reduce((s,tk)=>s+Math.max(0,Number(tk.saldoPagar||0)),0);
     rows+=`<tr style="background:#e8f5e9;font-weight:800;border-top:2px solid #27ae60">
       <td colspan="3" style="text-align:right;padding:8px 12px;color:#1a5e2a">📊 TOTAL (${all.length} ticket${all.length!==1?'s':''})</td>
@@ -11083,7 +11118,8 @@ function salvarCompra(forcar, ignorarFaltantes){
   }
   
   
-  try{ _adtSalvarNaNuvem(fornCod); }catch(e){}
+  // Em compra integrada, o servidor grava pedido e crédito no mesmo commit.
+  if(!window.__ERP_PURCHASE_IN_PROGRESS__)try{ _adtSalvarNaNuvem(fornCod); }catch(e){}
 
   
   if(saldoAnterior>0){
@@ -11100,7 +11136,7 @@ function salvarCompra(forcar, ignorarFaltantes){
       TICKETS_DELETED.delete(ticket);
       try{ localStorage.setItem('mm_tickets_deletados', JSON.stringify([...TICKETS_DELETED])); }catch(e){}
     }
-    if(window._fbDB){
+    if(window._fbDB&&!window.__ERP_PURCHASE_IN_PROGRESS__){
       try{ window._fbDB.ref('erp/ticketsDeletedV2/'+ticket).remove().catch(function(){}); }catch(e){}
       try{ window._fbDB.ref('erp/ticketsDeleted').once('value').then(function(s){ var a=s.val(); if(Array.isArray(a)){ var b=a.filter(function(x){return x!==ticket;}); if(b.length!==a.length) window._fbDB.ref('erp/ticketsDeleted').set(b); } }).catch(function(){}); }catch(e){}
     }

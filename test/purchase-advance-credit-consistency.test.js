@@ -57,7 +57,7 @@ test('adiantamento vinculado à pesagem em aberto só é usado nela',()=>{
 
 test('salvamento bloqueia crédito desatualizado sem modificar o ticket',()=>{
   const ctx=financialContext([{cod:'ADT089',valor:10003.52,status:'Pendente',ticket:'T089',forma:'PIX'}],{valor:1300.02,ticket:'T089'},paid);
-  ctx.document={getElementById:id=>id==='csadt-0'?{checked:true}:id==='cssdv'?{checked:true}:null};
+  ctx.document={getElementById:id=>id==='csadt-0'?{checked:true}:id==='cssdv'?{checked:false}:null};
   assert.throws(()=>ctx.validatePurchaseCredits({editKey:'',supplierCode:'F089',sourceTicketKeys:[],adts:[{cod:'ADT089',valor:10003.52}],cheques:[],previousCredit:1300.02}),/já foi utilizado/);
 });
 
@@ -76,5 +76,5 @@ test('baixa envia a data escolhida sem referência a date inexistente',()=>{
 
 test('front publicado carrega os assets com revisão para não usar o JavaScript antigo',()=>{
   assert.match(bootstrap,/script\.src = src \+ '\?v=' \+ assetRevision/);
-  assert.match(html,/app\/bootstrap\.js\?v=20261105-erp-purchases-concurrency-pager-v4/);
+  assert.match(html,/app\/bootstrap\.js\?v=20261106-rtdb-atomic-sync-v2/);
 });
