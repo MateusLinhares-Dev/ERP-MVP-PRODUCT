@@ -2,6 +2,24 @@
 'use strict';
 const alertUser=(message,type='error')=>{if(typeof global.showToast==='function')global.showToast(message,type,6500);else global.alert(message);};
   const deleting = new Set();
+  // O backend serializa a coleção financeira por fornecedor. O navegador
+  // precisa respeitar a mesma ordem: duas exclusões clicadas em sequência
+  // não devem disputar o lock e disparar 409 desnecessariamente.
+  const deletionQueues = new Map();
+  const scheduledDeletes = new Set();
+  function queueAdvanceDeletion(supplierCode,advanceCode,button){
+    const supplier=String(supplierCode),key=supplier+'::'+String(advanceCode);
+    if(scheduledDeletes.has(key))return Promise.resolve(false);
+    scheduledDeletes.add(key);
+    const previous=deletionQueues.get(supplier)||Promise.resolve(true);
+    const operation=previous.catch(()=>false).then(ok=>ok===false?false:deleteAdvance(supplier,advanceCode,button));
+    deletionQueues.set(supplier,operation);
+    operation.finally(()=>{
+      scheduledDeletes.delete(key);
+      if(deletionQueues.get(supplier)===operation)deletionQueues.delete(supplier);
+    }).catch(()=>{});
+    return operation;
+  }
   function candidatesForAdvance(advanceCode, supplierName) {
     if (typeof ADT_POR_FORN === 'undefined') return [];
     const result = [];
@@ -57,9 +75,9 @@ const alertUser=(message,type='error')=>{if(typeof global.showToast==='function'
       alertUser(possibilities.length ? 'Há fornecedores ambíguos para esse lançamento. Abra a ficha e exclua pelo código do fornecedor.' : 'Adiantamento não localizado. Atualize a lista.');
       return false;
     }
-    return deleteAdvance(possibilities[0].supplierCode, code, button);
+    return queueAdvanceDeletion(possibilities[0].supplierCode, code, button);
   };
-  global.excluirAdiantamento = (supplierCode, advanceCode) => deleteAdvance(String(supplierCode), String(advanceCode));
+  global.excluirAdiantamento = (supplierCode, advanceCode) => queueAdvanceDeletion(String(supplierCode), String(advanceCode));
 
 // Na inclusão sequencial de cheques, o próximo herda o banco escolhido
 // na última linha. A escolha explícita de banco (p.ex., gerar sequência)
@@ -77,5 +95,5 @@ if(typeof legacyAddCheque==='function'){
   };
 }
 
-global.ERPAdvanceActions={deleteAdvance,candidatesForAdvance};
+global.ERPAdvanceActions={deleteAdvance:queueAdvanceDeletion,candidatesForAdvance};
 })(window);

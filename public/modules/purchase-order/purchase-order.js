@@ -128,6 +128,9 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
     });
   });
   const issues=[];
+  // Referência de adiantamento a um ticket ausente é bloqueio real;
+  // um saldo legado sem prova é apenas um aviso sobre aquele saldo.
+  const blockingIssues=[];
   const all=(ADT_POR_FORN[code]||[]).filter(function(a){return a&&String(a.status||'Pendente').trim().toLowerCase()==='pendente'&&Number(a.valor||0)>0;});
   const eligible=[];
   let trackedSource=false;
@@ -152,7 +155,9 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
       return;
     }
     if(linked&&!origin&&!sourceKeys.has(linked)){
-      issues.push('O adiantamento '+(id||'sem código')+' está vinculado a uma compra que não está mais no histórico. É necessário conferir a compensação antes de reutilizá-lo.');
+      const issue='O adiantamento '+(id||'sem código')+' está vinculado a uma compra que não está mais no histórico. É necessário conferir a compensação antes de reutilizá-lo.';
+      issues.push(issue);
+      blockingIssues.push(issue);
       return;
     }
     if(linked&&!a.ticketOrigem&&!sourceKeys.has(linked))return;
@@ -208,9 +213,10 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
     }else if(!all.length&&(linkedAdvance||legacyDuplicate)){
       issues.push('O saldo anterior pode ser duplicação de um adiantamento já utilizado. É necessário conferir o histórico financeiro.');
     }else if(all.length&&!trackedSource){
-      issues.push('Há um saldo antigo e adiantamentos pendentes sem conciliação comprovada. Não é seguro somar os dois.');
-      adts=[];
-      cheques=supplierCheques;
+      // Um saldo legado sem origem não torna inválidos os adiantamentos
+      // independentes. Bloqueamos APENAS esse saldo não comprovado; cada
+      // adiantamento selecionado ainda será conferido pelo servidor.
+      issues.push('O saldo antigo não foi conciliado e não pode ser usado. Adiantamentos pendentes independentes podem ser selecionados e serão conferidos no servidor.');
     }else if(persistedTicket&&!recordedTicket){
       issues.push('O saldo anterior aponta para um ticket excluído ou indisponível. Confira o histórico financeiro antes de aplicá-lo.');
     }else if(!all.length&&!persistedTicket){
@@ -219,14 +225,17 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
       issues.push('Saldo residual sem origem financeira validada. Solicite conciliação.');
     }
   }
-  return {adts,cheques,balance,creditSource,issues};
+  return {adts,cheques,balance,creditSource,issues,blockingIssues};
 }
 function validatePurchaseCredits(state){
   if(state.editKey)return;
   const latest=financialData(null,state.supplierCode,state.sourceTicketKeys);
-  if(latest.issues.length)throw new Error(latest.issues.join(' '));
-  const available=new Map(latest.adts.concat(latest.cheques).map(function(a){return [String(a.cod||a.id||a.num||a.numero||''),Number(a.valor)];}));
+  // Não permita comprar quando um adiantamento referencia um ticket perdido.
+  // Alertas apenas do saldo legado não bloqueiam adiantamentos independentes.
   const creditSelected=Boolean(document.getElementById('cssdv')?.checked&&Number(state.previousCredit||0)>0);
+  if(latest.blockingIssues.length)throw new Error(latest.blockingIssues.join(' '));
+  if(creditSelected && latest.issues.length)throw new Error(latest.issues.join(' '));
+  const available=new Map(latest.adts.concat(latest.cheques).map(function(a){return [String(a.cod||a.id||a.num||a.numero||''),Number(a.valor)];}));
   const otherSelected=state.adts.some(function(_,i){return document.getElementById('csadt-'+i)?.checked;})||
     state.cheques.some(function(_,i){return document.getElementById('cscheq-'+i)?.checked;});
   if(creditSelected&&otherSelected)

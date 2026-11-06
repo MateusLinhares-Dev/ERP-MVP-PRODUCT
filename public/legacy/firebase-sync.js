@@ -1382,6 +1382,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(loadingEl) loadingEl.style.display='none';
       if(d && _verificarReset(d)) return;
       if(d) {
+        const _fbConfiavel = Boolean(d._ts) && !preservarLocalPendente;
         _fbAtualizando = true;
         try {
           
@@ -1391,8 +1392,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           
           _normalizarDeletedV2EmD(d);
           _aplicarConfigNegocio(d);
-          
-          const _fbConfiavel = !!d._ts && !preservarLocalPendente;
           
           function _fbArr(arr){ return Array.isArray(arr) && (_fbConfiavel || arr.length > 0); }
 
