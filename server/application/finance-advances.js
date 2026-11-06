@@ -451,7 +451,24 @@ export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
     for(const key of keys){
       const lockRef=db.ref('erpFinanceAdvanceLocks/'+key);
       const acquired=await acquireAdvanceLock(lockRef,owner,now,{db,operationKey,fornCod:key,kind:'change'});
-      if(!acquired)failure(409,'ADVANCE_IN_PROGRESS','Outra alteração está em andamento para este fornecedor. Tente novamente.');
+      if(!acquired){
+        // O 409 é um bloqueio financeiro real, não um convite a reenviar
+        // requisições às cegas. Informar o prazo restante permite distinguir
+        // uma transação ainda ativa de uma reserva deixada por uma execução
+        // interrompida (sem expor o identificador privado do operador).
+        const active=(await lockRef.get()).val();
+        const seconds=Math.ceil((Number(active?.expiresAt)-now())/1000);
+        const error=new Error('Outra alteração financeira ainda está em processamento para este fornecedor.');
+        error.status=409;
+        error.code='ADVANCE_IN_PROGRESS';
+        if(Number.isFinite(seconds)&&seconds>0)error.retryAfterSeconds=Math.min(seconds,120);
+        console.warn('finance.advance.change.lock_busy',{
+          scope:key==='__global_cheques__'?'cheques':'fornecedor',
+          kind:String(active?.kind||'sem_metadados'),
+          retryAfterSeconds:error.retryAfterSeconds||null
+        });
+        throw error;
+      }
       locks.push(lockRef);
     }
     const again=(await opRef.get()).val();
