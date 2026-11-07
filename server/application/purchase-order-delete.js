@@ -67,10 +67,12 @@ export async function deletePurchaseOrder(identity,input,{db,now=()=>Date.now(),
   };
   const recorded=fromReceipt((await opRef.get()).val());
   if(recorded)return recorded;
-  const ticketLock=db.ref('erpFinancePayableTicketLocks/'+ticketId);
   const owner=uuid(),held=[];
+  let committed=false;
   try{
-    await acquire(ticketLock,owner,now);held.push(ticketLock);
+    // Read candidate payable first to enforce a consistent lock order:
+    // payable -> ticket (the same order as payables-payment). Never acquire a
+    // supplier-wide lease: deleting an unpaid order does not consume credit.
     const first=(await db.ref('erp/tickets/'+ticketId).get()).val();
     if(!first){
       const prior=fromReceipt((await opRef.get()).val());
@@ -79,8 +81,6 @@ export async function deletePurchaseOrder(identity,input,{db,now=()=>Date.now(),
     }
     if(!same(first.ticket||ticketId,ticketId))conflict(409,'TICKET_MISMATCH','O ticket não corresponde ao pedido registrado.');
     const supplier=validKey(first.fornecedorCod||first.fornCod,'Fornecedor');
-    const supplierLock=db.ref('erpFinanceAdvanceLocks/'+supplier);
-    await acquire(supplierLock,owner,now);held.push(supplierLock);
     const payablesInitial=(await db.ref('erp/contasPagar').get()).val();
     const payableMatches=asRows(payablesInitial).filter(([id,row])=>same(row.ticket,ticketId)||same(row.id,'CPPO_'+ticketId)||same(id,'CPPO_'+ticketId));
     if(payableMatches.length>1)conflict(409,'MULTIPLE_PAYABLES','A compra possui vários títulos financeiros. Solicite conciliação antes de excluir.');
@@ -88,8 +88,12 @@ export async function deletePurchaseOrder(identity,input,{db,now=()=>Date.now(),
     if(payableMatches.length){
       const [id,row]=payableMatches[0];
       const payableLock=db.ref('erpFinancePayableLocks/'+validKey(row.id||id,'Título'));
-      await acquire(payableLock,owner,now);held.push(payableLock);
+      await acquire(payableLock,owner,now);
+      held.push({ref:payableLock,path:'erpFinancePayableLocks/'+validKey(row.id||id,'Título')});
     }
+    const ticketLock=db.ref('erpFinancePayableTicketLocks/'+ticketId);
+    await acquire(ticketLock,owner,now);
+    held.push({ref:ticketLock,path:'erpFinancePayableTicketLocks/'+ticketId});
     const sources=['tickets/'+ticketId,'contasPagar','adiantamentos/'+supplier,'cheques/'+supplier,'lancBanco',
       'saldos/'+supplier,'saldoDevedor/'+supplier,'financePayableOperations','financeAdvanceOperations',
       'ticketsDeletedV2/'+ticketId];
@@ -133,9 +137,24 @@ export async function deletePurchaseOrder(identity,input,{db,now=()=>Date.now(),
       updates['contasPagar/'+path]=null;
       if(row.id)updates['contasPagarDeleted/'+validKey(row.id,'Título')]=true;
     }
-    await db.ref('erp').update(updates);
+    // Delete and release belong to the *same* commit. A second deletion
+    // must never wait because a serverless invocation ended after its ACK.
+    const atomic=Object.fromEntries(Object.entries(updates).map(([path,value])=>['erp/'+path,value]));
+    for(const lock of held){
+      const live=(await lock.ref.get()).val();
+      if(live?.owner!==owner)conflict(409,'PURCHASE_CHANGED','A operação mudou durante a exclusão. Atualize o Histórico.');
+      atomic[lock.path]=null;
+    }
+    try{await db.ref('').update(atomic);committed=true;}
+    catch(error){
+      const verified=fromReceipt((await opRef.get().catch(()=>({val:()=>null}))).val());
+      if(verified){committed=true;return verified;}
+      throw error;
+    }
     return receipt;
   }finally{
-    for(const ref of held.reverse())await release(ref,owner);
+    if(!committed){
+      for(const lock of held.reverse())await release(lock.ref,owner);
+    }
   }
 }

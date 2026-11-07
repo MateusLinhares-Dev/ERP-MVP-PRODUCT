@@ -16,3 +16,4 @@ service-account*.json
 .vercel
 .env*.local
 *firebase-adminsdk*.json
+/.git*.zip

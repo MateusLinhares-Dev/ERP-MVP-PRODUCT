@@ -5,11 +5,12 @@ import { createRealtimeBusinessRepository } from './realtime-business-repository
 import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 
 const assetRevision = '20261107-purchase-atomic-recovery-v3';
+const crudCacheRevision = '20261107-crud-sync-ticket-scope-v1';
 
 function loadClassic(src) {
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = src + '?v=' + assetRevision;
+    script.src = src + '?v=' + assetRevision + '&crud=' + crudCacheRevision;
     script.async = false;
     script.onload = resolve;
     script.onerror = () => reject(new Error(`Falha ao carregar ${src}`));

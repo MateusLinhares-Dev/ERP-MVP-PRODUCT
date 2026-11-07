@@ -31,7 +31,7 @@ function _fornDeletedMigrar(){
   if(_fornDeletedMigrando || !window._fbDB) return;
   _fornDeletedMigrando=true;
   try{
-    window._fbDB.ref('erp/fornDeleted').set(_fornDeletedParaObjeto())
+    window._fbDB.ref('erp/fornDeleted').update(_fornDeletedParaObjeto())
       .then(function(){ console.info('fornDeleted migrado pro formato por-chave na nuvem.'); })
       .catch(function(e){ console.warn('Falha ao migrar fornDeleted:', e); })
       .finally(function(){ _fornDeletedMigrando=false; });
@@ -441,7 +441,7 @@ function _cpDeletedMigrar(){
   if(_cpDeletedMigrando || !window._fbDB) return;
   _cpDeletedMigrando=true;
   try{
-    window._fbDB.ref('erp/contasPagarDeleted').set(_cpDeletedParaObjeto())
+    window._fbDB.ref('erp/contasPagarDeleted').update(_cpDeletedParaObjeto())
       .then(function(){ console.info('contasPagarDeleted migrado pro formato por-chave na nuvem.'); })
       .catch(function(e){ console.warn('Falha ao migrar contasPagarDeleted:', e); })
       .finally(function(){ _cpDeletedMigrando=false; });
@@ -12077,18 +12077,25 @@ function _limparMateriaisInvalidos(){
     }
     if(window._fbDB && !window._estqLimpoNuvem){
       window._estqLimpoNuvem=true;
-      window._fbDB.ref('erp/estoque').once('value').then(function(s){
-        var v=s.val()||{}; var limpo={}; var mudou=false;
-        Object.keys(v).forEach(function(k){ if(inval(k)){ mudou=true; } else { limpo[k]=v[k]; } });
-        if(mudou) return window._fbDB.ref('erp/estoque').set(limpo);
-      }).catch(function(){});
-      
-      
-      window._fbDB.ref('erp/metais').once('value').then(function(s){
-        var v=s.val(); var arr=Array.isArray(v)?v:Object.values(v||{});
-        var limpo=arr.filter(function(k){ return !inval(k); });
-        if(limpo.length!==arr.length) return window._fbDB.ref('erp/metais').set(limpo);
-      }).catch(function(){});
+      // Never write a stale full list back after reading. An unrelated item
+      // may have been added by a second user while this request was in flight.
+      window._fbDB.ref('erp/estoque').transaction(function(current){
+        if(!current || typeof current!=='object')return;
+        var next=Object.assign({},current),changed=false;
+        Object.keys(next).forEach(function(k){if(inval(k)){delete next[k];changed=true;}});
+        return changed?next:undefined;
+      },undefined,false).catch(function(e){console.warn('Estoque: limpeza não confirmada',e&&e.code);});
+
+      window._fbDB.ref('erp/metais').transaction(function(current){
+        if(Array.isArray(current)){
+          var kept=current.filter(function(k){return !inval(k);});
+          return kept.length===current.length?undefined:kept;
+        }
+        if(!current || typeof current!=='object')return;
+        var next=Object.assign({},current),changed=false;
+        Object.keys(next).forEach(function(k){if(inval(next[k])){delete next[k];changed=true;}});
+        return changed?next:undefined;
+      },undefined,false).catch(function(e){console.warn('Metais: limpeza não confirmada',e&&e.code);});
     }
   }catch(e){}
 }
