@@ -76,8 +76,8 @@ test('a API não permite remover empresa principal ou mudar configurações fora
 
 test('inicialização faz leituras de configuração em paralelo e atualiza versão do frontend',()=>{
   assert.match(bootstrap,/Promise\.all\(\[/);
-  assert.match(template,/bootstrap\.js\?v=20261107-purchase-safe-delete-v1/);
-  assert.match(bootstrap,/const assetRevision = '20261107-purchase-safe-delete-v1'/);
+  assert.match(template,/bootstrap\.js\?v=20261107-purchase-atomic-recovery-v3/);
+  assert.match(bootstrap,/const assetRevision = '20261107-purchase-atomic-recovery-v3'/);
 });
 
 test('pedido de compra tem fonte legível e continua usando página A4',()=>{

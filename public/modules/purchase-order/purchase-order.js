@@ -128,9 +128,7 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
     });
   });
   const issues=[];
-  // Referência de adiantamento a um ticket ausente é bloqueio real;
-  // um saldo legado sem prova é apenas um aviso sobre aquele saldo.
-  const blockingIssues=[];
+  const blockedIssues=[];
   const all=(ADT_POR_FORN[code]||[]).filter(function(a){return a&&String(a.status||'Pendente').trim().toLowerCase()==='pendente'&&Number(a.valor||0)>0;});
   const eligible=[];
   let trackedSource=false;
@@ -155,9 +153,9 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
       return;
     }
     if(linked&&!origin&&!sourceKeys.has(linked)){
-      const issue='O adiantamento '+(id||'sem código')+' está vinculado a uma compra que não está mais no histórico. É necessário conferir a compensação antes de reutilizá-lo.';
-      issues.push(issue);
-      blockingIssues.push(issue);
+      const message='O adiantamento '+(id||'sem código')+' está vinculado a uma compra que não está mais no histórico. É necessário conferir a compensação antes de reutilizá-lo.';
+      issues.push(message);
+      blockedIssues.push(message);
       return;
     }
     if(linked&&!a.ticketOrigem&&!sourceKeys.has(linked))return;
@@ -213,10 +211,9 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
     }else if(!all.length&&(linkedAdvance||legacyDuplicate)){
       issues.push('O saldo anterior pode ser duplicação de um adiantamento já utilizado. É necessário conferir o histórico financeiro.');
     }else if(all.length&&!trackedSource){
-      // Um saldo legado sem origem não torna inválidos os adiantamentos
-      // independentes. Bloqueamos APENAS esse saldo não comprovado; cada
-      // adiantamento selecionado ainda será conferido pelo servidor.
-      issues.push('O saldo antigo não foi conciliado e não pode ser usado. Adiantamentos pendentes independentes podem ser selecionados e serão conferidos no servidor.');
+      // Saldo legado incerto NÃO é um motivo para esconder adiantamentos novos,
+      // independentes e ainda pendentes. Bloqueamos apenas o próprio saldo.
+      issues.push('O saldo anterior deste fornecedor não tem conciliação comprovada e não será usado automaticamente.');
     }else if(persistedTicket&&!recordedTicket){
       issues.push('O saldo anterior aponta para um ticket excluído ou indisponível. Confira o histórico financeiro antes de aplicá-lo.');
     }else if(!all.length&&!persistedTicket){
@@ -225,16 +222,16 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
       issues.push('Saldo residual sem origem financeira validada. Solicite conciliação.');
     }
   }
-  return {adts,cheques,balance,creditSource,issues,blockingIssues};
+  return {adts,cheques,balance,creditSource,issues,blockedIssues};
 }
 function validatePurchaseCredits(state){
   if(state.editKey)return;
   const latest=financialData(null,state.supplierCode,state.sourceTicketKeys);
-  // Não permita comprar quando um adiantamento referencia um ticket perdido.
-  // Alertas apenas do saldo legado não bloqueiam adiantamentos independentes.
+  // Alertas de crédito legado não impedem uma nova compra SEM usar esse
+  // crédito. O backend valida cada adiantamento selecionado pelo ID.
   const creditSelected=Boolean(document.getElementById('cssdv')?.checked&&Number(state.previousCredit||0)>0);
-  if(latest.blockingIssues.length)throw new Error(latest.blockingIssues.join(' '));
-  if(creditSelected && latest.issues.length)throw new Error(latest.issues.join(' '));
+  if(latest.blockedIssues.length)throw new Error(latest.blockedIssues.join(' '));
+  if(creditSelected&&latest.issues.length)throw new Error(latest.issues.join(' '));
   const available=new Map(latest.adts.concat(latest.cheques).map(function(a){return [String(a.cod||a.id||a.num||a.numero||''),Number(a.valor)];}));
   const otherSelected=state.adts.some(function(_,i){return document.getElementById('csadt-'+i)?.checked;})||
     state.cheques.some(function(_,i){return document.getElementById('cscheq-'+i)?.checked;});
@@ -854,6 +851,15 @@ function purchaseStableSnapshot(value){
   if(value&&typeof value==='object')return '{'+Object.keys(value).sort().map(function(key){return JSON.stringify(key)+':'+purchaseStableSnapshot(value[key]);}).join(',')+'}';
   return JSON.stringify(value);
 }
+// A escrita foi confirmada no RTDB. Uma leitura geral que começou antes do
+// commit não pode esconder temporariamente esse ticket no Histórico.
+function purchaseRememberServerAck(key, ticket){
+  if(!ticket || !ticket._purchaseOperationId)return;
+  const recent=global.__ERP_PURCHASE_RECENT_CONFIRMED__ instanceof Map
+    ?global.__ERP_PURCHASE_RECENT_CONFIRMED__:new Map();
+  global.__ERP_PURCHASE_RECENT_CONFIRMED__=recent;
+  recent.set(String(key),{ticket:JSON.parse(JSON.stringify(ticket)),ts:Date.now()});
+}
 function purchaseCloudRef(key){
   if(!/^[A-Za-z0-9_-]{1,72}$/.test(String(key||'')))throw new Error('Identificador inválido do pedido.');
   if(!global._fbDB || typeof global._fbDB.ref!=='function')throw new Error('Firebase indisponível. Nenhum pedido foi confirmado.');
@@ -903,6 +909,7 @@ async function purchaseConfirmCloud(key,ticket,options={}){
     if(typeof TICKETS_DB!=='undefined')TICKETS_DB[id]=Object.assign({},saved);
     if(typeof _ticketsSnapJSON!=='undefined')_ticketsSnapJSON[id]=JSON.stringify(saved);
   }catch(e){}
+  if(create)purchaseRememberServerAck(id,saved);
   return saved;
 }
 global.__ERP_PURCHASE_COMMIT_TICKET__=purchaseConfirmCloud;
@@ -940,6 +947,7 @@ async function purchaseCreateAtomic(key,ticket,state,body){
     if(result.payable)CONTAS_PAGAR.push(clone(result.payable));
   }
   try{if(typeof _ticketsSnapJSON!=='undefined')_ticketsSnapJSON[key]=JSON.stringify(result.ticket);}catch(_e){}
+  purchaseRememberServerAck(key,result.ticket);
   return result.ticket;
 }
 
