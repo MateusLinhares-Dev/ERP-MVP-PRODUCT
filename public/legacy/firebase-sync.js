@@ -811,33 +811,11 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       return;
     }
     if(!_fbPronto) return;
+    // Never replay a browser's cached snapshot before a successful cloud read.
+    // A previous session's local data is NOT an authoritative database restore.
     if(!_fbDadosCarregados){
-      const temDados = Object.keys(TICKETS_DB||{}).length > 0 ||
-                       Object.keys(ADT_POR_FORN||{}).length > 0 ||
-                       (CONTAS_PAGAR||[]).length > 0 ||
-                       (BANCOS_DB||[]).length > 0 ||
-                       (CLIENTES||[]).length > 0 ||
-                       
-                       
-                       
-                       
-                       (function(){ try{ return !!localStorage.getItem('mm_funcionarios_edit'); }catch(e){ return false; } })() ||
-                       (typeof AGENDA_DB!=='undefined' && (AGENDA_DB||[]).length > 0) ||
-                       
-                       
-                       
-                       
-                       (typeof MANUTENCAO_DB!=='undefined' && (MANUTENCAO_DB||[]).length > 0) ||
-                       (typeof MANUTPESS_DB!=='undefined' && (MANUTPESS_DB||[]).length > 0) ||
-                       (typeof EPI_DB!=='undefined' && (EPI_DB||[]).length > 0) ||
-                       (typeof PONTO_DB!=='undefined' && (PONTO_DB||[]).length > 0) ||
-                       (typeof ALX_ITENS!=='undefined' && (ALX_ITENS||[]).length > 0) ||
-                       (typeof ALX_MOV!=='undefined' && (ALX_MOV||[]).length > 0) ||
-                       (typeof VIAGEM_DB!=='undefined' && (VIAGEM_DB||[]).length > 0) ||
-                       (typeof COMBUSTIVEL_DB!=='undefined' && (COMBUSTIVEL_DB||[]).length > 0) ||
-                       (typeof CONTAS_RECEBER!=='undefined' && (CONTAS_RECEBER||[]).length > 0) ||
-                       (typeof VALES_DB!=='undefined' && (VALES_DB||[]).length > 0);
-      if(!temDados){ console.warn('fbSalvar bloqueado: Firebase não carregou dados e local está vazio.'); return; }
+      _fbSetStatus('saving','Aguardando leitura confirmada do Firebase');
+      return;
     }
     if(!window._fbDB){ _fbSetStatus('offline'); return; }
     if(!_fbTemUsuarioAuth()){
@@ -1699,13 +1677,17 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           
           
           if(d.coordFuncObs && typeof d.coordFuncObs==='object'){ Object.assign(COORD_FUNC_OBS, d.coordFuncObs); localStorage.setItem('mm_coord_fobs',JSON.stringify(COORD_FUNC_OBS)); }
-        } catch(err){ console.warn('fbCarregar parse error:',err); }
+        } catch(err){
+          console.warn('fbCarregar parse error:',err);
+        }
         _fbAtualizando = false;
         _fcRedesenharSeAberta();
-        _fbDadosCarregados = true;window.__FB_DATA_READY__=true;
-        // So registrar o snapshot confiavel de leitura; nao descartar pendencias locais.
-        if(_fbConfiavel) _fbRegistrarBaseConfirmada(d);
-        _fbSetStatus('ok');
+        // A successful callback is not proof that every module was loaded.
+        // An empty/error snapshot must NOT authorize replaying all local CRUD.
+        _fbDadosCarregados = Boolean(d._ts);
+        window.__FB_DATA_READY__ = _fbDadosCarregados;
+        if(_fbConfiavel && _fbDadosCarregados) _fbRegistrarBaseConfirmada(d);
+        _fbSetStatus(_fbDadosCarregados?'ok':'error');
 
         
         try{ if(typeof _supCarregarEExecutarPatches==='function') setTimeout(_supCarregarEExecutarPatches, 500); }catch(_){}
@@ -1746,14 +1728,11 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         console.log('Firebase vazio ou sem dados — saves automáticos mantidos bloqueados até ação do usuário.');
         _fbPronto = true;
         
-        const temDadosLocais = Object.keys(ADT_POR_FORN||{}).length > 0 ||
-                               (CONTAS_PAGAR||[]).length > 0 ||
-                               (BANCOS_DB||[]).length > 0 ||
-                               Object.keys(TICKETS_DB||{}).length > 0;
-        if(temDadosLocais){
-          _fbDadosCarregados = true;window.__FB_DATA_READY__=true;
-          setTimeout(()=>{ try{ _fbSalvarAgora(); }catch(e){} }, 1000);
-        }
+        // Null/failed remote snapshots must never authorize a bulk upload
+        // of localStorage data. Keep pending edits, but require a good read.
+        _fbDadosCarregados = false;
+        window.__FB_DATA_READY__ = false;
+        _fbSetStatus('error');
       }
       _fbPronto = true;
       if(preservarLocalPendente){

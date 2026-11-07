@@ -67,11 +67,22 @@ export async function createPurchaseOrder(identity,input,{db,now=()=>Date.now(),
   const opKey=operationKey(identity,operationId),opRef=db.ref('erp/purchaseCreateOperations/'+opKey);
   const previous=(await opRef.get()).val();
   if(previous?.ticket){if(previous.ticket.ticket!==ticketNo||Math.abs(Number(previous.ticket.totalGeral||0)-Number(incoming.totalGeral||0))>0.01)fail(409,'OPERATION_REUSED','Operação já utilizada com outro conteúdo.');return {...previous,alreadyCommitted:true};}
-  const lockRef=db.ref('erpFinanceAdvanceLocks/'+code),owner=uuid();
-  const lock=await lockRef.transaction(current=>current&&Number(current.expiresAt)>now()?undefined:{owner,expiresAt:now()+120000},undefined,false);
-  if(!lock?.committed)fail(409,'FINANCE_BUSY','Outro lançamento financeiro desse fornecedor está em andamento.');
+  // Every purchase owns its *ticket*, never the entire supplier. Independent
+  // unpaid orders must be creatable/deletable without waiting for each other.
+  // The supplier credit lease is needed only when this purchase actually uses
+  // adiantamentos, cheques or a proven residual credit.
+  const owner=uuid(),held=[];
+  const lockKeys=['erpFinancePayableTicketLocks/'+ticketNo];
+  if(selected.length||selectedCheques.length||credit)lockKeys.push('erpFinanceAdvanceLocks/'+code);
   let committed=false;
   try{
+    for(const lockPath of lockKeys){
+      const ref=db.ref(lockPath);
+      const lock=await ref.transaction(current=>current&&Number(current.expiresAt)>now()?undefined:{owner,expiresAt:now()+120000},undefined,false);
+      if(!lock?.committed)fail(409,'PURCHASE_IN_PROGRESS','Esta compra está sendo alterada. Consulte o Histórico antes de repetir.');
+      held.push({ref,path:lockPath});
+    }
+
     const repeated=(await opRef.get()).val();
     if(repeated?.ticket){if(repeated.ticket.ticket!==ticketNo||Math.abs(Number(repeated.ticket.totalGeral||0)-Number(incoming.totalGeral||0))>0.01)fail(409,'OPERATION_REUSED','Operação já utilizada com outro conteúdo.');return {...repeated,alreadyCommitted:true};}
     const snap=await Promise.all(['tickets','ticketsDeletedV2','adiantamentos/'+code,'saldoDevedor/'+code,'cheques/'+code,'contasPagar'].map(path=>db.ref('erp/'+path).get()));
@@ -147,9 +158,14 @@ export async function createPurchaseOrder(identity,input,{db,now=()=>Date.now(),
       saldo:credit?updates['erp/saldoDevedor/'+code]:snap[3].val(),payable,fornCod:code,at:now(),actor:String(identity.erpUser||identity.uid||'')};
     updates['erp/purchaseCreateOperations/'+opKey]=receipt;
     updates['erp/_ts']=now();
-    // Liberar a trava no MESMO update; não deixar gravação confirmada com lock pendente.
-    updates['erpFinanceAdvanceLocks/'+code]=null;
-    try{await db.ref().update(updates);committed=true;}
+    // Receipt, purchase and release of its own leases are one RTDB commit.
+    // Refuse to clear a lock that might have been acquired by someone else.
+    for(const lock of held){
+      const live=(await lock.ref.get()).val();
+      if(live?.owner!==owner)fail(409,'PURCHASE_CHANGED','A compra mudou durante a gravação. Consulte o Histórico.');
+      updates[lock.path]=null;
+    }
+    try{await db.ref('').update(updates);committed=true;}
     catch(error){
       const recovered=(await opRef.get().catch(()=>({val:()=>null}))).val();
       if(recovered?.ticket&&recovered.ticket.ticket===ticketNo){committed=true;return {...recovered,alreadyCommitted:true};}
@@ -158,8 +174,15 @@ export async function createPurchaseOrder(identity,input,{db,now=()=>Date.now(),
     return {...receipt,alreadyCommitted:false};
   }finally{
     if(!committed){
-      // Se a situação do commit é desconhecida, o lease expira; o recibo é a prova.
-      try{const verified=(await opRef.get()).val();if(!verified?.ticket)await lockRef.transaction(current=>current?.owner===owner?null:undefined,undefined,false);}catch{}
+      // A failed operation may release only leases it actually owns.
+      // If a response was lost after commit, receipt proves completion.
+      let receipt=null;
+      try{receipt=(await opRef.get()).val();}catch{}
+      if(!receipt?.ticket){
+        for(const lock of held.reverse()){
+          try{await lock.ref.transaction(current=>current?.owner===owner?null:undefined,undefined,false);}catch{}
+        }
+      }
     }
   }
 }

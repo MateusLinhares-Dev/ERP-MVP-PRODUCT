@@ -201,14 +201,16 @@ export async function editPurchaseOrder(identity,input,{db,now=()=>Date.now(),uu
   if(!first)reject(404,'TICKET_NOT_FOUND','Pedido não encontrado.');
   const code=key(first.fornecedorCod||first.fornCod);
   const owner=uuid(),locks=[];
+  let committed=false;
   try{
-    for(const lockKey of ['erpFinanceAdvanceLocks/'+code,'erpFinancePayableTicketLocks/'+ticketNo].sort()){
-      const ref=db.ref(lockKey);
-      await acquire(ref,owner,now);
-      locks.push(ref);
-    }
-    const committed=(await opRef.get()).val();
-    if(committed?.ticket){if(String(committed.ticket.ticket)!==ticketNo)reject(409,'OPERATION_USED','Identificador de operação já utilizado.');return {...committed,alreadyCommitted:true};}
+    // A text/quantity correction must not lock every operation of a supplier.
+    // Protect this ticket first; acquire the supplier's credit lock only if
+    // a financial amount change touches previously applied advances.
+    const ticketLock=db.ref('erpFinancePayableTicketLocks/'+ticketNo);
+    await acquire(ticketLock,owner,now);
+    locks.push({ref:ticketLock,path:'erpFinancePayableTicketLocks/'+ticketNo});
+    const priorReceipt=(await opRef.get()).val();
+    if(priorReceipt?.ticket){if(String(priorReceipt.ticket.ticket)!==ticketNo)reject(409,'OPERATION_USED','Identificador de operação já utilizado.');return {...priorReceipt,alreadyCommitted:true};}
     const paths=['erp/tickets/'+ticketNo,'erp/adiantamentos/'+code,'erp/saldos/'+code,'erp/saldoDevedor/'+code,'erp/contasPagar'];
     const snaps=await Promise.all(paths.map(path=>db.ref(path).get()));
     const previous=snaps[0].val();
@@ -217,6 +219,17 @@ export async function editPurchaseOrder(identity,input,{db,now=()=>Date.now(),uu
     const updates={['tickets/'+ticketNo]:result.ticket};
     const changed=result.difference!==0;
     const advancesUsed=Number(previous.adiantamento||0)>0;
+    if(changed&&advancesUsed){
+      const creditLock=db.ref('erpFinanceAdvanceLocks/'+code);
+      await acquire(creditLock,owner,now);
+      locks.push({ref:creditLock,path:'erpFinanceAdvanceLocks/'+code});
+      // The credit collection is read only after locking the supplier.
+      snaps[1]=await db.ref('erp/adiantamentos/'+code).get();
+      snaps[2]=await db.ref('erp/saldos/'+code).get();
+      snaps[3]=await db.ref('erp/saldoDevedor/'+code).get();
+      const live=(await db.ref('erp/tickets/'+ticketNo).get()).val();
+      if(!live||hash(live)!==hash(previous))reject(409,'TICKET_CHANGED','O pedido mudou durante a edição. Reabra o Histórico.');
+    }
     if(changed){
       const oldBalance=cash(Number(previous.saldoPagar||0));
       const payments=Object.values(snaps[4].val()||{}).filter(row=>row&&String(row.ticket||'')===ticketNo);
@@ -241,9 +254,22 @@ export async function editPurchaseOrder(identity,input,{db,now=()=>Date.now(),uu
       payable:Object.entries(updates).find(([path])=>path.startsWith('contasPagar/'))?.[1]||null,
       updatedAt:now(),actor:String(identity.erpUser||identity.uid||'')};
     updates['purchaseEditOperations/'+opKey]=record;
-    await db.ref('erp').update(updates);
+    const atomic=Object.fromEntries(Object.entries(updates).map(([path,value])=>['erp/'+path,value]));
+    for(const lock of locks){
+      const live=(await lock.ref.get()).val();
+      if(live?.owner!==owner)reject(409,'PURCHASE_EDIT_BUSY','A edição foi alterada por outra sessão.');
+      atomic[lock.path]=null;
+    }
+    try{await db.ref('').update(atomic);committed=true;}
+    catch(error){
+      const confirmed=(await opRef.get().catch(()=>({val:()=>null}))).val();
+      if(confirmed?.ticket&&String(confirmed.ticket.ticket)===ticketNo){committed=true;return {...confirmed,alreadyCommitted:true};}
+      throw error;
+    }
     return {...record,alreadyCommitted:false};
   }finally{
-    for(const ref of locks.reverse())try{await ref.transaction(cur=>cur?.owner===owner?null:undefined,undefined,false);}catch{}
+    if(!committed){
+      for(const lock of locks.reverse())try{await lock.ref.transaction(cur=>cur?.owner===owner?null:undefined,undefined,false);}catch{}
+    }
   }
 }
