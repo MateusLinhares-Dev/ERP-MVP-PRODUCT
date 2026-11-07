@@ -21477,7 +21477,11 @@ function showToast(msg, tipo='success', dur=4000){
   let box=document.getElementById('toast');
   if(!box){ box=document.createElement('div'); box.id='toast'; document.body.appendChild(box); }
   const el=document.createElement('div');
-  el.className='toast-msg '+tipo;
+  // 'warning' é usado pelos fluxos financeiros; o tema CSS denomina essa classe 'warn'.
+  // Centralizar a normalização impede avisos sem fundo/contraste em qualquer módulo.
+  const _t=String(tipo||'info').toLowerCase().trim();
+  const _kind=_t==='warning'?'warn':(['success','warn','error','info'].includes(_t)?_t:'info');
+  el.className='toast-msg '+_kind;
   el.innerHTML=msg;
   box.appendChild(el);
   requestAnimationFrame(()=>{ requestAnimationFrame(()=>{ el.classList.add('show'); }); });
