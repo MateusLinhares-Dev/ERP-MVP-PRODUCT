@@ -393,7 +393,9 @@
       },
       "tickets": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
+        "$ticketId": {
+          ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true) && ((newData.exists() && !root.child('erp/ticketsDeletedV2').child($ticketId).exists()) || (!newData.exists() && !data.exists() && root.child('erp/ticketsDeletedV2').child($ticketId).exists()) || (!newData.exists() && data.exists() && data.child('_consolidado').val() != true && !data.child('_purchaseOperationId').exists()))"
+        }
       },
       "historico": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
@@ -573,7 +575,7 @@
       },
       "ticketsDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && auth.token.canPurchasing == true",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.canPurchasing == true"
+        ".write": false
       },
       "advanceBackups": {
         ".read": "auth != null && auth.token.erpAccess == true && auth.token.admin == true",
@@ -727,6 +729,10 @@
       "_appBuild": {
         ".read": "auth != null && auth.token.erpAccess == true",
         ".write": "auth != null && auth.token.erpAccess == true && auth.token.admin == true"
+      },
+      "purchaseDeleteOperations": {
+        ".read": false,
+        ".write": false
       }
     },
     "erpUserProfiles": {

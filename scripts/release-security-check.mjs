@@ -16,11 +16,10 @@ const syncPolicy=JSON.parse(read('public/app/rtdb-collection-policy.json'));
 const candidate=JSON.parse(read('docs/database.rules.candidate.json'));
 if(JSON.stringify(db)!==JSON.stringify(candidate)) errors.push('RTDB: rules ativas diferentes da geração homologada. Regere a partir do baseline.');
 const syncSource=read('public/legacy/firebase-sync.js');
-const synchronizedNodes=/const _ERP_NOS_SINCRONIZADOS\s*=\s*\[([\s\S]*?)\];/.exec(syncSource);
-const synchronizedNames=synchronizedNodes?[...synchronizedNodes[1].matchAll(/'([^']+)'/g)].map(match=>match[1]):[];
-if(syncPolicy.version!==1 || synchronizedNames.length===0 ||
-  Object.keys(syncPolicy.nodes||{}).length!==synchronizedNames.length ||
-  synchronizedNames.some(node=>!syncPolicy.nodes[node]))errors.push('RTDB: catálogo de acesso sincronizado inválido.');
+const syncNodesMatch=/const _ERP_NOS_SINCRONIZADOS\s*=\s*\[([\s\S]*?)\];/.exec(syncSource);
+const expectedSyncNodes=syncNodesMatch?[...syncNodesMatch[1].matchAll(/'([^']+)'/g)].map(match=>match[1]):[];
+if(syncPolicy.version!==1||!expectedSyncNodes.length||Object.keys(syncPolicy.nodes||{}).length!==expectedSyncNodes.length||expectedSyncNodes.some(node=>!syncPolicy.nodes[node]))
+  errors.push('RTDB: catálogo de acesso sincronizado inválido.');
 for(const [node,entry] of Object.entries(syncPolicy.nodes||{})){
   if(!db.rules?.erp?.[node] || !entry.read || !entry.write) errors.push(`RTDB: nó não mapeado corretamente: ${node}`);
 }

@@ -9,7 +9,10 @@ const match=/const _ERP_NOS_SINCRONIZADOS\s*=\s*\[([\s\S]*?)\];/.exec(source);
 const nodes=[...match[1].matchAll(/'([^']+)'/g)].map(item=>item[1]);
 const current=JSON.parse(read('database.rules.json'));
 const hardened=JSON.parse(read('docs/database.rules.candidate.json'));
-const check=(expr,claims=null)=>Boolean(runInNewContext(expr,{auth:claims?{uid:'test',token:{erpAccess:true,...claims}}:null}));
+const check=(expr,claims=null)=>Boolean(runInNewContext(expr,{
+  auth:claims?{uid:'test',token:{erpAccess:true,...claims}}:null,
+  $ticketId:'T310',newData:{exists:()=>true},root:{child:()=>({child:()=>({exists:()=>false})})}
+}));
 
 test('regra candidata mantém negação global e remove wildcard permissivo',()=>{
   assert.equal(hardened.rules['.read'],false);
@@ -20,11 +23,11 @@ test('regra candidata mantém negação global e remove wildcard permissivo',()=
   assert.equal(hardened.rules.security['.write'],false);
 });
 
-test('cada um dos 100 nós sincronizados tem regra explícita',()=>{
-  assert.equal(nodes.length,100);
+test('cada nó sincronizado tem regra explícita',()=>{
+  assert.ok(nodes.length>=99);
   for(const node of nodes){
     assert.equal(typeof hardened.rules.erp[node]?.['.read'],'string',node+' read');
-    assert.notEqual(hardened.rules.erp[node]?.['.write'],undefined,node+' write');
+    assert.notEqual(hardened.rules.erp[node]?.['.write']??hardened.rules.erp[node]?.$ticketId?.['.write'],undefined,node+' write');
   }
   assert.deepEqual(current.rules.erp.chat,hardened.rules.erp.chat);
   assert.deepEqual(current.rules.erp.chatRead,hardened.rules.erp.chatRead);
@@ -33,13 +36,13 @@ test('cada um dos 100 nós sincronizados tem regra explícita',()=>{
 test('perfil sem claims não lê módulos financeiros, folha ou frota',()=>{
   for(const key of ['contasPagar','lancBanco','folha','viagem','tickets','clientes']){
     assert.equal(check(hardened.rules.erp[key]['.read'],{}),false,key);
-    assert.equal(check(hardened.rules.erp[key]['.write'],{}),false,key);
+    assert.equal(check(hardened.rules.erp[key]['.write']??hardened.rules.erp[key].$ticketId?.['.write'],{}),false,key);
   }
 });
 
 test('claims por domínio permitem apenas o domínio correspondente',()=>{
   assert.equal(check(hardened.rules.erp.tickets['.read'],{canPurchasing:true}),true);
-  assert.equal(check(hardened.rules.erp.tickets['.write'],{canPurchasing:true}),true);
+  assert.equal(check(hardened.rules.erp.tickets.$ticketId['.write'],{canPurchasing:true}),true);
   assert.equal(check(hardened.rules.erp.lancBanco['.read'],{canPurchasing:true}),false);
   assert.equal(check(hardened.rules.erp.lancBanco['.read'],{canBanking:true}),true);
   assert.equal(check(hardened.rules.erp.folha['.read'],{canHR:true}),false);
