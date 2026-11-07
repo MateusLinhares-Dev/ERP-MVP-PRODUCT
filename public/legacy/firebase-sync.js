@@ -451,6 +451,30 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   }
   let _fbSalvamentoEmAndamento=null;
   let _fbSalvarOutraVez=false;
+  // A confirmação individual do RTDB é mais recente que qualquer leitura geral
+  // iniciada antes do commit. Protege só compras recém-criadas e só por 30 s;
+  // não grava no banco nem interfere em exclusões ou edições posteriores.
+  function _fbPreservarComprasConfirmadas(remotos, locaisAntes){
+    const recent=window.__ERP_PURCHASE_RECENT_CONFIRMED__;
+    if(!(recent instanceof Map))return;
+    const now=Date.now();
+    for(const [id,entry] of recent.entries()){
+      if(!entry || now-Number(entry.ts)>30000 || !entry.ticket?._purchaseOperationId){
+        recent.delete(id);continue;
+      }
+      if(typeof TICKETS_DELETED!=='undefined' && TICKETS_DELETED.has(id)){
+        recent.delete(id);continue;
+      }
+      // Se a leitura já contém o ticket, ela é autoritativa. Nunca substituir
+      // uma nova revisão financeira por uma cópia antiga mantida em memória.
+      if(remotos && Object.prototype.hasOwnProperty.call(remotos,id)
+          && remotos[id]!=null){recent.delete(id);continue;}
+      const local=locaisAntes?.[id];
+      const restored=local?._purchaseOperationId===entry.ticket._purchaseOperationId
+        ?local:entry.ticket;
+      TICKETS_DB[id]=JSON.parse(JSON.stringify(restored));
+    }
+  }
   // Protect a locally edited ticket when a partial/remote snapshot arrives.
   function _fbTicketSnapshotConfirmado(remotos,confiavel){
     // A remote update invalidates the 'already sent' cache for its keys.
@@ -1460,7 +1484,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           
           
           
-          { const _tkLocal=JSON.parse(JSON.stringify(TICKETS_DB)); _safeMerge(_tkLocal, d.tickets||{}, TICKETS_DB); }
+          { const _tkLocal=JSON.parse(JSON.stringify(TICKETS_DB)); _safeMerge(_tkLocal, d.tickets||{}, TICKETS_DB); _fbPreservarComprasConfirmadas(d.tickets,_tkLocal); }
           
           
           
@@ -1955,7 +1979,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           
           
           
-          { const _tkLocal=JSON.parse(JSON.stringify(TICKETS_DB)); _mergeObj(_tkLocal, d.tickets||{}, TICKETS_DB); }
+          { const _tkLocal=JSON.parse(JSON.stringify(TICKETS_DB)); _mergeObj(_tkLocal, d.tickets||{}, TICKETS_DB); _fbPreservarComprasConfirmadas(d.tickets,_tkLocal); }
           
           
           
@@ -2250,6 +2274,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         const tid=String(snap&&snap.key||'');
         if(window.__ERP_PURCHASE_PENDING_KEYS__?.has(tid))return;
         if(tid&&TICKETS_DB[tid]!==undefined) delete TICKETS_DB[tid];
+        try{window.__ERP_PURCHASE_RECENT_CONFIRMED__?.delete(tid);}catch(_error){}
         conflictMessages.delete(tid);
         ticketsUi();
       });
