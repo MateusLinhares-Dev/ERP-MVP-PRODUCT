@@ -15,7 +15,7 @@ const groups={
   canPurchasing:`tickets ticketsDeleted adtPorFornDeleted chequesPorFornDeleted saldoDevedor saldoDevedorDeleted adtItensDeleted chequeItensDeleted historico historicoDeleted`,
   canSuppliers:`precosForn fornecedores fornecedoresDeleted fornDeleted fornVeiculos fornDespesa fornDespesaDeleted`,
   canCustomers:`precosCli clientes clientesDeleted`,
-  canFinance:`custosCasa contasPagar contasPagarDeleted contasReceber contasReceberDeleted saldos cheques fcSaldoIni fcSaldoIniDeleted fcLanc adtCli chequesCli`,
+  canFinance:`custosCasa contasPagar contasPagarDeleted financeAdvanceDeleted contasReceber contasReceberDeleted saldos cheques fcSaldoIni fcSaldoIniDeleted fcLanc adtCli chequesCli`,
   canSales:`vendas vendasDeleted`,
   canBanking:`bancos bancosDeleted lancBanco lancBancoDeleted`,
   canAdvances:`adiantamentos financeAdvanceDeleted`,
@@ -100,13 +100,6 @@ for(const [node,access] of Object.entries(directNodes)){
   const grant=(perm)=>perm==='admin'?`${auth} && auth.token.admin == true`:`${auth} && auth.token.${perm} == true`;
   candidate.rules.erp[node]={'.read':grant(access.read),'.write':grant(access.write)};
 }
-// Financeiro transacional: somente Firebase Admin SDK pode gravar.
-// A regra negada impede que clientes antigos regravem adiantamentos excluídos.
-candidate.rules.erp.adiantamentos['.write']=false;
-candidate.rules.erp.financeAdvanceDeleted={
-  '.read':`${auth} && (auth.token.canFinance == true || auth.token.canAdvances == true)`,
-  '.write':false
-};
 // Categorias de documentos são acessadas diretamente pelo Phase1Store.
 // Restringir esta coleção ao domínio de documentos e validar cada cadastro;
 // não habilitar o acesso genérico do nó pai.
@@ -149,8 +142,8 @@ candidate.rules.erp.bankReconciliationState={
   '.write':false
 };
 
-// Coleções de tombstones V2 são lidas pela função legada de sincronização.
-// A escrita V2 fica reservada ao administrador, exceto ticketsDeletedV2.
+// Tombstones de exclusão de compras são confirmados apenas pela API;
+// os sincronizadores legados continuam com acesso de leitura.
 const legacyCore=fs.readFileSync(path.join(root,'public/legacy/app-core.js'),'utf8');
 const legacyNames=[...new Set([...legacyCore.matchAll(/_criarSincroniaPorChave\(\s*['"]([^'"]+)/g)].map(m=>m[1]))];
 for(const name of legacyNames){
@@ -171,7 +164,7 @@ for(const name of legacyNames){
 }
 candidate.rules.erp.adiantamentos={
   '.read':`${auth} && (auth.token.canFinance == true || auth.token.canAdvances == true)`,
-  '.write':false // Somente APIs Firebase Admin; proíbe ressuscitar lista via cliente.
+  '.write':false // Apenas o Firebase Admin pode gravar adiantamentos.
 };
 // Protege também o marcador de versão usado pelo frontend, não coberto pelo array.
 candidate.rules.erp._appBuild={'.read':auth,'.write':`${auth} && auth.token.admin == true`};
@@ -187,6 +180,15 @@ for(const key of ['actorUid','actorLogin','action','module','entityType','entity
 const backupRule="auth != null && auth.token.erpAccess == true && auth.token.admin == true && (auth.token.erpUser == 'elaine' || (auth.token.engineer == true && auth.token.erpUser == 'engadministrator'))";
 candidate.rules.erp_snapshots['.read']=backupRule;
 candidate.rules.erp_snapshots['.write']=backupRule;
+// Compras consolidadas somente são excluídas pela API de manutenção financeira.
+// Pesagens não consolidadas continuam usando a exclusão local legada.
+const purchaseRule=candidate.rules.erp.tickets;
+const purchaseWrite=purchaseRule['.write'];
+delete purchaseRule['.write'];
+purchaseRule.$ticketId={'.write':purchaseWrite+" && ((newData.exists() && !root.child('erp/ticketsDeletedV2').child($ticketId).exists()) || (!newData.exists() && !data.exists() && root.child('erp/ticketsDeletedV2').child($ticketId).exists()) || (!newData.exists() && data.exists() && data.child('_consolidado').val() != true && !data.child('_purchaseOperationId').exists()))"};
+candidate.rules.erp.ticketsDeletedV2['.write']=false;
+candidate.rules.erp.financeAdvanceDeleted['.write']=false;
+candidate.rules.erp.purchaseDeleteOperations={'.read':false,'.write':false};
 const out=path.join(root,'database.rules.json');
 fs.writeFileSync(out,JSON.stringify(candidate,null,2)+'\n');
 fs.writeFileSync(path.join(root,'docs','database.rules.candidate.json'),JSON.stringify(candidate,null,2)+'\n');
@@ -199,7 +201,7 @@ const special=(value)=>value===false?{mode:'none',claims:[]}:
 for(const node of nodes){
   const rule=candidate.rules.erp[node]||{};
   const get=(side)=>{
-    const v=special(rule[side]);
+    const v=special(node==='tickets'&&side==='.write'?rule.$ticketId?.['.write']:rule[side]);
     if(Array.isArray(v))return {mode:'claims',claims:v};
     if(v.mode==='none')return v;
     if(v.mode==='admin')return v;

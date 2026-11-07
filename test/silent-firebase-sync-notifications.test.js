@@ -47,7 +47,8 @@ test('atualização automática ignora ausência de aba ativa',()=>{
 });
 
 test('sincronização em tempo real e atualização adiada usam apenas refresh protegido',()=>{
-  assert.match(sync,/_fbTsRef\.on\('value',_fbTsOnValue,_fbTsOnCancel\)/);
+  assert.match(sync,/ref\('erp\/_ts'\)/);
+  assert.match(sync,/_fbTsRef\.on\('value'/);
   assert.match(sync,/function _fbAgendarSyncCompletoDeferido\(/);
   assert.equal((sync.match(/_fbAtualizarAbaAtivaSilenciosamente\(\);/g)||[]).length,2);
   assert.doesNotMatch(sync,/Dados atualizados por outro usuário/);

@@ -10435,27 +10435,62 @@ function renderTickets(){
   tbody.innerHTML=rows;
 }
 
-function excluirEntradaCompra(ticket){
-  const tk=TICKETS_DB[ticket];
-  if(!tk) return;
-  const msg='Excluir a entrada de compra Ticket #'+ticket+' ('+tk.fornecedor+')?\n\nEsta ação não pode ser desfeita.';
-  if(!confirm(msg)) return;
-  _ticketExcluir(ticket);
-  saveDB();
-  
-  var cpAntes=CONTAS_PAGAR.length;
-  for(var _i=CONTAS_PAGAR.length-1;_i>=0;_i--){
-    var _cp=CONTAS_PAGAR[_i];
-    if(_cp.ticket===ticket||(_cp.obs&&_cp.obs.indexOf('Ticket '+ticket)>=0)){
-      _removerCPporIndice(_i);
-    }
+// Excluir compra somente após confirmação transacional do servidor.
+// Compras pagas/compensadas exigem estorno e nunca são removidas aqui.
+const _purchaseDeletePending=new Set();
+async function excluirEntradaCompra(ticket){
+  const id=String(ticket||'').trim(),tk=TICKETS_DB[id];
+  if(!tk){showToast('Compra não encontrada. Atualize o Histórico.','warning',5500);return;}
+  if(_purchaseDeletePending.has(id))return;
+  if(!confirm('Excluir a compra '+id+'?\n\nO sistema verificará pagamentos, adiantamentos e vínculos financeiros antes de excluir. Operações já quitadas não podem ser removidas diretamente.'))return;
+  const user=window.firebase?.auth?.()?.currentUser;
+  if(!user||typeof user.getIdToken!=='function'){
+    showToast('Sessão expirada. Entre novamente antes de excluir.','error',5500);return;
   }
-  if(CONTAS_PAGAR.length!==cpAntes){ saveContasPagar(); renderContasPagar(); }
-  renderTickets();
-  const tbCanh=document.getElementById('tb-canhotos');
-  if(tbCanh) renderCanhotos();
-  if(typeof showToast==='function') showToast('🗑️ Entrada #'+ticket+' excluída e removida de Contas a Pagar.','warn',3000);
+  _purchaseDeletePending.add(id);
+  try{
+    const token=await user.getIdToken();
+    const operationId=window.crypto?.randomUUID?.()||'00000000-0000-4000-8000-'+String(Date.now()).padStart(12,'0').slice(-12);
+    const response=await fetch('/api/finance/purchase-order-delete',{
+      method:'POST',credentials:'same-origin',cache:'no-store',
+      headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({operationId,ticketNo:id,expectedSupplier:tk.fornecedorCod||tk.fornCod||undefined,expectedTotal:Number(tk.totalGeral||0)})
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok){
+      const financial=['PURCHASE_HAS_FINANCE','PURCHASE_HAS_PAYMENTS','PURCHASE_HAS_LINKS','MULTIPLE_PAYABLES'];
+      const msg=financial.includes(result.code)
+        ?'Esta compra possui vínculo financeiro e não pode ser excluída diretamente. Faça o estorno ou a conciliação antes de cancelar.'
+        :(typeof result.message==='string'&&response.status<500?result.message:'Não foi possível confirmar a exclusão. Atualize a tela e consulte o Histórico.');
+      showToast(msg,'warning',7000);return;
+    }
+    if(result.status!=='CONFIRMED'||String(result.ticketNo)!==id){
+      showToast('A exclusão não foi confirmada pelo servidor. Atualize a tela antes de tentar novamente.','warning',6500);return;
+    }
+    // A API já gravou os tombstones e removeu tudo na nuvem. NÃO chamar
+    // _ticketExcluir(), _removerCPporIndice(), saveDB() nem saveContasPagar().
+    delete TICKETS_DB[id];
+    try{delete _ticketsSnapJSON[id];}catch(_error){}
+    TICKETS_DELETED.add(id);
+    try{localStorage.setItem('mm_tickets_deletados',JSON.stringify([...TICKETS_DELETED]));}catch(_error){}
+    const deletedPayables=new Set((result.deletedPayableIds||[]).map(String));
+    if(deletedPayables.size){
+      for(let index=CONTAS_PAGAR.length-1;index>=0;index--){
+        const item=CONTAS_PAGAR[index];
+        if(item&&deletedPayables.has(String(item.id||'')))CONTAS_PAGAR.splice(index,1);
+      }
+      deletedPayables.forEach(item=>CONTAS_PAGAR_DELETED.add(item));
+      try{localStorage.setItem('mm_cp_deletados',JSON.stringify([...CONTAS_PAGAR_DELETED]));}catch(_error){}
+    }
+    try{renderTickets();renderContasPagar();}catch(_error){}
+    try{if(document.getElementById('tb-canhotos'))renderCanhotos();}catch(_error){}
+    showToast('Compra '+id+' excluída com segurança.','success',4500);
+  }catch(error){
+    console.error('[compra] falha ao solicitar exclusão',error);
+    showToast('Não foi possível confirmar a exclusão. Atualize o Histórico antes de tentar novamente.','error',6500);
+  }finally{_purchaseDeletePending.delete(id);}
 }
+
 
 
 

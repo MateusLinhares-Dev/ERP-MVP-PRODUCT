@@ -258,7 +258,7 @@ test('baixa ou alteração posterior do cheque impede exclusão destrutiva',asyn
 test('perfil de Adiantamentos não herda leitura de bancos, fornecedores e outros financeiros',()=>{
   const rules=JSON.parse(readFileSync(new URL('../database.rules.json',import.meta.url),'utf8'));
   assert.match(rules.rules.erp.adiantamentos['.read'],/canAdvances/);
-  assert.equal(rules.rules.erp.adiantamentos['.write'],false);
+  assert.equal(rules.rules.erp.adiantamentos['.write'],false,'adiantamentos devem ser gravados somente pelo servidor');
   for(const key of ['bancos','lancBanco','chequesControle','fornecedores','partyBanks','contasPagar']){
     const policy=rules.rules.erp[key];
     assert.ok(policy,key);
