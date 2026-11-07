@@ -198,7 +198,7 @@ test('v30 supplier price editor clearly marks the row being edited by keyboard o
   assert.match(legacyStylesV30,/\.price-edit-row\.is-editing td/);
   assert.match(legacyStylesV30,/\.price-edit-row:focus-within td/);
   assert.match(legacyStylesV30,/\.price-edit-input:focus/);
-  assert.match(legacyStylesV30,/box-shadow:inset 5px 0 0 var\(--accent\)/);
+  assert.match(legacyStylesV30,/box-shadow\s*:\s*inset\s+5px\s+0\s+0\s+var\(\s*--accent\s*\)/);
 });
 
 
