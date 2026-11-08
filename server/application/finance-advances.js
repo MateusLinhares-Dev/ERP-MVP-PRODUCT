@@ -1,4 +1,5 @@
 import {randomUUID,createHash} from 'node:crypto';
+import {runTransaction,releaseLease} from '../infrastructure/rtdb-transaction.js';
 
 function failure(status,code,message){
   const error=new Error(message);
@@ -182,10 +183,12 @@ async function acquireAdvanceLock(ref,owner,now,{db,operationKey='',fornCod='',k
   const nextLock=()=>({owner,operationKey,fornCod,kind,requestFingerprint,startedAt:now(),expiresAt:now()+120000});
   for(const delay of delays){
     if(delay)await pause(delay);
-    const acquired=await ref.transaction(current=>{
-      if(current&&Number(current.expiresAt)>now())return;
+    // Reentrante para o mesmo dono: após uma queda de conexão a repetição
+    // reconhece a própria trava em vez de esperar o prazo expirar.
+    const acquired=await runTransaction(ref,current=>{
+      if(current&&current.owner!==owner&&Number(current.expiresAt)>now())return;
       return nextLock();
-    },undefined,false);
+    });
     if(acquired.committed)return true;
 
     // A recusa de uma trava ainda ativa não deve provocar um segundo débito.
@@ -203,11 +206,11 @@ async function acquireAdvanceLock(ref,owner,now,{db,operationKey='',fornCod='',k
         (lock.fornCod==='__global_cheques__'||receipt.result.fornCod===lock.fornCod||receipt.result.newFornCod===lock.fornCod));
     if(!confirmed)continue;
     // Compare-and-swap: never take ownership if a third request acquired it.
-    const recovered=await ref.transaction(current=>{
+    const recovered=await runTransaction(ref,current=>{
       if(current?.owner!==lock.owner||current?.operationKey!==lock.operationKey||
         current?.kind!==lock.kind||current?.fornCod!==lock.fornCod)return;
       return nextLock();
-    },undefined,false);
+    });
     if(recovered.committed)return true;
   }
   return false;
@@ -239,18 +242,13 @@ async function commitAdvanceAndRelease(db,updates,keys,owner,now){
 }
 
 async function releaseAdvanceLocks(locks,owner){
-  for(const ref of locks.reverse()){
+  for(const ref of [...locks].reverse()){
     for(let attempt=0;attempt<3;attempt++){
-      try{
-        const released=await ref.transaction(current=>current?.owner===owner?null:undefined,undefined,false);
-        if(released.committed)break;
-        const active=(await ref.get()).val();
-        if(!active||active.owner!==owner)break;
-        if(attempt===2)console.error('finance.advance.lock.release',new Error('Trava própria permaneceu ativa após três tentativas de liberação.'));
-      }catch(error){
-        if(attempt===2)console.error('finance.advance.lock.release',error);
-      }
-      if(attempt<2)await new Promise(resolve=>setTimeout(resolve,120*(attempt+1)));
+      // releaseLease aquece o cache: a função roda sobre o valor real do servidor
+      // (antes, com cache frio, a liberação era abortada sem chegar ao banco).
+      if(await releaseLease(ref,owner,{label:'finance.advance.lock.release'}))break;
+      if(attempt===2)console.error('finance.advance.lock.release',new Error('Trava própria permaneceu ativa após três tentativas de liberação.'));
+      else await new Promise(resolve=>setTimeout(resolve,120*(attempt+1)));
     }
   }
 }

@@ -1,5 +1,6 @@
 import '../../server/config/load-local-env.js';
 import { getFirebaseAdmin } from '../../server/infrastructure/firebase-admin.js';
+import { runTransaction } from '../../server/infrastructure/rtdb-transaction.js';
 import { requireIdentity } from '../../server/http/auth.js';
 import { applyApiSecurityHeaders,assertMethod,assertSameOrigin,assertJsonBody,sendError } from '../../server/http/http.js';
 import { AuditRepository } from '../../server/infrastructure/audit-repository.js';
@@ -16,12 +17,12 @@ export default async function handler(req,res){
   // Um único nó por usuário evita crescimento ilimitado do rate limiter.
   const ref=getFirebaseAdmin().db.ref('erpTelemetryRate').child(createHash('sha256').update(user.uid).digest('hex'));
   const now=Date.now();
-  const tx=await ref.transaction(v=>{
+  const tx=await runTransaction(ref,v=>{
     const start=Number(v?.start)||0;
     if(now-start>=60000||start>now)return {start:now,count:1};
     if(Number(v.count)>=12)return;
     return {start,count:Number(v.count||0)+1};
-  },undefined,false);
+  });
   if(!tx.committed)return res.status(429).json({code:'LOG_RATE_LIMIT',message:'Limite de eventos atingido.'});
   // Não persistir stack, URL com query-string, mensagem bruta, corpo de requisição ou tokens.
   await new AuditRepository().record({actorUid:user.uid,actorLogin:user.erpUser,

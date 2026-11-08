@@ -51,7 +51,7 @@ test('vinte cliques criam apenas um upload e um registro, e reenvio após F5 man
 
 test('API protege o registro de certificados com transação create-only e valida MIME',()=>{
  const api=fs.readFileSync(new URL('../api/training/matrix.js',import.meta.url),'utf8');
- assert.match(api,/documentRef\.transaction\(current=>current===null\?document:undefined/);
+ assert.match(api,/runTransaction\(documentRef,current=>current===null\?document:undefined/);
  assert.match(api,/alreadyExists:!transaction\.committed/);
  assert.match(api,/meta\.contentType!==allowedMime\[extension\]/);
  assert.match(api,/assertSameOrigin\(req,\{required:true\}\)/);

@@ -152,7 +152,10 @@ export function createLegacyDatabaseAdapter(rawDb, storage) {
 
   return new Proxy(rawDb, {
     get(target, prop) {
-      if (prop === 'ref') return (path = '') => wrapRef(target.ref(path), String(path));
+      // ref() sem argumento = raiz. ref('') é rejeitado pelo SDK ("invalid path").
+      if (prop === 'ref') return (path) => (path === undefined || path === null || path === '' || path === '/')
+        ? target.ref()
+        : wrapRef(target.ref(path), String(path));
       return Reflect.get(target, prop);
     },
   });

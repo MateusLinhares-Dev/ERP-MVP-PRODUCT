@@ -31,7 +31,8 @@ function setup(){
  function ref(path){return {
   get:async()=>({val:()=>structuredClone(data[path]??null)}),
   transaction:async updater=>{const result=updater(structuredClone(data[path]??null));if(result===undefined)return {committed:false};data[path]=structuredClone(result);return {committed:true};},
-  update:async updates=>{changes.push(structuredClone(updates));for(const [k,v] of Object.entries(updates))data[path+'/'+k]=structuredClone(v);}
+  // O commit é UMA atualização na raiz (pedido, crédito e liberação das travas).
+  update:async updates=>{changes.push(structuredClone(updates));for(const [k,v] of Object.entries(updates))data[path?path+'/'+k:k]=structuredClone(v);}
  };}
  const edited=original();edited.itens[0]={...edited.itens[0],preco:76796.05,total:76796.05};
  edited.totalProdutos=76796.05;edited.totalGeral=76796.05;edited.saldoPagar=-3153.45;
@@ -51,9 +52,11 @@ test('edição de T198 concilia pedido, recibo e adiantamento na mesma atualiza�
  assert.equal(x.data['erp/saldos/F500'].valor,3153.45);
  assert.equal(x.data['erp/saldoDevedor/F500'].valor,3153.45);
  assert.equal(x.changes.length,1);
- assert.ok(x.changes[0]['tickets/T198']);
- assert.ok(x.changes[0]['adiantamentos/F500']);
- assert.equal(x.changes[0]['saldos/F500'].valor,3153.45);
+ assert.ok(x.changes[0]['erp/tickets/T198']);
+ assert.ok(x.changes[0]['erp/adiantamentos/F500']);
+ assert.equal(x.changes[0]['erp/saldos/F500'].valor,3153.45);
+ assert.equal(x.changes[0]['erpFinancePayableTicketLocks/T198'],null);
+ assert.equal(x.changes[0]['erpFinanceAdvanceLocks/F500'],null);
 });
 test('operação idempotente não grava segunda correção financeira',async()=>{
  const x=setup();await editPurchaseOrder(identity,x.input,{db:x.db,now:()=>1793910000000,uuid:()=>operation});
@@ -109,7 +112,7 @@ test('edição de compra parcialmente abatida atualiza apenas conta em aberto',a
  assert.equal(saved.ticket.saldoPagar,900);
  assert.equal(x.data['erp/contasPagar/0'].valor,900);
  assert.equal(x.data['erp/tickets/T198'].saldoPagar,900);
- assert.equal(x.changes[0]['adiantamentos/F500'],undefined);
+ assert.equal(x.changes[0]['erp/adiantamentos/F500'],undefined);
  assert.equal(x.changes.length,1);
 });
 test('desmarcar compra liquidada não cria dívida nem modifica ticket local',async()=>{

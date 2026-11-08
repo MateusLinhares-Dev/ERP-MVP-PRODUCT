@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {acquireLease,releaseLeases} from '../infrastructure/rtdb-transaction.js';
 
 // Criação com atribuição financeira autoritativa: pedido, abatimentos, saldo e
 // conta a pagar são confirmados em UMA atualização do Realtime Database.
@@ -40,7 +41,9 @@ function normalizeTicket(input,ticketNo,code){
     return sum+Math.round(qty*price*100);
   },0);
   const discount=cents(Number(ticket.descontoCompra||0)),freight=cents(Number(ticket.freteCompra||0));
-  const extra=cents(Number(ticket.acrescimo||0));
+  // "acrescimo" legado pode carregar desconto (valor negativo): valida o módulo e preserva o sinal.
+  const rawExtra=Number(ticket.acrescimo||0);
+  const extra=rawExtra<0?-cents(-rawExtra):cents(rawExtra);
   const total=products-discount+freight+extra;
   if(total<=0||Math.abs(total-cents(Number(ticket.totalGeral)))>1)fail(422,'TOTAL_MISMATCH','Valor da compra não corresponde aos materiais.');
   const next=clone(ticket);
@@ -61,12 +64,17 @@ export async function createPurchaseOrder(identity,input,{db,now=()=>Date.now(),
   const credit=Boolean(input.useLegacyCredit);
   if(credit&&(selected.length||selectedCheques.length))fail(422,'MIXED_CREDITS','Para consumir o saldo residual, não selecione outros adiantamentos ou cheques na mesma compra.');
   const sources=(input.sourceTicketKeys||[]).map(id);
-  if(sources.length>50||new Set(sources).size!==sources.length)fail(422,'INVALID_SOURCE','Pesagem inválida.');
+  if(sources.length>50||new Set(sources).size!==sources.length||sources.includes(ticketNo))fail(422,'INVALID_SOURCE','Pesagem inválida.');
   const {ticket:incoming,total}=normalizeTicket(input,ticketNo,code);
   db=db||(await import('../infrastructure/firebase-admin.js')).getFirebaseAdmin().db;
   const opKey=operationKey(identity,operationId),opRef=db.ref('erp/purchaseCreateOperations/'+opKey);
-  const previous=(await opRef.get()).val();
-  if(previous?.ticket){if(previous.ticket.ticket!==ticketNo||Math.abs(Number(previous.ticket.totalGeral||0)-Number(incoming.totalGeral||0))>0.01)fail(409,'OPERATION_REUSED','Operação já utilizada com outro conteúdo.');return {...previous,alreadyCommitted:true};}
+  const sameOperation=record=>{
+    if(!record?.ticket)return null;
+    if(record.ticket.ticket!==ticketNo||Math.abs(Number(record.ticket.totalGeral||0)-Number(incoming.totalGeral||0))>0.01)fail(409,'OPERATION_REUSED','Operação já utilizada com outro conteúdo.');
+    return {...record,alreadyCommitted:true};
+  };
+  const previous=sameOperation((await opRef.get()).val());
+  if(previous)return previous;
   // Every purchase owns its *ticket*, never the entire supplier. Independent
   // unpaid orders must be creatable/deletable without waiting for each other.
   // The supplier credit lease is needed only when this purchase actually uses
@@ -78,41 +86,68 @@ export async function createPurchaseOrder(identity,input,{db,now=()=>Date.now(),
   try{
     for(const lockPath of lockKeys){
       const ref=db.ref(lockPath);
-      const lock=await ref.transaction(current=>current&&Number(current.expiresAt)>now()?undefined:{owner,expiresAt:now()+120000},undefined,false);
-      if(!lock?.committed)fail(409,'PURCHASE_IN_PROGRESS','Esta compra está sendo alterada. Consulte o Histórico antes de repetir.');
+      const acquired=await acquireLease(ref,owner,{now,ttlMs:120000,meta:{kind:'purchase-create',operationKey:opKey}});
+      if(!acquired){
+        const live=(await ref.get()).val();
+        const seconds=Math.ceil((Number(live?.expiresAt)-now())/1000);
+        const error=new Error('Outra operação desta compra ou deste fornecedor está em andamento. Aguarde alguns segundos e tente novamente.');
+        error.status=409;error.code='PURCHASE_IN_PROGRESS';
+        if(Number.isFinite(seconds)&&seconds>0)error.retryAfterSeconds=Math.min(seconds,120);
+        throw error;
+      }
       held.push({ref,path:lockPath});
     }
 
-    const repeated=(await opRef.get()).val();
-    if(repeated?.ticket){if(repeated.ticket.ticket!==ticketNo||Math.abs(Number(repeated.ticket.totalGeral||0)-Number(incoming.totalGeral||0))>0.01)fail(409,'OPERATION_REUSED','Operação já utilizada com outro conteúdo.');return {...repeated,alreadyCommitted:true};}
-    const snap=await Promise.all(['tickets','ticketsDeletedV2','adiantamentos/'+code,'saldoDevedor/'+code,'cheques/'+code,'contasPagar'].map(path=>db.ref('erp/'+path).get()));
-    const allTickets=snap[0].val()||{},deleted=snap[1].val()||{};
-    if(allTickets[ticketNo]||deleted[ticketNo])fail(409,'TICKET_EXISTS','Número da compra já utilizado. Atualize o histórico.');
-    for(const sourceId of sources){
-      const row=allTickets[sourceId];
+    const repeated=sameOperation((await opRef.get()).val());
+    if(repeated)return repeated;
+    // Leituras direcionadas: nunca baixar todos os tickets/contas a cada compra.
+    const [existingSnap,deletedSnap,advancesSnap,creditSnap,mirrorSnap,chequesSnap,payableSnap,...sourceSnaps]=await Promise.all([
+      db.ref('erp/tickets/'+ticketNo).get(),
+      db.ref('erp/ticketsDeletedV2/'+ticketNo).get(),
+      db.ref('erp/adiantamentos/'+code).get(),
+      db.ref('erp/saldoDevedor/'+code).get(),
+      credit?db.ref('erp/saldos/'+code).get():Promise.resolve(null),
+      db.ref('erp/cheques/'+code).get(),
+      db.ref('erp/contasPagar/CPPO_'+ticketNo).get(),
+      ...sources.map(sourceId=>db.ref('erp/tickets/'+sourceId).get())
+    ]);
+    if(existingSnap.val()||deletedSnap.val())fail(409,'TICKET_EXISTS','Número da compra já utilizado. Atualize o histórico.');
+    const sourceTickets={};
+    sources.forEach((sourceId,index)=>{
+      const row=sourceSnaps[index].val();
       if(!row||String(row.fornecedorCod||row.fornCod||'')!==code||row._consolidadoEm||row._balFinalizado!==true||String(row.status||'')!=='Aguard. Preço')fail(409,'SOURCE_CHANGED','Pesagem já finalizada ou alterada por outro usuário.');
-    }
-    const advanceRows=rows(snap[2].val()),chequeRows=rows(snap[4].val());
+      sourceTickets[sourceId]=row;
+    });
+    const advanceRows=rows(advancesSnap.val()),chequeRows=rows(chequesSnap.val());
     const updates={},receipts=[],chequeReceipts=[];
     let remaining=total,legacy=null,usedCredit=0;
     if(credit){
-      legacy=verifyLegacyCredit(snap[3].val(),allTickets,advanceRows,code);
+      // Caminho raro: a conferência do saldo residual exige o histórico do fornecedor.
+      const allTickets=(await db.ref('erp/tickets').get()).val()||{};
+      legacy=verifyLegacyCredit(creditSnap.val(),allTickets,advanceRows,code);
       usedCredit=Math.min(legacy.balance,remaining);remaining-=usedCredit;
-      updates['erp/saldoDevedor/'+code]=legacy.balance-usedCredit>0?{...clone(snap[3].val()),valor:money(legacy.balance-usedCredit)}:null;
+      const rest=legacy.balance-usedCredit;
+      updates['erp/saldoDevedor/'+code]=rest>0?{...clone(creditSnap.val()),valor:money(rest)}:null;
+      // A tela lê o crédito em erp/saldos: manter o espelho igual ao saldo oficial.
+      const mirror=mirrorSnap?.val?.();
+      if(mirror!=null)updates['erp/saldos/'+code]=rest>0?{...(typeof mirror==='object'?clone(mirror):{}),valor:money(rest),ticket:legacy.source}:null;
     }
+    const linkedPurchases=new Map();
     for(const advanceCode of selected){
       const adt=findAdvance(advanceRows,advanceCode);
-      if(String(adt.status||'')!=='Pendente'||String(adt.forma||'').toLowerCase().includes('cheque'))fail(409,'ADVANCE_CHANGED','Este adiantamento já foi utilizado ou alterado.');
+      if(String(adt.status||'')!=='Pendente')fail(409,'ADVANCE_CHANGED','Este adiantamento já foi utilizado ou alterado. Atualize a tela de compra.');
       const linked=String(adt.ticketOrigem||adt.ticket||'');
-      if(linked&&!sources.includes(linked)){
-        const originalPurchase=allTickets[linked];
+      // Reservado ao próprio pedido ou a uma das pesagens que ele fecha: permitido.
+      if(linked&&linked!==ticketNo&&!sources.includes(linked)){
+        if(!linkedPurchases.has(linked))linkedPurchases.set(linked,/^[\w-]{1,80}$/.test(linked)?(await db.ref('erp/tickets/'+linked).get()).val():null);
+        const originalPurchase=linkedPurchases.get(linked);
         const alreadyPartiallyUsed=cents(Number(adt.valorCompensado||0))>0&&
           originalPurchase&&['Pago','Quitado'].includes(String(originalPurchase.status||''));
-        if(!alreadyPartiallyUsed)fail(409,'ADVANCE_LINKED','Este adiantamento está reservado a outra compra.');
+        if(!alreadyPartiallyUsed)fail(409,'ADVANCE_LINKED','O adiantamento '+advanceCode+' está reservado a outra compra ('+linked+').');
       }
       const available=cents(Number(adt.valor)),prior=cents(Number(adt.valorCompensado||0));
       const original=cents(Number(adt.valorOriginal??money(available+prior)));
-      if(available<=0||original!==available+prior)fail(409,'ADVANCE_CHANGED','Saldo do adiantamento inconsistente.');
+      if(available<=0||original!==available+prior)fail(409,'ADVANCE_CHANGED','Saldo do adiantamento '+advanceCode+' inconsistente. Solicite conferência financeira.');
       const applied=Math.min(available,remaining);
       if(applied===0)continue;
       remaining-=applied;
@@ -144,18 +179,18 @@ export async function createPurchaseOrder(identity,input,{db,now=()=>Date.now(),
     updates['erp/tickets/'+ticketNo]=incoming;
     if(receipts.length)updates['erp/adiantamentos/'+code]=advanceRows;
     if(chequeReceipts.length)updates['erp/cheques/'+code]=chequeRows;
-    for(const sourceId of sources)updates['erp/tickets/'+sourceId]={...allTickets[sourceId],_balFinalizado:false,status:'Consolidado',_consolidadoEm:ticketNo};
+    for(const sourceId of sources)updates['erp/tickets/'+sourceId]={...sourceTickets[sourceId],_balFinalizado:false,status:'Consolidado',_consolidadoEm:ticketNo};
     let payable=null;
     if(remaining>0){
       const payableId='CPPO_'+ticketNo;
-      if((snap[5].val()||{})[payableId])fail(409,'PAYABLE_EXISTS','Conta a pagar já existe para este ticket.');
+      if(payableSnap.val())fail(409,'PAYABLE_EXISTS','Conta a pagar já existe para este ticket.');
       const due=incoming.vencimentoSaldo.split('-').reverse().join('/');
       payable={id:payableId,ticket:ticketNo,fornCod:code,cred:incoming.fornecedor||incoming.fornecedorNome||'',desc:'Compra de Sucata — '+(incoming.fornecedor||'')+' — '+ticketNo,
         cat:'Compra de Sucata',tipoForn:'compra',lancto:incoming.dataCompra.split('-').reverse().join('/'),venc:due,valor:money(remaining),status:'Pendente',dataPgto:'',bancoCod:'',bancoNome:'',obs:'Gerado automaticamente — Pedido '+ticketNo};
       updates['erp/contasPagar/'+payableId]=payable;
     }
     const receipt={ticket:incoming,advances:advanceRows,cheques:chequeRows,
-      saldo:credit?updates['erp/saldoDevedor/'+code]:snap[3].val(),payable,fornCod:code,at:now(),actor:String(identity.erpUser||identity.uid||'')};
+      saldo:credit?updates['erp/saldoDevedor/'+code]:creditSnap.val(),payable,fornCod:code,at:now(),actor:String(identity.erpUser||identity.uid||'')};
     updates['erp/purchaseCreateOperations/'+opKey]=receipt;
     updates['erp/_ts']=now();
     // Receipt, purchase and release of its own leases are one RTDB commit.
@@ -165,7 +200,7 @@ export async function createPurchaseOrder(identity,input,{db,now=()=>Date.now(),
       if(live?.owner!==owner)fail(409,'PURCHASE_CHANGED','A compra mudou durante a gravação. Consulte o Histórico.');
       updates[lock.path]=null;
     }
-    try{await db.ref('').update(updates);committed=true;}
+    try{await db.ref().update(updates);committed=true;}
     catch(error){
       const recovered=(await opRef.get().catch(()=>({val:()=>null}))).val();
       if(recovered?.ticket&&recovered.ticket.ticket===ticketNo){committed=true;return {...recovered,alreadyCommitted:true};}
@@ -173,16 +208,8 @@ export async function createPurchaseOrder(identity,input,{db,now=()=>Date.now(),
     }
     return {...receipt,alreadyCommitted:false};
   }finally{
-    if(!committed){
-      // A failed operation may release only leases it actually owns.
-      // If a response was lost after commit, receipt proves completion.
-      let receipt=null;
-      try{receipt=(await opRef.get()).val();}catch{}
-      if(!receipt?.ticket){
-        for(const lock of held.reverse()){
-          try{await lock.ref.transaction(current=>current?.owner===owner?null:undefined,undefined,false);}catch{}
-        }
-      }
-    }
+    // O commit confirmado já removeu as travas na mesma atualização. Em qualquer
+    // outro desfecho, liberar somente as travas que esta requisição obteve.
+    if(!committed)await releaseLeases(held,owner,{label:'purchase.create.lock.release'});
   }
 }

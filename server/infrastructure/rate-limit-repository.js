@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { getFirebaseAdmin } from './firebase-admin.js';
+import { runTransaction } from './rtdb-transaction.js';
 import {
   withSpan,
 } from '../observability/tracing.js';
@@ -66,7 +67,7 @@ export class LoginRateLimitRepository {
 
   async registerFailure(ip) {
     const now = Date.now();
-    await this.ref(ip).transaction((current) => {
+    await runTransaction(this.ref(ip), (current) => {
       const previous = current || {};
       const expired = !previous.windowStartedAt || now - previous.windowStartedAt > WINDOW_MS;
       const count = expired ? 1 : Number(previous.count || 0) + 1;

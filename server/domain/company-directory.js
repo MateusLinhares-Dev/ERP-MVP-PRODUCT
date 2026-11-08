@@ -1,3 +1,5 @@
+import { runTransaction } from '../infrastructure/rtdb-transaction.js';
+
 function keyOf(value) {
   const key = String(value || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
   return key === 'gratus metais' ? 'gratus' : key === 'manuela metais' ? 'manuela' : key;
@@ -64,7 +66,7 @@ export async function getCompanyDirectory(db) {
   if (existing != null) return normalizeCompanyDirectory(existing);
   const legacy = (await db.ref('erp/config').get()).val() || {};
   const seed = initializeCompanyDirectory(legacy);
-  const initialized = await directoryRef.transaction(current => current == null ? seed : undefined);
+  const initialized = await runTransaction(directoryRef, current => current == null ? seed : undefined);
   const result = initialized.snapshot.val();
   return normalizeCompanyDirectory(result);
 }
@@ -99,7 +101,7 @@ export function changeCompanyDirectory(current, action, name, expectedRevision) 
 
 export async function transactCompanyDirectory(db, ref, action, name, expectedRevision) {
   const known = await getCompanyDirectory(db);
-  return ref.transaction(current => changeCompanyDirectory(current == null ? known : current, action, name, expectedRevision));
+  return runTransaction(ref, current => changeCompanyDirectory(current == null ? known : current, action, name, expectedRevision));
 }
 
 export function companyDirectoryResponse(state) {

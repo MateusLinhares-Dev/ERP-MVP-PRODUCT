@@ -39,7 +39,7 @@ function database(override={}){
   },
   update:async change=>{
     updates.push(copy(change));
-    for(const [key,value] of Object.entries(change))records[path+'/'+key]=copy(value);
+    for(const [key,value] of Object.entries(change))records[path?path+'/'+key:key]=copy(value);
   }
  };}};
  return {records,updates,db};

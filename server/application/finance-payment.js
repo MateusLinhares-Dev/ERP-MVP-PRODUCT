@@ -1,4 +1,5 @@
 import {createHash,randomUUID} from 'node:crypto';
+import {acquireLease,releaseLease} from '../infrastructure/rtdb-transaction.js';
 
 const fail=(status,code,message)=>{const error=new Error(message);error.status=status;error.code=code;throw error;};
 const clean=(value,max=160)=>String(value??'').trim().slice(0,max);
@@ -13,6 +14,14 @@ const canList=identity=>identity?.erpAccess===true&&bankListClaims.some(claim=>i
 async function database(db){return db||(await import('../infrastructure/firebase-admin.js')).getFirebaseAdmin().db;}
 const banks=value=>entries(value).map(([id,b])=>({cod:clean(b.cod||b.codigo||b.id||id),banco:clean(b.banco||b.nomeBanco||b.nome)})).filter(b=>b.cod&&b.banco);
 const LOCK_TTL_MS=120000;
+// Localiza o título pelo caminho direto (formato atual por id). A varredura
+// completa fica restrita aos registros legados gravados em lista/índice.
+async function findPayable(instance,id){
+  const direct=(await instance.ref('erp/contasPagar/'+id).get()).val();
+  if(direct&&typeof direct==='object'&&!Array.isArray(direct)&&(direct.id==null||String(direct.id)===id))return [id,direct];
+  const raw=(await instance.ref('erp/contasPagar').get()).val();
+  return entries(raw).find(([path,row])=>path===id||String(row.id)===id)||null;
+}
 // Nunca roubar um bloqueio ainda válido. A operação poderá ter gravado no Firebase
 // mesmo quando a resposta HTTP se perdeu: nesse caso o comprovante é a fonte da verdade.
 async function recoverPaymentResult(opRef,originalLock,operationKey,{sleep}){
@@ -64,26 +73,24 @@ export async function payPayable(identity,input,{db,now=()=>Date.now(),uuid=rand
   const replay=resultIfCommitted(previous);
   if(replay)return replay;
   const lockRef=instance.ref('erpFinancePayableLocks/'+id),owner=uuid();
-  let claimed=await lockRef.transaction(current=>current&&current.expiresAt>now()?undefined:{owner,operationKey:opKey,expiresAt:now()+LOCK_TTL_MS},undefined,false);
-  if(!claimed.committed){
-    const lock=claimed.snapshot?.val?.()||(await lockRef.get()).val();
+  const claim=()=>acquireLease(lockRef,owner,{now,ttlMs:LOCK_TTL_MS,meta:{operationKey:opKey,kind:'payable-payment'}});
+  let claimed=await claim();
+  if(!claimed){
+    const lock=(await lockRef.get()).val();
     const completed=await recoverPaymentResult(opRef,lock,opKey,{sleep});
     const recovered=resultIfCommitted(completed);
     if(recovered)return recovered;
     // A requisição que reteve o lock pode ter sido interrompida. Se o prazo já
-    // terminou durante a espera, só o próprio transaction pode reassumir o lock.
-    if(Number(lock?.expiresAt||0)<=now()){
-      claimed=await lockRef.transaction(current=>current&&current.expiresAt>now()?undefined:{owner,operationKey:opKey,expiresAt:now()+LOCK_TTL_MS},undefined,false);
-    }
-    if(!claimed.committed)inProgress(claimed.snapshot?.val?.()||(await lockRef.get()).val(),now);
+    // terminou durante a espera, só a própria transação pode reassumir o lock.
+    if(Number(lock?.expiresAt||0)<=now())claimed=await claim();
+    if(!claimed)inProgress((await lockRef.get()).val(),now);
   }
-  let supplierLock=null,ticketLock=null;
+  let supplierLock=null,ticketLock=null,paymentCommitted=false;
   try{
     const committed=(await opRef.get()).val();
     const committedResult=resultIfCommitted(committed);
     if(committedResult)return committedResult;
-    const rawPayables=(await instance.ref('erp/contasPagar').get()).val();
-    const found=entries(rawPayables).find(([path,row])=>path===id||String(row.id)===id);
+    const found=await findPayable(instance,id);
     if(!found)fail(404,'PAYABLE_NOT_FOUND','Título não encontrado na nuvem.');
     const [path,original]=found;
     const currentCents=cents(Number(original.valor));
@@ -92,17 +99,19 @@ export async function payPayable(identity,input,{db,now=()=>Date.now(),uuid=rand
       fail(409,'PAYABLE_CHANGED','O título foi alterado por outra sessão. Atualize a página antes de pagar.');
     if(payCents+advanceCents>currentCents)fail(409,'OVERPAYMENT','O valor informado excede o saldo atual.');
     if(original.ticket){
-      ticketLock=instance.ref('erpFinancePayableTicketLocks/'+key(original.ticket));
-      const lock=await ticketLock.transaction(current=>current&&current.expiresAt>now()?undefined:{owner,expiresAt:now()+120000},undefined,false);
-      if(!lock.committed)fail(409,'TICKET_IN_PROGRESS','Outra baixa deste ticket está em andamento.');
+      const candidate=instance.ref('erpFinancePayableTicketLocks/'+key(original.ticket));
+      if(!await acquireLease(candidate,owner,{now,ttlMs:120000,meta:{kind:'payable-payment'}}))
+        fail(409,'TICKET_IN_PROGRESS','Outra operação desta compra está em andamento. Aguarde alguns segundos e tente novamente.');
+      ticketLock=candidate;
     }
     const supplier=advanceCents?key(original.fornCod||input.fornCod):'';
     if(advanceCents&&original.fornCod&&String(input.fornCod||original.fornCod)!==String(original.fornCod))
       fail(409,'SUPPLIER_MISMATCH','O fornecedor do adiantamento não corresponde ao título.');
     if(advanceCents){
-      supplierLock=instance.ref('erpFinanceAdvanceLocks/'+supplier);
-      const lock=await supplierLock.transaction(current=>current&&current.expiresAt>now()?undefined:{owner,expiresAt:now()+120000},undefined,false);
-      if(!lock.committed)fail(409,'ADVANCE_IN_PROGRESS','Outro adiantamento está em alteração.');
+      const candidate=instance.ref('erpFinanceAdvanceLocks/'+supplier);
+      if(!await acquireLease(candidate,owner,{now,ttlMs:120000,meta:{kind:'payable-payment',fornCod:supplier}}))
+        fail(409,'ADVANCE_IN_PROGRESS','Outra operação de adiantamento deste fornecedor está em andamento. Aguarde alguns segundos e tente novamente.');
+      supplierLock=candidate;
     }
     const [bankSnap,advanceSnap,ticketSnap]=await Promise.all([
       payCents?instance.ref('erp/bancos').get():Promise.resolve(null),
@@ -166,10 +175,13 @@ export async function payPayable(identity,input,{db,now=()=>Date.now(),uuid=rand
         advance.valorCompensado=money(alreadyApplied+used);
         if(used===available){
           advance.status='Quitado';
+          if(advance.valorDisponivel!=null)advance.valorDisponivel=0;
           advance.ticket=advance.ticket||ticketCode;
           advance.obs=(advance.obs?advance.obs+' | ':'')+'Compensado em CP '+displayDate(date);
         }else{
           advance.valor=money(available-used);
+          // Mantém o saldo disponível gravado pela Compra coerente com o valor atual.
+          if(advance.valorDisponivel!=null)advance.valorDisponivel=money(available-used);
           if(advance.ticket&&String(advance.ticket).trim()===ticketCode){
             advance.ticketOrigem=advance.ticket;
             advance.ticket='';
@@ -214,18 +226,22 @@ export async function payPayable(identity,input,{db,now=()=>Date.now(),uuid=rand
     if(supplierLock)atomicUpdates['erpFinanceAdvanceLocks/'+supplier]=null;
     try{
       await instance.ref().update(atomicUpdates);
+      paymentCommitted=true;
     }catch(error){
       // Se o servidor gravou e a resposta se perdeu, nunca reenviar a baixa.
       const stored=(await opRef.get().catch(()=>({val:()=>null}))).val();
       const recovered=resultIfCommitted(stored);
-      if(recovered)return recovered;
+      if(recovered){paymentCommitted=true;return recovered;}
       throw error;
     }
     return result;
   }finally{
-    if(supplierLock){try{await supplierLock.transaction(current=>current?.owner===owner?null:undefined,undefined,false);}catch{}}
-    if(ticketLock){try{await ticketLock.transaction(current=>current?.owner===owner?null:undefined,undefined,false);}catch{}}
-    try{await lockRef.transaction(current=>current?.owner===owner?null:undefined,undefined,false);}catch{}
+    // Commit confirmado já removeu as três travas; nos demais casos liberar as próprias.
+    if(!paymentCommitted){
+      if(supplierLock)await releaseLease(supplierLock,owner,{label:'payable.supplier.lock.release'});
+      if(ticketLock)await releaseLease(ticketLock,owner,{label:'payable.ticket.lock.release'});
+      await releaseLease(lockRef,owner,{label:'payable.lock.release'});
+    }
   }
 }
 
@@ -235,8 +251,7 @@ export async function inspectPayablePayment(identity,input,{db,now=()=>Date.now(
   if(identity?.erpAccess!==true||identity.canPayables!==true)fail(403,'PAYABLES_REQUIRED','Sem acesso a Contas a Pagar.');
   const id=key(input?.payableId);
   const instance=await database(db);
-  const payables=(await instance.ref('erp/contasPagar').get()).val();
-  const found=entries(payables).find(([path,row])=>path===id||String(row.id)===id);
+  const found=await findPayable(instance,id);
   if(!found) return {state:'not_found'};
   const [,payable]=found;
   const ticketId=String(payable.ticket||'').trim();

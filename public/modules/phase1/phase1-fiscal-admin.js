@@ -12,6 +12,18 @@ async function initFiscalParties(){
   }
   const seq=++fiscalPartyLoadId;
   try{
+    // Sem a permissão de leitura fiscal a consulta seria recusada pelas regras:
+    // não consultar (evita erro de permissão no console a cada abertura).
+    const current=global.firebase?.auth?.()?.currentUser;
+    if(current&&typeof current.getIdTokenResult==='function'){
+      const claims=(await current.getIdTokenResult())?.claims||{};
+      if(claims.canFiscalRead!==true){
+        fiscalPartyAccessDenied=true;
+        const host=document.getElementById('phase1-fiscal-party-list');
+        if(host)host.textContent='Sem permissão para consultar cadastros fiscais (canFiscalRead).';
+        return;
+      }
+    }
     // Ao voltar à aba, consultar a fonte atual: Phase1Store mantém cache e a
     // primeira leitura pode ocorrer antes de o Firebase terminar a sincronização.
     const raw=global._fbDB;

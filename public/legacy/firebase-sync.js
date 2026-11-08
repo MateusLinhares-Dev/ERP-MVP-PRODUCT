@@ -1,5 +1,46 @@
 const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || {};
-  const _APP_BUILD = '2026-09-05-1800-v212-dinheiro-2-casas';
+  // Transação RTDB confiável no navegador.
+  // O SDK chama a função primeiro com o CACHE LOCAL; sem listener ativo ele vale
+  // null e um "return undefined" aborta SEM consultar o servidor (ex.: editar
+  // vale -> "modificado em outra sessão"). Mantemos um listener 'value' durante
+  // a transação para que a função parta do dado real, e repetimos em quedas
+  // de conexão ('disconnect') ou gravação concorrente local ('set').
+  window.__erpServerNow = function(){
+    const offset = Number(window.__ERP_SERVER_TIME_OFFSET__);
+    return Math.round(Date.now() + (Number.isFinite(offset) ? offset : 0));
+  };
+  window.__erpRunTransaction = async function(ref, update, options){
+    const attempts = Math.max(1, Number(options && options.attempts) || 3);
+    const transient = function(error){
+      const msg = String((error && error.message) || error || '').trim().toLowerCase();
+      return msg === 'disconnect' || msg === 'set' || msg === 'maxretry';
+    };
+    const prime = function(){
+      if(!ref || typeof ref.on !== 'function' || typeof ref.off !== 'function') return Promise.resolve(function(){});
+      return new Promise(function(resolve, reject){
+        let done = false;
+        const onValue = function(){ if(done) return; done = true; clearTimeout(timer); resolve(detach); };
+        const onCancel = function(error){ if(done) return; done = true; clearTimeout(timer); detach(); reject(error || new Error('Leitura cancelada pelo Firebase.')); };
+        const detach = function(){ try{ ref.off('value', onValue); }catch(_e){} };
+        const timer = setTimeout(function(){ if(done) return; done = true; detach(); reject(new Error('Tempo esgotado ao consultar o Firebase. Verifique a conexão.')); }, 20000);
+        ref.on('value', onValue, onCancel);
+      });
+    };
+    let lastError = null;
+    for(let attempt = 1; attempt <= attempts; attempt++){
+      let detach = null;
+      try{
+        detach = await prime();
+        return await ref.transaction(update, undefined, false);
+      }catch(error){
+        lastError = error;
+        if(attempt >= attempts || !transient(error)) throw error;
+        await new Promise(function(r){ setTimeout(r, 200 * attempt); });
+      }finally{ if(detach) detach(); }
+    }
+    throw lastError;
+  };
+  const _APP_BUILD = '2026-11-08-1900-v213-firebase-travas';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -85,6 +126,17 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(_FB_CONFIG);
       window._fbRawDB = firebase.database();
        window._fbDB = window.__legacyDbAdapter ? window.__legacyDbAdapter(window._fbRawDB) : window._fbRawDB;
+      // Relógio do servidor: as regras exigem _ts a no máximo 10 min do horário
+      // do Firebase. Um PC com relógio errado tinha TODOS os salvamentos recusados.
+      try{
+        if(!window.__ERP_SERVER_OFFSET_LISTENER__){
+          window.__ERP_SERVER_OFFSET_LISTENER__=true;
+          window._fbRawDB.ref('.info/serverTimeOffset').on('value',function(snap){
+            const offset=Number(snap&&snap.val&&snap.val());
+            window.__ERP_SERVER_TIME_OFFSET__=Number.isFinite(offset)?offset:0;
+          });
+        }
+      }catch(e){}
       try{ if(typeof _fbSetStatus==='function') _fbSetStatus('saving','Aguardando autenticação e sincronização'); }catch(e){}
       var banner=document.getElementById('fb-offline-banner'); if(banner) banner.remove();
       try{ if(firebase.auth && firebase.auth().currentUser) _iniciarChecagemVersao(); }catch(e){}
@@ -965,7 +1017,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         pontoDeleted: [..._syncPonto.deletedSet],
         pontoBatidasDeleted: [..._syncPontoBatidas.deletedSet],
         fornDespesaDeleted: [..._syncFornDespesa.deletedSet],
-        _ts: Date.now(),
+        _ts: (typeof window.__erpServerNow === 'function' ? window.__erpServerNow() : Date.now()),
         _user: (typeof cu !== 'undefined' && cu) ? cu.name : '?'
       };
       
@@ -1011,6 +1063,23 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(!window.__ERP_BANKS_CLOUD_READY__) delete dados.bancosDeleted;
       if(!window.__ERP_FINANCE_CLOUD_READY__) delete dados.fcSaldoIniDeleted;
       const _valoresDelArrAtual = _deletedArrPularSeIgual(dados);
+      // Mapas por chave são enviados POR REGISTRO (precosForn/F1, fiscal/2026-11...).
+      // Antes, o 1º salvamento após abrir a tela regravava o NÓ INTEIRO com a cópia
+      // local e apagava preços, saldos e dados fiscais salvos por outro usuário.
+      // _fbFiltrarJaEnviado descarta os registros que não mudaram localmente.
+      [['precosForn',PRECOS_FORN_DATA,null],['precosCli',PRECOS_CLI_DATA,null],
+       ['saldoDevedor',SALDO_DEVEDOR_FORN,_DEL_SETS.saldoDevedor],['custosCasa',CUSTO_CASA,null],
+       ['fiscal',(typeof FISCAL_DB!=='undefined'?FISCAL_DB:null),null],
+       ['fiscalApur',(typeof FISCAL_APUR!=='undefined'?FISCAL_APUR:null),null],
+       ['fornVeiculos',dados.fornVeiculos,null]].forEach(function(par){
+        const no=par[0],mapa=par[1],removidos=par[2];
+        if(!(no in dados))return;
+        delete dados[no];
+        if(!mapa||typeof mapa!=='object'||Array.isArray(mapa))return;
+        const valido={};
+        Object.keys(mapa).forEach(function(k){ if(k && !/[.#$\/\[\]]/.test(k)) valido[k]=mapa[k]; });
+        _patchIncremental(dados, no, valido, removidos);
+      });
       
       
       
@@ -2114,6 +2183,20 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
             Object.assign(FISCAL_APUR, d.fiscalApur);
             try{ localStorage.setItem('mm_fiscal_apur',JSON.stringify(FISCAL_APUR)); }catch(_){}
           }
+          // Preços: aplicar a versão do servidor nos registros SEM alteração local
+          // pendente (local igual ao último valor confirmado). Antes, a sessão aberta
+          // mantinha preços antigos e os regravava sobre os de outro usuário.
+          [['precosForn',PRECOS_FORN_DATA],['precosCli',PRECOS_CLI_DATA]].forEach(function(par){
+            const no=par[0],alvo=par[1],remoto=d[no];
+            if(!alvo||!remoto||typeof remoto!=='object'||Array.isArray(remoto))return;
+            Object.keys(remoto).forEach(function(k){
+              const base=_fbEnviadoOk[no+'/'+k];
+              let local; try{ local=JSON.stringify(alvo[k]); }catch(e){ local=undefined; }
+              const localVazio=alvo[k]===undefined||alvo[k]===null||(typeof alvo[k]==='object'&&!Object.keys(alvo[k]).length);
+              if(localVazio||local===base)alvo[k]=remoto[k];
+            });
+            try{ localStorage.setItem(no==='precosForn'?'mm_precos_forn':'mm_precos_cli', JSON.stringify(alvo)); }catch(e){}
+          });
           // Atualiza o baseline após um snapshot remoto confiável. Não trata edição
           // local pendente como confirmada, nem envia dados da sessão ao servidor.
           if(_fbConf2) _fbRegistrarBaseConfirmada(d);
@@ -2302,6 +2385,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         const val=snap&&snap.val?snap.val():null;
         if(val==null) delete FISCAL_DB[key];
         else FISCAL_DB[key]=val;
+        try{ if(val==null) delete _fbEnviadoOk['fiscal/'+key]; else _fbEnviadoOk['fiscal/'+key]=JSON.stringify(val); }catch(e){}
         fiscalUi();
       }
       fiscalRef.on('child_added',aplicarFiscal);

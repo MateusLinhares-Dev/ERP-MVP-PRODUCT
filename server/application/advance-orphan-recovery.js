@@ -1,4 +1,5 @@
 import {createHash,randomUUID} from 'node:crypto';
+import {acquireLease,releaseLease} from '../infrastructure/rtdb-transaction.js';
 
 // Operação excepcional. Não reconcilia pagamentos reais e não altera o extrato:
 // só remove um registro sem movimento, sem uso e com atestado administrativo.
@@ -153,9 +154,8 @@ export async function recoverOrphanAdvance(identity,input,{db,now=()=>Date.now()
     return {confirmed:true,alreadyCommitted:true,removedCode:adtCod,fornCod};
   }
   const lockRef=db.ref('erpFinanceAdvanceLocks/'+fornCod),owner=uuid();
-  const acquired=await lockRef.transaction(current=>current&&Number(current.expiresAt)>now()?undefined:
-    {owner,kind:'orphan-recovery',fornCod,operationKey:opKey,expiresAt:now()+120000},undefined,false);
-  if(!acquired.committed)fail(409,'ADVANCE_IN_PROGRESS','Outra operação financeira está em andamento.');
+  const acquired=await acquireLease(lockRef,owner,{now,ttlMs:120000,meta:{kind:'orphan-recovery',fornCod,operationKey:opKey}});
+  if(!acquired)fail(409,'ADVANCE_IN_PROGRESS','Outra operação financeira está em andamento. Aguarde alguns segundos e tente novamente.');
   let committed=false;
   try{
     const fresh=await inspect(db,fornCod,adtCod);
@@ -184,8 +184,7 @@ export async function recoverOrphanAdvance(identity,input,{db,now=()=>Date.now()
     return {confirmed:true,alreadyCommitted:false,removedCode:adtCod,fornCod,entries};
   }finally{
     if(!committed){
-      try{await lockRef.transaction(current=>current?.owner===owner?null:undefined,undefined,false);}
-      catch(error){console.error('orphan.recovery.release.failed',error);}
+      await releaseLease(lockRef,owner,{label:'orphan.recovery.release.failed'});
     }
   }
 }
@@ -220,9 +219,8 @@ export async function recordVerifiedOrphanTransfer(identity,input,{db,now=()=>Da
     return {confirmed:true,alreadyCommitted:true,action:'restore-missing-bank-movement',adtCod,fornCod};
   }
   const lockRef=db.ref('erpFinanceAdvanceLocks/'+fornCod),owner=uuid();
-  const acquired=await lockRef.transaction(current=>current&&Number(current.expiresAt)>now()?undefined:
-    {owner,kind:'bank-reconciliation',fornCod,operationKey:opKey,expiresAt:now()+120000},undefined,false);
-  if(!acquired.committed)fail(409,'ADVANCE_IN_PROGRESS','Outra operação deste fornecedor está em andamento.');
+  const acquired=await acquireLease(lockRef,owner,{now,ttlMs:120000,meta:{kind:'bank-reconciliation',fornCod,operationKey:opKey}});
+  if(!acquired)fail(409,'ADVANCE_IN_PROGRESS','Outra operação deste fornecedor está em andamento. Aguarde alguns segundos e tente novamente.');
   let committed=false;
   try{
     const fresh=await inspect(db,fornCod,adtCod);
@@ -260,8 +258,7 @@ export async function recordVerifiedOrphanTransfer(identity,input,{db,now=()=>Da
     return {confirmed:true,alreadyCommitted:false,action:'restore-missing-bank-movement',adtCod,fornCod};
   }finally{
     if(!committed){
-      try{await lockRef.transaction(current=>current?.owner===owner?null:undefined,undefined,false);}
-      catch(error){console.error('advance.bank.reconciliation.release.failed',error);}
+      await releaseLease(lockRef,owner,{label:'advance.bank.reconciliation.release.failed'});
     }
   }
 }

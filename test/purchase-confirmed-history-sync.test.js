@@ -83,6 +83,6 @@ test('as duas leituras gerais usam proteção e child_removed descarta registro 
 });
 
 test('versão atualizada do bootstrap impede carregar JavaScript antigo',()=>{
-  assert.match(bootstrap,/assetRevision = '20261107-purchase-atomic-recovery-v3'/);
-  assert.match(html,/bootstrap\.js\?v=20261107-purchase-atomic-recovery-v3/);
+  assert.match(bootstrap,/assetRevision = '20261108-firebase-lock-release-v4'/);
+  assert.match(html,/bootstrap\.js\?v=20261108-firebase-lock-release-v4/);
 });
