@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {createAdvance,getAdvanceOperationStatus} from '../server/application/finance-advances.js';
+import {runTransaction,releaseLease} from '../server/infrastructure/rtdb-transaction.js';
 
 const operationId1='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 const operationId2='bbbbbbbb-cccc-4ddd-8eee-ffffffffffff';
@@ -70,7 +71,7 @@ test('trava abandonada de operação COM recibo confirmado é recuperada sem esp
 // Executa apenas a máquina de trava para testar recusas legítimas sem 5 s de espera real.
 const source=readFileSync(new URL('../server/application/finance-advances.js',import.meta.url),'utf8');
 const lockSource=source.slice(source.indexOf('async function acquireAdvanceLock('),source.indexOf('export async function createAdvance('));
-function lockAcquirer(){const ctx={setTimeout};runInNewContext(lockSource+';this.take=acquireAdvanceLock;',ctx);return ctx.take;}
+function lockAcquirer(){const ctx={setTimeout,runTransaction,releaseLease};runInNewContext(lockSource+';this.take=acquireAdvanceLock;',ctx);return ctx.take;}
 
 test('trava ativa SEM recibo confirmado não é tomada nem se identificador estiver presente',async()=>{
   const db=memoryDb(),now=()=>100000;

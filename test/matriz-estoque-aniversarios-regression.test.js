@@ -104,6 +104,7 @@ test('matriz apresenta pesquisa, edição de curso e exclusão de vínculo audit
 
 async function trainingApiHarness(){
   const domain=await import('../server/domain/training.js');
+  const {runTransaction}=await import('../server/infrastructure/rtdb-transaction.js');
   const {randomUUID}=await import('node:crypto');
   const state={erpTraining:{courses:{COURSE001:{id:'COURSE001',title:'Operador de empilhadeira',active:true,renewalMonths:12,noticeDays:30}},enrollments:{},documents:{},audit:{}},erp:{funcEdit:[{mat:'F007',nome:'JOS CEMAR',status:'Ativo'}]},erpAuth:{users:{elaine:{login:'elaine',name:'Elaine'}}}};
   let sequence=0;
@@ -123,7 +124,7 @@ async function trainingApiHarness(){
       setPath(path,next);return {committed:true,snapshot:snapshots(path)};}
   });
   const context={
-    console,crypto:{randomUUID},
+    console,crypto:{randomUUID},runTransaction,
     getFirebaseAdmin:()=>({db:{ref},storage:{bucket:()=>({})}}),
     loginFromStorageKey:x=>x,
     requireIdentity:async()=>({admin:true,erpUser:'elaine',uid:'TEST_USER'}),

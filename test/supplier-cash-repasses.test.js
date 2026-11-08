@@ -10,7 +10,7 @@ function fakeDb(){
   let writes=0,failed=false;
   const get=path=>path.split('/').filter(Boolean).reduce((node,k)=>node?.[k],state);
   function set(path,value){const keys=path.split('/').filter(Boolean),last=keys.pop();let node=state;for(const k of keys)node=node[k]??={};if(value===null)delete node[last];else node[last]=structuredClone(value);}
-  return {state,get updates(){return writes;},failNext(){failed=true;},ref(path){return {
+  return {state,get updates(){return writes;},failNext(){failed=true;},ref(path=''){return {
     async get(){return {val:()=>structuredClone(get(path)??null)};},
     async update(values){if(failed){failed=false;throw new Error('Firebase failed');}writes++;for(const [k,v] of Object.entries(values))set(path+'/'+k,v);},
     async transaction(fn){const old=get(path)??null,news=fn(structuredClone(old));if(news===undefined)return {committed:false};set(path,news);return {committed:true};}

@@ -794,6 +794,11 @@ function patchCreatedTicket(key,state,legacyItems,totals){
   ticket.observacoesPedido=String(state.notes||'').trim();
   ticket.descontoCompra=Number(state.discount||0);
   ticket.freteCompra=Number(state.freight||0);
+  // O formulário atual não possui "valores extras" da fase 1: o total exibido
+  // é produtos - desconto + frete. Um acréscimo legado residual causaria
+  // TOTAL_MISMATCH no servidor e o pedido não seria salvo.
+  ticket.acrescimo=0;
+  ticket.acrescimos=[];
   ticket.totalProdutos=totals.productTotal;
   ticket.totalGeral=totals.total;
   ticket.totalKg=(ticket.itens||[]).reduce(function(sum,item){return sum+Number(item.quantidade||item.pesoLiq||0);},0);
@@ -836,6 +841,11 @@ if(legacyFbSalvarImediato)global.fbSalvarImediato=function(){
   if(global.__ERP_PURCHASE_IN_PROGRESS__){global.__ERP_PURCHASE_DEFERRED_SAVE__=true;return;}
   return legacyFbSalvarImediato(...arguments);
 };
+// O sincronizador genérico ignora pedidos/títulos geridos pela API
+// (_purchaseOperationId, CPPO_), então é seguro publicar o restante.
+function schedulePostPurchaseSave(){
+  try{if(typeof global.fbSalvar==='function')setTimeout(function(){try{global.fbSalvar();}catch(_e){}},0);}catch(_e){}
+}
 function finishPurchaseDeferredSave(success){
   global.__ERP_PURCHASE_IN_PROGRESS__=false;
   const deferred=global.__ERP_PURCHASE_DEFERRED_SAVE__===true;
@@ -880,7 +890,12 @@ async function purchaseConfirmCloud(key,ticket,options={}){
     if(removed?.val?.())throw new Error('Este número está excluído na nuvem. Use outro identificador.');
   }
   const expected=options.expected||null;
-  const tx=await ref.transaction(function(current){
+  // Listener ativo durante a transação: a 1ª chamada recebe o pedido real
+  // (com cache frio o SDK abortaria uma edição válida).
+  const runTx=typeof global.__erpRunTransaction==='function'
+    ?function(fn){return global.__erpRunTransaction(ref,fn);}
+    :function(fn){return ref.transaction(fn,undefined,false);};
+  const tx=await runTx(function(current){
     if(create){
       // Repetição após perda da resposta não deve criar outro ticket ou sobrescrever terceiros.
       if(current!==null&&current!==undefined){
@@ -895,7 +910,7 @@ async function purchaseConfirmCloud(key,ticket,options={}){
     if(expected && (Math.abs(Number(current.totalGeral||0)-Number(expected.totalGeral||0))>0.01
       || Math.abs(Number(current.saldoPagar||0)-Number(expected.saldoPagar||0))>0.01))return;
     return payload;
-  },undefined,false);
+  });
   if(!tx || tx.committed!==true)throw new Error(create
     ?'Número de pedido já existe no Firebase. Nenhum pedido existente foi substituído.'
     :'O pedido foi alterado em outra sessão. Reabra o histórico antes de editar.');
@@ -922,14 +937,36 @@ async function purchaseCreateAtomic(key,ticket,state,body){
   const useLegacyCredit=Boolean(document.getElementById('cssdv')?.checked&&state.previousCredit>0);
   if(useLegacyCredit&&(advanceCodes.length||chequeIds.length))throw new Error('Selecione somente o crédito residual OU outros adiantamentos/cheques nesta compra.');
   const operationId=body.dataset.purchaseOperationId;
-  const response=await fetch('/api/finance/purchase-order-create',{
-    method:'POST',credentials:'same-origin',
-    headers:{Authorization:'Bearer '+await user.getIdToken(),'Content-Type':'application/json'},
-    body:JSON.stringify({operationId,ticketNo:key,fornecedorCod:state.supplierCode,ticket,
-      advanceCodes,chequeIds,useLegacyCredit,sourceTicketKeys:state.sourceTicketKeys||[]})
-  });
-  const result=await response.json().catch(()=>({}));
-  if(!response.ok||!result.ticket)throw new Error(result.message||'Não foi possível confirmar a compra e seus créditos no servidor. Verifique o histórico antes de repetir.');
+  const payload=JSON.stringify({operationId,ticketNo:key,fornecedorCod:state.supplierCode,ticket,
+    advanceCodes,chequeIds,useLegacyCredit,sourceTicketKeys:state.sourceTicketKeys||[]});
+  // O servidor é idempotente por operationId: repetir a MESMA operação após
+  // queda de rede/instabilidade nunca cria um segundo pedido nem baixa crédito duas vezes.
+  let response=null,result={},networkError=null;
+  for(let attempt=1;attempt<=3;attempt++){
+    networkError=null;
+    try{
+      response=await fetch('/api/finance/purchase-order-create',{
+        method:'POST',credentials:'same-origin',cache:'no-store',
+        headers:{Authorization:'Bearer '+await user.getIdToken(),'Content-Type':'application/json'},
+        body:payload
+      });
+      result=await response.json().catch(()=>({}));
+    }catch(error){networkError=error;response=null;result={};}
+    const transient=networkError||(response&&(response.status===503||response.status===502||response.status===504||
+      (response.status===409&&result.code==='PURCHASE_IN_PROGRESS')));
+    if(!transient||attempt===3)break;
+    const wait=Math.min(6,Math.max(1,Number(result.retryAfterSeconds)||attempt*1.5));
+    try{showToast('Conexão instável: confirmando o pedido novamente com segurança ('+(attempt+1)+'/3)...','info',Math.round(wait*1000)+1500);}catch(_e){}
+    await new Promise(function(resolve){setTimeout(resolve,wait*1000);});
+  }
+  if(networkError){
+    const error=new Error('Sem resposta do servidor. O pedido pode ter sido gravado: confira o Histórico antes de repetir.');
+    error.code='NETWORK_ERROR';throw error;
+  }
+  if(!response.ok||!result.ticket){
+    const error=new Error(result.message||'Não foi possível confirmar a compra e seus créditos no servidor. Verifique o histórico antes de repetir.');
+    error.code=String(result.code||'');error.status=response.status;throw error;
+  }
   if(result.ticket.ticket!==key)throw new Error('A confirmação do pedido retornou identificador divergente.');
   const clone=function(v){return v==null?v:JSON.parse(JSON.stringify(v));};
   const arrayRows=function(v){return Array.isArray(v)?clone(v):Object.values(clone(v)||{});};
@@ -940,7 +977,15 @@ async function purchaseCreateAtomic(key,ticket,state,body){
   ADT_POR_FORN[state.supplierCode]=arrayRows(result.advances);
   CHEQUES_POR_FORN[state.supplierCode]=arrayRows(result.cheques);
   if(result.saldo==null)delete SALDO_DEVEDOR_FORN[state.supplierCode];
-  else SALDO_DEVEDOR_FORN[state.supplierCode]=clone(result.saldo);
+  else{
+    SALDO_DEVEDOR_FORN[state.supplierCode]=clone(result.saldo);
+    // Há saldo residual confirmado pelo servidor: desfaz a marca de exclusão
+    // criada pelo fluxo legado, que apagaria esse saldo nas outras sessões.
+    try{
+      if(typeof _DEL_SETS!=='undefined'&&_DEL_SETS.saldoDevedor?.delete(state.supplierCode)&&typeof _DEL_LS_KEY!=='undefined')
+        localStorage.setItem(_DEL_LS_KEY.saldoDevedor,JSON.stringify([..._DEL_SETS.saldoDevedor]));
+    }catch(_e){}
+  }
   try{localStorage.setItem('mm_saldo_devedor',JSON.stringify(SALDO_DEVEDOR_FORN));}catch(_e){}
   if(Array.isArray(CONTAS_PAGAR)){
     for(let i=CONTAS_PAGAR.length-1;i>=0;i--)if(String(CONTAS_PAGAR[i]?.ticket||'')===key)CONTAS_PAGAR.splice(i,1);
@@ -1071,7 +1116,10 @@ function purchaseEditError(result,status){
     PAYABLE_CHANGED:'O pagamento ou saldo desta compra mudou. Reabra o histórico antes de tentar novamente.',
     FINANCE_RECONCILIATION_REQUIRED:'Esta correção exigiria reclassificar um saldo já liquidado. Solicite a conciliação financeira.',
     CHEQUE_RECONCILIATION_REQUIRED:'Este pedido possui cheques já utilizados. Solicite a conciliação financeira antes de alterar o total.',
-    EDIT_IN_PROGRESS:'Há outra alteração financeira em andamento. Atualize o histórico antes de tentar novamente.'
+    EDIT_IN_PROGRESS:'Há outra alteração financeira em andamento para este pedido. Aguarde alguns segundos e tente novamente.',
+    DATABASE_UNAVAILABLE:'A conexão com o banco de dados oscilou e a edição não foi confirmada. Tente novamente em alguns segundos.',
+    SESSION_EXPIRED:'Sua sessão expirou. Entre novamente no sistema.',
+    TOTAL_MISMATCH:'O total do pedido não confere com os itens. Revise quantidades, preços, desconto e frete.'
   };
   const error=new Error(messages[code]||(status===409?'Não foi possível conciliar este pedido. Reabra o histórico para consultar o registro atualizado.':result?.message||'Não foi possível confirmar a edição.'));
   error.code=code;
@@ -1100,12 +1148,24 @@ async function purchaseEditWithReconciliation(key,ticket,state){
   if(!current||typeof current.getIdToken!=='function')throw new Error('Sessão Firebase expirada. Entre novamente.');
   const operationId=state.editOperationId||(global.crypto?.randomUUID?.()||('00000000-0000-4000-8000-'+String(Date.now()).padStart(12,'0').slice(-12)));
   state.editOperationId=operationId;
-  const token=await current.getIdToken();
-  const response=await fetch('/api/finance/purchase-order-edit',{
-    method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-    body:JSON.stringify({operationId,ticketNo:key,expectedTicket:JSON.parse(state.ticketSnapshot),ticket})
-  });
-  const result=await response.json().catch(()=>({}));
+  const payload=JSON.stringify({operationId,ticketNo:key,expectedTicket:JSON.parse(state.ticketSnapshot),ticket});
+  // Mesmo operationId em todas as tentativas: o servidor devolve o recibo se já gravou.
+  let response=null,result={},networkError=null;
+  for(let attempt=1;attempt<=3;attempt++){
+    networkError=null;
+    try{
+      const token=await current.getIdToken();
+      response=await fetch('/api/finance/purchase-order-edit',{
+        method:'POST',credentials:'same-origin',cache:'no-store',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+        body:payload
+      });
+      result=await response.json().catch(()=>({}));
+    }catch(error){networkError=error;response=null;result={};}
+    const transient=networkError||(response&&([502,503,504].includes(response.status)||(response.status===409&&result.code==='EDIT_IN_PROGRESS')));
+    if(!transient||attempt===3)break;
+    await new Promise(function(resolve){setTimeout(resolve,Math.min(6,Math.max(1,Number(result.retryAfterSeconds)||attempt*1.5))*1000);});
+  }
+  if(networkError)throw new Error('Sem resposta do servidor. A edição pode ter sido gravada: reabra o Histórico para conferir.');
   if(!response.ok)throw purchaseEditError(result,response.status);
   if(!result.ticket||String(result.ticket.ticket||'')!==String(key))throw new Error('A resposta de conciliação do servidor não confirmou o pedido.');
   TICKETS_DB[key]=result.ticket;
@@ -1157,7 +1217,11 @@ global.phase4PurchaseSave=async function(){
       purchaseRollbackLocal(editSnapshot);
       try{showToast(error.message||'Não foi possível atualizar o pedido. Nenhuma alteração financeira foi confirmada.','error',7000);}catch(e){}
     }
-    finally{finishPurchaseDeferredSave(false);setSaving(false);}
+    finally{
+      finishPurchaseDeferredSave(false);setSaving(false);
+      // Edição confirmada: publica dados auxiliares alterados localmente (ex.: preços).
+      if(editCommitted)schedulePostPurchaseSave();
+    }
     return;
   }
   let prepared;
@@ -1215,9 +1279,19 @@ global.phase4PurchaseSave=async function(){
     // estiver incerto, os dados do formulário continuam preservados para conferência.
     purchaseRollbackLocal(snapshot);
     console.error('[purchase-order] salvar',error);
-    const presentation=/número de pedido já existe/i.test(String(error?.message||''))
+    // Número tomado por OUTRA operação (o servidor confere o recibo desta antes):
+    // a próxima tentativa deve reservar um novo número e uma nova operação.
+    if(['TICKET_EXISTS','OPERATION_REUSED'].includes(String(error?.code||''))){
+      delete body.dataset.purchaseReservedNumber;
+      delete body.dataset.purchaseOperationId;
+    }
+    const serverMessage=String(error?.message||'').trim();
+    const knownCode=/^[A-Z_]+$/.test(String(error?.code||''))&&Number(error?.status||0)>0;
+    const presentation=/número de pedido já existe/i.test(serverMessage)||error?.code==='TICKET_EXISTS'
       ?'Outro pedido já utiliza este número. Seus dados permanecem na tela. Atualize o histórico antes de tentar novamente.'
-      :'Não foi possível confirmar este pedido. Os dados continuam na tela. Confira o histórico antes de repetir a operação.';
+      :(knownCode&&serverMessage
+        ?serverMessage+' Os dados continuam na tela.'
+        :'Não foi possível confirmar este pedido. Os dados continuam na tela. Confira o histórico antes de repetir a operação.');
     try{showToast(presentation,'error',9000);}catch(e){}
   }finally{
     delete global.__ERP_PURCHASE_SELECTED_NUMBER__;
@@ -1225,6 +1299,9 @@ global.phase4PurchaseSave=async function(){
     // A operação já foi persistida atomicamente; não republicar o snapshot legado.
     finishPurchaseDeferredSave(false);
     setSaving(false);
+    // Compra confirmada: os preços do fornecedor atualizados pelo pedido ainda
+    // precisam ir para a nuvem (antes ficavam só no navegador até outro salvamento).
+    if(purchaseCommitted)schedulePostPurchaseSave();
   }
 };
 global.phase4PurchaseCancel=function(){

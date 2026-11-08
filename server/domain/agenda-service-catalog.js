@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { runTransaction } from '../infrastructure/rtdb-transaction.js';
 
 const BASE = [
   ['base_entrega', 'ENTREGA DE MATERIAL'],
@@ -20,11 +21,10 @@ export function validateAgendaServiceId(raw){
   return raw;
 }
 export async function mutateAgendaServiceCatalog(ref,{action,name,id,actor}){
-  // Prime the RTDB client cache before transaction. An initial provisional null
-  // must not accidentally replace a catalog saved by another session.
-  await ref.get();
+  // runTransaction mantém um listener ativo: a função parte do catálogo real.
+  // (ref.get() NÃO aquecia o cache; a exclusão via null e abortava como 'missing').
   let change='none';
-  const tx=await ref.transaction(current=>{
+  const tx=await runTransaction(ref,current=>{
     const items=agendaServiceCatalog(current);
     if(action==='add'){
       if(items.some(item=>item.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'')===name.normalize('NFD').replace(/[\u0300-\u036f]/g,''))){change='exists';return;}
@@ -38,7 +38,7 @@ export async function mutateAgendaServiceCatalog(ref,{action,name,id,actor}){
       return {revision:(current?.revision||0)+1,items:items.filter(item=>item.id!==id),updatedAt:Date.now(),updatedBy:actor};
     }
     throw makeError('Ação inválida.');
-  },undefined,false);
+  });
   if(!tx.committed&&change!=='exists'&&change!=='missing')throw Object.assign(new Error('Não foi possível registrar o serviço. Atualize e tente novamente.'),{status:409,code:'AGENDA_SERVICE_CONFLICT'});
   return {changed:tx.committed,items:agendaServiceCatalog(tx.committed?tx.snapshot.val():(await ref.get()).val())};
 }

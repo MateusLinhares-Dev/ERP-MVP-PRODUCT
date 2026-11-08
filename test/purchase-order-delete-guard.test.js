@@ -21,7 +21,7 @@ function fakeDb(opts={}){
     for(const name of parts){if(current[name]==null)current[name]={};current=current[name];}
     if(value===null)delete current[leaf];else current[leaf]=structuredClone(value);
   };
-  const db={data,original,get updates(){return updates;},onUpdate:null,ref(path){return {
+  const db={data,original,get updates(){return updates;},onUpdate:null,ref(path=''){return {
     async get(){const val=structuredClone(get(path)??null);return {val:()=>val};},
     async transaction(fn){const before=structuredClone(get(path)??null),after=fn(before);if(after===undefined)return {committed:false,snapshot:{val:()=>before}};put(path,after);return {committed:true,snapshot:{val:()=>after}};},
     async update(patch){if(db.onUpdate)await db.onUpdate();if(opts.failUpdate)throw Error('simulated failure');for(const [subpath,value] of Object.entries(patch))put(path+'/'+subpath,value);updates++;}

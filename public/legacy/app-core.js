@@ -6175,13 +6175,28 @@ async function _adtCommitTransacional(payload,button){
   const id=button?.dataset.operationId||(crypto.randomUUID?crypto.randomUUID():('00000000-0000-4000-8000-'+String(Date.now()).padStart(12,'0').slice(-12)));
   if(button){button.dataset.operationId=id;button.disabled=true;}
   try{
-    const token=await user.getIdToken();
-    const response=await fetch('/api/finance/advance-change',{
-      method:'POST',credentials:'same-origin',
-      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
-      body:JSON.stringify({...payload,operationId:id})
-    });
-    const result=await response.json().catch(()=>({}));
+    // Mesmo operationId em todas as tentativas: o servidor devolve o recibo se já
+    // confirmou, sem segunda exclusão/edição nem segundo movimento bancário.
+    let response=null,result={},networkError=null;
+    for(let attempt=1;attempt<=3;attempt++){
+      networkError=null;
+      try{
+        const token=await user.getIdToken();
+        response=await fetch('/api/finance/advance-change',{
+          method:'POST',credentials:'same-origin',cache:'no-store',
+          headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+          body:JSON.stringify({...payload,operationId:id})
+        });
+        result=await response.json().catch(()=>({}));
+      }catch(error){networkError=error;response=null;result={};}
+      const transient=networkError||(response&&[502,503,504].includes(response.status));
+      if(!transient||attempt===3)break;
+      await new Promise(resolve=>setTimeout(resolve,Math.min(5,Math.max(1,Number(result.retryAfterSeconds)||attempt*1.5))*1000));
+    }
+    if(networkError){
+      const error=new Error('Sem resposta do servidor. Confira a lista de adiantamentos antes de repetir.');
+      error.code='NETWORK_ERROR';error.status=0;throw error;
+    }
     if(!response.ok||!result.action){
       const error=new Error(result.message||'O servidor não confirmou a operação.');
       error.code=String(result.code||'REQUEST_FAILED');
@@ -7727,13 +7742,19 @@ function _valeRef(id){
   return window._fbDB.ref('erp/vales/'+id);
 }
 
+// Transação com cache aquecido (ver window.__erpRunTransaction em firebase-sync.js).
+function _rtdbTransacao(ref,update){
+  const runner=(typeof window!=='undefined'&&window&&typeof window.__erpRunTransaction==='function')?window.__erpRunTransaction:null;
+  return runner?runner(ref,update):ref.transaction(update,undefined,false);
+}
+
 function _valeFingerprint(item){
   const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
   return JSON.stringify(canonical(item));
 }
 
 async function _valeCriarSeguro(item){
-  const result=await _valeRef(item.id).transaction(current=>current===null?item:undefined,undefined,false);
+  const result=await _rtdbTransacao(_valeRef(item.id),current=>current===null?item:undefined);
   if(!result.committed&&_valeFingerprint(result.snapshot?.val?.())!==_valeFingerprint(item))throw new Error('Este identificador já existe. Atualize e tente novamente.');
   _valeConfirmadoLocal(item);
 }
@@ -7741,7 +7762,7 @@ async function _valeCriarSeguro(item){
 async function _valeAtualizarSeguro(previous,next){
   if(!previous?.id)throw new Error('Vale sem identificador. Atualize a página.');
   const baseline=_valeFingerprint(previous);
-  const result=await _valeRef(previous.id).transaction(current=>_valeFingerprint(current)===baseline?next:undefined,undefined,false);
+  const result=await _rtdbTransacao(_valeRef(previous.id),current=>_valeFingerprint(current)===baseline?next:undefined);
   if(!result.committed)throw new Error('O vale foi modificado em outra sessão. Atualize o histórico.');
   _valeConfirmadoLocal(next);
 }
@@ -7749,7 +7770,7 @@ async function _valeAtualizarSeguro(previous,next){
 async function _valeExcluirSeguro(item){
   if(!item?.id)throw new Error('Vale sem identificador. Atualize a página.');
   const baseline=_valeFingerprint(item);
-  const result=await _valeRef(item.id).transaction(current=>_valeFingerprint(current)===baseline?null:undefined,undefined,false);
+  const result=await _rtdbTransacao(_valeRef(item.id),current=>_valeFingerprint(current)===baseline?null:undefined);
   if(!result.committed&&result.snapshot?.val?.()!=null)throw new Error('O vale foi alterado por outra sessão. Atualize antes de excluir.');
   await window._fbDB.ref('erp/valesDeleted/'+item.id).set(true);
   _valeConfirmadoLocal(item,true);
@@ -10461,7 +10482,7 @@ async function excluirEntradaCompra(ticket){
       const financial=['PURCHASE_HAS_FINANCE','PURCHASE_HAS_PAYMENTS','PURCHASE_HAS_LINKS','MULTIPLE_PAYABLES'];
       const msg=financial.includes(result.code)
         ?'Esta compra possui vínculo financeiro e não pode ser excluída diretamente. Faça o estorno ou a conciliação antes de cancelar.'
-        :(typeof result.message==='string'&&response.status<500?result.message:'Não foi possível confirmar a exclusão. Atualize a tela e consulte o Histórico.');
+        :(typeof result.message==='string'&&(response.status<500||result.code==='DATABASE_UNAVAILABLE')?result.message:'Não foi possível confirmar a exclusão. Atualize a tela e consulte o Histórico.');
       showToast(msg,'warning',7000);return;
     }
     if(result.status!=='CONFIRMED'||String(result.ticketNo)!==id){
@@ -10564,7 +10585,9 @@ async function desmarcarCompraPaga(dbKey){
   if(!ref||!window.firebase?.auth?.()?.currentUser){showToast('Firebase indisponível. Nenhuma alteração foi salva.','error');return;}
   const undo=ticket._pagoUndo;
   try{
-    const tx=await ref.transaction(function(current){
+    const runTx=(typeof window!=='undefined'&&typeof window.__erpRunTransaction==='function')
+      ?(fn=>window.__erpRunTransaction(ref,fn)):(fn=>ref.transaction(fn,undefined,false));
+    const tx=await runTx(function(current){
       if(!current||!current._pagoUndo||JSON.stringify(current._pagoUndo)!==JSON.stringify(undo))return;
       const restored=Object.assign({},current,{
         adiantamento:Number(current._pagoUndo.adiantamento||0),
@@ -10573,7 +10596,7 @@ async function desmarcarCompraPaga(dbKey){
       });
       delete restored._pagoUndo;
       return restored;
-    },undefined,false);
+    });
     if(!tx?.committed)throw new Error('O pedido foi alterado em outra sessão. Atualize o histórico antes de tentar novamente.');
     const checked=await ref.once('value');
     const restored=checked?.val?.();
@@ -19359,7 +19382,7 @@ async function confirmarPagarCP(modo){
     const token=await user.getIdToken(true);
     _cpPendingPayments.set(id,{operationId:modal.dataset.paymentOperation,expiresAt:Date.now()+180000,blockedUntil:0});
     const response=await fetch('/api/finance/payables-payment',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operationId:modal.dataset.paymentOperation,payableId:id,expected:{valor:c.valor,status:c.status,paymentsCount:Array.isArray(c.pagamentos)?c.pagamentos.length:0},date:paymentDate,bankCode:banco,amount,advanceAmount,fornCod:document.getElementById('pcp-forn-cod')?.value||'',obs:document.getElementById('pcp-obs')?.value||''})});
-    const result=await response.json();
+    const result=await response.json().catch(()=>({message:'Resposta inválida do servidor ('+response.status+'). Use “Verificar situação” antes de tentar novamente.'}));
     if(!response.ok){
       if(result.code==='PAYMENT_IN_PROGRESS'){
         const seconds=Math.max(1,Math.min(120,Math.ceil(Number(result.retryAfterSeconds)||10)));
@@ -20315,6 +20338,24 @@ function salvarEditBanco(){
 }
 
 function excluirBanco(idx){
+  const conta=BANCOS_DB[idx]; if(!conta) return;
+  // Regra: conta com extrato ou adiantamento pendente não pode sumir — os
+  // lançamentos ficariam órfãos e os saldos/conciliações deixariam de fechar.
+  const cod=String(conta.cod||'');
+  const movimentos=cod?LANC_BANCO_DB.filter(l=>l&&String(l.bancoCod||'')===cod).length:0;
+  let adiantamentos=0;
+  try{
+    Object.values(typeof ADT_POR_FORN!=='undefined'&&ADT_POR_FORN||{}).forEach(lista=>{
+      (Array.isArray(lista)?lista:Object.values(lista||{})).forEach(a=>{
+        if(a&&cod&&String(a.bancoCod||'')===cod&&String(a.status||'Pendente')==='Pendente')adiantamentos++;
+      });
+    });
+  }catch(e){}
+  if(movimentos||adiantamentos){
+    alert('Esta conta possui '+movimentos+' lançamento(s) no extrato'+(adiantamentos?' e '+adiantamentos+' adiantamento(s) pendente(s)':'')+
+      '. Para preservar saldos e histórico ela não pode ser excluída. Edite a conta ou remova/transfira os lançamentos antes.');
+    return;
+  }
   if(!confirm('Excluir esta conta bancária?')) return;
   _syncBancos.remover(idx); saveBancos(); renderBancos(); cm();
 }
@@ -30675,8 +30716,19 @@ function fiscalSalvar(){
   try{ localStorage.setItem('mm_fiscal',JSON.stringify(FISCAL_DB)); }catch(e){}
   try{
     if(window._fbDB){
-      window._fbDB.ref('erp/fiscal').set(FISCAL_DB)
-        .catch(e=>console.warn('Fiscal FB save error:',e));
+      // Atualiza SOMENTE os meses/empresas alterados. Um set() do nó inteiro
+      // substituía documentos e devoluções gravados por outras telas/usuários.
+      const base=(typeof _fbEnviadoOk!=='undefined'&&_fbEnviadoOk)?_fbEnviadoOk:{};
+      const patch={};
+      Object.keys(FISCAL_DB||{}).forEach(function(k){
+        if(!k||/[.#$\/\[\]]/.test(k))return;
+        let json;try{json=JSON.stringify(FISCAL_DB[k]);}catch(e){return;}
+        if(json!==base['fiscal/'+k])patch[k]=FISCAL_DB[k];
+      });
+      if(!Object.keys(patch).length)return;
+      window._fbDB.ref('erp/fiscal').update(patch)
+        .then(function(){Object.keys(patch).forEach(function(k){try{base['fiscal/'+k]=JSON.stringify(patch[k]);}catch(e){}});})
+        .catch(e=>{console.warn('Fiscal FB save error:',e);try{showToast('Não foi possível salvar os dados fiscais na nuvem. Verifique a conexão e tente novamente.','error',7000);}catch(_){} });
     }
   }catch(e){}
 }

@@ -2,6 +2,8 @@ import {
   logResponseError,
   startRequestLog,
 } from '../observability/logger.js';
+import { trackFirebaseRequest } from '../infrastructure/firebase-session.js';
+import { isTransientFirebaseError } from '../infrastructure/rtdb-transaction.js';
 
 export function clientIp(req) {
   const forwarded = req.headers['x-forwarded-for'];
@@ -20,7 +22,40 @@ export function applyApiSecurityHeaders(res, req) {
 
   if (req) {
     startRequestLog(req, res);
+    // Uma conexão RTDB nova por rajada de requisições (ver firebase-admin.js).
+    trackFirebaseRequest(res);
   }
+}
+
+// Erros do SDK do Firebase não carregam status HTTP. Sem esta classificação
+// uma queda momentânea de conexão aparecia como "Erro interno do servidor".
+function classifyError(error) {
+  if (error?.status) return error;
+  if (isTransientFirebaseError(error)) {
+    const mapped = new Error('A conexão com o banco de dados oscilou e a operação não foi confirmada. Nenhuma alteração foi aplicada; tente novamente em alguns segundos.');
+    mapped.status = 503;
+    mapped.code = 'DATABASE_UNAVAILABLE';
+    mapped.retryAfterSeconds = 3;
+    mapped.cause = error;
+    mapped.stack = error?.stack;
+    return mapped;
+  }
+  const firebaseCode = String(error?.code || error?.errorInfo?.code || '');
+  if (/^auth\/(id-token-expired|id-token-revoked|argument-error|invalid-id-token|user-disabled|user-not-found)$/.test(firebaseCode)) {
+    const mapped = new Error('Sua sessão expirou. Entre novamente no sistema.');
+    mapped.status = 401;
+    mapped.code = 'SESSION_EXPIRED';
+    mapped.cause = error;
+    return mapped;
+  }
+  if (/permission[_-]denied/i.test(firebaseCode) || /permission[_ ]denied/i.test(String(error?.message || ''))) {
+    const mapped = new Error('Permissão negada pelo banco de dados para esta operação.');
+    mapped.status = 403;
+    mapped.code = 'PERMISSION_DENIED';
+    mapped.cause = error;
+    return mapped;
+  }
+  return error;
 }
 
 export function assertMethod(req, method) {
@@ -43,9 +78,15 @@ export function assertJsonBody(req, { maxBytes = 32 * 1024 } = {}) {
 
 export function sendError(
   res,
-  error,
+  rawError,
 ) {
   applyApiSecurityHeaders(res);
+
+  const error = classifyError(rawError);
+
+  if (error?.retryAfterSeconds && typeof res.setHeader === 'function') {
+    try { res.setHeader('Retry-After', String(error.retryAfterSeconds)); } catch { /* headers já enviados */ }
+  }
 
   const status =
     Number(

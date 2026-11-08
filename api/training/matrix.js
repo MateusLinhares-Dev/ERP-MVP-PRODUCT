@@ -1,5 +1,6 @@
 import '../../server/config/load-local-env.js';
 import {getFirebaseAdmin} from '../../server/infrastructure/firebase-admin.js';
+import {runTransaction} from '../../server/infrastructure/rtdb-transaction.js';
 import {loginFromStorageKey} from '../../server/domain/user.js';
 import {requireIdentity} from '../../server/http/auth.js';
 import {applyApiSecurityHeaders,assertSameOrigin,assertJsonBody,sendError} from '../../server/http/http.js';
@@ -69,21 +70,34 @@ export default async function handler(req,res){
       const lock=root.child('enrollmentLocks/'+pairKey);
       let reserved=false;
       if(!previous){
-        const tx=await lock.transaction(current=>current===null?key:undefined,undefined,false);
+        const enrollmentsNow=records(enrollSnap.val());
+        const tx=await runTransaction(lock,current=>{
+          if(current===null||current===key)return key;
+          // Índice órfão (vínculo excluído, dispensado ou movido para outro par)
+          // não pode bloquear um novo cadastro do mesmo funcionário/curso.
+          const holder=enrollmentsNow[String(current)];
+          if(!holder||holder.status==='dispensado'||(String(holder.employeeId||'')+'_'+String(holder.courseId||''))!==pairKey)return key;
+          return undefined;
+        });
         if(!tx.committed)throw err('Já existe cadastro deste curso para o funcionário. Atualize a matriz.',409);
         reserved=true;
       }
       try{
         result={id:key};await commit({['enrollments/'+key]:{...entry,id:key,updatedAt:now(),updatedBy:who}});
-      }catch(error){if(reserved)try{await lock.transaction(current=>current===key?null:undefined,undefined,false);}catch(_){}throw error;}
+      }catch(error){
+        if(reserved)try{await runTransaction(lock,current=>current==null||current===key?null:undefined);}catch(_){console.warn('[Matriz] Liberação do índice após falha:',_?.message);}
+        throw error;
+      }
     }else if(action==='removeEnrollment'){
       const key=safeId(b.id),snapshot=await root.child('enrollments/'+key).get(),item=snapshot.val();
       if(!item)throw err('Vínculo não encontrado.',404);
       const documentSnap=await root.child('documents').get();
       if(Object.values(records(documentSnap.val())).some(d=>d&&d.enrollmentId===key))throw err('Esse vínculo possui certificado. Exclua o certificado primeiro ou mantenha o vínculo no histórico.',409);
-      result={id:key};await commit({['enrollments/'+key]:null});
-      const lock=root.child('enrollmentLocks/'+item.employeeId+'_'+item.courseId);
-      try{await lock.transaction(current=>current===key?null:undefined,undefined,false);}catch(e){console.warn('[Matriz] Limpeza do índice após exclusão:',e.message);}
+      // Exclusão e limpeza do índice do par na MESMA gravação (antes a limpeza
+      // abortava com cache frio e impedia recadastrar o mesmo curso).
+      const pairPath='enrollmentLocks/'+item.employeeId+'_'+item.courseId;
+      const indexed=(await root.child(pairPath).get()).val();
+      result={id:key};await commit({['enrollments/'+key]:null,...(indexed===key?{[pairPath]:null}:{})});
     }else if(action==='activate'){
       const key=safeId(b.id),snapshot=await root.child('courses/'+key).get();
       if(!snapshot.exists())throw err('Curso não encontrado.',404);
@@ -114,7 +128,7 @@ export default async function handler(req,res){
       if(meta.contentType!==allowedMime[extension])throw err('O tipo do arquivo não corresponde à extensão.',400);
       const document={id:docId,enrollmentId,name:textField(b.name,140),path,createdAt:now(),createdBy:who};
       // A transação create-only impede a duplicação inclusive entre abas/dispositivos.
-      const transaction=await documentRef.transaction(current=>current===null?document:undefined,undefined,false);
+      const transaction=await runTransaction(documentRef,current=>current===null?document:undefined);
       const saved=transaction.snapshot.val();
       if(saved?.enrollmentId!==enrollmentId||saved?.path!==path)throw err('Identificador já utilizado em outro documento.',409);
       if(transaction.committed){

@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {acquireLease,releaseLease} from '../infrastructure/rtdb-transaction.js';
 
 const conflict=(status,code,message)=>{const error=new Error(message);error.status=status;error.code=code;throw error;};
 const validKey=(value,label)=>{const val=String(value??'').trim();if(!/^[A-Za-z0-9_-]{1,80}$/.test(val))conflict(422,'INVALID_KEY',label+' inválido.');return val;};
@@ -27,11 +28,11 @@ const isPaidPayable=payable=>{
   return Boolean(payable.dataPgto||payable.movBancoIdCP||payable.bancoCod);
 };
 async function acquire(ref,owner,now){
-  const tx=await ref.transaction(current=>current&&Number(current.expiresAt)>now()?undefined:{owner,expiresAt:now()+120000},undefined,false);
-  if(!tx?.committed)conflict(409,'PURCHASE_DELETE_BUSY','Existe uma operação financeira em andamento. Atualize a tela e tente mais tarde.');
+  const acquired=await acquireLease(ref,owner,{now,ttlMs:120000,meta:{kind:'purchase-delete'}});
+  if(!acquired)conflict(409,'PURCHASE_DELETE_BUSY','Existe uma operação financeira em andamento para esta compra. Aguarde alguns segundos e tente novamente.');
 }
 async function release(ref,owner){
-  try{await ref.transaction(current=>current?.owner===owner?null:undefined,undefined,false);}catch{/* lock expira automaticamente */}
+  await releaseLease(ref,owner,{label:'purchase.delete.lock.release'});
 }
 const linkedBank=(bank,payables,ticketId)=>{
   const ids=new Set([...payables.map(([path,row])=>String(row.id||path)),'CPPO_'+ticketId]);
@@ -145,7 +146,7 @@ export async function deletePurchaseOrder(identity,input,{db,now=()=>Date.now(),
       if(live?.owner!==owner)conflict(409,'PURCHASE_CHANGED','A operação mudou durante a exclusão. Atualize o Histórico.');
       atomic[lock.path]=null;
     }
-    try{await db.ref('').update(atomic);committed=true;}
+    try{await db.ref().update(atomic);committed=true;}
     catch(error){
       const verified=fromReceipt((await opRef.get().catch(()=>({val:()=>null}))).val());
       if(verified){committed=true;return verified;}

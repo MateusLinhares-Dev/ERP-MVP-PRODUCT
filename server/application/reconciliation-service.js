@@ -1,4 +1,5 @@
 import {createHash,randomUUID} from 'node:crypto';
+import {runTransaction} from '../infrastructure/rtdb-transaction.js';
 import {ABS, cents, decimalCents, validatePlan, latestDecisions, currentAllocations, batchSuggestions} from '../../public/modules/banking/reconciliation-engine.mjs';
 
 const forbidden=(message,status=400)=>Object.assign(new Error(message),{status});
@@ -120,7 +121,7 @@ export async function executeReconciliation(identity,input,{db:injectedDatabase}
       bancoCod:code,bancoNome:String(account.banco||''),tipoForn:'despesa',empresa:company,obs:'Criado via conciliação. Baixa financeira pendente.'}:
       {...meta,data:br,cli:party,nf:'',desc:description,cat:category,dataReceb:'',obs:'Criado via conciliação. Recebimento pendente.'};
     const ref=db.ref('erp/'+(kind==='payable'?'contasPagar':'contasReceber')+'/'+id);
-    const result=await ref.transaction(previous=>previous===null?record:undefined,undefined,false);
+    const result=await runTransaction(ref,previous=>previous===null?record:undefined);
     if(!result.committed){const existing=(await ref.get()).val();if(existing?.reconciliationImportId!==incoming)
       throw forbidden('Identificador financeiro em uso',409);}
     return {created:result.committed,id,kind,record:result.committed?record:(await ref.get()).val()};
@@ -138,7 +139,7 @@ export async function executeReconciliation(identity,input,{db:injectedDatabase}
       tipo:raw>0n?'Entrada':'Saída',valor:Number(ABS(raw))/100,reconciliationImportId:importId,
       reconciliationBy:identity.erpUser,reconciliationAt:new Date().toISOString()};
     const ref=db.ref('erp/lancBanco/'+id);
-    const result=await ref.transaction(previous=>previous===null?entry:undefined,undefined,false);
+    const result=await runTransaction(ref,previous=>previous===null?entry:undefined);
     if(!result.committed){
       const existing=(await ref.get()).val();
       if(existing?.reconciliationImportId!==importId)throw forbidden('Identificador de movimentação já utilizado',409);
@@ -150,7 +151,9 @@ export async function executeReconciliation(identity,input,{db:injectedDatabase}
   let failure,records=[];
   // Serialização GLOBAL entre contas: o mesmo título não pode ser consumido por dois bancos.
   // O nó da conta continua disponível por listener para a interface, sem acesso de escrita do browser.
-  const result=await globalStateRef.transaction(previous=>{
+  // Cache aquecido: com cache frio a 1ª execução via estado vazio e o
+  // 'Desfazer/Reabrir' abortava com "Não há conciliação para desfazer".
+  const result=await runTransaction(globalStateRef,previous=>{
     failure=null;
     const global=previous&&typeof previous==='object'?structuredClone(previous):{};
     const state=global[code]&&typeof global[code]==='object'?global[code]:{decisions:{},audit:{},revision:0};
@@ -184,7 +187,7 @@ export async function executeReconciliation(identity,input,{db:injectedDatabase}
       records=next;
       return global;
     }catch(err){failure=err;return undefined;}
-  },undefined,false);
+  });
   if(!result.committed)throw failure||forbidden('Conciliação alterada por outro usuário. Atualize a tela e tente novamente.',409);
   return {revision:result.snapshot.val()?.[code]?.revision||0,records};
 }

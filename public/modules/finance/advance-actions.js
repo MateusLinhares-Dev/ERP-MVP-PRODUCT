@@ -242,7 +242,9 @@ const alertUser=(message,type='error')=>{if(typeof global.showToast==='function'
           ? 'Este adiantamento precisa de conferência com o extrato do banco. Nada foi alterado. Clique em “Conferir pagamento” para ver o que fazer.'
           : 'Este adiantamento precisa de conferência com o extrato bancário. Nenhum dado foi alterado. Peça ao responsável pelo financeiro que faça a conferência.');
       }else if(code==='ADVANCE_IN_PROGRESS'){
-        alertUser('Outra operação deste fornecedor ainda está sendo concluída. Nenhum dado foi excluído.');
+        alertUser('Outra operação deste fornecedor ainda está sendo concluída. Nenhum dado foi excluído. Aguarde alguns segundos e tente novamente.');
+      }else if(code==='DATABASE_UNAVAILABLE'||code==='SESSION_EXPIRED'||code==='NETWORK_ERROR'){
+        alertUser(message||'A conexão oscilou e a exclusão não foi confirmada. Tente novamente em alguns segundos.');
       }else if(code==='ADVANCE_ALREADY_COMPENSATED'){
         alertUser('Este adiantamento já foi utilizado. A exclusão exige uma conciliação financeira autorizada.');
       }else if(error?.status===403||code.toLowerCase()==='permission_denied'||/permission_denied/i.test(message)){

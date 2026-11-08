@@ -1,4 +1,5 @@
 import {createCipheriv,createDecipheriv,createHash,randomBytes} from 'node:crypto';
+import {runTransaction} from '../infrastructure/rtdb-transaction.js';
 
 const BASE='https://api.pluggy.ai';
 const deny=(message,status=400)=>Object.assign(new Error(message),{status,code:status===403?'FORBIDDEN':'BANK_INTEGRATION_ERROR'});
@@ -138,8 +139,8 @@ export async function handleBankIntegration(identity,input,{db,fetcher=globalThi
       for(let i=0;i<transactions.length;i+=10){
         const batch=transactions.slice(i,i+10).filter(row=>row.status!=='PENDING');
         const records=batch.map(row=>normalizeProviderTransaction(row,code,identity,config.accountId));
-        const changes=await Promise.all(records.map(record=>database.ref('erp/bankReconciliationImports/'+code+'/'+record.id)
-          .transaction(previous=>previous===null?record:undefined,undefined,false)));
+        const changes=await Promise.all(records.map(record=>runTransaction(database.ref('erp/bankReconciliationImports/'+code+'/'+record.id),
+          previous=>previous===null?record:undefined)));
         created+=changes.filter(result=>result.committed).length;
         duplicates+=changes.filter(result=>!result.committed).length;
         processed+=changes.length;

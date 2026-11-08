@@ -1,4 +1,5 @@
 import {createHash,randomUUID} from 'node:crypto';
+import {acquireLease,releaseLeases} from '../infrastructure/rtdb-transaction.js';
 
 function reject(status,code,message){
   const error=new Error(message);
@@ -32,8 +33,8 @@ function readRows(raw){
 function rowEntries(rows){return Object.entries(rows).filter(([,row])=>row&&typeof row==='object'&&!Array.isArray(row));}
 function readAmount(raw){return raw&&typeof raw==='object'?Number(raw.valor):Number(raw);}
 async function acquire(ref,owner,now){
-  const tx=await ref.transaction(cur=>cur&&cur.expiresAt>now()?undefined:{owner,expiresAt:now()+120000},undefined,false);
-  if(!tx?.committed)reject(409,'EDIT_IN_PROGRESS','Outro lançamento financeiro está em andamento.');
+  const acquired=await acquireLease(ref,owner,{now,ttlMs:120000,meta:{kind:'purchase-edit'}});
+  if(!acquired)reject(409,'EDIT_IN_PROGRESS','Outro lançamento financeiro está em andamento. Aguarde alguns segundos e tente novamente.');
 }
 function normalizeItems(raw,original){
   if(!Array.isArray(raw)||raw.length===0||raw.length>200)reject(422,'INVALID_ITEMS','Informe de 1 a 200 materiais.');
@@ -260,7 +261,7 @@ export async function editPurchaseOrder(identity,input,{db,now=()=>Date.now(),uu
       if(live?.owner!==owner)reject(409,'PURCHASE_EDIT_BUSY','A edição foi alterada por outra sessão.');
       atomic[lock.path]=null;
     }
-    try{await db.ref('').update(atomic);committed=true;}
+    try{await db.ref().update(atomic);committed=true;}
     catch(error){
       const confirmed=(await opRef.get().catch(()=>({val:()=>null}))).val();
       if(confirmed?.ticket&&String(confirmed.ticket.ticket)===ticketNo){committed=true;return {...confirmed,alreadyCommitted:true};}
@@ -268,8 +269,7 @@ export async function editPurchaseOrder(identity,input,{db,now=()=>Date.now(),uu
     }
     return {...record,alreadyCommitted:false};
   }finally{
-    if(!committed){
-      for(const lock of locks.reverse())try{await lock.ref.transaction(cur=>cur?.owner===owner?null:undefined,undefined,false);}catch{}
-    }
+    // O commit confirmado já removeu as travas; nos demais casos, liberar as próprias.
+    if(!committed)await releaseLeases(locks,owner,{label:'purchase.edit.lock.release'});
   }
 }

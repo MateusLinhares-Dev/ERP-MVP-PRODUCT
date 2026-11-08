@@ -1,4 +1,5 @@
 import {randomUUID,createHash} from 'node:crypto';
+import {acquireLease,releaseLease} from '../infrastructure/rtdb-transaction.js';
 
 const fail=(status,code,message)=>{const error=new Error(message);error.status=status;error.code=code;throw error;};
 const clean=(value,max=180)=>String(value??'').trim().slice(0,max);
@@ -24,8 +25,8 @@ function visibleReceipt(record){
 }
 async function supplierLock(db,code,owner,now){
   const ref=db.ref('erpSupplierRepasseLocks/'+code);
-  const result=await ref.transaction(current=>current&&Number(current.expiresAt)>now()?undefined:{owner,expiresAt:now()+90000},undefined,false);
-  if(!result.committed)fail(409,'SUPPLIER_REPASSE_BUSY','Outro lançamento deste fornecedor está sendo processado. Atualize e tente novamente.');
+  const acquired=await acquireLease(ref,owner,{now,ttlMs:90000,meta:{kind:'supplier-repasse'}});
+  if(!acquired)fail(409,'SUPPLIER_REPASSE_BUSY','Outro lançamento deste fornecedor está sendo processado. Aguarde alguns segundos e tente novamente.');
   return ref;
 }
 export async function listSupplierCashRepasses(identity,fornCod,{db}={}){
@@ -86,6 +87,7 @@ export async function changeSupplierCashRepasse(identity,input,{db,uuid=randomUU
     return {...previous.result,alreadyCommitted:true};
   }
   const owner=uuid();const lock=await supplierLock(dbi,fornCod,owner,now);
+  let committed=false;
   try{
     const again=(await opRef.get()).val();
     if(again?.result){
@@ -131,9 +133,21 @@ export async function changeSupplierCashRepasse(identity,input,{db,uuid=randomUU
     const result={record:visibleReceipt(record),movement};
     updates['fornecedorRepasseOperations/'+opKey]={result,intent,action,receiptId,criadoEm:new Date(now()).toISOString()};
     updates._ts=now();
-    await dbi.ref('erp').update(updates);
+    // Lançamento, recibo e liberação da trava do fornecedor no MESMO commit:
+    // antes a trava só era liberada depois e ficava presa por 90 s em toda
+    // operação, bloqueando o lançamento seguinte do mesmo fornecedor.
+    const atomic=Object.fromEntries(Object.entries(updates).map(([path,value])=>['erp/'+path,value]));
+    const live=(await lock.get()).val();
+    if(live?.owner!==owner)fail(409,'SUPPLIER_REPASSE_BUSY','A reserva deste fornecedor expirou durante o lançamento. Atualize os dados e tente novamente.');
+    atomic['erpSupplierRepasseLocks/'+fornCod]=null;
+    try{await dbi.ref().update(atomic);committed=true;}
+    catch(error){
+      const stored=(await opRef.get().catch(()=>({val:()=>null}))).val();
+      if(stored?.result&&stored.intent===intent){committed=true;return {...stored.result,alreadyCommitted:true};}
+      throw error;
+    }
     return {...result,alreadyCommitted:false};
   }finally{
-    try{await lock.transaction(current=>current?.owner===owner?null:undefined,undefined,false);}catch(error){console.error('supplier.repasse.lock.release',error);}
+    if(!committed)await releaseLease(lock,owner,{label:'supplier.repasse.lock.release'});
   }
 }
