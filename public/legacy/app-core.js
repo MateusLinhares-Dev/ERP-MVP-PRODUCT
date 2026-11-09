@@ -9954,18 +9954,21 @@ async function excluirEntradaCompra(ticket){
 function abrirBaixaCompraNoFinanceiro(ticketNumero){
   const codigo=String(ticketNumero||'').trim();
   const abertas=(CONTAS_PAGAR||[]).filter(c=>c&&String(c.ticket||'').trim()===codigo&&c.status!=='Pago'&&Number(c.valor||0)>0);
-  if(abertas.length!==1){
+  const parcelas=abertas.length>1&&abertas.every(c=>Number(c.parcelas||0)>1&&Number(c.parcela||0)>0)
+    ?abertas.slice().sort((a,b)=>Number(a.parcela)-Number(b.parcela)):null;
+  if(abertas.length!==1&&!parcelas){
     showToast(abertas.length>1
       ?'Existem várias contas em aberto para esta compra. Consulte Financeiro → Contas a Pagar para escolher a conta correta.'
       :'Nenhuma conta a pagar em aberto foi localizada para esta compra. Confira a situação no Financeiro → Contas a Pagar.',
       'warning',6500);
     return;
   }
-  const conta=abertas[0],indice=CONTAS_PAGAR.indexOf(conta);
+  const conta=parcelas?parcelas[0]:abertas[0],indice=CONTAS_PAGAR.indexOf(conta);
   if(indice<0||typeof pagarContaRapido!=='function'){
     showToast('Não foi possível abrir a baixa. Acesse Financeiro → Contas a Pagar.','error',6500);
     return;
   }
+  if(parcelas)showToast('Abrindo a parcela '+conta.parcela+'/'+conta.parcelas+', a próxima em aberto desta compra.','info',4500);
   pagarContaRapido(indice,String(conta.id||''));
 }
 
@@ -17522,7 +17525,7 @@ function renderContasPagar(){
       rows.push('<tr style="'+(atrasado?'background:#fff8f8':'')+'">'
         +'<td>'+(idAttr?'<input type="checkbox" class="cp-row-check" value="'+esc(idAttr)+'" '+marcado+' onchange="cpMarcarUm(\''+esc(idAttr)+'\', this.checked)">':'')+'</td>'
         +'<td>'+esc(c.cred||'—')+'</td>'
-        +'<td><b>'+esc(c.desc)+'</b></td>'
+        +'<td><b>'+esc(c.desc)+'</b>'+(c.formaPrevista&&c.status!=='Pago'?'<br><span style="font-size:.72rem;color:var(--gray)">Forma prevista: '+esc(c.formaPrevista)+'</span>':'')+'</td>'
         +'<td style="font-size:.78rem">'+esc(c.bancoNome||'—')+(function(){var _e=_cpEmpresa(c);return _e?'<br><span style="font-size:.68rem;font-weight:700;color:'+_cfgFinanceCompanyColor(_e)+'">'+esc(_e)+'</span>':'';})()+'</td>'
         +'<td>'+fmtDate(c.venc)+'</td>'
         +'<td style="font-weight:800;text-align:right">R$ '+fmt(c.valor)+'</td>'
@@ -18214,7 +18217,7 @@ function pagarContaRapido(idx,id){
     ?'<div class="fg"><label>Abater adiantamento nesta operação (R$)</label><input id="pcp-adt" type="number" min="0" step="0.01" max="'+adtSugerido.toFixed(2)+'" value="0.00" oninput="atualizarLiquidoCP('+valorCP+')"><small>Crédito disponível: R$ '+fmt(totalAdtDisp)+'. Para pagar pelo banco, mantenha 0,00. Para compensar crédito, informe o valor que deseja usar.'+(totalAdtDisp>valorCP?' Crédito acima do valor desta compra continuará disponível.':'')+'</small></div>':'<div class="fg"><small>Nenhum adiantamento disponível para esta compra.</small></div>';
   const avisoVinculo=bloqueados.length?'<div style="font-size:.78rem;color:#75511b;margin-bottom:10px">Há adiantamentos vinculados a outras compras. Eles não serão utilizados neste pagamento.</div>':'';
   body.innerHTML='<h3>💳 Baixar Pagamento</h3>'+
-    '<div style="background:#fde8e8;border-radius:8px;padding:12px;margin-bottom:14px"><b>'+esc(c.desc||c.cred)+'</b><div>Saldo em aberto: R$ '+fmt(valorCP)+'</div></div>'+
+    '<div style="background:#fde8e8;border-radius:8px;padding:12px;margin-bottom:14px"><b>'+esc(c.desc||c.cred)+'</b><div>Saldo em aberto: R$ '+fmt(valorCP)+'</div>'+(c.formaPrevista?'<div>Forma prevista: '+esc(c.formaPrevista)+'</div>':'')+'</div>'+
     '<input type="hidden" id="pcp-id" value="'+esc(c.id||'')+'"><input type="hidden" id="pcp-forn-cod" value="'+esc(fornCod)+'">'+
     '<div class="fg"><label>Valor total a quitar nesta operação (R$)</label><input id="pcp-valor-pagar" type="number" min="0.01" step="0.01" max="'+valorCP.toFixed(2)+'" value="'+valorCP.toFixed(2)+'" oninput="atualizarLiquidoCP('+valorCP+')"></div>'+
     adtBlock+avisoVinculo+'<div id="pcp-liquido-label" style="font-weight:700;margin-bottom:10px"></div>'+

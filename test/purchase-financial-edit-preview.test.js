@@ -18,7 +18,7 @@ function calculate({editing,price}){
   for(const id of ['phase4-po-item-count','phase4-po-qty-total','phase4-po-products-total','phase4-po-grand-total','phase4-po-advance-total','phase4-po-balance']){
     el.set(id,{textContent:'',title:'',classList:{values:new Set(),toggle(key,on){if(on)this.values.add(key);else this.values.delete(key);}}});
   }
-  const ctx={global:{},getState:()=>[{},state],storeState(){},selectedSupplierName:()=>state.supplierName,
+  const ctx={global:{},getState:()=>[{},state],storeState(){},syncInstallments(){},renderInstallments(){},selectedSupplierName:()=>state.supplierName,
     document:{getElementById:id=>el.get(id)||null},parseBR:Number,today:()=> '2026-11-05',
     qty:n=>String(n),money:n=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})};
   runInNewContext(code.slice(start,end),ctx);

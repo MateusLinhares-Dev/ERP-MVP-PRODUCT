@@ -1,6 +1,7 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {acquireLease,releaseLeases} from '../../../shared/firebase/rtdb-transaction.js';
-import {businessTodayISO} from '../../../shared/domain/business-date.js';
+import {businessTodayISO,isoToBrazilianDate} from '../../../shared/domain/business-date.js';
+import {MAX_INSTALLMENTS,installmentPayableIds,installmentPayables,installmentSignature,normalizeInstallments} from '../domain/installments.js';
 
 function reject(status,code,message){
   const error=new Error(message);
@@ -187,6 +188,49 @@ function adjustmentOfCredit(raw,before,after,ticketNo){
   if(Math.abs(cash(Number(obj.valor||0))-before)>1)reject(409,'CREDIT_CHANGED','O saldo credor já foi alterado.');
   return {...obj,valor:round(after),ticket:ticketNo};
 }
+function untouchedPayable(row){
+  if(String(row.status||'')!=='Pendente')return false;
+  if(cash(Number(row.valorPago||0))>0||cash(Number(row.adtCompensado||0))>0)return false;
+  if(Array.isArray(row.pagamentos)&&row.pagamentos.length>0)return false;
+  return !row.dataPgto&&!row.movBancoIdCP&&!row.bancoCod;
+}
+function currentPlan(ticket){
+  if(Array.isArray(ticket.parcelas)&&ticket.parcelas.length)return ticket.parcelas;
+  const balance=cash(Number(ticket.saldoPagar||0));
+  return balance>0?[{vencimento:String(ticket.vencimentoSaldo||''),valor:round(balance),forma:'',obs:''}]:[];
+}
+function purchasePayables(raw,ticketNo,previous){
+  const count=Array.isArray(previous.parcelas)&&previous.parcelas.length>1?previous.parcelas.length:1;
+  const expected=new Set(installmentPayableIds(ticketNo,count));
+  const rows=rowEntries(raw&&typeof raw==='object'?raw:{}).filter(([path,row])=>
+    String(row.ticket||'')===ticketNo||expected.has(path)||expected.has(String(row.id||'')));
+  return {expected,rows};
+}
+function replanPayables({raw,ticketNo,previous,next,installments,supplierCode,oldBalance,at}){
+  const {expected,rows}=purchasePayables(raw,ticketNo,previous);
+  if(rows.some(([path,row])=>!expected.has(path)||String(row.id||'')!==path))
+    reject(409,'LEGACY_PAYABLE_REVIEW','As contas a pagar deste pedido precisam de revisão no financeiro antes de mudar as parcelas.');
+  if(rows.some(([,row])=>!untouchedPayable(row)))
+    reject(409,'INSTALLMENTS_HAVE_PAYMENTS','Já existe parcela paga desta compra. Para mudar valores ou parcelas, estorne o pagamento em Contas a Pagar.');
+  if(rows.length!==expected.size||rows.reduce((sum,[,row])=>sum+cash(Number(row.valor||0)),0)!==oldBalance)
+    reject(409,'PAYABLE_CHANGED','As parcelas em Contas a Pagar não conferem com o saldo do pedido. Atualize a tela.');
+  const payables=installments.length?installmentPayables({ticketNo,supplierCode,
+    supplierName:String(next.fornecedor||next.fornecedorNome||''),descriptionName:String(next.fornecedor||''),
+    purchaseDate:String(next.dataCompra||''),installments}):[];
+  const kept=new Set(payables.map(row=>row.id));
+  const removed=rows.map(([path])=>path).filter(path=>!kept.has(path));
+  const updates={};
+  for(const path of removed)updates['contasPagar/'+path]=null;
+  for(const row of payables)updates['contasPagar/'+row.id]={...row,_upd:at};
+  return {updates,payables:payables.map(row=>updates['contasPagar/'+row.id]),removed};
+}
+function applyPlan(ticket,installments){
+  if(installments.length){
+    ticket.parcelas=installments;
+    ticket.vencimentoSaldo=installments[0].vencimento;
+    if(ticket.pedidoCompra)ticket.pedidoCompra.vencimentoSaldo=installments[0].vencimento;
+  }else delete ticket.parcelas;
+}
 export function refundAdvanceReceipt(previous,ledgerRaw,excess,ticketNo,at){
   const receipt=clone(previous.reciboFinanceiro||{});
   if((receipt.cheques||[]).some(row=>cash(Number(row.valorAplicado||0))>0))
@@ -251,8 +295,12 @@ export async function editPurchaseOrder(identity,input,{db,now=()=>Date.now(),uu
   const opRef=db.ref('erp/purchaseEditOperations/'+opKey);
   const earlier=(await opRef.get()).val();
   if(earlier?.ticket){if(String(earlier.ticket.ticket)!==ticketNo)reject(409,'OPERATION_USED','Identificador de operação já utilizado.');return {...earlier,alreadyCommitted:true};}
+  const requestedCount=Array.isArray(input.ticket?.parcelas)?input.ticket.parcelas.length:0;
+  if(requestedCount>MAX_INSTALLMENTS)reject(422,'TOO_MANY_INSTALLMENTS','Máximo de '+MAX_INSTALLMENTS+' parcelas.');
   const first=(await db.ref('erp/tickets/'+ticketNo).get()).val();
   if(!first)reject(404,'TICKET_NOT_FOUND','Pedido não encontrado.');
+  const firstCount=Array.isArray(first.parcelas)?first.parcelas.length:0;
+  const payableLockIds=[...new Set([...installmentPayableIds(ticketNo,firstCount),...installmentPayableIds(ticketNo,requestedCount)])].sort();
   const code=key(first.fornecedorCod||first.fornCod);
   const owner=uuid(),locks=[];
   let committed=false;
@@ -260,6 +308,11 @@ export async function editPurchaseOrder(identity,input,{db,now=()=>Date.now(),uu
     const ticketLock=db.ref('erpFinancePayableTicketLocks/'+ticketNo);
     await acquire(ticketLock,owner,now);
     locks.push({ref:ticketLock,path:'erpFinancePayableTicketLocks/'+ticketNo});
+    for(const id of payableLockIds){
+      const payableLock=db.ref('erpFinancePayableLocks/'+id);
+      await acquire(payableLock,owner,now);
+      locks.push({ref:payableLock,path:'erpFinancePayableLocks/'+id});
+    }
     const priorReceipt=(await opRef.get()).val();
     if(priorReceipt?.ticket){if(String(priorReceipt.ticket.ticket)!==ticketNo)reject(409,'OPERATION_USED','Identificador de operação já utilizado.');return {...priorReceipt,alreadyCommitted:true};}
     const paths=['erp/tickets/'+ticketNo,'erp/adiantamentos/'+code,'erp/saldos/'+code,'erp/saldoDevedor/'+code,'erp/contasPagar'];
@@ -280,9 +333,34 @@ export async function editPurchaseOrder(identity,input,{db,now=()=>Date.now(),uu
       const live=(await db.ref('erp/tickets/'+ticketNo).get()).val();
       if(!live||hash(live)!==hash(previous))reject(409,'TICKET_CHANGED','O pedido mudou durante a edição. Reabra o Histórico.');
     }
-    let advanceRefund=null;
-    if(changed){
-      const oldBalance=cash(Number(previous.saldoPagar||0));
+    let advanceRefund=null,replanned=null;
+    const oldBalance=cash(Number(previous.saldoPagar||0));
+    const previousPlan=Array.isArray(previous.parcelas)?previous.parcelas:[];
+    if(oldBalance>0&&previousPlan.length>1&&changed&&purchasePayables(snaps[4].val(),ticketNo,previous).rows.some(([,row])=>!untouchedPayable(row)))
+      reject(409,'INSTALLMENTS_HAVE_PAYMENTS','Já existe parcela paga desta compra. Para mudar valores ou parcelas, estorne o pagamento em Contas a Pagar.');
+    const rawRequested=Array.isArray(input.ticket.parcelas)?input.ticket.parcelas:(previousPlan.length>1?previousPlan:null);
+    const requested=rawRequested&&result.balance>0?normalizeInstallments(rawRequested,{balanceCents:result.balance,
+      purchaseDate:result.ticket.dataCompra,defaultDueDate:result.ticket.vencimentoSaldo}):null;
+    if(oldBalance<=0&&(requested?.length??0)>1)
+      reject(409,'INSTALLMENTS_AFTER_PAYMENT','Esta compra já estava quitada: a diferença vira uma conta única em Contas a Pagar. Deixe uma parcela só.');
+    const multi=oldBalance>0&&(previousPlan.length>1||(requested?.length??0)>1);
+    const planChanged=installmentSignature(currentPlan(previous))!==installmentSignature(requested??[]);
+    if(multi&&(changed||planChanged)){
+      if(result.balance<0&&!advancesUsed)
+        reject(409,'FINANCE_RECONCILIATION_REQUIRED','O valor altera a natureza do saldo do pedido. Essa mudança exige conciliação específica.');
+      if(result.balance<0){
+        const refund=refundAdvanceReceipt(previous,snaps[1].val(),-result.balance,ticketNo,now());
+        updates['adiantamentos/'+code]=refund.records;
+        result.ticket.reciboFinanceiro=refund.receipt;
+        result.ticket.adiantamento=round(refund.applied);
+        result.ticket.saldoPagar=0;
+        result.ticket.status='Pago';
+        advanceRefund={valor:round(-result.balance),adiantamentos:refund.refunds};
+      }
+      replanned=replanPayables({raw:snaps[4].val(),ticketNo,previous,next:result.ticket,installments:requested??[],supplierCode:code,oldBalance,at:now()});
+      Object.assign(updates,replanned.updates);
+      applyPlan(result.ticket,requested??[]);
+    }else if(changed){
       const payments=Object.values(snaps[4].val()||{}).filter(row=>row&&String(row.ticket||'')===ticketNo);
       if(oldBalance<0&&result.balance<=0&&advancesUsed){
         if(payments.some(row=>Number(row.valorPago||0)>0||(row.pagamentos||[]).some(p=>Number(p.valor||0)>0)))
@@ -311,10 +389,28 @@ export async function editPurchaseOrder(identity,input,{db,now=()=>Date.now(),uu
         advanceRefund={valor:round(-result.balance),adiantamentos:refund.refunds};
       }else reject(409,'FINANCE_RECONCILIATION_REQUIRED','O valor altera a natureza do saldo do pedido. Essa mudança exige conciliação específica.');
     }
+    if(!replanned&&requested?.length===1&&result.ticket.saldoPagar>0){
+      const single=requested[0];
+      applyPlan(result.ticket,requested);
+      const payableId='CPPO_'+ticketNo;
+      const path=Object.keys(updates).find(entry=>entry==='contasPagar/'+payableId)
+        ?payableId
+        :(planChanged?rowEntries(snaps[4].val()||{}).find(([entry,row])=>entry===payableId&&String(row.id||'')===payableId&&row.status==='Pendente')?.[0]:null);
+      if(path){
+        const base=updates['contasPagar/'+path]||rowEntries(snaps[4].val()||{}).find(([entry])=>entry===path)[1];
+        if(base.status==='Pendente'){
+          const patched={...base,venc:isoToBrazilianDate(single.vencimento),_upd:now()};
+          if(single.forma)patched.formaPrevista=single.forma;else delete patched.formaPrevista;
+          if(single.obs)patched.obs=single.obs;
+          updates['contasPagar/'+path]=patched;
+        }
+      }
+    }else if(!replanned&&result.ticket.saldoPagar<=0&&!multi)delete result.ticket.parcelas;
     updates._ts=now();
     const record={ticket:result.ticket,advances:updates['adiantamentos/'+code]||null,
       saldo:updates['saldos/'+code]||null,creditLegacy:updates['saldoDevedor/'+code]||null,
-      payable:Object.entries(updates).find(([path])=>path.startsWith('contasPagar/'))?.[1]||null,
+      payable:replanned?replanned.payables[0]||null:Object.entries(updates).find(([path,value])=>path.startsWith('contasPagar/')&&value)?.[1]||null,
+      ...(replanned?{payables:replanned.payables,removedPayableIds:replanned.removed}:{}),
       ...(advanceRefund?{advanceRefund}:{}),
       updatedAt:now(),actor:String(identity.erpUser||identity.uid||'')};
     updates['purchaseEditOperations/'+opKey]=record;

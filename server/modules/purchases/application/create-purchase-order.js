@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {acquireLease,releaseLeases} from '../../../shared/firebase/rtdb-transaction.js';
+import {installmentPayableIds,installmentPayables,normalizeInstallments} from '../domain/installments.js';
 
 function fail(status,code,message){const e=new Error(message);e.status=status;e.code=code;throw e;}
 function id(value){const s=String(value??'').trim();if(!/^[\w-]{1,80}$/.test(s))fail(422,'INVALID_ID','Identificador inválido.');return s;}
@@ -93,14 +94,13 @@ export async function createPurchaseOrder(identity,input,{db,now=()=>Date.now(),
 
     const repeated=sameOperation((await opRef.get()).val());
     if(repeated)return repeated;
-    const [existingSnap,deletedSnap,advancesSnap,creditSnap,mirrorSnap,chequesSnap,payableSnap,...sourceSnaps]=await Promise.all([
+    const [existingSnap,deletedSnap,advancesSnap,creditSnap,mirrorSnap,chequesSnap,...sourceSnaps]=await Promise.all([
       db.ref('erp/tickets/'+ticketNo).get(),
       db.ref('erp/ticketsDeletedV2/'+ticketNo).get(),
       db.ref('erp/adiantamentos/'+code).get(),
       db.ref('erp/saldoDevedor/'+code).get(),
       credit?db.ref('erp/saldos/'+code).get():Promise.resolve(null),
       db.ref('erp/cheques/'+code).get(),
-      db.ref('erp/contasPagar/CPPO_'+ticketNo).get(),
       ...sources.map(sourceId=>db.ref('erp/tickets/'+sourceId).get())
     ]);
     if(existingSnap.val()||deletedSnap.val())fail(409,'TICKET_EXISTS','Número da compra já utilizado. Atualize o histórico.');
@@ -159,6 +159,9 @@ export async function createPurchaseOrder(identity,input,{db,now=()=>Date.now(),
     const applied=total-remaining;
     incoming.adiantamento=money(applied);incoming.saldoAnterior=0;incoming.saldoPagar=money(remaining);
     incoming.status=remaining===0?'Pago':'Pendente';
+    const installments=normalizeInstallments(input.ticket.parcelas,{balanceCents:remaining,purchaseDate:incoming.dataCompra,defaultDueDate:incoming.vencimentoSaldo});
+    if(installments.length){incoming.parcelas=installments;incoming.vencimentoSaldo=installments[0].vencimento;}
+    else delete incoming.parcelas;
     incoming.reciboFinanceiro={versao:2,total:money(applied),adiantamentos:receipts,cheques:chequeReceipts,
       ...(credit?{creditos:[{ticketOrigem:legacy.source,valorAplicado:money(usedCredit)}]}:{})};
     if(credit){incoming.creditoFornecedorOrigem=legacy.source;incoming.creditoFornecedorAplicado=money(usedCredit);}
@@ -167,17 +170,15 @@ export async function createPurchaseOrder(identity,input,{db,now=()=>Date.now(),
     if(receipts.length)updates['erp/adiantamentos/'+code]=advanceRows;
     if(chequeReceipts.length)updates['erp/cheques/'+code]=chequeRows;
     for(const sourceId of sources)updates['erp/tickets/'+sourceId]={...sourceTickets[sourceId],_balFinalizado:false,status:'Consolidado',_consolidadoEm:ticketNo};
-    let payable=null;
-    if(remaining>0){
-      const payableId='CPPO_'+ticketNo;
-      if(payableSnap.val())fail(409,'PAYABLE_EXISTS','Conta a pagar já existe para este ticket.');
-      const due=incoming.vencimentoSaldo.split('-').reverse().join('/');
-      payable={id:payableId,ticket:ticketNo,fornCod:code,cred:incoming.fornecedor||incoming.fornecedorNome||'',desc:'Compra de Sucata — '+(incoming.fornecedor||'')+' — '+ticketNo,
-        cat:'Compra de Sucata',tipoForn:'compra',lancto:incoming.dataCompra.split('-').reverse().join('/'),venc:due,valor:money(remaining),status:'Pendente',dataPgto:'',bancoCod:'',bancoNome:'',obs:'Gerado automaticamente — Pedido '+ticketNo};
-      updates['erp/contasPagar/'+payableId]=payable;
-    }
+    const payableIds=installmentPayableIds(ticketNo,installments.length);
+    const existingPayables=installments.length?await Promise.all(payableIds.map(id=>db.ref('erp/contasPagar/'+id).get())):[];
+    if(existingPayables.some(snap=>snap.val()))fail(409,'PAYABLE_EXISTS','Conta a pagar já existe para este ticket.');
+    const payables=installmentPayables({ticketNo,supplierCode:code,supplierName:incoming.fornecedor||incoming.fornecedorNome||'',
+      descriptionName:incoming.fornecedor||'',purchaseDate:incoming.dataCompra,installments});
+    for(const row of payables)updates['erp/contasPagar/'+row.id]=row;
+    const payable=payables[0]||null;
     const receipt={ticket:incoming,advances:advanceRows,cheques:chequeRows,
-      saldo:credit?updates['erp/saldoDevedor/'+code]:creditSnap.val(),payable,fornCod:code,at:now(),actor:String(identity.erpUser||identity.uid||'')};
+      saldo:credit?updates['erp/saldoDevedor/'+code]:creditSnap.val(),payable,payables,fornCod:code,at:now(),actor:String(identity.erpUser||identity.uid||'')};
     updates['erp/purchaseCreateOperations/'+opKey]=receipt;
     updates['erp/_ts']=now();
     for(const lock of held){

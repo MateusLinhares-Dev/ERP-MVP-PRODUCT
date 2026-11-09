@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {acquireLease,releaseLease} from '../../../shared/firebase/rtdb-transaction.js';
 import {refundAdvanceReceipt} from './edit-purchase-order.js';
+import {installmentPayableIds} from '../domain/installments.js';
 
 const conflict=(status,code,message)=>{const error=new Error(message);error.status=status;error.code=code;throw error;};
 const validKey=(value,label)=>{const val=String(value??'').trim();if(!/^[A-Za-z0-9_-]{1,80}$/.test(val))conflict(422,'INVALID_KEY',label+' inválido.');return val;};
@@ -50,8 +51,11 @@ async function acquire(ref,owner,now){
 async function release(ref,owner){
   await releaseLease(ref,owner,{label:'purchase.delete.lock.release'});
 }
-const linkedBank=(bank,payables,ticketId)=>{
-  const ids=new Set([...payables.map(([path,row])=>String(row.id||path)),'CPPO_'+ticketId]);
+const expectedPayableIds=(ticket,ticketId)=>new Set(installmentPayableIds(ticketId,Array.isArray(ticket?.parcelas)?ticket.parcelas.length:1));
+const isPurchasePayable=(ticketId,expected)=>([id,row])=>same(row.ticket,ticketId)||expected.has(String(id))||expected.has(String(row.id||''));
+const unexpectedPayable=expected=>([id,row])=>!expected.has(String(id))||!same(row.id,id);
+const linkedBank=(bank,payables,ticketId,expected)=>{
+  const ids=new Set([...payables.map(([path,row])=>String(row.id||path)),...expected]);
   return asRows(bank).some(([path,record])=>{
     const payment=String(record.payableId||record.contaPagarId||record.cpId||'');
     if(payment&&ids.has(payment))return true;
@@ -90,14 +94,16 @@ export async function deletePurchaseOrder(identity,input,{db,now=()=>Date.now(),
     if(!same(first.ticket||ticketId,ticketId))conflict(409,'TICKET_MISMATCH','O ticket não corresponde ao pedido registrado.');
     const supplier=validKey(first.fornecedorCod||first.fornCod,'Fornecedor');
     const payablesInitial=(await db.ref('erp/contasPagar').get()).val();
-    const payableMatches=asRows(payablesInitial).filter(([id,row])=>same(row.ticket,ticketId)||same(row.id,'CPPO_'+ticketId)||same(id,'CPPO_'+ticketId));
-    if(payableMatches.length>1)conflict(409,'MULTIPLE_PAYABLES','A compra possui vários títulos financeiros. Solicite conciliação antes de excluir.');
+    const initialExpected=expectedPayableIds(first,ticketId);
+    const payableMatches=asRows(payablesInitial).filter(isPurchasePayable(ticketId,initialExpected));
+    if(payableMatches.length>1&&(payableMatches.length>initialExpected.size||payableMatches.some(unexpectedPayable(initialExpected))))
+      conflict(409,'MULTIPLE_PAYABLES','A compra possui vários títulos financeiros. Solicite conciliação antes de excluir.');
     if(payableMatches.length&&!identity.canPayables&&!identity.canFinance)conflict(403,'PAYABLES_REQUIRED','É necessário acesso financeiro para excluir esta compra com título pendente.');
-    if(payableMatches.length){
-      const [id,row]=payableMatches[0];
-      const payableLock=db.ref('erpFinancePayableLocks/'+validKey(row.id||id,'Título'));
+    const lockIds=[...new Set(payableMatches.map(([id,row])=>validKey(row.id||id,'Título')))].sort();
+    for(const id of lockIds){
+      const payableLock=db.ref('erpFinancePayableLocks/'+id);
       await acquire(payableLock,owner,now);
-      held.push({ref:payableLock,path:'erpFinancePayableLocks/'+validKey(row.id||id,'Título')});
+      held.push({ref:payableLock,path:'erpFinancePayableLocks/'+id});
     }
     const ticketLock=db.ref('erpFinancePayableTicketLocks/'+ticketId);
     await acquire(ticketLock,owner,now);
@@ -113,7 +119,8 @@ export async function deletePurchaseOrder(identity,input,{db,now=()=>Date.now(),
     if(!same(ticket.ticket||ticketId,ticketId)||!same(ticket.fornecedorCod||ticket.fornCod,supplier))conflict(409,'PURCHASE_CHANGED','A compra foi modificada em outra sessão.');
     if(input.expectedTotal!=null&&cents(ticket.totalGeral)!==cents(input.expectedTotal))conflict(409,'PURCHASE_CHANGED','O valor da compra mudou. Atualize a página.');
     if(input.expectedSupplier!=null&&!same(input.expectedSupplier,supplier))conflict(409,'PURCHASE_CHANGED','O fornecedor da compra mudou. Atualize a página.');
-    const currentPayables=asRows(payables).filter(([id,row])=>same(row.ticket,ticketId)||same(row.id,'CPPO_'+ticketId)||same(id,'CPPO_'+ticketId));
+    const expected=expectedPayableIds(ticket,ticketId);
+    const currentPayables=asRows(payables).filter(isPurchasePayable(ticketId,new Set([...expected,...initialExpected])));
     if(currentPayables.length!==payableMatches.length||currentPayables.some(([id])=>!payableMatches.some(([old])=>same(old,id))))
       conflict(409,'PAYABLE_CHANGED','O título desta compra mudou. Atualize a tela.');
     const total=cents(ticket.totalGeral||0),remaining=cents(ticket.saldoPagar||0);
@@ -124,15 +131,15 @@ export async function deletePurchaseOrder(identity,input,{db,now=()=>Date.now(),
         conflict(409,'PURCHASE_HAS_PAYMENTS','A compra possui baixa financeira registrada. Estorne o pagamento antes de excluir.');
       if(applied<=0||applied+remaining!==total)
         conflict(409,'PURCHASE_HAS_FINANCE','Os valores desta compra não fecham com o adiantamento aplicado. Solicite conciliação antes de excluir.');
-      if(currentPayables.some(([id,row])=>!same(id,'CPPO_'+ticketId)||!same(row.id,'CPPO_'+ticketId)))
+      if(currentPayables.some(unexpectedPayable(expected)))
         conflict(409,'LEGACY_PAYABLE_REVIEW','Este pedido possui um título financeiro antigo que precisa de revisão antes de excluir.');
-      if(remaining>0&&(currentPayables.length!==1||cents(currentPayables[0][1].valor||0)!==remaining))
+      if(remaining>0&&(currentPayables.length!==expected.size||currentPayables.reduce((sum,[,row])=>sum+cents(row.valor||0),0)!==remaining))
         conflict(409,'PAYABLE_CHANGED','A conta a pagar desta compra não confere com o saldo. Atualize a tela.');
       if(currentPayables.some(([,row])=>row.fornCod&&!same(row.fornCod,supplier)))
         conflict(409,'SUPPLIER_MISMATCH','A conta a pagar pertence a outro fornecedor.');
       const purchaseBank=Object.fromEntries(asRows(bank).filter(([,row])=>row.source!=='advance'&&!row.advanceCode));
       if(hasTicketRef(cheques,ticketId)||hasTicketRef(saldo,ticketId)||hasTicketRef(saldoDevedor,ticketId)||
-        hasTicketRef(paymentOps,ticketId)||linkedBank(purchaseBank,currentPayables,ticketId))
+        hasTicketRef(paymentOps,ticketId)||linkedBank(purchaseBank,currentPayables,ticketId,expected))
         conflict(409,'PURCHASE_HAS_LINKS','Existem outros vínculos financeiros nesta compra. Não é possível excluí-la sem estorno e conciliação.');
       const advanceLock=db.ref('erpFinanceAdvanceLocks/'+supplier);
       await acquire(advanceLock,owner,now);
@@ -149,9 +156,9 @@ export async function deletePurchaseOrder(identity,input,{db,now=()=>Date.now(),
       (total>0&&remaining!==total)||
       (ticket._pagoUndo!=null)))
       conflict(409,'PURCHASE_HAS_FINANCE','Esta compra possui pagamento ou adiantamento. Para removê-la é necessário cancelar e estornar as operações financeiras.');
-    if(!refund&&ticket._consolidado===true&&cents(ticket.totalGeral||0)>0&&currentPayables.length!==1)
+    if(!refund&&ticket._consolidado===true&&cents(ticket.totalGeral||0)>0&&currentPayables.length!==expected.size)
       conflict(409,'PURCHASE_PAYABLE_MISSING','A conta a pagar desta compra não foi localizada. Atualize o Financeiro antes de excluir.');
-    if(currentPayables.some(([id,row])=>!same(id,'CPPO_'+ticketId)||!same(row.id,'CPPO_'+ticketId)))
+    if(currentPayables.some(unexpectedPayable(expected)))
       conflict(409,'LEGACY_PAYABLE_REVIEW','Este pedido possui um título financeiro antigo que precisa de revisão antes de excluir.');
     if(!refund&&currentPayables.some(([,row])=>isPaidPayable(row)))
       conflict(409,'PURCHASE_HAS_PAYMENTS','A compra possui baixa financeira registrada. Não é possível excluir diretamente.');
@@ -160,7 +167,7 @@ export async function deletePurchaseOrder(identity,input,{db,now=()=>Date.now(),
     if(!refund&&(hasTicketRef(advances,ticketId)||hasTicketRef(cheques,ticketId)||
       hasTicketRef(saldo,ticketId)||hasTicketRef(saldoDevedor,ticketId)||
       hasTicketRef(paymentOps,ticketId)||hasTicketRef(advanceOps,ticketId)||
-      linkedBank(bank,currentPayables,ticketId)))
+      linkedBank(bank,currentPayables,ticketId,expected)))
       conflict(409,'PURCHASE_HAS_LINKS','Existem vínculos financeiros nesta compra. Não é possível excluí-la sem estorno e conciliação.');
     const deletedAt=now();
     const receipt={status:'CONFIRMED',ticketNo:ticketId,supplierCode:supplier,deletedPayableIds:currentPayables.map(([id,row])=>String(row.id||id)),deletedAt,actor,

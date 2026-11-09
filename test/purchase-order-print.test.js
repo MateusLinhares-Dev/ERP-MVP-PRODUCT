@@ -32,6 +32,12 @@ function makePrint(ticket,payables=[],advances={},cheques={}){
   return {html,printedTicket};
 }
 
+function appliedAdvanceRows(html){
+  const section=/<section class="print-section applied-advances">([\s\S]*?)<\/section>/.exec(html)?.[1]||'';
+  return [...section.matchAll(/<tr><td>([\s\S]*?)<\/td><\/tr>/g)]
+    .map(match=>match[1].split(/<\/td><td[^>]*>/).map(cell=>cell.replace(/<[^>]+>/g,'').trim()));
+}
+
 const base={
   ticket:'T827763',numeroPedido:'T827763',fornecedor:'Fornecedor de teste',fornecedorCod:'F1',
   dataCompra:'2026-10-22',vencimentoSaldo:'2026-11-03',
@@ -166,10 +172,9 @@ test('canhoto discrimina 3 adiantamentos vinculados ao ticket e mantém o total 
   ]};
   const {html,printedTicket}=makePrint(purchase,[],advances);
   assert.match(html,/Adiantamentos e abatimentos desta compra/);
-  for(const [code,value] of [['ADT-01','20.000,00'],['ADT-02','30.000,00'],['ADT-03','30.000,00']]){
-    assert.match(html,new RegExp(code)); assert.match(html,new RegExp(value));
-  }
-  assert.doesNotMatch(html,/ADT-OUTRA|ADT-PEND/);
+  const rows=appliedAdvanceRows(html);
+  assert.deepEqual(rows,[['20/10/2026','Adiantamento','PIX','R$ 20.000,00'],['22/10/2026','Adiantamento','TED','R$ 30.000,00'],['25/10/2026','Adiantamento','PIX','R$ 30.000,00']]);
+  assert.doesNotMatch(html,/ADT-/);
   assert.match(html,/Total abatido no fechamento<\/th><td class="numeric">R\$ 80\.000,00/);
   assert.match(html,/Saldo a pagar<\/th><td>R\$ 135\.000,00/);
   assert.deepEqual(printedTicket,purchase);
@@ -186,8 +191,8 @@ test('snapshot financeiro tem precedência e não duplica adiantamento quitado n
     {cod:'ADT-02',data:'2026-10-22',forma:'TED',ticket:'T827763',status:'Quitado',valor:8000}
   ]};
   const {html}=makePrint(purchase,[],advances);
-  assert.equal((html.match(/ADT-01/g)||[]).length,1);
-  assert.equal((html.match(/ADT-02/g)||[]).length,1);
+  assert.deepEqual(appliedAdvanceRows(html),[['20/10/2026','Adiantamento','PIX','R$ 12.000,00'],['22/10/2026','Adiantamento','TED','R$ 8.000,00']]);
+  assert.doesNotMatch(html,/ADT-/);
   assert.match(html,/R\$ 20\.000,00/);
 });
 
@@ -198,8 +203,8 @@ test('detalhe parcial do legado não inventa pagamento não vinculado',()=>{
     {cod:'ADT-INDEVIDO',ticket:'',status:'Pendente',valor:5000}
   ]};
   const {html}=makePrint(purchase,[],advances);
-  assert.match(html,/ADT-01/);
-  assert.doesNotMatch(html,/ADT-INDEVIDO/);
+  assert.deepEqual(appliedAdvanceRows(html),[['26/10/2026','Adiantamento','—','R$ 10.000,00'],['—','Outros abatimentos aplicados','—','R$ 5.000,00']]);
+  assert.doesNotMatch(html,/ADT-/);
   assert.match(html,/Outros abatimentos aplicados/);
   assert.match(html,/R\$ 5\.000,00/);
 });

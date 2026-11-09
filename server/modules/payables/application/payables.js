@@ -264,7 +264,9 @@ export async function inspectPayablePayment(identity,input,{db,now=()=>Date.now(
   }));
   if(bankChecks.some(check=>!check))historyErrors.push('BANK_MOVEMENT_MISSING');
   if(historyErrors.length)return {state:'needs_review',reasons:historyErrors,payable,ticket,ticketKey:ticketIdKey};
-  const mismatch=Boolean(ticketIdKey)&&(!ticket||ticketMarkedPaid!==ticketZero||paid!==ticketMarkedPaid);
+  const installment=Number(payable.parcelas||0)>1;
+  const statusMismatch=installment?(!paid&&ticketMarkedPaid):paid!==ticketMarkedPaid;
+  const mismatch=Boolean(ticketIdKey)&&(!ticket||ticketMarkedPaid!==ticketZero||statusMismatch);
   if(mismatch||(!paid&&operation?.result?.payable?.status==='Pago')){
     return {state:'needs_review',payable,ticket,ticketKey:ticketIdKey};
   }

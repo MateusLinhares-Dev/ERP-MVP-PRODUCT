@@ -263,6 +263,8 @@ function currentState(body){
     purchaseOrder:'',
     purchaseDate:today(),
     dueDate:today(),
+    installments:[],
+    paymentCondition:'',
     sourceTicketKeys:jsonDataset(body,'ticketKeys',[]),
     adts:fin.adts,
     cheques:fin.cheques,
@@ -397,6 +399,234 @@ function paymentHtml(state){
   if(!adts&&!cheques&&!credit&&!issues)return '<div class="phase4-po-empty-pay">Nenhum adiantamento, cheque ou crédito pendente para este fornecedor.</div>';
   return issues+adts+cheques+credit;
 }
+const INSTALLMENT_FORMS=['PIX','TED','Boleto','Dinheiro','Cheque','Depósito','Transferência'];
+const MAX_INSTALLMENTS=36;
+function toCents(value){
+  const amount=Number(value||0);
+  return Number.isFinite(amount)?Math.round(amount*100):0;
+}
+function addDaysISO(iso,days){
+  const base=new Date(String(iso||today())+'T12:00:00');
+  if(Number.isNaN(+base))return today();
+  base.setDate(base.getDate()+Number(days||0));
+  return base.getFullYear()+'-'+String(base.getMonth()+1).padStart(2,'0')+'-'+String(base.getDate()).padStart(2,'0');
+}
+function parsePaymentCondition(text){
+  const raw=String(text||'').trim().toLocaleLowerCase('pt-BR');
+  if(!raw)return null;
+  if(/^(a|à)\s*vista$|^avista$/.test(raw))return [0];
+  const times=/^(\d{1,2})\s*x$/.exec(raw);
+  if(times){
+    const count=Number(times[1]);
+    if(count<1||count>MAX_INSTALLMENTS)return null;
+    return Array.from({length:count},function(_,index){return 30*(index+1);});
+  }
+  const parts=raw.replace(/\s*dias?$/,'').split(/[\s,;/+]+/).filter(Boolean);
+  if(!parts.length||parts.length>MAX_INSTALLMENTS||parts.some(function(part){return !/^\d{1,4}$/.test(part);}))return null;
+  return parts.map(Number);
+}
+function generateInstallments(days,balance,purchaseDate,previous){
+  const totalCents=Math.max(0,toCents(balance));
+  const count=days.length;
+  const share=Math.floor(totalCents/count);
+  return days.map(function(day,index){
+    const old=(previous||[])[index]||{};
+    return {date:addDaysISO(purchaseDate,day),value:(index===count-1?totalCents-share*(count-1):share)/100,
+      form:String(old.form||(previous||[])[0]?.form||''),obs:String(old.obs||'')};
+  });
+}
+function balanceInstallments(rows,balance){
+  if(!rows.length)return rows;
+  const others=rows.slice(0,-1).reduce(function(sum,row){return sum+toCents(row.value);},0);
+  rows[rows.length-1].value=(toCents(balance)-others)/100;
+  return rows;
+}
+function installmentPayload(rows){
+  return (rows||[]).map(function(row){
+    return {vencimento:String(row.date||''),valor:toCents(row.value)/100,forma:String(row.form||''),obs:String(row.obs||'').replace(/\s+/g,' ').trim().slice(0,200)};
+  });
+}
+function installmentKey(rows){
+  return JSON.stringify(installmentPayload(rows).map(function(row){return [row.vencimento,toCents(row.valor),row.forma,row.obs];}));
+}
+function validateInstallments(state,balance){
+  if(toCents(balance)<=0)return [];
+  const rows=state.installments||[];
+  if(!rows.length)throw new Error('Informe as parcelas do saldo a pagar.');
+  if(rows.length>MAX_INSTALLMENTS)throw new Error('Máximo de '+MAX_INSTALLMENTS+' parcelas.');
+  rows.forEach(function(row,index){
+    const line=index+1;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(row.date||'')))throw new Error('Informe a data de vencimento da parcela '+line+'.');
+    if(String(row.date)<String(state.purchaseDate||''))throw new Error('A parcela '+line+' vence antes da data da compra.');
+    if(toCents(row.value)<=0)throw new Error(index===rows.length-1&&rows.length>1
+      ?'A soma das parcelas passa do saldo a pagar. Ajuste os valores.'
+      :'Informe o valor da parcela '+line+'.');
+    if(row.form&&!INSTALLMENT_FORMS.includes(row.form))throw new Error('Forma de pagamento da parcela '+line+' inválida.');
+  });
+  const sum=rows.reduce(function(total,row){return total+toCents(row.value);},0);
+  if(sum!==toCents(balance))throw new Error('A soma das parcelas (R$ '+money(sum/100)+') precisa ser igual ao saldo a pagar (R$ '+money(balance)+').');
+  return installmentPayload(rows);
+}
+function syncInstallments(state,balance){
+  if(!Array.isArray(state.installments))state.installments=[];
+  if(!state.installmentsLocked&&toCents(balance)>0){
+    if(!state.installments.length)state.installments=[{date:state.dueDate||today(),value:balance,form:'',obs:''}];
+    balanceInstallments(state.installments,balance);
+  }
+  if(state.installments.length&&toCents(balance)>0)state.dueDate=state.installments[0].date||state.dueDate||today();
+  const hidden=document.getElementById('cs-lanc-venc');
+  if(hidden)hidden.value=state.dueDate||today();
+}
+function installmentFormOptions(selected){
+  return '<option value="">—</option>'+INSTALLMENT_FORMS.map(function(form){
+    return '<option value="'+esc(form)+'"'+(form===selected?' selected':'')+'>'+esc(form)+'</option>';
+  }).join('');
+}
+function installmentsHtml(state){
+  return '<div class="phase4-po-installments" id="phase4-po-installments">'+
+    '<div class="phase4-po-installments-head"><h4>Parcelas</h4>'+
+    '<div class="phase4-po-installments-tools" id="phase4-po-installments-tools">'+
+    '<label class="phase4-po-field"><span>Condição de pagamento</span><input id="phase4-po-condition" autocomplete="off" placeholder="Ex.: 30 60 90 ou 3x" value="'+esc(state.paymentCondition||'')+'" oninput="phase4PurchaseCondition(this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();phase4PurchaseGenerateInstallments();}"></label>'+
+    '<button type="button" class="phase4-po-outline" onclick="phase4PurchaseGenerateInstallments()">Gerar parcelas</button></div></div>'+
+    '<div id="phase4-po-installments-body"></div>'+
+    '<input id="cs-lanc-venc" type="hidden" value="'+esc(state.dueDate||today())+'">'+
+  '</div>';
+}
+function installmentRowHtml(state,row,index,count){
+  const last=index===count-1;
+  const locked=state.installmentsLocked===true;
+  const auto=last&&!locked;
+  return '<tr data-installment="'+index+'">'+
+    '<td class="idx">'+(index+1)+'</td>'+
+    '<td class="days"><input type="number" min="0" max="9999" inputmode="numeric" data-field="days" value="'+daysBetween(state.purchaseDate||today(),row.date)+'"'+(locked?' readonly':' oninput="phase4PurchaseInstallment('+index+',\'days\',this.value)"')+'></td>'+
+    '<td class="date"><input type="date" data-field="date" value="'+esc(row.date||'')+'"'+(locked?' readonly':' onchange="phase4PurchaseInstallment('+index+',\'date\',this.value)"')+'></td>'+
+    '<td class="value"><input inputmode="decimal" data-field="value" value="'+esc(money(row.value))+'"'+(locked||auto?' readonly':' oninput="phase4PurchaseInstallment('+index+',\'value\',this.value)" onblur="phase4PurchaseInstallmentBlur(this,'+index+')"')+
+      (auto&&count>1?' title="Calculada automaticamente: saldo a pagar menos as outras parcelas"':'')+'></td>'+
+    '<td class="form"><select data-field="form"'+(locked?' disabled':' onchange="phase4PurchaseInstallment('+index+',\'form\',this.value)"')+'>'+installmentFormOptions(row.form||'')+'</select></td>'+
+    '<td class="obs"><input maxlength="200" data-field="obs" placeholder="Ex.: NF 1234" value="'+esc(row.obs||'')+'"'+(locked?' readonly':' oninput="phase4PurchaseInstallment('+index+',\'obs\',this.value)"')+'></td>'+
+    '<td class="action">'+(!locked&&count>1?'<button type="button" title="Remover parcela" onclick="phase4PurchaseRemoveInstallment('+index+')">×</button>':'')+'</td>'+
+  '</tr>';
+}
+function renderInstallments(state,balance){
+  const container=document.getElementById('phase4-po-installments-body');
+  if(!container)return;
+  const tools=document.getElementById('phase4-po-installments-tools');
+  const rows=state.installments||[];
+  const locked=state.installmentsLocked===true;
+  const hasBalance=toCents(balance)>0;
+  if(tools)tools.hidden=locked||!hasBalance;
+  const mode=(locked?'locked':hasBalance?'open':'empty')+':'+rows.length;
+  const active=document.activeElement;
+  if(container.dataset.mode===mode&&mode.startsWith('open')&&active&&container.contains(active)){
+    container.querySelectorAll('tr[data-installment]').forEach(function(tr){
+      const row=rows[Number(tr.dataset.installment)];if(!row)return;
+      tr.querySelectorAll('[data-field]').forEach(function(input){
+        if(input===active)return;
+        const field=input.dataset.field;
+        input.value=field==='days'?String(daysBetween(state.purchaseDate||today(),row.date))
+          :field==='value'?money(row.value):String(row[field]||'');
+      });
+    });
+    updateInstallmentSummary(state);
+    return;
+  }
+  container.dataset.mode=mode;
+  if(!hasBalance&&!locked){
+    container.innerHTML='<div class="phase4-po-empty-pay">Sem saldo a pagar: não há parcelas para lançar em Contas a Pagar.</div>';
+    return;
+  }
+  const note=locked
+    ?'<div class="phase4-po-empty-pay" role="status">'+(Number(state.originalBalance||0)>0.005
+      ?'Já existe pagamento registrado nesta compra. As parcelas não podem ser alteradas aqui; ajuste em Financeiro → Contas a Pagar.'
+      :'Compra já quitada. Se o total aumentar, a diferença vira uma conta única em Contas a Pagar.')+'</div>'
+    :'';
+  container.innerHTML=note+(rows.length?'<div class="phase4-po-table-wrap"><table class="phase4-po-table phase4-po-installments-table"><thead><tr><th>#</th><th>Dias</th><th>Data</th><th>Valor</th><th>Forma</th><th>Observação</th><th></th></tr></thead><tbody>'+
+    rows.map(function(row,index){return installmentRowHtml(state,row,index,rows.length);}).join('')+
+    '</tbody></table></div>':'')+
+    (locked?'':'<div class="phase4-po-installments-foot"><button type="button" class="phase4-po-add-item" onclick="phase4PurchaseAddInstallment()">＋ Adicionar outra parcela</button><span id="phase4-po-installments-summary"></span></div>');
+  updateInstallmentSummary(state);
+}
+function updateInstallmentSummary(state){
+  const summary=document.getElementById('phase4-po-installments-summary');
+  if(!summary)return;
+  const rows=state.installments||[];
+  const sum=rows.reduce(function(total,row){return total+toCents(row.value);},0);
+  const overflow=rows.length>1&&toCents(rows[rows.length-1].value)<=0;
+  summary.className=overflow?'phase4-po-installments-alert':'';
+  summary.setAttribute('role',overflow?'alert':'status');
+  summary.textContent=overflow
+    ?'A soma das parcelas passa do saldo a pagar. Ajuste os valores.'
+    :rows.length+(rows.length===1?' parcela':' parcelas')+' · total R$ '+money(sum/100)+(rows.length>1?' · a última é calculada automaticamente':'');
+}
+global.phase4PurchaseCondition=function(value){
+  const tuple=getState(),body=tuple[0],state=tuple[1];
+  if(!body)return;
+  state.paymentCondition=String(value||'').slice(0,80);
+  storeState(body,state);
+};
+global.phase4PurchaseGenerateInstallments=function(){
+  const totals=global.phase4PurchaseRecalc();
+  const tuple=getState(),body=tuple[0],state=tuple[1];
+  if(!body||!totals||state.installmentsLocked)return;
+  if(toCents(totals.balance)<=0){try{showToast('Não há saldo a pagar para dividir em parcelas.','info');}catch(e){}return;}
+  const text=document.getElementById('phase4-po-condition')?.value??state.paymentCondition;
+  const days=parsePaymentCondition(text);
+  if(!days){
+    try{showToast('Condição inválida. Informe os dias separados por espaço (ex.: 30 60 90) ou a quantidade de parcelas (ex.: 3x).','error',6500);}catch(e){}
+    return;
+  }
+  if(toCents(totals.balance)<days.length){try{showToast('O saldo é pequeno demais para essa quantidade de parcelas.','error');}catch(e){}return;}
+  state.paymentCondition=String(text||'').trim().slice(0,80);
+  state.installments=generateInstallments(days,totals.balance,state.purchaseDate||today(),state.installments);
+  storeState(body,state);
+  global.phase4PurchaseRecalc();
+};
+global.phase4PurchaseInstallment=function(index,field,value){
+  const tuple=getState(),body=tuple[0],state=tuple[1];
+  const row=state.installments?.[index];
+  if(!body||!row||state.installmentsLocked)return;
+  if(field==='days'){
+    const days=Math.max(0,Math.min(9999,parseInt(value,10)||0));
+    row.date=addDaysISO(state.purchaseDate||today(),days);
+  }else if(field==='date'){
+    if(/^\d{4}-\d{2}-\d{2}$/.test(String(value||'')))row.date=String(value);
+  }else if(field==='value'){
+    row.value=Math.max(0,parseBR(value));
+  }else if(field==='form'){
+    row.form=INSTALLMENT_FORMS.includes(value)?value:'';
+  }else if(field==='obs'){
+    row.obs=String(value||'').slice(0,200);
+  }
+  storeState(body,state);
+  global.phase4PurchaseRecalc();
+};
+global.phase4PurchaseInstallmentBlur=function(input,index){
+  const state=getState()[1];
+  const row=state.installments?.[index];
+  if(input&&row)input.value=money(row.value);
+};
+global.phase4PurchaseAddInstallment=function(){
+  const tuple=getState(),body=tuple[0],state=tuple[1];
+  if(!body||state.installmentsLocked)return;
+  const rows=state.installments=Array.isArray(state.installments)?state.installments:[];
+  if(rows.length>=MAX_INSTALLMENTS){try{showToast('Máximo de '+MAX_INSTALLMENTS+' parcelas.','error');}catch(e){}return;}
+  const last=rows[rows.length-1];
+  if(last){
+    last.value=Math.floor(Math.max(0,toCents(last.value))/2)/100;
+    rows.push({date:addDaysISO(last.date||state.purchaseDate||today(),30),value:0,form:String(last.form||''),obs:''});
+  }else{
+    rows.push({date:addDaysISO(state.purchaseDate||today(),30),value:0,form:'',obs:''});
+  }
+  storeState(body,state);
+  global.phase4PurchaseRecalc();
+};
+global.phase4PurchaseRemoveInstallment=function(index){
+  const tuple=getState(),body=tuple[0],state=tuple[1];
+  if(!body||state.installmentsLocked||!Array.isArray(state.installments)||state.installments.length<=1)return;
+  state.installments.splice(index,1);
+  storeState(body,state);
+  global.phase4PurchaseRecalc();
+};
 function render(body){
   if(!body)return;
   hideLegacySupplier();
@@ -422,7 +652,7 @@ function render(body){
       '<section class="phase4-po-card"><h3>Totais da compra</h3><div class="phase4-po-summary"><div><span>Nº de itens</span><b id="phase4-po-item-count">0</b></div><div><span>Soma das quantidades</span><b id="phase4-po-qty-total">0 kg</b></div><div><span>Total dos produtos</span><b id="phase4-po-products-total">R$ 0,00</b></div><div class="grand"><span>Total do pedido</span><b id="phase4-po-grand-total">R$ 0,00</b></div></div><div class="phase4-po-form-grid two"><label class="phase4-po-field"><span>Desconto R$</span><input id="phase4-po-discount" inputmode="decimal" value="'+esc(state.discount?money(state.discount):'0,00')+'" oninput="phase4PurchaseRecalc()"></label><label class="phase4-po-field"><span>Frete R$</span><input id="phase4-po-freight" inputmode="decimal" value="'+esc(state.freight?money(state.freight):'0,00')+'" oninput="phase4PurchaseRecalc()"></label></div></section>'+
       '<section class="phase4-po-card"><h3>Detalhes da compra</h3><div class="phase4-po-form-grid"><label class="phase4-po-field"><span>Número do pedido</span><input id="phase4-po-number" value="'+esc(state.orderNumber||'')+'" readonly title="Número atribuído automaticamente pelo cadastro de compras"></label><label class="phase4-po-field"><span>Ordem de compra</span><input id="phase4-po-order" value="'+esc(state.purchaseOrder||'')+'" oninput="phase4PurchaseSyncMeta()"></label><label class="phase4-po-field"><span>Data da compra</span><input id="phase4-po-date" type="date" value="'+esc(state.purchaseDate||today())+'" onchange="phase4PurchaseSyncMeta()"></label></div></section>'+
     '</div>'+
-    '<section class="phase4-po-card"><h3>Pagamento</h3><div class="phase4-po-payment-head"><label class="phase4-po-field"><span>Vencimento do saldo</span><input id="cs-lanc-venc" type="date" value="'+esc(state.dueDate||today())+'" onchange="phase4PurchaseSyncMeta()"></label><div class="phase4-po-payment-total"><span>Adiantamentos / abatimentos</span><b id="phase4-po-advance-total">R$ 0,00</b></div><div class="phase4-po-payment-total main"><span>Saldo a pagar</span><b id="phase4-po-balance">R$ 0,00</b></div></div><div class="phase4-po-pay-list">'+paymentHtml(state)+'</div></section>'+
+    '<section class="phase4-po-card"><h3>Pagamento</h3><div class="phase4-po-payment-head"><div class="phase4-po-payment-total"><span>Adiantamentos / abatimentos</span><b id="phase4-po-advance-total">R$ 0,00</b></div><div class="phase4-po-payment-total main"><span>Saldo a pagar</span><b id="phase4-po-balance">R$ 0,00</b></div></div><div class="phase4-po-pay-list">'+paymentHtml(state)+'</div>'+installmentsHtml(state)+'</section>'+
     '<div class="phase4-po-footer"><button type="button" class="phase4-po-outline" onclick="phase4PurchaseCancel()">Cancelar</button><button type="button" class="phase4-po-save" onclick="phase4PurchaseSave()">Salvar pedido de compra</button></div>'+
   '</div>';
   renderItems(body,state);
@@ -524,6 +754,7 @@ global.phase4PurchaseSyncMeta=function(){
   state.dueDate=document.getElementById('cs-lanc-venc')?.value||state.dueDate||today();
   state.notes=readOrderNotes(state);
   storeState(body,state);
+  global.phase4PurchaseRecalc();
 };
 global.phase4PurchaseRecalc=function(){
   const tuple=getState(),body=tuple[0],state=tuple[1];
@@ -579,7 +810,9 @@ global.phase4PurchaseRecalc=function(){
     balanceEl.title=refundsAdvance?'Ao salvar, a diferença volta como saldo disponível do adiantamento usado nesta compra.'
       :requiresReconciliation?'Compra já liquidada: revisão financeira necessária antes de alterar o total.':'';
   }
+  syncInstallments(state,balance);
   storeState(body,state);
+  renderInstallments(state,balance);
   return {productTotal,total,advances,balance};
 };
 global.phase4PurchaseSupplierChanged=function(){
@@ -787,6 +1020,8 @@ function patchCreatedTicket(key,state,legacyItems,totals){
   ticket.totalKg=(ticket.itens||[]).reduce(function(sum,item){return sum+Number(item.quantidade||item.pesoLiq||0);},0);
   ticket.saldoPagar=Math.max(0,totals.balance);
   ticket.status=totals.balance<=0.005?'Pago':'Pendente';
+  if(Array.isArray(state.installmentPlan)&&state.installmentPlan.length)ticket.parcelas=state.installmentPlan;
+  else delete ticket.parcelas;
   ticket.pedidoCompra={
     versao:1,
     numero:ticket.numeroPedido,
@@ -957,7 +1192,8 @@ async function purchaseCreateAtomic(key,ticket,state,body){
   try{localStorage.setItem('mm_saldo_devedor',JSON.stringify(SALDO_DEVEDOR_FORN));}catch(_e){}
   if(Array.isArray(CONTAS_PAGAR)){
     for(let i=CONTAS_PAGAR.length-1;i>=0;i--)if(String(CONTAS_PAGAR[i]?.ticket||'')===key)CONTAS_PAGAR.splice(i,1);
-    if(result.payable)CONTAS_PAGAR.push(clone(result.payable));
+    const createdPayables=Array.isArray(result.payables)?result.payables:(result.payable?[result.payable]:[]);
+    createdPayables.forEach(function(row){if(row)CONTAS_PAGAR.push(clone(row));});
   }
   try{if(typeof _ticketsSnapJSON!=='undefined')_ticketsSnapJSON[key]=JSON.stringify(result.ticket);}catch(_e){}
   purchaseRememberServerAck(key,result.ticket);
@@ -1112,7 +1348,9 @@ async function purchaseEditWithReconciliation(key,ticket,state){
   if(!current||typeof current.getIdToken!=='function')throw new Error('Sessão Firebase expirada. Entre novamente.');
   const operationId=state.editOperationId||(global.crypto?.randomUUID?.()||('00000000-0000-4000-8000-'+String(Date.now()).padStart(12,'0').slice(-12)));
   state.editOperationId=operationId;
-  const payload=JSON.stringify({operationId,ticketNo:key,expectedTicket:JSON.parse(state.ticketSnapshot),ticket});
+  const sent=JSON.parse(JSON.stringify(ticket));
+  if(!Array.isArray(state.installmentPlan))delete sent.parcelas;
+  const payload=JSON.stringify({operationId,ticketNo:key,expectedTicket:JSON.parse(state.ticketSnapshot),ticket:sent});
   let response=null,result={},networkError=null;
   for(let attempt=1;attempt<=3;attempt++){
     networkError=null;
@@ -1136,7 +1374,11 @@ async function purchaseEditWithReconciliation(key,ticket,state){
   if(result.advances&&typeof ADT_POR_FORN!=='undefined')ADT_POR_FORN[state.supplierCode]=result.advances;
   if(result.saldo&&typeof SALDO_DEVEDOR_FORN!=='undefined')SALDO_DEVEDOR_FORN[state.supplierCode]=result.saldo;
   if(result.creditLegacy&&!result.saldo&&typeof SALDO_DEVEDOR_FORN!=='undefined')SALDO_DEVEDOR_FORN[state.supplierCode]=result.creditLegacy;
-  if(result.payable&&typeof CONTAS_PAGAR!=='undefined'){const index=CONTAS_PAGAR.findIndex(c=>String(c?.id||'')===String(result.payable.id||''));if(index>=0)CONTAS_PAGAR[index]=result.payable;else CONTAS_PAGAR.push(result.payable);}
+  if(Array.isArray(result.payables)&&typeof CONTAS_PAGAR!=='undefined'){
+    const replaced=new Set([...(result.removedPayableIds||[]),...result.payables.map(function(row){return row?.id;})].map(String));
+    for(let i=CONTAS_PAGAR.length-1;i>=0;i--)if(replaced.has(String(CONTAS_PAGAR[i]?.id||'')))CONTAS_PAGAR.splice(i,1);
+    result.payables.forEach(function(row){if(row)CONTAS_PAGAR.push(row);});
+  }else if(result.payable&&typeof CONTAS_PAGAR!=='undefined'){const index=CONTAS_PAGAR.findIndex(c=>String(c?.id||'')===String(result.payable.id||''));if(index>=0)CONTAS_PAGAR[index]=result.payable;else CONTAS_PAGAR.push(result.payable);}
   if(result.advanceRefund&&Number(result.advanceRefund.valor)>0){
     const codes=(result.advanceRefund.adiantamentos||[]).map(function(row){return row.cod;}).join(', ');
     try{showToast('R$ '+money(result.advanceRefund.valor)+' voltou como saldo do adiantamento '+codes+'.','success',8000);}catch(e){}
@@ -1162,11 +1404,19 @@ global.phase4PurchaseSave=async function(){
     const editSnapshot=purchaseTakeLocalSnapshot(state);
     try{
       const totals=global.phase4PurchaseRecalc();
+      const fresh=currentState(body);
+      state.installments=fresh.installments;state.dueDate=fresh.dueDate;
+      const totalChanged=Math.abs(Number(totals.total||0)-Number(state.originalTotal||0))>0.005;
+      if(state.installmentsLocked&&state.installmentsMulti&&totalChanged&&Number(state.originalBalance||0)>0.005)
+        throw new Error('Esta compra tem parcela paga. Para mudar o valor, estorne o pagamento em Contas a Pagar.');
+      const plan=state.installmentsLocked?null:validateInstallments(state,totals.balance);
+      const planChanged=plan!==null&&(toCents(totals.balance)>0?installmentKey(state.installments):'[]')!==state.originalInstallmentKey;
+      state.installmentPlan=planChanged||totalChanged?plan:null;
       const ticket=saveEditedTicket(state,totals);
       purchasePendingKeys.add(String(state.editKey));
       let confirmed;
       try{
-        const financeChanged=Math.abs(Number(totals.total||0)-Number(state.originalTotal||0))>0.005;
+        const financeChanged=totalChanged||planChanged;
         confirmed=financeChanged
           ?await purchaseEditWithReconciliation(String(state.editKey),ticket,state)
           :await purchaseConfirmCloud(String(state.editKey),ticket,{
@@ -1200,6 +1450,15 @@ global.phase4PurchaseSave=async function(){
     return;
   }
   const totals=global.phase4PurchaseRecalc();
+  try{
+    const fresh=currentState(body);
+    state.installments=fresh.installments;state.dueDate=fresh.dueDate;
+    state.installmentPlan=validateInstallments(state,totals.balance);
+    storeState(body,state);
+  }catch(error){
+    try{showToast(error.message,'error',6500);}catch(e){alert(error.message);}
+    return;
+  }
   setSaving(true);
   global.__ERP_PURCHASE_IN_PROGRESS__=true;
   let purchaseCommitted=false;
@@ -1321,6 +1580,16 @@ function stateForExistingTicket(key,cloudTicket){
       !(Number(ticket.creditoFornecedorAplicado||0)>0),
     originalBalance:Number(ticket.saldoPagar||0),
     originalTotal:Number(ticket.totalGeral||0)||0,
+    installments:(Array.isArray(ticket.parcelas)&&ticket.parcelas.length
+      ?ticket.parcelas
+      :(Number(ticket.saldoPagar||0)>0.005?[{vencimento:ticket.vencimentoSaldo||po.vencimentoSaldo||ticket.data,valor:Number(ticket.saldoPagar||0),forma:'',obs:''}]:[]))
+      .map(function(row){return {date:isoDate(row?.vencimento),value:Math.round(Number(row?.valor||0)*100)/100,form:String(row?.forma||''),obs:String(row?.obs||'')};}),
+    installmentsMulti:Array.isArray(ticket.parcelas)&&ticket.parcelas.length>1,
+    installmentsLocked:Number(ticket.saldoPagar||0)<=0.005||(typeof CONTAS_PAGAR!=='undefined'&&Array.isArray(CONTAS_PAGAR)?CONTAS_PAGAR:[]).some(function(cp){
+      return cp&&String(cp.ticket||'').trim()===String(ticket.ticket||key)&&(String(cp.status||'').toLowerCase()==='pago'||
+        (Array.isArray(cp.pagamentos)&&cp.pagamentos.length>0)||Number(cp.valorPago||0)>0||Number(cp.adtCompensado||0)>0);
+    }),
+    paymentCondition:'',
     legacyExtra:Math.round(((Number(ticket.totalGeral||0)||0)-
       ((ticket.itens||[]).reduce(function(sum,i){return sum+itemNet(i)*Number(i.preco||0);},0)-
       (Number(ticket.descontoCompra??po.desconto??0)||0)+(Number(ticket.freteCompra??po.frete??0)||0)))*100)/100,
@@ -1341,6 +1610,7 @@ global.phase4PurchaseEditTicket=async function(ticketRef){
     if(!confirmed||typeof confirmed!=='object')throw new Error('Pedido não encontrado na nuvem. Nenhuma edição foi iniciada.');
     if(confirmed.status==='Aguard. Preço'||confirmed._balSessao||confirmed._rodEntrada)throw new Error('Finalize a pesagem antes de editar este pedido.');
     state=stateForExistingTicket(entry[0],confirmed);
+    state.originalInstallmentKey=installmentKey(state.installments);
   }catch(e){try{showToast(e.message||'Não foi possível consultar o pedido no Firebase.','error',7500);}catch(_){}return;}
   manualMode=false;
   if(typeof global.csTab==='function')global.csTab('lancamento');
@@ -1392,6 +1662,10 @@ function saveEditedTicket(state,totals){
   ticket.observacoesPedido=String(state.notes||'').trim();
   ticket.saldoPagar=totals.balance;
   ticket.status=totals.balance>0.005?'Pendente':'Pago';
+  if(Array.isArray(state.installmentPlan)){
+    if(state.installmentPlan.length)ticket.parcelas=state.installmentPlan;
+    else delete ticket.parcelas;
+  }
   ticket.pedidoCompra=Object.assign({},ticket.pedidoCompra||{}, {
     numero:ticket.numeroPedido,ordemCompra:state.purchaseOrder,dataCompra:state.purchaseDate,
     vencimentoSaldo:state.dueDate,observacoes:ticket.observacoesPedido,
@@ -1622,6 +1896,17 @@ function companyLogoSrc(){
     return 'assets/branding/manuela-metais-logo.webp';
   }
 }
+function printPaymentForm(row){
+  if(row.kind==='Cheque')return row.ref?'Cheque nº '+row.ref:'Cheque';
+  return String(row.method||'').trim()||'—';
+}
+function printInstallmentPaid(ticketNo,index,count){
+  const id=count>1?'CPPO_'+ticketNo+'-'+(index+1):'CPPO_'+ticketNo;
+  try{
+    const account=(Array.isArray(CONTAS_PAGAR)?CONTAS_PAGAR:[]).find(function(cp){return cp&&String(cp.id||'')===id;});
+    return Boolean(account)&&String(account.status||'').toLowerCase()==='pago';
+  }catch(e){return false;}
+}
 function printAppliedAdvances(key,ticket,advance){
   const ticketNo=String(ticket.ticket||key||'').trim();
   const supplierCode=String(ticket.fornecedorCod||ticket.fornCod||'').trim();
@@ -1645,7 +1930,7 @@ function printAppliedAdvances(key,ticket,advance){
     }
     for(const c of (Array.isArray(snap.cheques)?snap.cheques:[])){
       if(!c)continue;
-      take('Cheque',c.num||c.id,c.bomPara,'',c.valorAplicado,
+      take('Cheque',c.num||c.numero||'',c.bomPara,'',c.valorAplicado,
         c.id?'CHQ:'+String(c.id):'SNAP-CHQ:'+candidates.length);
     }
   }
@@ -1661,7 +1946,7 @@ function printAppliedAdvances(key,ticket,advance){
     const rows=typeof CHEQUES_POR_FORN!=='undefined'&&supplierCode?(CHEQUES_POR_FORN[supplierCode]||[]):[];
     for(const c of rows){
       if(!c||![c._aplicadoTicket,c.vinculo,c.ticket].some(function(value){return String(value||'').trim()===ticketNo;}))continue;
-      take('Cheque',c.num||c.numero||c.id,c.bomPara||c.data,'',c.valor,
+      take('Cheque',c.num||c.numero||'',c.bomPara||c.data,'',c.valor,
         c.id?'CHQ:'+String(c.id):'LIVE-CHQ:'+candidates.length);
     }
   }catch(e){}
@@ -1789,9 +2074,9 @@ function printHtml(key,ticket){
   const advanceRows=printAppliedAdvances(key,ticket,advance);
   const advanceDetails=advance>0
     ?'<section class="print-section applied-advances"><h2>Adiantamentos e abatimentos desta compra</h2>'+
-      '<table class="installments"><thead><tr><th>Data</th><th>Origem</th><th>Referência / forma</th><th>Valor aplicado</th></tr></thead><tbody>'+
+      '<table class="installments"><thead><tr><th>Data</th><th>Origem</th><th>Forma</th><th>Valor aplicado</th></tr></thead><tbody>'+
       advanceRows.map(function(row){return '<tr><td>'+esc(row.date?dateBR(row.date):'—')+'</td>'+
-        '<td>'+esc(row.kind)+'</td><td>'+esc([row.ref,row.method].filter(Boolean).join(' · ')||'—')+'</td>'+
+        '<td>'+esc(row.kind)+'</td><td>'+esc(printPaymentForm(row))+'</td>'+
         '<td class="numeric">R$ '+money(row.amount)+'</td></tr>';}).join('')+
       '<tr class="advance-total"><th colspan="3">Total abatido no fechamento</th><td class="numeric">R$ '+money(advance)+'</td></tr>'+
       '</tbody></table></section>':'';
@@ -1801,9 +2086,16 @@ function printHtml(key,ticket){
       finance.payments.map(function(p){return '<tr><td>'+esc(dateBR(p.date))+'</td><td>'+esc(p.description)+
         (p.details?' · '+esc(p.details):'')+'</td><td class="numeric">R$ '+money(p.amount)+'</td></tr>';}).join('')+
       '</tbody></table></section>':'';
-  const installments=balance>0
-    ?'<tr><td class="center">'+daysBetween(purchaseDate,dueDate)+'</td><td>'+esc(dateBR(dueDate))+'</td><td class="numeric">R$ '+money(balance)+'</td><td>'+esc(advance>0?'Abatimentos/adiantamentos aplicados: R$ '+money(advance):'Saldo do pedido')+'</td></tr>'
-    :'<tr><td class="center">0</td><td>'+esc(dateBR(purchaseDate))+'</td><td class="numeric">R$ 0,00</td><td>Pedido quitado por abatimentos/adiantamentos</td></tr>';
+  const plan=Array.isArray(ticket.parcelas)?ticket.parcelas.filter(function(row){return row&&Number(row.valor||0)>0;}):[];
+  const installments=plan.length>1
+    ?plan.map(function(row,index){
+      const paid=printInstallmentPaid(String(ticket.ticket||key||''),index,plan.length);
+      return '<tr><td class="center">'+daysBetween(purchaseDate,row.vencimento)+'</td><td>'+esc(dateBR(row.vencimento))+'</td><td class="numeric">R$ '+money(row.valor)+'</td>'+
+        '<td>'+esc(row.forma||'—')+'</td><td>'+esc([row.obs,paid?'Paga':''].filter(Boolean).join(' · ')||'—')+'</td></tr>';
+    }).join('')
+    :balance>0
+      ?'<tr><td class="center">'+daysBetween(purchaseDate,dueDate)+'</td><td>'+esc(dateBR(dueDate))+'</td><td class="numeric">R$ '+money(balance)+'</td><td>'+esc(plan[0]?.forma||'—')+'</td><td>'+esc(plan[0]?.obs||(advance>0?'Abatimentos/adiantamentos aplicados: R$ '+money(advance):'Saldo do pedido'))+'</td></tr>'
+      :'<tr><td class="center">0</td><td>'+esc(dateBR(purchaseDate))+'</td><td class="numeric">R$ 0,00</td><td>—</td><td>Pedido quitado por abatimentos/adiantamentos</td></tr>';
 
   const logoSrc=esc(companyLogoSrc());
 
@@ -1830,7 +2122,7 @@ function printHtml(key,ticket){
       '<table class="items"><colgroup><col class="col-description"><col class="col-quantity"><col class="col-unit-price"><col class="col-total"></colgroup>'+
       '<thead><tr><th>Descrição do material</th><th>Quantidade (kg)</th><th>Valor unitário</th><th>Valor total</th></tr></thead><tbody>'+itemRows+'</tbody></table>'+
       '<table class="print-totals" aria-label="Totais da compra"><tbody>'+totals+'</tbody></table></section>'+paymentSummary+advanceDetails+laterPayments+
-    '<section class="print-section"><h2>Parcelas</h2><table class="installments"><thead><tr><th>Dias</th><th>Data Vencimento</th><th>Valor</th><th>Observações</th></tr></thead><tbody>'+installments+'</tbody></table></section>'+
+    '<section class="print-section"><h2>Parcelas</h2><table class="installments"><thead><tr><th>Dias</th><th>Data Vencimento</th><th>Valor</th><th>Forma</th><th>Observações</th></tr></thead><tbody>'+installments+'</tbody></table></section>'+
     '<section class="print-section order-notes"><h2>Observações</h2><div class="notes">'+esc(orderNotes)+'</div></section>'+
   '</main>';
 }
