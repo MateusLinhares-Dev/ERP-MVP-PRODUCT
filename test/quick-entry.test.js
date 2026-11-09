@@ -236,6 +236,18 @@ test('interpretador do aparelho: frases reais, sem inventar',async()=>{
   assert.match(r.duvidas.join(' '),/COBRE MEL \/ COBRE MISTO/);
   r=interpretarFala('Comprei 350 quilos de cobre mel do João a 42 reais e 80 quilos de latão a 30 o quilo',ctx);
   assert.deepEqual(r.itens.map(i=>[i.material,i.quantidadeKg,i.precoKg]),[['COBRE MEL',350,42],['LATÃO',80,30]],'o peso do 2º item não é engolido pelo preço do 1º');
+  r=interpretarFala('comprei 100 kg de cobre mel do joão por 4000 reais',ctx);
+  assert.equal(r.itens[0].precoKg,40,'"por R$ 4000" é o TOTAL do item, não R$ 4000 por kg');
+  assert.match(r.duvidas.join(' '),/total de R\$ 4\.000 ÷ 100 kg/);
+  r=interpretarFala('comprei cobre mel no valor de r$ 225',ctx);
+  assert.equal(r.itens[0].precoKg,null,'sem peso não inventa preço por kg');
+  assert.match(r.duvidas.join(' '),/valor total de R\$ 225/);
+  r=interpretarFala('comprei 100 kg de latão por 30 o quilo',ctx);
+  assert.equal(r.itens[0].precoKg,30,'"por 30 o quilo" continua sendo preço por kg');
+  r=interpretarFala('vendi 1 tonelada de ferro pra gerdal a 2 reais',{...ctx,tipo:'venda'});
+  assert.equal(r.parte?.nome,'GERDAU AÇOS LONGOS','uma letra trocada pelo reconhecimento de voz');
+  r=interpretarFala('comprei 10 kg de latão do joão a 30',{...ctx,tipo:'venda'});
+  assert.equal(r.tipoFalado,'compra','a tela troca sozinha para COMPRA');
   r=interpretarFala('comprei 100 quilos de latão',ctx);
   assert.equal(r.parte,null);assert.equal(r.itens[0].precoKg,null,'preço não dito fica vazio');
 });

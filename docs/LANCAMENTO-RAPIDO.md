@@ -14,6 +14,11 @@ Endereço: `https://<domínio do ERP>/rapido/`. O login é o mesmo do ERP (só a
 4. Os campos são preenchidos e ficam **amarelos** para conferir. O que não foi dito fica vazio.
    - O que ficou em dúvida aparece no quadro "Confira". Por exemplo, "Qual cobre? COBRE MEL / COBRE MISTO".
    - Se a tabela de preços tiver valor, aparece o botão "Usar preço da tabela".
+   - Dicas de fala:
+     - Diga o nome do material e do fornecedor ou cliente **como estão no cadastro**. Pode ser só parte do nome, e uma letra errada é tolerada.
+     - "a 40 reais" ou "40 o quilo" é preço por kg; "por R$ 4.000", "no valor de" ou "total de" é o valor total do item, dividido pelo peso.
+     - Se falar "comprei" estando na tela de VENDA (ou o contrário), a tela troca sozinha.
+   - Ao tocar no campo Fornecedor/Cliente aparece a lista com a quantidade de cadastrados. Se aparecer "Nenhum … encontrado no cadastro", confira o cadastro no ERP.
 5. **Conferir e salvar** mostra um resumo em linguagem simples, e só **"Está certo, SALVAR"** grava.
 6. **Fotos e PDF** são opcionais: tirar foto do ticket ou da nota, ou escolher um arquivo. As fotos são reduzidas automaticamente.
 7. **Meus lançamentos** mostra o histórico, a situação ("A pagar", "Pago", "A receber"…) e os anexos.

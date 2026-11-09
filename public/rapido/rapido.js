@@ -125,7 +125,9 @@ async function iniciar(){
     $('#msg-carregando').textContent='Buscando fornecedores, clientes e materiais…';
     estado.opcoes=await api('/api/quick/options');
     const nome=String(estado.claims.erpUser||estado.opcoes.user?.login||'');
-    $('#nome-usuario').textContent=nome?nome.charAt(0).toUpperCase()+nome.slice(1):'';
+    const nomeExibido=nome?nome.charAt(0).toUpperCase()+nome.slice(1):'';
+    $('#nome-usuario').textContent=nomeExibido;
+    for(const id of ['#hdr-avatar','#bv-avatar']){$(id).textContent=(nomeExibido||'?').charAt(0);$(id).hidden=false;}
     const usaErp=estado.claims.admin===true||['canPurchasing','canSales','canFinance','canPayables','canAdvances'].some(c=>estado.claims[c]===true);
     $('#link-erp').hidden=!usaErp;
     const destino=(location.hash||'').replace('#','');
@@ -151,8 +153,8 @@ function guardarRascunho(){
   estado.rascunho[estado.tipo]={parte:estado.parte,itens:estado.itens,anexos:estado.anexos,operationId:estado.operationId,
     texto:$('#texto-falado').value,data:$('#data').value,vencimento:$('#vencimento').value,nf:$('#nf').value,obs:$('#observacao').value};
 }
-function abrirLancamento(tipo){
-  if($('#tela-lancamento').hidden===false&&!estado.ultimoSalvo)guardarRascunho();
+function abrirLancamento(tipo,{substituir=false}={}){
+  if($('#tela-lancamento').hidden===false&&!estado.ultimoSalvo&&!substituir)guardarRascunho();
   estado.ultimoSalvo=false;
   estado.tipo=tipo;
   const r=estado.rascunho[tipo];
@@ -176,9 +178,13 @@ function abrirLancamento(tipo){
     ?'Exemplo: "Comprei 350 quilos de cobre mel do João a 42 reais."'
     :'Exemplo: "Vendi 2 toneladas de ferro para a Gerdau a 1 real e 20, vence dia 20."';
   $('#busca-parte').value='';$('#lista-parte').innerHTML='';
+  const total=listaPartes().length;
+  $('#busca-parte').placeholder=total?'Toque para ver a lista ou digite o nome ('+total+' cadastrados)'
+    :'Nenhum '+(compra?'fornecedor':'cliente')+' encontrado no cadastro';
   $('#duvidas').hidden=true;
+  for(const id of ['#data','#vencimento','#nf','#observacao'])$(id).classList.remove('preenchido-voz','erro-campo');
   renderParte();renderItens();renderAnexos();
-  irPara('lancamento');
+  irPara('lancamento',{substituir});
 }
 function listaPartes(){return estado.tipo==='compra'?estado.opcoes.suppliers:estado.opcoes.customers;}
 function definirParte(parte,{voz=false}={}){
@@ -197,9 +203,8 @@ function renderParte(){
 function buscarPartes(){
   const termo=chave($('#busca-parte').value);
   const alvo=$('#lista-parte');
-  if(termo.length<2){alvo.innerHTML='';return;}
-  const partes=termo.split(' ');
-  const achados=listaPartes().filter(p=>{const n=chave(p.nome);return partes.every(t=>n.includes(t));}).slice(0,8);
+  const partes=termo?termo.split(' '):[];
+  const achados=listaPartes().filter(p=>{const n=chave(p.nome);return partes.every(t=>n.includes(t));}).slice(0,60);
   alvo.innerHTML=achados.length?achados.map((p,i)=>'<button type="button" class="opcao" data-parte="'+i+'">'+esc(p.nome)+'</button>').join('')
     :'<p class="dica">Nenhum '+(estado.tipo==='compra'?'fornecedor':'cliente')+' encontrado com esse nome. Cadastro novo é feito no escritório.</p>';
   alvo.querySelectorAll('[data-parte]').forEach(botao=>{botao.onclick=()=>definirParte(achados[Number(botao.dataset.parte)]);});
@@ -225,7 +230,7 @@ function renderItens(){
     const tabela=precoTabela(item.material);
     const marca=item.voz?' preenchido-voz':'';
     return '<div class="item" data-i="'+i+'">'+
-      '<div class="item-topo"><span>Material '+(i+1)+'</span>'+(estado.itens.length>1?'<button type="button" data-remover="'+i+'">✕ Tirar</button>':'')+'</div>'+
+      '<div class="item-topo"><span>Material '+(i+1)+'</span>'+(estado.itens.length>1?'<button type="button" data-remover="'+i+'">Tirar</button>':'')+'</div>'+
       '<select data-campo="material" class="'+(item.voz&&item.material?'preenchido-voz':'')+'" aria-label="Material '+(i+1)+'"><option value="">Escolha o material…</option>'+opcoesMaterial+'</select>'+
       (item.falado&&!item.material?'<div class="falado">Você falou: "'+esc(item.falado)+'" — escolha na lista acima.</div>':'')+
       '<div class="linha2">'+
@@ -265,6 +270,7 @@ $('#itens').addEventListener('click',evento=>{
 $('#btn-add-item').onclick=()=>{estado.itens.push(itemVazio());renderItens();
   const blocos=document.querySelectorAll('#itens .item');blocos[blocos.length-1]?.scrollIntoView({behavior:'smooth',block:'center'});};
 $('#busca-parte').addEventListener('input',buscarPartes);
+$('#busca-parte').addEventListener('focus',buscarPartes);
 
 // ---------- voz ----------
 const Reconhecimento=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -276,7 +282,7 @@ function atualizarMicrofone(){
 function falar(){
   if(ouvindo){try{reconhecedor?.stop();}catch(e){}return;}
   if(!Reconhecimento){
-    aviso('Este navegador não reconhece voz. Toque no campo de texto e use o microfone 🎤 do teclado.','',7000);
+    aviso('Este navegador não reconhece voz. Toque no campo de texto e use o microfone do teclado.','',7000);
     $('#texto-falado').focus();return;
   }
   const base=$('#texto-falado').value.trim();
@@ -306,26 +312,40 @@ function falar(){
 }
 $('#btn-falar').onclick=falar;
 
+async function interpretar(texto){
+  if(estado.opcoes.aiEnabled){
+    try{return await api('/api/quick/interpret',{method:'POST',body:{texto,tipo:estado.tipo}});}
+    catch(erro){console.warn('[rapido] IA indisponível, usando interpretador do aparelho',erro);}
+  }
+  return interpretarFala(texto,{materiais:estado.opcoes.materials,fornecedores:estado.opcoes.suppliers,
+    clientes:estado.opcoes.customers,tipo:estado.tipo,hoje:estado.opcoes.today});
+}
 async function entender(){
   const texto=$('#texto-falado').value.trim();
   if(!texto){aviso('Fale ou escreva o lançamento primeiro.');return;}
-  const botao=$('#btn-entender');botao.disabled=true;botao.textContent='Entendendo…';
-  let resultado=null;
+  const botao=$('#btn-entender');botao.disabled=true;botao.lastChild.textContent='Entendendo…';
   try{
-    if(estado.opcoes.aiEnabled){
-      try{resultado=await api('/api/quick/interpret',{method:'POST',body:{texto,tipo:estado.tipo}});}
-      catch(erro){console.warn('[rapido] IA indisponível, usando interpretador do aparelho',erro);}
+    let resultado=await interpretar(texto);
+    // Falou "comprei" na tela de venda (ou o contrário): troca de tela sozinho e
+    // interpreta de novo procurando na lista certa (fornecedores x clientes).
+    const falado=resultado.tipoFalado||(resultado.fonte==='ia'?resultado.tipo:'');
+    let trocou='';
+    if((falado==='compra'||falado==='venda')&&falado!==estado.tipo){
+      guardarRascunho();
+      estado.rascunho[falado]=null;
+      abrirLancamento(falado,{substituir:true});
+      $('#texto-falado').value=texto;
+      resultado=await interpretar(texto);
+      trocou=falado;
     }
-    if(!resultado)resultado=interpretarFala(texto,{materiais:estado.opcoes.materials,fornecedores:estado.opcoes.suppliers,
-      clientes:estado.opcoes.customers,tipo:estado.tipo,hoje:estado.opcoes.today});
-    aplicarInterpretacao(resultado);
-  }finally{botao.disabled=false;botao.textContent='✨ Preencher com o que eu falei';}
+    aplicarInterpretacao(resultado,trocou);
+  }finally{botao.disabled=false;botao.lastChild.textContent='Preencher com o que eu falei';}
 }
 $('#btn-entender').onclick=entender;
 
-function aplicarInterpretacao(r){
+function aplicarInterpretacao(r,trocou=''){
   estado.textoFalado=$('#texto-falado').value.trim();
-  const duvidas=[...(r.duvidas||[])];
+  const duvidas=(r.duvidas||[]).filter(d=>!/^Você falou em (compra|venda), mas está na tela/.test(d));
   if(r.parte){
     const parte=listaPartes().find(p=>chave(p.nome)===chave(r.parte.nome));
     if(parte)definirParte(parte,{voz:true});
@@ -335,15 +355,22 @@ function aplicarInterpretacao(r){
   const itens=(r.itens||[]).filter(it=>it.material||it.materialFalado||it.quantidadeKg||it.precoKg);
   if(itens.length){
     estado.itens=itens.map(it=>({material:it.material||'',kg:it.quantidadeKg??null,preco:it.precoKg??null,voz:true,falado:it.material?'':(it.materialFalado||'')}));
-  }else duvidas.push('Não entendi os materiais. Preencha abaixo.');
+  }else{
+    // Não deixa na tela material/peso de uma fala anterior como se fossem desta.
+    if(estado.itens.every(i=>i.voz||(!i.material&&!i.kg&&!i.preco)))estado.itens=[itemVazio()];
+    duvidas.push('Não entendi o material e o peso. Fale o nome do material como está no cadastro, ou escolha abaixo.');
+  }
+  if(!r.parte&&!itens.length)duvidas.push('Dica: fale o material, o peso, o preço e o nome. Exemplo: "'+
+    (estado.tipo==='compra'?'Comprei 100 quilos de '+(estado.opcoes.materials[0]||'cobre')+' do '+(estado.opcoes.suppliers[0]?.nome||'fornecedor')+' a 40 reais':
+      'Vendi 1 tonelada de '+(estado.opcoes.materials[0]||'ferro')+' para '+(estado.opcoes.customers[0]?.nome||'o cliente')+' a 2 reais')+'".');
   if(r.data){$('#data').value=r.data;$('#data').classList.add('preenchido-voz');}
   if(r.vencimento){$('#vencimento').value=r.vencimento;$('#vencimento').classList.add('preenchido-voz');}
   if(r.nf&&estado.tipo==='venda'){$('#nf').value=r.nf;$('#nf').classList.add('preenchido-voz');}
   if(r.observacao){$('#observacao').value=r.observacao;$('#observacao').classList.add('preenchido-voz');}
   renderItens();
-  const outro=(r.tipo==='compra'||r.tipo==='venda')&&r.tipo!==estado.tipo?r.tipo:'';
-  renderDuvidas(duvidas,outro);
-  aviso('Pronto! Confira os campos em amarelo.','ok');
+  renderDuvidas(duvidas,'');
+  if(trocou)aviso('Você falou em '+trocou+': mudei para '+(trocou==='compra'?'COMPRA':'VENDA')+'. Confira os campos em amarelo.','ok',6000);
+  else aviso(itens.length||r.parte?'Pronto! Confira os campos em amarelo.':'Não consegui entender. Veja as dicas no quadro amarelo.',itens.length||r.parte?'ok':'erro');
 }
 function renderDuvidas(duvidas,outroTipo){
   const caixa=$('#duvidas');
@@ -399,7 +426,7 @@ async function anexar(arquivos){
       if(pronto.tipo.startsWith('image/'))item.previa=URL.createObjectURL(pronto.blob);
       item.nome=pronto.nome;item.status='Enviando…';renderAnexos();
       const r=await api('/api/quick/attachment',{method:'POST',body:{nome:pronto.nome,tipo:pronto.tipo,conteudo:await paraBase64(pronto.blob)}});
-      Object.assign(item,r.anexo,{status:'Enviado ✔'});
+      Object.assign(item,r.anexo,{status:'Enviado'});
     }catch(erro){
       item.status='Falhou: '+(erro.message||'erro');item.falhou=true;
     }
@@ -407,9 +434,9 @@ async function anexar(arquivos){
   }
 }
 function renderAnexos(){
-  $('#lista-anexos').innerHTML=estado.anexos.map((a,i)=>'<li>'+(a.previa?'<img src="'+esc(a.previa)+'" alt="">':'<span aria-hidden="true">📄</span>')+
+  $('#lista-anexos').innerHTML=estado.anexos.map((a,i)=>'<li>'+(a.previa?'<img src="'+esc(a.previa)+'" alt="">':'<span class="tipo-arquivo" aria-hidden="true">PDF</span>')+
     '<span class="nome">'+esc(a.nome)+'<br><span class="status">'+esc(a.status||'')+'</span></span>'+
-    '<button type="button" data-tirar-anexo="'+i+'">✕</button></li>').join('');
+    '<button type="button" data-tirar-anexo="'+i+'" aria-label="Tirar anexo">Tirar</button></li>').join('');
 }
 $('#lista-anexos').addEventListener('click',evento=>{
   const botao=evento.target.closest('[data-tirar-anexo]');
@@ -448,14 +475,14 @@ function conferir(){
   const total=atualizarTotal();
   const venc=$('#vencimento').value||$('#data').value;
   const anexos=estado.anexos.filter(a=>a.id);
-  $('#resumo').innerHTML='<h2>'+(compra?'🛒 COMPRA de ':'💵 VENDA para ')+esc(estado.parte.nome)+'</h2>'+
+  $('#resumo').innerHTML='<h2>'+(compra?'Compra de ':'Venda para ')+esc(estado.parte.nome)+'</h2>'+
     estado.itens.map(i=>'<div class="linha"><span>'+esc(i.material)+'<br><small>'+num(i.kg)+' kg × '+brl(i.preco)+'</small></span><strong>'+brl(totalItem(i))+'</strong></div>').join('')+
     '<div class="total-resumo">Total: '+brl(total)+'</div>'+
-    '<div class="efeito">📅 Data: <b>'+dataBR($('#data').value)+'</b><br>'+
-      (compra?'💸 Vai gerar <b>conta a pagar</b> de '+brl(total)+' com vencimento em <b>'+dataBR(venc)+'</b>.'
-        :'💰 Vai gerar <b>conta a receber</b> de '+brl(total)+' com vencimento em <b>'+dataBR(venc)+'</b>.'+($('#nf').value.trim()?'<br>🧾 Nota fiscal: '+esc($('#nf').value.trim()):''))+
-      (anexos.length?'<br>📎 '+anexos.length+' anexo(s)':'')+
-      ($('#observacao').value.trim()?'<br>📝 '+esc($('#observacao').value.trim()):'')+'</div>';
+    '<div class="efeito">Data: <b>'+dataBR($('#data').value)+'</b><br>'+
+      (compra?'Vai gerar <b>conta a pagar</b> de '+brl(total)+' com vencimento em <b>'+dataBR(venc)+'</b>.'
+        :'Vai gerar <b>conta a receber</b> de '+brl(total)+' com vencimento em <b>'+dataBR(venc)+'</b>.'+($('#nf').value.trim()?'<br>Nota fiscal: '+esc($('#nf').value.trim()):''))+
+      (anexos.length?'<br>Anexos: '+anexos.length:'')+
+      ($('#observacao').value.trim()?'<br>Observação: '+esc($('#observacao').value.trim()):'')+'</div>';
   irPara('conferir');
 }
 $('#btn-conferir').onclick=conferir;
@@ -465,7 +492,7 @@ $('#btn-voltar-corrigir').onclick=()=>history.back();
 async function salvar(){
   if(estado.salvando)return;
   estado.salvando=true;
-  const botao=$('#btn-salvar');botao.disabled=true;botao.textContent='Salvando… não feche';
+  const botao=$('#btn-salvar');botao.disabled=true;botao.lastChild.textContent='Salvando… não feche';
   const compra=estado.tipo==='compra';
   const corpo={operationId:estado.operationId,data:$('#data').value,vencimento:$('#vencimento').value||$('#data').value,
     observacao:$('#observacao').value.trim(),textoFalado:$('#texto-falado').value.trim(),
@@ -479,7 +506,7 @@ async function salvar(){
       catch(erro){
         const passageiro=['NETWORK_ERROR','DATABASE_UNAVAILABLE','QUICK_ENTRY_IN_PROGRESS','PURCHASE_IN_PROGRESS'].includes(erro.code)||erro.status>=502;
         if(!passageiro||tentativa===3)throw erro;
-        botao.textContent='A conexão oscilou, tentando de novo…';
+        botao.lastChild.textContent='A conexão oscilou, tentando de novo…';
         await new Promise(r=>setTimeout(r,Math.min(6,Math.max(2,Number(erro.retryAfterSeconds)||tentativa*2))*1000));
       }
     }
@@ -494,7 +521,7 @@ async function salvar(){
   }catch(erro){
     aviso(erro.message||'Não foi possível salvar.','erro',9000);
   }finally{
-    estado.salvando=false;botao.disabled=false;botao.textContent='✅ Está certo, SALVAR';
+    estado.salvando=false;botao.disabled=false;botao.lastChild.textContent='Está certo, SALVAR';
   }
 }
 $('#btn-salvar').onclick=salvar;
@@ -516,15 +543,15 @@ async function carregarHistorico(){
     alvo.innerHTML=r.entries.map(e=>{
       const quando=new Date(Number(e.criadoEm)||0);
       return '<article class="historico-item">'+
-        '<div class="cab"><span>'+(e.tipo==='compra'?'🛒 Compra '+esc(e.referencia):'💵 Venda')+'</span><span>'+brl(e.total)+'</span></div>'+
+        '<div class="cab"><span>'+(e.tipo==='compra'?'Compra '+esc(e.referencia):'Venda')+'</span><span>'+brl(e.total)+'</span></div>'+
         '<div class="meta">'+esc(e.parte)+' · '+dataBR(e.data)+(r.viewAll&&e.criadoPor?' · por '+esc(e.criadoPor):'')+'</div>'+
         '<span class="situacao '+classeSituacao(e.situacao)+'">'+esc(e.situacao)+'</span>'+
         '<details><summary>Ver detalhes</summary>'+
           (e.itens||[]).map(i=>'<div>'+esc(i.material)+': '+num(i.quantidadeKg)+' kg × '+brl(i.precoKg)+' = '+brl(i.total)+'</div>').join('')+
           '<div class="meta">Vencimento: '+dataBR(e.vencimento)+(e.nf?' · NF '+esc(e.nf):'')+' · lançado em '+quando.toLocaleString('pt-BR')+'</div>'+
-          (e.observacao?'<div class="meta">📝 '+esc(e.observacao)+'</div>':'')+
-          (e.textoFalado?'<div class="meta">🎤 "'+esc(e.textoFalado)+'"</div>':'')+
-          (e.anexos||[]).map(a=>'<button type="button" class="anexo-link" data-dono="'+esc(a.dono)+'" data-id="'+esc(a.id)+'" data-tipo="'+esc(a.tipo)+'" data-nome="'+esc(a.nome)+'">'+(a.tipo==='application/pdf'?'📄 ':'🖼️ ')+esc(a.nome)+'</button>').join('')+
+          (e.observacao?'<div class="meta">Observação: '+esc(e.observacao)+'</div>':'')+
+          (e.textoFalado?'<div class="meta">Falado: "'+esc(e.textoFalado)+'"</div>':'')+
+          (e.anexos||[]).map(a=>'<button type="button" class="anexo-link" data-dono="'+esc(a.dono)+'" data-id="'+esc(a.id)+'" data-tipo="'+esc(a.tipo)+'" data-nome="'+esc(a.nome)+'">'+(a.tipo==='application/pdf'?'PDF · ':'Foto · ')+esc(a.nome)+'</button>').join('')+
         '</details></article>';
     }).join('');
   }catch(erro){alvo.innerHTML='<p class="dica">'+esc(erro.message)+'</p>';}
