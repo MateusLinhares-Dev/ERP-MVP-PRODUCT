@@ -82,6 +82,6 @@ test('as duas leituras gerais usam proteção e child_removed descarta registro 
 });
 
 test('versão atualizada do bootstrap impede carregar JavaScript antigo',()=>{
-  assert.match(bootstrap,/assetRevision = '20261109-parcelas-compra-v6'/);
-  assert.match(html,/bootstrap\.js\?v=20261109-parcelas-compra-v6/);
+  assert.match(bootstrap,/assetRevision = '20261109-parcelas-compra-v7'/);
+  assert.match(html,/bootstrap\.js\?v=20261109-parcelas-compra-v7/);
 });

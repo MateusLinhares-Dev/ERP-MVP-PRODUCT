@@ -41,6 +41,20 @@ O quadro **Parcelas** fica no cartão **Pagamento**, abaixo dos adiantamentos.
 - **Reduzir uma compra paga com adiantamento** abaixo do valor do adiantamento: a diferença volta para o adiantamento e as parcelas são apagadas.
 - **Excluir a compra:** remove todas as parcelas, desde que nenhuma tenha sido paga.
 
+## Proteções na tela (correção de 09/11/2026)
+
+O servidor é a única fonte das contas de um pedido (`CPPO_…`). Rotinas antigas da tela mexiam nelas sozinhas, e isso foi corrigido:
+
+- **Reconciliação automática de adiantamentos** (`phase3-homologation.js`): ignorava as parcelas e gravava o saldo inteiro do pedido na 1ª conta. Também podia mostrar uma compra já paga como "Pendente". Agora não mexe em compras confirmadas pelo servidor (`_purchaseOperationId`).
+- **Limpeza de "duplicatas"** (`_cpAutoLimparDuplicatas`): apagava parcelas de mesmo valor (ex.: duas de R$ 18,94). Agora ignora contas `CPPO_…` e parcelas.
+- **Marcas de excluída** (`contasPagarDeleted`):
+  - a tela não envia nem aceita do Firebase marcas para contas `CPPO_…`, porque quem apaga essas contas é só o servidor, ao excluir ou editar o pedido;
+  - a tela só guarda a marca, sem enviar, depois de uma exclusão de pedido confirmada pelo servidor;
+  - uma parcela escondida por marca antiga volta a aparecer.
+- **Lixeira de Contas a Pagar e detalhe antigo da compra** (corrigir adiantamento, adicionar item, valor extra): para pedidos do servidor, mostram aviso para usar o Histórico de compras.
+
+Testes: `test/purchase-installments-client-guards.test.js`.
+
 ## Notinha (impressão do pedido)
 
 - **Adiantamentos e abatimentos:** a coluna "Referência / forma" virou **Forma**. Os códigos internos (`ADT…`) não aparecem mais. Cheque aparece como "Cheque nº 000123".
