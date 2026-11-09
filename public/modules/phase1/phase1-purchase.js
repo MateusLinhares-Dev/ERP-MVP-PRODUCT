@@ -93,7 +93,7 @@ global.phase1PurchaseAddExtra=function(){
   if(!(value>0)){try{showToast('Informe o valor extra.','error');}catch(e){}return;}
   if(!reason){try{showToast('Informe o motivo do valor extra.','error');}catch(e){}return;}
   let extras=[];try{extras=JSON.parse(body.dataset.phase1Extras||'[]');}catch(e){}
-  extras.push({v:value,obs:reason,quando:new Date().toISOString().slice(0,10)});body.dataset.phase1Extras=JSON.stringify(extras);
+  extras.push({v:value,obs:reason,quando:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)});body.dataset.phase1Extras=JSON.stringify(extras);
   const v=document.getElementById('phase1-purchase-extra-value');const r=document.getElementById('phase1-purchase-extra-reason');if(v)v.value='';if(r)r.value='';renderExtraList();
 };
 global.phase1PurchaseRemoveExtra=function(index){

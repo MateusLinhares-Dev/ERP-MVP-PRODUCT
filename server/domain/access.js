@@ -95,6 +95,8 @@ export function buildSecurityClaims(
     // alterada automaticamente: o sincronizador legado ainda grava em lote.
     canPurchasing: isAdmin || hasAny(tabs, ['compra_sucata','canhoto_compra','rod_balanca','balanceiro']),
     canSales: isAdmin || tabs.has('vendas'),
+    // Lançamento rápido (celular/voz): Compra e Venda pela tela simplificada.
+    canQuickEntry: isAdmin || tabs.has('lancamento_rapido'),
     canInventory: isAdmin || hasAny(tabs, ['estoque','compra_sucata','vendas']),
     canCustomers: isAdmin || hasAny(tabs, ['clientes','fin_clientes','precos_clientes']),
     canSuppliers: isAdmin || hasAny(tabs, ['fornecedores','precos_fornecedores','compra_sucata']),

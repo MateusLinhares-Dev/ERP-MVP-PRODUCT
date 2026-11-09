@@ -83,6 +83,6 @@ test('as duas leituras gerais usam proteção e child_removed descarta registro 
 });
 
 test('versão atualizada do bootstrap impede carregar JavaScript antigo',()=>{
-  assert.match(bootstrap,/assetRevision = '20261108-firebase-lock-release-v4'/);
-  assert.match(html,/bootstrap\.js\?v=20261108-firebase-lock-release-v4/);
+  assert.match(bootstrap,/assetRevision = '20261109-rapido-cheques-datas-v5'/);
+  assert.match(html,/bootstrap\.js\?v=20261109-rapido-cheques-datas-v5/);
 });

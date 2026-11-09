@@ -1028,7 +1028,30 @@ const TABS_CFG = {
   coordenacao:        {label:'Coordenação',        icon:'📋'},
   senhas:             {label:'Senhas',            icon:'🔒'},
   matriz_capacitacao: {label:'Matriz',            icon:'▦'},
-  help_center:        {label:'Central de ajuda',  icon:'?'}
+  help_center:        {label:'Central de ajuda',  icon:'?'},
+  lancamento_rapido:  {label:'Lançamento rápido (celular/voz)', icon:'🎤'}
+};
+
+// Usuário com perfil SIMPLES (só "Lançamento rápido") entra direto na tela do celular.
+// Quem também usa módulos do ERP recebe um botão no cabeçalho. ?completo=1 abre o ERP.
+const _TABS_BASICAS_RAPIDO=['lancamento_rapido','dashboard','avisos','help_center','chat','afazeres'];
+function _erpDeveAbrirRapido(perfil){
+  try{
+    const tabs=Array.isArray(perfil&&perfil.tabs)?perfil.tabs:[];
+    const admin=!!(perfil&&perfil.admin===true);
+    const q=String(location.search||'');
+    if(/[?&]completo=1(&|$)/.test(q)){ try{ sessionStorage.setItem('erp_modo_completo','1'); }catch(e){} }
+    let completo=false; try{ completo=sessionStorage.getItem('erp_modo_completo')==='1'; }catch(e){}
+    if(/[?&]destino=rapido(&|$)/.test(q)) return admin||tabs.includes('lancamento_rapido');
+    if(admin||completo||!tabs.includes('lancamento_rapido')) return false;
+    return tabs.every(function(t){ return _TABS_BASICAS_RAPIDO.includes(t); });
+  }catch(e){ return false; }
+}
+window.erpDestinoRapido=function(login,perfil){
+  if(!_erpDeveAbrirRapido(perfil)) return false;
+  try{ sessionStorage.setItem('mm_sessao',login); }catch(e){}
+  location.replace('/rapido/');
+  return true;
 };
 
 
@@ -1326,6 +1349,7 @@ function alternarTema(){
   const b=document.getElementById('btn-tema'); if(b) b.textContent = escuro ? '☀️' : '🌙';
 }
 function startApp(username) {
+  if(window.erpDestinoRapido && window.erpDestinoRapido(username, USERS[username])) return;
   cu = USERS[username];
   cuKey = username;
   try{ sessionStorage.setItem('mm_sessao', username); }catch(e){}
@@ -1351,6 +1375,17 @@ function startApp(username) {
   document.getElementById('hav').textContent   = cu.name[0];
   document.getElementById('hname').textContent = cu.name;
   document.getElementById('hrole').textContent = cu.role;
+  try{
+    const _podeRapido=cu&&(cu.admin===true||(Array.isArray(cu.tabs)&&cu.tabs.includes('lancamento_rapido')));
+    const _hdrUser=document.querySelector('.hdr-user');
+    if(_podeRapido&&_hdrUser&&!document.getElementById('hdr-rapido-btn')){
+      const _a=document.createElement('a');
+      _a.id='hdr-rapido-btn'; _a.href='/rapido/'; _a.className='hdr-chat-btn';
+      _a.textContent='🎤 Lançamento rápido'; _a.title='Lançar compra ou venda por voz (tela simplificada)';
+      _a.style.textDecoration='none';
+      _hdrUser.insertBefore(_a, document.getElementById('hdr-chat-btn'));
+    }
+  }catch(e){}
   document.getElementById('wbav').textContent  = cu.name[0];
   document.getElementById('wbname').textContent= `Bem-vindo(a), ${cu.name}!`;
   document.getElementById('wbdesc').textContent= cu.descricao;
@@ -5010,8 +5045,8 @@ function renderCustoCasa(){
   _ccEnsureArea();
   _ccRenderAreaTabs();
   const mesEl=document.getElementById('cc-filtro-mes');
-  if(mesEl&&!mesEl.value) mesEl.value=new Date().toISOString().slice(0,7);
-  const mes=mesEl?.value||new Date().toISOString().slice(0,7);
+  if(mesEl&&!mesEl.value) mesEl.value=_hojeISO().slice(0,7);
+  const mes=mesEl?.value||_hojeISO().slice(0,7);
   const todas=(CUSTO_CASA[mes]||[]);
   const fmt=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
 
@@ -5070,7 +5105,7 @@ function renderCustoCasa(){
     renderVeicPess(); renderManutPess();
   }
   const lista=todas.map(function(x,i){return {x:x,i:i};}).filter(function(o){return _ccMatch(o.x);});
-  const hoje=new Date().toISOString().slice(0,10);
+  const hoje=_hojeISO();
   const totalPrev=lista.reduce((s,o)=>s+Number(o.x.valor||0),0)+manutPrev;
   const totalPago=lista.filter(o=>o.x.pago).reduce((s,o)=>s+Number(o.x.valor||0),0)+manutPago;
   const aPagar=totalPrev-totalPago;
@@ -5117,7 +5152,7 @@ function renderCustoCasa(){
 function ccTogglePago(mes,idx){
   if(!CUSTO_CASA[mes])return;
   const x=CUSTO_CASA[mes][idx]; if(!x)return;
-  x.pago=!x.pago; x.dataPgto=x.pago?new Date().toISOString().slice(0,10):'';
+  x.pago=!x.pago; x.dataPgto=x.pago?_hojeISO():'';
   saveDB(); renderCustoCasa();
   showToast(x.pago?'✅ Marcado como pago!':'↩️ Marcado como pendente','success');
 }
@@ -5162,7 +5197,7 @@ function ccSalvarEdicao(mes,idx){
   const status=document.getElementById('cce-status')?.value||'Pendente';
   x.pago=status==='Pago';
   const pg=document.getElementById('cce-datapago')?.value||'';
-  x.dataPgto=x.pago?(pg||x.dataPgto||new Date().toISOString().slice(0,10)):'';
+  x.dataPgto=x.pago?(pg||x.dataPgto||_hojeISO()):'';
   x.obs=(document.getElementById('cce-obs')?.value||'').trim();
   saveDB(); renderCustoCasa(); cm();
   showToast('✅ Despesa atualizada!','success');
@@ -5172,7 +5207,7 @@ function salvarCustoCasa(){
   if(_ccArea==='__resumo__') _ccArea=_ccDefaultArea();
   if(!_ccArea){ alert('Configure ao menos uma área de custo no Firebase.'); return; }
   const mesEl=document.getElementById('cc-filtro-mes');
-  const mes=mesEl?.value||new Date().toISOString().slice(0,7);
+  const mes=mesEl?.value||_hojeISO().slice(0,7);
   const desc=(document.getElementById('cc-desc')?.value||'').trim();
   const cat=document.getElementById('cc-cat')?.value||'Outros';
   const valor=parseFloat(document.getElementById('cc-valor')?.value||'0');
@@ -5202,7 +5237,7 @@ function salvarCustoCasa(){
     
     
     const dataPagoInput=document.getElementById('cc-datapago')?.value||'';
-    const dataPgto=pago?(dataPagoInput||new Date().toISOString().slice(0,10)):'';
+    const dataPgto=pago?(dataPagoInput||_hojeISO()):'';
     CUSTO_CASA[mes].push({desc,cat,valor,venc,forma,obs,pago,dataPgto,area:_ccArea});
     showToast('✅ Despesa lançada em '+_ccArea+'!','success');
   }
@@ -5319,7 +5354,7 @@ function manutPessNovo(){
   const veiSel=_mnpFiltroVei||VEICPESS_DB[0].id;
   body.innerHTML='<h3>🔧 Nova Manutenção</h3>'
     +'<div class="fg"><label>Veículo</label><select id="mnp-vei">'+_mnpVeiOpts(veiSel)+'</select></div>'
-    +'<div class="fg"><label>Data</label><input id="mnp-data" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'
+    +'<div class="fg"><label>Data</label><input id="mnp-data" type="date" value="'+_hojeISO()+'"></div>'
     +'<div class="fg"><label>Tipo</label><select id="mnp-tipo">'+_MNP_TIPOS.map(t=>'<option>'+t+'</option>').join('')+'</select></div>'
     +'<div class="fg"><label>Descrição do Serviço</label><textarea id="mnp-desc" rows="3" placeholder="Descreva o serviço realizado..."></textarea></div>'
     +'<div class="fg"><label>Oficina / Responsável</label><input id="mnp-of" placeholder="Nome da oficina"></div>'
@@ -6680,7 +6715,7 @@ function epiSalvarAss(id){
   const ativo=FUNCIONARIOS.find(f=>f&&f.mat===e.mat);
   if(!ativo||!_erpFuncionarioAtivo(ativo)){showToast('Histórico de inativo: somente leitura.','error');return;}
   e.assinatura=document.getElementById('epi-sig-canvas').toDataURL('image/png');
-  e.assinadoEm=new Date().toISOString().slice(0,10);
+  e.assinadoEm=_hojeISO();
   saveEpi(); cm(); renderEpi(); showToast('Assinatura registrada! ✅','success');
 }
 
@@ -6988,7 +7023,7 @@ async function valeSalvarAssinatura(idx,mat){
   const previous=VALES_DB[idx];
   if(!previous)return;
   const canvas=document.getElementById('vale-sig-canvas');
-  const next={...previous,assinatura:canvas.toDataURL('image/png'),assinadoEm:new Date().toISOString().slice(0,10)};
+  const next={...previous,assinatura:canvas.toDataURL('image/png'),assinadoEm:_hojeISO()};
   try{await _valeAtualizarSeguro(previous,next);cm();renderVales();showToast('Assinatura confirmada no Firebase.','success');}
   catch(error){showToast('Não foi possível registrar a assinatura: '+error.message,'error',7000);}
 }
@@ -7977,7 +8012,7 @@ function renderCartaoPontoImportado(){
 
 function excluirPontoFunc(mat){
   const f=FUNCIONARIOS.find(x=>x.mat===mat);
-  const mes=document.getElementById('ponto-mes')?.value||new Date().toISOString().slice(0,7);
+  const mes=document.getElementById('ponto-mes')?.value||_hojeISO().slice(0,7);
   if(!f || !_erpFuncionarioAtivo(f)){ alert('Registros de funcionários inativos são somente para consulta.'); return; }
   if(!confirm('Excluir SOMENTE os lançamentos de '+(f?f.nome:mat)+' em '+mes+'? Os outros períodos serão preservados.')) return;
   const before=PONTO_DB.length;
@@ -8185,7 +8220,7 @@ function fcLancarPagamento(){
   const bancos=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB)?BANCOS_DB:[]).map(b=>'<option value="'+esc(b.banco)+'">'+esc(b.banco)+'</option>').join('');
   bx.innerHTML='<h3>💵 Pagamento recebido — '+esc(_fcCliente)+'</h3>'+
     '<div style="font-size:.8rem;color:#666;margin-bottom:10px">Use para registrar um pagamento recebido (inclusive quando o cliente do seu cliente paga direto pra sua empresa).</div>'+
-    '<div class="fg"><label>Data</label><input id="fcp-data" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
+    '<div class="fg"><label>Data</label><input id="fcp-data" type="date" value="'+_hojeISO()+'"></div>'+
     '<div class="fg"><label>Valor R$</label><input id="fcp-valor" type="number" min="0" step="0.01" placeholder="0,00"></div>'+
     '<div class="fg"><label>Forma</label><select id="fcp-forma"><option>PIX</option><option>TED</option><option>Dinheiro</option><option>Depósito</option><option>Pagamento direto (cliente do cliente)</option></select></div>'+
     '<div class="fg"><label>Banco de Entrada</label><select id="fcp-banco"><option value="">— Selecione —</option>'+bancos+'</select></div>'+
@@ -8195,7 +8230,7 @@ function fcLancarPagamento(){
 function fcSalvarPagamento(){
   const valor=parseFloat(document.getElementById('fcp-valor')?.value)||0;
   if(valor<=0){ alert('Informe um valor válido.'); return; }
-  const dataISO=document.getElementById('fcp-data')?.value||new Date().toISOString().slice(0,10);
+  const dataISO=document.getElementById('fcp-data')?.value||_hojeISO();
   const dataBR=dataISO.split('-').reverse().join('/');
   CONTAS_RECEBER.push({
     data:dataBR, cli:_fcCliente, nf:'',
@@ -8370,7 +8405,7 @@ function renderChequesCli(){
     tbody.innerHTML='<tr><td colspan="12" style="color:var(--gray);text-align:center;padding:20px">Nenhum cheque de cliente lançado</td></tr>';
     return;
   }
-  const hoje=new Date().toISOString().slice(0,10);
+  const hoje=_hojeISO();
   tbody.innerHTML=all.map(c=>{
     const bomISO=c.bomPara&&c.bomPara.indexOf('/')>=0?c.bomPara.split('/').reverse().join('-'):c.bomPara;
     const devolvido=c.status==='Devolvido';
@@ -9410,7 +9445,7 @@ function abrirBaixaCheque(cheqId){
     `Bom Para: ${cheq.bomPara||'—'} · Banco: ${cheq.banco||'—'}<br>`+
     `Fornecedor: ${(Object.entries(CHEQUES_POR_FORN).find(([k,l])=>l.includes(cheq))||[])[0]||'—'}`;
   
-  document.getElementById('baixa-cheq-data').value=new Date().toISOString().slice(0,10);
+  document.getElementById('baixa-cheq-data').value=_hojeISO();
   document.getElementById('modal-baixa-cheque').style.display='flex';
 }
 
@@ -10463,7 +10498,7 @@ async function excluirEntradaCompra(ticket){
   const id=String(ticket||'').trim(),tk=TICKETS_DB[id];
   if(!tk){showToast('Compra não encontrada. Atualize o Histórico.','warning',5500);return;}
   if(_purchaseDeletePending.has(id))return;
-  if(!confirm('Excluir a compra '+id+'?\n\nO sistema verificará pagamentos, adiantamentos e vínculos financeiros antes de excluir. Operações já quitadas não podem ser removidas diretamente.'))return;
+  if(!confirm('Excluir a compra '+id+'?\n\nO sistema verificará pagamentos e vínculos financeiros antes de excluir. Se a compra foi paga com adiantamento, o valor volta como saldo do adiantamento. Compras pagas pelo banco precisam de estorno antes.'))return;
   const user=window.firebase?.auth?.()?.currentUser;
   if(!user||typeof user.getIdToken!=='function'){
     showToast('Sessão expirada. Entre novamente antes de excluir.','error',5500);return;
@@ -10481,7 +10516,7 @@ async function excluirEntradaCompra(ticket){
     if(!response.ok){
       const financial=['PURCHASE_HAS_FINANCE','PURCHASE_HAS_PAYMENTS','PURCHASE_HAS_LINKS','MULTIPLE_PAYABLES'];
       const msg=financial.includes(result.code)
-        ?'Esta compra possui vínculo financeiro e não pode ser excluída diretamente. Faça o estorno ou a conciliação antes de cancelar.'
+        ?(typeof result.message==='string'&&result.message?result.message:'Esta compra possui vínculo financeiro e não pode ser excluída diretamente. Faça o estorno ou a conciliação antes de cancelar.')
         :(typeof result.message==='string'&&(response.status<500||result.code==='DATABASE_UNAVAILABLE')?result.message:'Não foi possível confirmar a exclusão. Atualize a tela e consulte o Histórico.');
       showToast(msg,'warning',7000);return;
     }
@@ -10503,9 +10538,17 @@ async function excluirEntradaCompra(ticket){
       deletedPayables.forEach(item=>CONTAS_PAGAR_DELETED.add(item));
       try{localStorage.setItem('mm_cp_deletados',JSON.stringify([...CONTAS_PAGAR_DELETED]));}catch(_error){}
     }
+    // Compra paga com adiantamento: o servidor devolveu o valor aos adiantamentos no mesmo commit.
+    if(Array.isArray(result.advances)&&result.supplierCode&&typeof ADT_POR_FORN!=='undefined'){
+      ADT_POR_FORN[result.supplierCode]=result.advances;
+      try{renderAdiantamentos();}catch(_error){}
+    }
     try{renderTickets();renderContasPagar();}catch(_error){}
     try{if(document.getElementById('tb-canhotos'))renderCanhotos();}catch(_error){}
-    showToast('Compra '+id+' excluída com segurança.','success',4500);
+    const _devolvido=result.advanceRefund&&Number(result.advanceRefund.valor)>0
+      ?' R$ '+Number(result.advanceRefund.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})+' voltou como saldo do(s) adiantamento(s) '+(result.advanceRefund.adiantamentos||[]).map(a=>a.cod).join(', ')+'.'
+      :'';
+    showToast('Compra '+id+' excluída com segurança.'+_devolvido,'success',_devolvido?9000:4500);
   }catch(error){
     console.error('[compra] falha ao solicitar exclusão',error);
     showToast('Não foi possível confirmar a exclusão. Atualize o Histórico antes de tentar novamente.','error',6500);
@@ -14607,7 +14650,7 @@ function lcInit(){
 function lcAdd(){
   const nome=(document.getElementById('lc-nome')?.value||'').trim();
   if(!nome){ showToast('Digite o item','error'); return; }
-  const item={ id:'lc_'+Date.now()+'_'+Math.floor(Math.random()*10000), nome:nome, qtd:(document.getElementById('lc-qtd')?.value||'').trim(), quem:(document.getElementById('lc-quem')?.value||'').trim()||(cu&&cu.name)||'', obs:(document.getElementById('lc-obs')?.value||'').trim(), status:'acomprar', criadoEm:new Date().toISOString().slice(0,10), compradoEm:'' };
+  const item={ id:'lc_'+Date.now()+'_'+Math.floor(Math.random()*10000), nome:nome, qtd:(document.getElementById('lc-qtd')?.value||'').trim(), quem:(document.getElementById('lc-quem')?.value||'').trim()||(cu&&cu.name)||'', obs:(document.getElementById('lc-obs')?.value||'').trim(), status:'acomprar', criadoEm:_hojeISO(), compradoEm:'' };
   LISTA_COMPRAS.push(item);
   lcSalvar(); _lcGravar(item);
   ['lc-nome','lc-qtd','lc-quem','lc-obs'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
@@ -14680,7 +14723,7 @@ function lcImprimir(){
 function lcToggle(id){
   const it=LISTA_COMPRAS.find(x=>x.id===id); if(!it) return;
   if(it.status==='comprado'){ it.status='acomprar'; it.compradoEm=''; }
-  else { it.status='comprado'; it.compradoEm=new Date().toISOString().slice(0,10); it.compradoPor=(cu&&cu.name)||''; }
+  else { it.status='comprado'; it.compradoEm=_hojeISO(); it.compradoPor=(cu&&cu.name)||''; }
   lcSalvar(); _lcGravar(it); renderListaCompras();
 }
 function lcExcluir(id){
@@ -14875,7 +14918,7 @@ function editFuncionario(mat){
 
 
 function _efnResumoAlertas(f){
-  const hoje=(typeof _hojeISO==='function')?_hojeISO():new Date().toISOString().slice(0,10);
+  const hoje=(typeof _hojeISO==='function')?_hojeISO():_hojeISO();
   const linhas=[];
   const fmtBR=iso=>iso?iso.split('-').reverse().join('/'):'';
   const faltam=iso=>{ try{ const d=(typeof _diasEntreISO==='function')?_diasEntreISO(hoje,iso):null; if(d==null) return ''; return d<0?(' (venceu há '+Math.abs(d)+' dia(s))'):(d===0?' (é hoje)':(' (faltam '+d+' dia(s))')); }catch(e){ return ''; } };
@@ -15072,7 +15115,7 @@ async function fdAdicionarDoc(mat){
   if(!f) return;
   if(!f.docs) f.docs=[];
   const cat  = document.getElementById('fd-cat')?.value||'Outros';
-  const data = document.getElementById('fd-data')?.value||new Date().toISOString().slice(0,10);
+  const data = document.getElementById('fd-data')?.value||_hojeISO();
   const nomeCustom=(document.getElementById('fd-nome')?.value||'').trim();
   const fileEl=document.getElementById('fd-file');
   const statusEl=document.getElementById('fd-status');
@@ -15916,6 +15959,21 @@ function _chqFmt(v){
   return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
 }
 function _chqHojeBR(){ const d=new Date(); return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear(); }
+// Cheques gerados pela API de adiantamentos NÃO lançam saída no banco quando o
+// adiantamento é criado. Decide automaticamente se a compensação baixa o saldo:
+// cheque próprio = sim; cheque de terceiro = não (não sai da conta da empresa);
+// adiantamento que já tem movimento bancário = não. null = cheque legado (perguntar).
+function _chqDescontaBancoAuto(c){
+  if(!c||!c.advanceCode) return null;
+  if(String(c.tipoCheque||'')==='Cheque de Terceiro') return false;
+  try{
+    var lista=(typeof ADT_POR_FORN!=='undefined'&&ADT_POR_FORN&&ADT_POR_FORN[c.fornCod])||[];
+    lista=Array.isArray(lista)?lista:Object.values(lista);
+    var adt=lista.find(function(a){ return a&&String(a.cod)===String(c.advanceCode); });
+    if(adt&&adt.movBancoId) return false;
+  }catch(e){}
+  return true;
+}
 
 function chqInit(){
   if(_chqInited) return;
@@ -15989,6 +16047,7 @@ function chqToggleDesconto(id){
 
 function chqToggleCompra(id){
   var c=CHQ_CTRL[id]; if(!c) return;
+  if(c.advanceCode){ showToast('Cheque do adiantamento '+c.advanceCode+': o vínculo com a compra é controlado pelo próprio adiantamento.','info'); return; }
   var novo=!c.dc; c.dc=novo; try{ renderChequesCompensar(); }catch(e){}
   var r=_chqRef(); if(!r) return;
   r.child(id).update({dc: novo?true:null})
@@ -16191,9 +16250,18 @@ function renderChequesCompensar(){
 var _CHQ_BANCO_COD={};
 
 var _CHQ_BANCO_COR={};
+// O extrato (lancBanco) exige acesso a Bancos (claim canBanking). Sem ele a gravação
+// era descartada em silêncio pelo filtro de permissões e o saldo ficava errado.
+function _chqPodeLancarBanco(){
+  try{ return !!(cu && (cu.admin===true || (Array.isArray(cu.tabs)&&cu.tabs.some(function(t){ return t==='contas_banco'||t==='bancos'; })))); }catch(e){ return false; }
+}
 function _chqMovBancoCriar(bancoCod, dataBR, desc, valor){
   try{
     if(!bancoCod || !valor || typeof LANC_BANCO_DB==='undefined') return '';
+    if(!_chqPodeLancarBanco()){
+      showToast('⚠️ Cheque marcado como compensado, mas seu usuário não tem acesso a Bancos: a saída de '+_chqFmt(Number(valor)||0)+' NÃO foi lançada no extrato. Peça para quem cuida dos bancos lançar.','warn',10000);
+      return '';
+    }
     var mov={ id:'LB-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
       bancoCod:bancoCod, data:(dataBR||_chqHojeBR()), descricao:desc, tipo:'Saida', valor:Number(valor)||0 };
     LANC_BANCO_DB.push(mov);
@@ -16220,7 +16288,9 @@ function chqMarcarComp(id){
   
   
   var descontarBanco=true;
-  if(c.dc){
+  var _auto=_chqDescontaBancoAuto(c);
+  if(_auto!==null){ descontarBanco=_auto; }
+  else if(c.dc){
     descontarBanco=confirm('Este cheque está marcado como "desconta da compra" (adiantamento).\n\nSe você já lançou ele como adiantamento, o saldo do banco JÁ baixou — então NÃO precisa descontar de novo (senão conta em dobro).\n\nDescontar do saldo do banco mesmo assim?\n\nOK = sim, descontar do banco\nCancelar = não, só marcar como compensado');
   }
   
@@ -16297,7 +16367,7 @@ function chqRemessaDepConfirmar(){
   var n=0, tot=0;
   checks.forEach(function(chk){
     var id=chk.dataset.id; var c=CHQ_CTRL[id]; if(!c||(c.s||'A')!=='A') return;
-    var descontarBanco=!c.dc; 
+    var _auto=_chqDescontaBancoAuto(c); var descontarBanco=_auto!==null?_auto:!c.dc; 
     var movId='';
     if(descontarBanco && !c.movBancoId){ movId=_chqMovBancoCriar(_cfgChequeBankCode(c.b), dBR, 'Cheque nº '+c.n+' compensado (remessa '+dBR+')', +c.v||0); }
     c.s='C'; c.cd=dBR; if(movId) c.movBancoId=movId;
@@ -16317,6 +16387,10 @@ window['chqRemessaDepConfirmar']=chqRemessaDepConfirmar;
 function chqReabrir(id){
   var c=CHQ_CTRL[id]; if(!c) return;
   var r=_chqRef(); if(!r) return;
+  if(c.movBancoId && !_chqPodeLancarBanco()){
+    alert('Este cheque já saiu do saldo do banco. Para reabri-lo é preciso desfazer a saída no extrato: peça para quem tem acesso a Bancos.');
+    return;
+  }
   
   var tinhaMov=!!c.movBancoId;
   if(tinhaMov){ _chqMovBancoRemover(c.movBancoId); }
@@ -16328,8 +16402,13 @@ function chqReabrir(id){
 }
 function chqExcluir(id){
   var c=CHQ_CTRL[id]; if(!c) return;
+  if(c.advanceCode){
+    alert('Este cheque pertence ao adiantamento '+c.advanceCode+'.\n\nPara removê-lo, exclua o adiantamento no módulo Adiantamentos: os cheques dele saem junto, sem deixar saldo sem origem.');
+    return;
+  }
   if(!confirm('Excluir o cheque nº '+c.n+' ('+c.b+', '+_chqFmt(+c.v||0)+')?\n\nEle sai do controle em todos os computadores.')) return;
   var r=_chqRef(), dr=_chqDelRef(); if(!r||!dr) return;
+  if(c.movBancoId && !_chqPodeLancarBanco()){ alert('Este cheque já saiu do saldo do banco. Para excluí-lo, peça para quem tem acesso a Bancos.'); return; }
   if(c.movBancoId){ _chqMovBancoRemover(c.movBancoId); }
   _chqDel[id]=true; delete CHQ_CTRL[id]; try{ renderChequesCompensar(); }catch(e){}
   dr.child(id).set(true).then(function(){
@@ -17232,7 +17311,7 @@ function frotaDocsModal(idx){
           '<option>Foto do caminhão</option><option>Foto do pneu</option><option>Foto de avaria</option>'+
           '<option>Licenciamento</option><option>Outros</option>'+
         '</select></div>'+
-      '<div class="fg"><label>Data</label><input type="date" id="fr-doc-data" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
+      '<div class="fg"><label>Data</label><input type="date" id="fr-doc-data" value="'+_hojeISO()+'"></div>'+
       '<div class="fg"><label>⏰ Vencimento (opcional — gera alerta na Frota)</label><input type="date" id="fr-doc-venc"></div>'+
       '<div class="fg"><label>Arquivo (PDF ou foto, máx. 20 MB)</label>'+
         '<input type="file" id="fr-doc-file" accept=".pdf,image/*" style="padding:6px;border:1.5px dashed #ccc;border-radius:8px;width:100%;box-sizing:border-box;cursor:pointer">'+_btnFoto('fr-doc-file')+'</div>'+
@@ -17269,7 +17348,7 @@ function frDocAdd(idx){
   if(!v) return;
   if(!v.docs) v.docs=[];
   const cat=document.getElementById('fr-doc-cat')?.value||'Outros';
-  const data=document.getElementById('fr-doc-data')?.value||new Date().toISOString().slice(0,10);
+  const data=document.getElementById('fr-doc-data')?.value||_hojeISO();
   const fileEl=document.getElementById('fr-doc-file');
   const statusEl=document.getElementById('fr-doc-status');
   if(!fileEl||!fileEl.files||!fileEl.files[0]){ alert('Selecione um arquivo ou foto.'); return; }
@@ -17635,7 +17714,7 @@ function abrirNovaManutencao(veiIdOverride){
   body.innerHTML=
     '<h3>🔧 Nova Manutenção</h3>'+
     '<div class="fg"><label>Equipamento</label><select id="nm-vei">'+veiOpts+'</select></div>'+
-    '<div class="fg"><label>Data</label><input id="nm-data" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
+    '<div class="fg"><label>Data</label><input id="nm-data" type="date" value="'+_hojeISO()+'"></div>'+
     '<div class="fg"><label>Tipo</label><select id="nm-tipo">'+
       ['Preventiva','Corretiva','Revisão','Troca de Óleo','Pneus','Elétrica','Hidráulica','Outros']
       .map(t=>'<option>'+t+'</option>').join('')+
@@ -18135,10 +18214,10 @@ function cpSetTipo(t){
 }
 
 
-let _cpMesFiltro = (function(){ try{ return new Date().toISOString().slice(0,7); }catch(e){ return ''; } })(); 
+let _cpMesFiltro = (function(){ try{ return _hojeISO().slice(0,7); }catch(e){ return ''; } })(); 
 let _cpFiltroEmpresa = ''; 
 function cpMesNav(delta){
-  if(!_cpMesFiltro){ try{ _cpMesFiltro=new Date().toISOString().slice(0,7); }catch(e){ const d=new Date(); _cpMesFiltro=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); } }
+  if(!_cpMesFiltro){ try{ _cpMesFiltro=_hojeISO().slice(0,7); }catch(e){ const d=new Date(); _cpMesFiltro=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); } }
   let p=_cpMesFiltro.split('-'), a=parseInt(p[0],10), m=parseInt(p[1],10)+delta;
   while(m<1){ m+=12; a--; } while(m>12){ m-=12; a++; }
   _cpMesFiltro=a+'-'+String(m).padStart(2,'0');
@@ -18219,7 +18298,7 @@ function cpPopularFiltrosDropdowns(){
 
 function _cpAplicarFiltros(lista){
   const toISO=v=>v&&v.indexOf('/')>=0?v.split('/').reverse().join('-'):v||'';
-  const hoje=new Date().toISOString().slice(0,10);
+  const hoje=_hojeISO();
   const opcao=document.getElementById('cp-filtro-opcao')?.value||'aberto';
   const cat=document.getElementById('cp-filtro-cat')?.value||'';
   const banco=document.getElementById('cp-filtro-banco')?.value||'';
@@ -18266,7 +18345,7 @@ function cpRenderDias(){
   if(diasComContas.size === 0 || diasComContas.size > 60){ row.style.display='none'; return; }
   row.style.display='flex';
 
-  const hoje = new Date().toISOString().slice(0,10);
+  const hoje = _hojeISO();
   const dias = [...diasComContas].sort();
   const btnBase = 'border:none;border-radius:6px;padding:4px 10px;font-size:.82rem;font-weight:700;cursor:pointer;transition:all .15s;';
 
@@ -18365,7 +18444,7 @@ function cpRenderCalendario(){
     diasComContas[iso].push(c);
   });
 
-  const hoje = new Date().toISOString().slice(0,10);
+  const hoje = _hojeISO();
   const primeiroDia = new Date(_cpCalAno, _cpCalMes, 1).getDay(); 
   const ultimoDia = new Date(_cpCalAno, _cpCalMes+1, 0).getDate();
   const fmt2 = v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
@@ -18420,7 +18499,7 @@ function cpCalFiltrarDia(iso){
 }
 
 function cpRenderHoje(){
-  const hoje=new Date().toISOString().slice(0,10);
+  const hoje=_hojeISO();
   const panel=document.getElementById('cp-hoje-panel');
   const lista=document.getElementById('cp-hoje-lista');
   if(!panel||!lista) return;
@@ -18454,7 +18533,7 @@ function renderContasPagar(){
   if(!tbody) return;
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const fmt2=v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const hoje=new Date().toISOString().slice(0,10);
+  const hoje=_hojeISO();
   
   const toISO=v=>v&&v.indexOf('/')>=0?v.split('/').reverse().join('-'):v||'';
 
@@ -18799,7 +18878,7 @@ function renderContratos(){
   if(!tb) return;
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const fmtDate=s=>s?s.split('-').reverse().join('/'):'—';
-  const hoje=new Date().toISOString().slice(0,10);
+  const hoje=_hojeISO();
   if(!CONTRATOS_DB.length){
     tb.innerHTML='<tr><td colspan="10" style="color:var(--gray);text-align:center;padding:20px">Nenhum contrato cadastrado ainda</td></tr>';
     const kpiT=document.getElementById('kpi-cont-total'); if(kpiT) kpiT.textContent='0';
@@ -18969,7 +19048,7 @@ function deNovoDoc(){
 function deSalvarDoc(){
   const empSel = document.getElementById('de-emp-sel')?.value||'';
   const cat    = document.getElementById('de-cat-sel')?.value||'Outros';
-  const data   = document.getElementById('de-data-sel')?.value||new Date().toISOString().slice(0,10);
+  const data   = document.getElementById('de-data-sel')?.value||_hojeISO();
   const fileEl = document.getElementById('de-file-input');
   const statusEl= document.getElementById('de-upload-status');
   if(!empSel){alert('Selecione uma empresa.');return;}
@@ -19042,7 +19121,7 @@ function salvarContaPagar(){
   if(!desc||valor<=0){alert('Preencha descrição e valor!');return;}
   const bancoCod=document.getElementById('cp-banco')?.value||'';
   const bancoNome=_bancoNomePorCod(bancoCod);
-  const hoje=new Date().toISOString().slice(0,10).split('-').reverse().join('/');
+  const hoje=_hojeISO().split('-').reverse().join('/');
   const cred=document.getElementById('cp-cred')?.value.trim()||'';
   const cat=document.getElementById('cp-cat')?.value.trim()||'Outros';
   const obs=document.getElementById('cp-obs')?.value.trim()||'';
@@ -19245,7 +19324,7 @@ function pagarContaRapido(idx,id){
   const c=CONTAS_PAGAR[idx];if(!c)return;
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const body=document.getElementById('modal-body');body.className='modal';
-  const hoje=new Date().toISOString().slice(0,10);
+  const hoje=_hojeISO();
   const ticket=String(c.ticket||'').trim();
   const ticketFornecedor=ticket?Object.values(TICKETS_DB||{}).find(t=>String(t?.ticket||'').trim()===ticket):null;
   const fornCod=c.fornCod||ticketFornecedor?.fornecedorCod||(FORNECEDORES.find(f=>f.nome===c.cred)||{}).cod||'';
@@ -19620,7 +19699,7 @@ function renderContasReceber(){
   
   try{ if(_syncContasReceber.limparDuplicatasExatas()){ try{ saveContasReceber(); }catch(e){} } }catch(e){}
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const hoje=new Date().toISOString().slice(0,10);
+  const hoje=_hojeISO();
   
   const _toISOcr=d=>{if(!d)return'';const ds=String(d).trim();if(ds.indexOf('/')>=0){const p=ds.split('/');return(p[2]||'0000')+'-'+(p[1]||'01')+'-'+(p[0]||'01');}return ds.slice(0,10);};
   const _emAberto=CONTAS_RECEBER.filter(c=>c.status!=='Recebido');
@@ -19669,7 +19748,7 @@ function salvarContaReceber(){
   const valor=parseFloat(document.getElementById('cr-valor')?.value)||0;
   const venc=document.getElementById('cr-venc')?.value;
   if(!cli||valor<=0||!venc){alert('Preencha cliente, valor e vencimento!');return;}
-  const hoje=new Date().toISOString().slice(0,10).split('-').reverse().join('/');
+  const hoje=_hojeISO().split('-').reverse().join('/');
   CONTAS_RECEBER.push({
     data: hoje, cli, nf: document.getElementById('cr-nf')?.value.trim()||'',
     valor, venc: venc.split('-').reverse().join('/'),
@@ -19731,7 +19810,7 @@ function receberContaRapido(idx){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const body=document.getElementById('modal-body');
   body.className='modal';
-  const hoje=new Date().toISOString().slice(0,10);
+  const hoje=_hojeISO();
   const bancoOpts=(_erpBankDirectory.ready?_erpBankDirectory.banks:[]).map(b=>{
     const n=b.banco+(b.tipo==='Conta Terceiro'?' ('+b.titular+')':'');
     return '<option value="'+esc(n)+'">'+esc(n)+'</option>';
@@ -20618,7 +20697,7 @@ function renderVendas(){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   
   const _toISO_v=d=>{if(!d)return'';const ds=String(d).trim();if(ds.indexOf('/')>=0){const p=ds.split('/');return(p[2]||'0000')+'-'+(p[1]||'01')+'-'+(p[0]||'01');}return ds.slice(0,10);};
-  const _hj=new Date().toISOString().slice(0,10);
+  const _hj=_hojeISO();
   const _mes=_hj.slice(0,7);
   
   const _totGeral=VENDAS_DB.reduce((s,v)=>s+Number(v.total||0),0);
@@ -20691,7 +20770,7 @@ function marcarVendaPaga(idx){
   const v=VENDAS_DB[idx]; if(!v) return;
   if(!confirm('Marcar a venda de '+v.cliente+' — R$ '+Number(v.total||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+' como PAGA?')) return;
   v.status='Pago';
-  const hojeISO=new Date().toISOString().slice(0,10);
+  const hojeISO=_hojeISO();
   const hojeBR=hojeISO.split('-').reverse().join('/');
   
   let mexeuCR=false;
@@ -20830,7 +20909,7 @@ function renderHistoricoVendas(){
   if(de||ate) titulo+=' ('+( de||'início')+' → '+(ate||'hoje')+')';
   sv('vh-titulo',titulo);
 
-  var hoje=new Date().toISOString().slice(0,10);
+  var hoje=_hojeISO();
   var tbody=document.getElementById('tb-hist-vendas');
   if(!tbody) return;
 
@@ -21973,7 +22052,7 @@ loadDespDB();
 (function(){
   const n=new Date();
   document.getElementById('fil-mes').value=n.getFullYear()+'-'+(String(n.getMonth()+1).padStart(2,'0'));
-  document.getElementById('f-data').value=n.toISOString().split('T')[0];
+  document.getElementById('f-data').value=_hojeISO();
 })();
 despAtualizar();
 function renderHistorico(){
@@ -23640,7 +23719,7 @@ function initDespesas(){
       function ffAbrirLancarAdt(){
         if(!_ffCodAtual){ alert('Abra a ficha de um fornecedor primeiro.'); return; }
         var box=document.getElementById('ff-lanc-adt'); if(!box) return;
-        var hoje=new Date().toISOString().slice(0,10);
+        var hoje=_hojeISO();
         var bancos=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB))?BANCOS_DB:[];
         var bancoOpts='<option value="">— Não sai do banco —</option>'+bancos.map(function(b){return '<option value="'+esc(b.banco)+'">'+esc(b.banco)+'</option>';}).join('');
         box.innerHTML='<div style="margin:6px 20px 10px;padding:12px 14px;background:#eafaf0;border:1px solid #a5d6a7;border-radius:10px">'
@@ -25525,7 +25604,7 @@ function balIniciarNovaSessao(){
 
   
   TICKETS_DB[sessId] = {
-    data: new Date().toISOString().slice(0,10),
+    data: _hojeISO(),
     fornecedorNome: fornNome,
     forn: fornNome,
     pesoRodoviaria: 0,
@@ -26586,9 +26665,9 @@ async function csConfirmarEntrada(fornNome){
   if(saldoDevUsado>0) totalAdt+=saldoDevUsado;
   const saldoPagar=total-totalAdt;
   const vencEl=document.getElementById('cs-lanc-venc');
-  const vencISO=vencEl?.value||(new Date().toISOString().slice(0,10));
+  const vencISO=vencEl?.value||(_hojeISO());
   const vencBR=vencISO.split('-').reverse().join('/');
-  const hoje=new Date().toISOString().slice(0,10).split('-').reverse().join('/');
+  const hoje=_hojeISO().split('-').reverse().join('/');
 
   // O fluxo moderno já verificou o número na nuvem. Não gere outro aqui.
   const reserved=__integratedPurchase?String(window.__ERP_PURCHASE_SELECTED_NUMBER__||''):'';
@@ -26598,7 +26677,7 @@ async function csConfirmarEntrada(fornNome){
   if(TICKETS_DB[ticketNum])throw new Error('Número da compra já utilizado localmente. Atualize o histórico.');
 
   TICKETS_DB[ticketNum]={
-    ticket:ticketNum, data:new Date().toISOString().slice(0,10),
+    ticket:ticketNum, data:_hojeISO(),
     fornecedor:fornNome, fornecedorNome:fornNome, fornecedorCod:fornCod,
     itens:itensFinal,
     totalKg:itensFinal.reduce((s,it)=>s+(it.pesoLiq||0),0),
@@ -26745,7 +26824,7 @@ function balDownloadHistorico(){
   const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download='historico_balanceiro_'+(new Date().toISOString().slice(0,10))+'.csv';
+  a.download='historico_balanceiro_'+(_hojeISO())+'.csv';
   a.click();
   showToast('✅ CSV exportado!','success',3000);
 }
@@ -28187,7 +28266,7 @@ function loadCoordenacao(){
   bagsRender();
   coordFuncRender();
   
-  const hoje=new Date().toISOString().slice(0,10);
+  const hoje=_hojeISO();
   ['reu-data','adv-data','bags-mov-data'].forEach(id=>{
     const el=document.getElementById(id); if(el&&!el.value) el.value=hoje;
   });
@@ -28223,7 +28302,7 @@ function advAtualizarNome(){}
 function reuSalvar(){
   const titulo=(document.getElementById('reu-titulo')?.value||'').trim();
   if(!titulo){ showToast('Informe o título/assunto.','error'); return; }
-  const data=document.getElementById('reu-data')?.value||new Date().toISOString().slice(0,10);
+  const data=document.getElementById('reu-data')?.value||_hojeISO();
   const tipo=document.getElementById('reu-tipo')?.value||'reuniao';
   const pauta=(document.getElementById('reu-pauta')?.value||'').trim();
   const ata=(document.getElementById('reu-ata')?.value||'').trim();
@@ -28335,7 +28414,7 @@ function advSalvar(){
   if(!mat){ showToast('Selecione o funcionário.','error'); return; }
   const motivo=(document.getElementById('adv-motivo')?.value||'').trim();
   if(!motivo){ showToast('Informe o motivo.','error'); return; }
-  const data=document.getElementById('adv-data')?.value||new Date().toISOString().slice(0,10);
+  const data=document.getElementById('adv-data')?.value||_hojeISO();
   const tipo=document.getElementById('adv-tipo')?.value||'verbal';
   const dias=parseInt(document.getElementById('adv-dias')?.value||'0')||0;
   const descricao=(document.getElementById('adv-descricao')?.value||'').trim();
@@ -28564,7 +28643,7 @@ function _bagsRecalcularTotais(){
 
 function bagsRegistrarEntradaForn(fornNome, qtd, ticket){
   if(!fornNome || !(qtd>0)) return;
-  var hoje=new Date().toISOString().slice(0,10);
+  var hoje=_hojeISO();
   var ja=(BAGS_DB.mov||[]).find(function(m){ return m && m.ticket && ticket && m.ticket===ticket && m.tipo==='entrada_usado'; });
   if(ja){ ja.qtd=qtd; ja.forn=fornNome; }
   else BAGS_DB.mov.unshift({tipo:'entrada_usado', qtd:qtd, data:hoje, obs:'Veio com material'+(ticket?(' — ticket '+ticket):''), forn:fornNome, ticket:ticket||'', ts:new Date().toISOString()});
@@ -28599,7 +28678,7 @@ function bagsDevolverForn(){
   var saldo=bagsSaldoForn(forn);
   if(qtd>saldo){ showToast('Não é possível devolver '+qtd+' bag(s): '+forn+' possui '+saldo+' bag(s) em aberto.','error'); return; }
   if(qtd>Number(BAGS_DB.novos||0)){ showToast('Não há bags novos/limpos suficientes. Disponível: '+Number(BAGS_DB.novos||0)+'.','error'); return; }
-  BAGS_DB.mov.unshift({tipo:'saida_novo', qtd:qtd, data:new Date().toISOString().slice(0,10), obs:'Devolução de bags ao fornecedor', forn:forn, ts:new Date().toISOString()});
+  BAGS_DB.mov.unshift({tipo:'saida_novo', qtd:qtd, data:_hojeISO(), obs:'Devolução de bags ao fornecedor', forn:forn, ts:new Date().toISOString()});
   _bagsRecalcularTotais();
   try{ localStorage.setItem('mm_bags',JSON.stringify(BAGS_DB)); }catch(e){}
   try{ fbSalvar(); }catch(e){}
@@ -28626,7 +28705,7 @@ function bagsSalvarMov(){
   const tipo=document.getElementById('bags-mov-tipo')?.value||'entrada_novo';
   const qtd=parseInt(document.getElementById('bags-mov-qtd')?.value||'1')||0;
   if(!(qtd>0)){ showToast('Informe uma quantidade maior que zero.','error'); return; }
-  const data=document.getElementById('bags-mov-data')?.value||new Date().toISOString().slice(0,10);
+  const data=document.getElementById('bags-mov-data')?.value||_hojeISO();
   const obs=(document.getElementById('bags-mov-obs')?.value||'').trim();
 
   _bagsRecalcularTotais();
@@ -28768,7 +28847,7 @@ function coordSigSalvar(){
   if(_coordSigVazio()){ showToast('Desenhe a assinatura antes de salvar.','error'); return; }
   const canvas=document.getElementById('coord-sig-canvas');
   const img=canvas.toDataURL('image/png');
-  const hoje=new Date().toISOString().slice(0,10);
+  const hoje=_hojeISO();
 
   if(_coordSigMode==='reuniao'){
     const reuId=_coordSigReuId;
@@ -28903,7 +28982,7 @@ function coordImprimirFuncionario(mat){
   const f=funcs.find(x=>x.mat===mat);
   if(!f){ showToast('Funcionário não encontrado','warning'); return; }
   _coordImpMat=mat;
-  const hoje=new Date().toISOString().slice(0,10);
+  const hoje=_hojeISO();
   const body=document.getElementById('modal-body');
   body.className='modal';
   body.innerHTML=`
@@ -29072,7 +29151,7 @@ function coordExecutarImpressao(){
 function coordFuncSalvarAv(mat, avaliacao){
   if(!COORD_FUNC_OBS[mat]) COORD_FUNC_OBS[mat]={};
   COORD_FUNC_OBS[mat].avaliacao=avaliacao;
-  COORD_FUNC_OBS[mat].atualizadoEm=new Date().toISOString().slice(0,10);
+  COORD_FUNC_OBS[mat].atualizadoEm=_hojeISO();
   COORD_FUNC_OBS[mat].atualizadoPor=(typeof cu!=='undefined'&&cu)?cu.name:'?';
   fbSalvar();
   coordFuncRender();
@@ -29083,7 +29162,7 @@ function coordFuncSalvarObs(mat){
   const obs=(ta?.value||'').trim();
   if(!COORD_FUNC_OBS[mat]) COORD_FUNC_OBS[mat]={avaliacao:'bom'};
   COORD_FUNC_OBS[mat].obs=obs;
-  COORD_FUNC_OBS[mat].atualizadoEm=new Date().toISOString().slice(0,10);
+  COORD_FUNC_OBS[mat].atualizadoEm=_hojeISO();
   COORD_FUNC_OBS[mat].atualizadoPor=(typeof cu!=='undefined'&&cu)?cu.name:'?';
   fbSalvar();
   showToast('Observação salva! ✅','success');
@@ -29136,7 +29215,7 @@ function alxSalvarMov(){
   const tipo=document.getElementById('alx-mov-tipo')?.value||'entrada';
   const qtd=parseFloat(document.getElementById('alx-mov-qtd')?.value)||0;
   if(!qtd){ showToast('Informe a quantidade!','error'); return; }
-  const data=document.getElementById('alx-mov-data')?.value||new Date().toISOString().slice(0,10);
+  const data=document.getElementById('alx-mov-data')?.value||_hojeISO();
   const respEl=document.getElementById('alx-mov-resp');
   const mat=(respEl?.value||'').trim();
   const resp=mat?((typeof FUNCIONARIOS!=='undefined'?FUNCIONARIOS:[]).find(f=>f.mat===mat)?.nome||mat):'';
@@ -29225,7 +29304,7 @@ function alxSalvarObs(){
   const texto=(document.getElementById('alx-obs-texto')?.value||'').trim();
   if(!texto){ showToast('Escreva a observação!','error'); return; }
   const autor=(document.getElementById('alx-obs-autor')?.value||(typeof cu!=='undefined'&&cu?.name)||'—').trim();
-  const data=new Date().toISOString().slice(0,10);
+  const data=_hojeISO();
   ALX_NOTAS.push({texto, autor, data, ts:new Date().toISOString()});
   saveAlmoxa();
   document.getElementById('alx-obs-texto').value='';
@@ -29914,7 +29993,7 @@ function rodDownloadHistorico(){
   const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url; a.download='historico_pesagens_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.href=url; a.download='historico_pesagens_'+_hojeISO()+'.csv';
   document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },2000);
 }
@@ -30500,7 +30579,7 @@ let _vrCtx=null;
 function fiscalAbrirVendaRapida(prod, precoCompra, precoSugerido, disponivel){
   if(!_fiscalGateLock('registrar venda')) return;
   _vrCtx={prod, precoCompra, disponivel:Number(disponivel)||0};
-  const today=new Date().toISOString().split('T')[0];
+  const today=_hojeISO();
   const fmtR=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const fmtKg=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:1})+' kg';
   const body=document.getElementById('modal-body');
@@ -30959,7 +31038,7 @@ function fiscalAbrirPagamento(tipoArr,nfIdx){
   const pgts=Array.isArray(nf.pagamentos)?nf.pagamentos:[];
   const jaoPago=pgts.reduce((s,p)=>s+Number(p.valor||0),0);
   const saldo=Math.max(0,vNF-jaoPago);
-  const today=new Date().toISOString().split('T')[0];
+  const today=_hojeISO();
   const fmtR=v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const body=document.getElementById('modal-body');
   body.className='modal';
@@ -31522,7 +31601,7 @@ function fiscalFecharMes(){
   if(!FISCAL_DB[chave].resumo) FISCAL_DB[chave].resumo={};
   FISCAL_DB[chave].resumo.fechado=true;
   FISCAL_DB[chave].resumo.senhaHash=senha?btoa(unescape(encodeURIComponent(senha))):'';
-  FISCAL_DB[chave].resumo.fechadoEm=new Date().toISOString().slice(0,10);
+  FISCAL_DB[chave].resumo.fechadoEm=_hojeISO();
   fiscalSalvar();
   _fiscalAtualizarLockUI();
   showToast(`🔒 ${nomeMes}/${ano} fechado com sucesso!`,'success');

@@ -59,3 +59,22 @@ pagamentos e repasses. Na Compra de Sucata: `POST /api/finance/purchase-order-cr
   (`npm run deploy:rules:prod`, que já valida regras × política).
 - Lápides `*DeletedV2` existem nas regras, mas não na política do cliente (exclusões funcionam pela remoção do
   registro). Avaliar habilitar em versão futura.
+
+## Revisão adicional — 08/11 (noite)
+
+| # | Problema | Correção |
+|---|----------|----------|
+| 8 | Datas de "hoje" usavam UTC: entre 21h e 23h59 compras, baixas, pagamentos e vencimentos eram gravados com a data de **amanhã** (88 pontos no navegador + edição de compra no servidor). | Navegador usa `_hojeISO()`/data local; servidor usa `server/domain/business-date.js` (America/Sao_Paulo). |
+| 9 | Um adiantamento com "Vinculado ao Ticket" inexistente (digitação ou compra futura) **bloqueava todas as compras** do fornecedor. | O adiantamento deixa de ser oferecido e aparece um aviso explicando como liberar; as demais compras seguem. Adiantamento vinculado ao número da própria compra em criação é oferecido. |
+| 10 | Excluir, no Controle de Cheques, um cheque que pertence a um adiantamento deixava o adiantamento sem os cheques e impossível de excluir. | Exclusão bloqueada com orientação: excluir pelo módulo Adiantamentos. |
+| 11 | Compensar cheque de adiantamento: a tela perguntava se "já baixou do banco" (nunca baixou: a API não lança saída para cheques); na remessa, cheque próprio de adiantamento nunca saía do saldo. | Decisão automática: cheque próprio baixa o banco na compensação; cheque de terceiro não baixa; adiantamento com movimento bancário não baixa de novo. Cheques legados continuam com a pergunta. |
+| 12 | Excluir adiantamento com cheque já compensado dava "cheque vinculado foi alterado". | Mensagem clara: reabrir o cheque em "Cheques a compensar" e então excluir. |
+| 13 | Microfone bloqueado no site inteiro (`Permissions-Policy: microphone=()`). | `microphone=(self)`. |
+| 14 | Reduzir o valor de uma compra paga com adiantamento era sempre recusado ("exige conciliação"). | A diferença volta ao adiantamento usado. Ele volta a "Pendente" com saldo disponível, e a conta a pagar em aberto é encerrada. Continua bloqueado, com mensagem clara: redução maior que o valor pago com adiantamento (parte paga no banco), compra paga com cheque ou crédito residual, ou adiantamento alterado depois da compra. |
+| 15 | Compra paga com adiantamento nunca podia ser excluída. | Exclusão permitida quando não há pagamento no banco: devolve todo o valor aos adiantamentos no mesmo commit. A tela mostra quanto voltou e para qual adiantamento. |
+| 16 | Quem tem "Cheques (Controle)" sem acesso a "Bancos" compensava cheque e a saída no extrato era descartada em silêncio. | Aviso claro de que a saída não foi lançada. Reabrir ou excluir cheque que já saiu do banco exige acesso a Bancos. |
+| 17 | Exclusão de compra bloqueada mostrava sempre um texto genérico. | Mostra o motivo real enviado pelo servidor. |
+
+Regras do Firebase: nada a publicar.
+- As lápides `*DeletedV2` são só lidas pelo navegador. O único trecho que tentava apagar uma delas pertence ao formulário antigo de compra, substituído pelo módulo novo.
+- Os nós novos (`quickEntries`, `quickUploads`, `erpQuickLocks`) ficam fechados para o navegador por padrão.

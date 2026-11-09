@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14532d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lançar">
+<title>Lançamento rápido</title>
+<link rel="manifest" href="/rapido/manifest.webmanifest">
+<link rel="icon" href="/rapido/icone.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/rapido/icone-192.png">
+<link rel="stylesheet" href="/rapido/rapido.css?v=20261108-1">
+</head>
+<body>
+<header class="topo">
+  <div class="topo-marca">Manuela Metais · Lançamento rápido</div>
+  <button type="button" class="topo-sair" id="btn-sair" hidden>Sair</button>
+</header>
+
+<main id="app">
+  <section id="tela-carregando" class="centro">
+    <div class="girando" aria-hidden="true"></div>
+    <p id="msg-carregando">Carregando…</p>
+  </section>
+
+  <section id="tela-bloqueado" class="centro" hidden>
+    <p class="grande-texto" id="msg-bloqueado"></p>
+    <button type="button" class="botao secundario" id="btn-bloqueado-sair">Entrar com outro usuário</button>
+  </section>
+
+  <section id="tela-inicio" hidden>
+    <h1 class="saudacao">Olá, <span id="nome-usuario"></span>!</h1>
+    <p class="subtitulo">O que você quer lançar?</p>
+    <button type="button" class="botao-gigante compra" data-novo="compra">
+      <span class="emoji" aria-hidden="true">🛒</span><span>COMPRA<small>comprei material de um fornecedor</small></span>
+    </button>
+    <button type="button" class="botao-gigante venda" data-novo="venda">
+      <span class="emoji" aria-hidden="true">💵</span><span>VENDA<small>vendi material para um cliente</small></span>
+    </button>
+    <button type="button" class="botao medio" data-ir="historico">📋 Meus lançamentos</button>
+    <a class="link-erp" id="link-erp" href="/?completo=1" hidden>Abrir o sistema completo</a>
+  </section>
+
+  <section id="tela-lancamento" hidden>
+    <div class="barra-titulo">
+      <button type="button" class="voltar" data-ir="inicio">← Início</button>
+      <h1 id="titulo-lancamento">Nova compra</h1>
+    </div>
+
+    <div class="cartao voz">
+      <button type="button" id="btn-falar" class="microfone"><span class="mic" aria-hidden="true">🎤</span><span id="txt-falar">Toque e fale</span></button>
+      <p class="dica" id="dica-voz"></p>
+      <label class="rotulo" for="texto-falado">O que foi entendido (pode escrever ou corrigir)</label>
+      <textarea id="texto-falado" rows="3" placeholder="Ou escreva aqui. Dica: o microfone do teclado também funciona."></textarea>
+      <button type="button" id="btn-entender" class="botao acao">✨ Preencher com o que eu falei</button>
+      <div id="duvidas" class="alerta" hidden></div>
+    </div>
+
+    <div class="cartao">
+      <label class="rotulo" for="busca-parte" id="rotulo-parte">Fornecedor</label>
+      <div id="parte-escolhida" class="escolhido" hidden></div>
+      <input id="busca-parte" type="search" placeholder="Digite parte do nome para procurar" autocomplete="off" enterkeyhint="search">
+      <div id="lista-parte" class="lista-opcoes"></div>
+    </div>
+
+    <div class="cartao">
+      <div class="rotulo">Materiais</div>
+      <div id="itens"></div>
+      <button type="button" id="btn-add-item" class="botao secundario">+ Adicionar outro material</button>
+    </div>
+
+    <div class="cartao">
+      <div class="duas-colunas">
+        <label class="campo"><span id="rotulo-data">Data da compra</span><input type="date" id="data"></label>
+        <label class="campo"><span id="rotulo-venc">Vencimento (pagar até)</span><input type="date" id="vencimento"></label>
+      </div>
+      <label class="campo" id="campo-nf" hidden><span>Nota fiscal (opcional)</span><input id="nf" inputmode="numeric" maxlength="40"></label>
+      <label class="campo"><span>Observação (opcional)</span><textarea id="observacao" rows="2" maxlength="1000"></textarea></label>
+    </div>
+
+    <div class="cartao">
+      <div class="rotulo">Fotos e arquivos (opcional)</div>
+      <div class="duas-colunas">
+        <label class="botao secundario arquivo">📷 Tirar foto<input type="file" id="arq-camera" accept="image/*" capture="environment"></label>
+        <label class="botao secundario arquivo">📎 Foto ou PDF<input type="file" id="arq-galeria" accept="image/*,application/pdf" multiple></label>
+      </div>
+      <ul id="lista-anexos" class="anexos"></ul>
+    </div>
+
+    <div class="total-fixo">
+      <div>Total <strong id="total">R$ 0,00</strong></div>
+      <button type="button" id="btn-conferir" class="botao confirmar">Conferir e salvar</button>
+    </div>
+  </section>
+
+  <section id="tela-conferir" hidden>
+    <div class="barra-titulo">
+      <button type="button" class="voltar" id="btn-voltar-corrigir">← Corrigir</button>
+      <h1>Está tudo certo?</h1>
+    </div>
+    <div class="cartao resumo" id="resumo"></div>
+    <button type="button" id="btn-salvar" class="botao-gigante confirmar-final">✅ Está certo, SALVAR</button>
+    <button type="button" class="botao secundario" id="btn-corrigir">✏️ Não, quero corrigir</button>
+  </section>
+
+  <section id="tela-sucesso" class="centro" hidden>
+    <div class="check" aria-hidden="true">✅</div>
+    <p class="grande-texto" id="msg-sucesso"></p>
+    <p id="msg-sucesso-detalhe"></p>
+    <button type="button" class="botao-gigante compra" id="btn-outro">➕ Fazer outro lançamento</button>
+    <button type="button" class="botao medio" data-ir="inicio">🏠 Início</button>
+  </section>
+
+  <section id="tela-historico" hidden>
+    <div class="barra-titulo">
+      <button type="button" class="voltar" data-ir="inicio">← Início</button>
+      <h1 id="titulo-historico">Meus lançamentos</h1>
+    </div>
+    <div id="lista-historico"></div>
+  </section>
+</main>
+
+<div id="visualizador" class="visualizador" hidden>
+  <button type="button" class="fechar" id="btn-fechar-visualizador">✕ Fechar</button>
+  <img id="img-visualizador" alt="Anexo">
+</div>
+<div id="aviso" class="aviso" role="status" aria-live="polite" hidden></div>
+<script type="module" src="/rapido/rapido.js?v=20261108-1"></script>
+</body>
+</html>

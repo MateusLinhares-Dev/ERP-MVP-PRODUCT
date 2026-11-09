@@ -157,12 +157,15 @@ function frontend(response,shouldThrow=false){
 }
 
 test('navegador não oculta compra ou título quando API retorna vínculo financeiro',async()=>{
-  const {scope,messages}=frontend({ok:false,status:409,json:async()=>({code:'PURCHASE_HAS_LINKS',message:'linked'})});
+  const {scope,messages}=frontend({ok:false,status:409,json:async()=>({code:'PURCHASE_HAS_LINKS',message:'Existem vínculos financeiros nesta compra. Não é possível excluí-la sem estorno e conciliação.'})});
   await scope.executePurchaseDelete('T310');
   assert.ok(scope.TICKETS_DB.T310);
   assert.equal(scope.CONTAS_PAGAR.length,1);
   assert.equal(scope.TICKETS_DELETED.size,0);
-  assert.match(messages.at(-1).message,/vínculo financeiro/);
+  assert.match(messages.at(-1).message,/vínculos financeiros/,'mostra o motivo real enviado pelo servidor');
+  const semMensagem=frontend({ok:false,status:409,json:async()=>({code:'PURCHASE_HAS_PAYMENTS'})});
+  await semMensagem.scope.executePurchaseDelete('T310');
+  assert.match(semMensagem.messages.at(-1).message,/vínculo financeiro/);
 });
 
 test('navegador remove ticket local somente após resposta CONFIRMED da API',async()=>{

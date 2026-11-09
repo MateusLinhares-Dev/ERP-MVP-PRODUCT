@@ -35,7 +35,7 @@ function parseBR(value){
   return Number.isFinite(parsed)?parsed:0;
 }
 function today(){
-  return new Date().toISOString().slice(0,10);
+  return new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
 }
 function tickets(){
   try{return TICKETS_DB||{};}catch(e){return {};}
@@ -128,7 +128,12 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
     });
   });
   const issues=[];
+  // Mantido por compatibilidade: um adiantamento com vínculo inválido deixa de
+  // ser oferecido, mas NÃO impede compras que não o utilizam.
   const blockedIssues=[];
+  // Número que esta compra vai receber: o servidor aceita adiantamento vinculado ao próprio pedido.
+  let reservedNumber='';
+  try{reservedNumber=String(body?.dataset?.purchaseReservedNumber||(typeof getNextTicketId==='function'?getNextTicketId():'')||'').trim();}catch(e){reservedNumber='';}
   const all=(ADT_POR_FORN[code]||[]).filter(function(a){return a&&String(a.status||'Pendente').trim().toLowerCase()==='pendente'&&Number(a.valor||0)>0;});
   const eligible=[];
   let trackedSource=false;
@@ -153,9 +158,10 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
       return;
     }
     if(linked&&!origin&&!sourceKeys.has(linked)){
-      const message='O adiantamento '+(id||'sem código')+' está vinculado a uma compra que não está mais no histórico. É necessário conferir a compensação antes de reutilizá-lo.';
-      issues.push(message);
-      blockedIssues.push(message);
+      if(reservedNumber&&linked===reservedNumber&&!a.ticketOrigem){eligible.push(a);return;}
+      // Fail-closed apenas para ESTE adiantamento: não é oferecido nem libera
+      // crédito residual, mas as demais compras do fornecedor continuam possíveis.
+      issues.push('O adiantamento '+(id||'sem código')+' está vinculado ao ticket '+linked+', que não está no histórico, e não será oferecido nesta compra. Se ele ainda não foi usado, edite o adiantamento e limpe o campo "Vinculado ao Ticket".');
       return;
     }
     if(linked&&!a.ticketOrigem&&!sourceKeys.has(linked))return;
@@ -579,14 +585,20 @@ global.phase4PurchaseRecalc=function(){
   // Uma redução em pedido liquidado não gera crédito automaticamente.
   // O servidor exige conciliação financeira: a prévia não pode anunciar R$ 30
   // como saldo disponível antes que essa reconciliação seja confirmada.
-  const requiresReconciliation=Boolean(state.editKey&&balance<0&&Number(state.originalBalance||0)>=0);
-  set('phase4-po-balance',requiresReconciliation
-    ? 'Requer conciliação: R$ '+money(Math.abs(balance))
-    : (balance<0?'Crédito R$ ':'R$ ')+money(Math.abs(balance)));
+  const reducesSettled=Boolean(state.editKey&&balance<0&&Number(state.originalBalance||0)>=0);
+  // Compra paga com adiantamento (recibo v2): a diferença volta ao adiantamento.
+  const refundsAdvance=reducesSettled&&state.advanceRefundable===true&&Math.abs(balance)<=Number(state.appliedAdvance||0)+0.005;
+  const requiresReconciliation=reducesSettled&&!refundsAdvance;
+  set('phase4-po-balance',refundsAdvance
+    ? 'R$ 0,00 · volta ao adiantamento: R$ '+money(Math.abs(balance))
+    : requiresReconciliation
+      ? 'Requer conciliação: R$ '+money(Math.abs(balance))
+      : (balance<0?'Crédito R$ ':'R$ ')+money(Math.abs(balance)));
   const balanceEl=document.getElementById('phase4-po-balance');
   if(balanceEl){
     balanceEl.classList.toggle('credit',balance<0&&!requiresReconciliation);
-    balanceEl.title=requiresReconciliation?'Compra já liquidada: revisão financeira necessária antes de alterar o total.':'';
+    balanceEl.title=refundsAdvance?'Ao salvar, a diferença volta como saldo disponível do adiantamento usado nesta compra.'
+      :requiresReconciliation?'Compra já liquidada: revisão financeira necessária antes de alterar o total.':'';
   }
   storeState(body,state);
   return {productTotal,total,advances,balance};
@@ -1119,7 +1131,10 @@ function purchaseEditError(result,status){
     EDIT_IN_PROGRESS:'Há outra alteração financeira em andamento para este pedido. Aguarde alguns segundos e tente novamente.',
     DATABASE_UNAVAILABLE:'A conexão com o banco de dados oscilou e a edição não foi confirmada. Tente novamente em alguns segundos.',
     SESSION_EXPIRED:'Sua sessão expirou. Entre novamente no sistema.',
-    TOTAL_MISMATCH:'O total do pedido não confere com os itens. Revise quantidades, preços, desconto e frete.'
+    TOTAL_MISMATCH:'O total do pedido não confere com os itens. Revise quantidades, preços, desconto e frete.',
+    PAID_REFUND_REQUIRED:result?.message||'A redução passa do valor pago com adiantamento. A diferença foi paga pelo banco: faça o estorno no financeiro.',
+    CREDIT_RECONCILIATION_REQUIRED:'Esta compra usou crédito residual do fornecedor. A redução precisa de conciliação no financeiro.',
+    ADVANCE_RECEIPT_MISMATCH:result?.message||'O recibo de adiantamento desta compra não confere. A compra não foi alterada.'
   };
   const error=new Error(messages[code]||(status===409?'Não foi possível conciliar este pedido. Reabra o histórico para consultar o registro atualizado.':result?.message||'Não foi possível confirmar a edição.'));
   error.code=code;
@@ -1174,6 +1189,10 @@ async function purchaseEditWithReconciliation(key,ticket,state){
   if(result.saldo&&typeof SALDO_DEVEDOR_FORN!=='undefined')SALDO_DEVEDOR_FORN[state.supplierCode]=result.saldo;
   if(result.creditLegacy&&!result.saldo&&typeof SALDO_DEVEDOR_FORN!=='undefined')SALDO_DEVEDOR_FORN[state.supplierCode]=result.creditLegacy;
   if(result.payable&&typeof CONTAS_PAGAR!=='undefined'){const index=CONTAS_PAGAR.findIndex(c=>String(c?.id||'')===String(result.payable.id||''));if(index>=0)CONTAS_PAGAR[index]=result.payable;else CONTAS_PAGAR.push(result.payable);}
+  if(result.advanceRefund&&Number(result.advanceRefund.valor)>0){
+    const codes=(result.advanceRefund.adiantamentos||[]).map(function(row){return row.cod;}).join(', ');
+    try{showToast('R$ '+money(result.advanceRefund.valor)+' voltou como saldo do adiantamento '+codes+'.','success',8000);}catch(e){}
+  }
   return result.ticket;
 }
 global.phase4PurchaseSave=async function(){
@@ -1360,6 +1379,11 @@ function stateForExistingTicket(key,cloudTicket){
     dueDate:isoDate(ticket.vencimentoSaldo||po.vencimentoSaldo||ticket.data),
     sourceTicketKeys:[],adts:[],cheques:[],previousCredit:0,
     appliedAdvance:Number(ticket.adiantamento||0)||0,
+    // Recibo v2: uma redução pode devolver a diferença ao próprio adiantamento.
+    advanceRefundable:Number(ticket.reciboFinanceiro?.versao)===2&&
+      (ticket.reciboFinanceiro?.adiantamentos||[]).some(function(row){return Number(row?.valorAplicado||0)>0;})&&
+      !(ticket.reciboFinanceiro?.cheques||[]).some(function(row){return Number(row?.valorAplicado||0)>0;})&&
+      !(Number(ticket.creditoFornecedorAplicado||0)>0),
     originalBalance:Number(ticket.saldoPagar||0),
     originalTotal:Number(ticket.totalGeral||0)||0,
     // Preserve legacy extras/taxes outside the product grid (e.g. extra services).

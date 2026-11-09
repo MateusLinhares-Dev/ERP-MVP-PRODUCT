@@ -18,7 +18,7 @@
         },
         {
           "key": "Permissions-Policy",
-          "value": "camera=(self), microphone=(), geolocation=(), payment=(), usb=(self), serial=(self)"
+          "value": "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(self), serial=(self)"
         },
         {
           "key": "Strict-Transport-Security",
@@ -47,6 +47,17 @@
       ]
     }
   ],
+  "functions": {
+    "api/quick/interpret.js": {
+      "maxDuration": 30
+    },
+    "api/quick/purchase.js": {
+      "maxDuration": 30
+    },
+    "api/quick/attachment.js": {
+      "maxDuration": 30
+    }
+  },
   "git": {
     "deploymentEnabled": {
       "*": false,

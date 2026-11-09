@@ -250,9 +250,14 @@ test('baixa ou alteração posterior do cheque impede exclusão destrutiva',asyn
   const made=await createAdvance(finance,chequeInput,{db});
   db.state.erp.chequesControle[made.cheques[0].id].s='C';
   await assert.rejects(()=>changeAdvance(finance,{action:'delete',operationId:'c1ecf4ba-cc27-4b1b-b1b1-47a3cb57fb94',
-    fornCod:'F-001',adtCod:made.advance.cod,expected:made.advance},{db}),{code:'CHEQUE_LEDGER_CHANGED'});
+    fornCod:'F-001',adtCod:made.advance.cod,expected:made.advance},{db}),{code:'CHEQUE_ALREADY_CLEARED',message:/reabra o cheque/});
   assert.equal(db.updates,1);
   assert.equal(db.state.erp.chequesControle[made.cheques[0].id].s,'C');
+  // Reaberto em "Cheques a compensar" (s:'A', cd:''), a exclusão volta a ser possível.
+  Object.assign(db.state.erp.chequesControle[made.cheques[0].id],{s:'A',cd:''});
+  const removed=await changeAdvance(finance,{action:'delete',operationId:'c1ecf4ba-cc27-4b1b-b1b1-47a3cb57fb95',
+    fornCod:'F-001',adtCod:made.advance.cod,expected:made.advance},{db});
+  assert.equal(removed.removedCode,made.advance.cod);
 });
 
 test('perfil de Adiantamentos não herda leitura de bancos, fornecedores e outros financeiros',()=>{

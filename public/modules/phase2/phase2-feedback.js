@@ -8,7 +8,7 @@ const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
 const money=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const kg=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:3});
-const today=()=>new Date().toISOString().slice(0,10);
+const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
 const notify=(msg,type='success',time=4500)=>{try{if(typeof showToast==='function')showToast(msg,type,time);else alert(msg);}catch(e){}};
 const activeEmployee=f=>{if(!f)return false;const st=norm(f.status||'Ativo');return !['inativo','demitido','desligado','rescindido'].includes(st)&&f.ativo!==false;};
 function parseMoney(v){let s=String(v||'').trim().replace(/[^0-9,.-]/g,'');if(!s)return 0;if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');return Number(s)||0;}

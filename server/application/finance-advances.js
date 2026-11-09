@@ -56,13 +56,13 @@ async function resolveDatabase(db){
   return getFirebaseAdmin().db;
 }
 
-function supplierTombstones(raw){
+export function supplierTombstones(raw){
   if(Array.isArray(raw))return new Set(raw.filter(value=>value!=null).map(value=>String(value)));
   if(!raw||typeof raw!=='object')return new Set();
   return new Set(Object.entries(raw).filter(([,value])=>value===true||value===1||value==='true').map(([key])=>String(key)));
 }
 
-function supplierOptions(raw,deletedCodes,deletedIds){
+export function supplierOptions(raw,deletedCodes,deletedIds){
   const byCode=new Map();
   for(const [key,supplier] of Object.entries(raw&&typeof raw==='object'?raw:{})){
     if(!supplier||typeof supplier!=='object'||Array.isArray(supplier))continue;
@@ -634,6 +634,8 @@ export async function changeAdvance(identity,input,{db,now=()=>Date.now(),uuid=r
     if(linkedChequeIds.length){
       for(const chequeId of linkedChequeIds){
         const cheque=(await db.ref('erp/chequesControle/'+chequeId).get()).val();
+        if(cheque&&cheque.advanceCode===adtCod&&cheque.s==='C')
+          failure(409,'CHEQUE_ALREADY_CLEARED','O cheque nº '+clean(cheque.n,40)+' deste adiantamento já foi compensado. Para alterar ou excluir o adiantamento, primeiro reabra o cheque em "Cheques a compensar".');
         if(!cheque||cheque.advanceCode!==adtCod||cheque.fornCod!==fornCod||
           !previous.chequeFingerprints||chequeFingerprint(cheque)!==previous.chequeFingerprints[chequeId])
           failure(409,'CHEQUE_LEDGER_CHANGED','Cheque vinculado foi alterado. A operação foi bloqueada para evitar divergências.');
