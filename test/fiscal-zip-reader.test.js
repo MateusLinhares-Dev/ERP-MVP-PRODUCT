@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {deflateRawSync} from 'node:zlib';
 import {extractXmlsFromZip} from '../public/modules/phase1/fiscal-zip-reader.js';
-// Constrói ZIP padrão sem dependências externas, com 2 arquivos e directórios.
 const u16=(n)=>{const b=Buffer.alloc(2);b.writeUInt16LE(n);return b;};
 const u32=(n)=>{const b=Buffer.alloc(4);b.writeUInt32LE(n>>>0);return b;};
 function makeZip(entries){

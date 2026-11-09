@@ -1,4 +1,3 @@
-/* Busca global de módulos existentes. Somente abas exibidas pela ACL da aplicação. */
 (function () {
   'use strict';
   const $=(selector,root=document)=>root.querySelector(selector);

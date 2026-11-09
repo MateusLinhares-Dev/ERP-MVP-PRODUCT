@@ -1,4 +1,3 @@
-/* Prévia de importação RH iD: compacta, pesquisável e paginada. */
 .rhid-preview-panel{border:1px solid #bad9c7;background:#f7fcf8;border-radius:10px;padding:14px;overflow:visible}
 .rhid-preview-description{font-size:.83rem;color:#4a6758;margin:6px 0 12px;line-height:1.45}
 .rhid-preview-toolbar{display:flex;align-items:flex-end;gap:16px;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap}
@@ -38,7 +37,6 @@
 .rhid-preview-toolbar .rhid-refresh-employees{border:1px solid #bed9c8;border-radius:7px;background:#fff;color:#23533b;padding:10px 12px;min-height:38px;cursor:pointer;font-weight:700;white-space:nowrap}
 .rhid-preview-refresh-status{display:block;min-height:1em;margin-top:-6px;margin-bottom:8px;color:#587666;font-size:.75rem}
 
-/* Busca de funcionários RH iD independente do seletor global. */
 .rhid-picker{position:relative;width:100%;min-width:0}
 .rhid-preview-table select.rhid-picker-native{display:none!important}
 .rhid-picker-control{display:flex;position:relative;align-items:center;width:100%}

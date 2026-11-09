@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {getCompanyDirectory,changeCompanyDirectory,companyDirectoryResponse,isValidCompanyDirectory} from '../server/domain/company-directory.js';
+import {getCompanyDirectory,changeCompanyDirectory,companyDirectoryResponse,isValidCompanyDirectory} from '../server/modules/company/domain/company-directory.js';
 
 const copy=value=>value===undefined?undefined:JSON.parse(JSON.stringify(value));
 
@@ -67,8 +67,8 @@ test('cadastro existente sem listas vazias ainda permite inclusão e exclusão c
 });
 
 test('endpoint de configuração visual não depende de sucesso do cadastro de empresas',()=>{
-  const source=readFileSync(new URL('../server/application/get-public-branding.js',import.meta.url),'utf8');
-  assert.match(source,/try\s*\{\s*directory\s*=\s*await getCompanyDirectory/);
+  const source=readFileSync(new URL('../server/modules/company/application/get-public-branding.ts',import.meta.url),'utf8');
+  assert.match(source,/try\s*\{\s*return await getCompanyDirectory/);
   assert.match(source,/catch\s*\(error\)\s*\{/);
-  assert.match(source,/directory\s*=\s*\{revision:0,companies:\[\],inactiveCompanies:\[\],deletedCompanies:\[\]\}/);
+  assert.match(source,/return \{ revision: 0, companies: \[\], inactiveCompanies: \[\], deletedCompanies: \[\] \}/);
 });

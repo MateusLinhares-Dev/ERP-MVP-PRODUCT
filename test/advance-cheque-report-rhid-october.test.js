@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {listAdvanceCheques} from '../server/application/finance-advances.js';
+import {listAdvanceCheques} from '../server/modules/advances/application/advances.js';
 import '../public/modules/phase1/rhid-card-reader.js';
 import '../public/modules/finance/advance-cheque-report.js';
 
@@ -61,7 +61,6 @@ test('relatório só lista cheques vinculados a adiantamentos, sem sigilo bancá
 test('perfil sem Adiantamentos não recebe relatório',async()=>{
   await assert.rejects(listAdvanceCheques({...allowed,canAdvances:false},{db:fakeDb({})}),error=>error.status===403);
 });
-
 
 test('cheques de cliente marcados como adiantamento entram na tabela só com canFinance',async()=>{
   const db=fakeDb({'erp/chequesControle':cheques,'erp/chequesCli':{

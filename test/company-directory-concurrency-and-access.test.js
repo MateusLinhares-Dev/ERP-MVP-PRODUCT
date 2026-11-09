@@ -2,20 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
+import {changeCompanyConfig,normalizeEmployeeCompanies} from '../server/modules/company/index.ts';
 
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
-const api=read('api/admin/employee-companies.js');
+const api=read('api/admin/employee-companies.ts')+'\n'+read('server/modules/company/application/company-directory-service.ts')+'\n'+read('server/modules/company/domain/company-config.ts');
 const core=read('public/legacy/app-core.js');
 const sync=read('public/legacy/firebase-sync.js');
 const store=read('public/modules/phase1/phase1-store.js');
-const branding=read('server/application/get-public-branding.js');
+const branding=read('server/modules/company/application/get-public-branding.ts');
 
 function backend(){
-  const start=api.indexOf('function companyKey(value)');
-  const end=api.indexOf('export default async function handler',start);
-  const ctx={};
-  runInNewContext(api.slice(start,end).replaceAll('export function','function')+'\nthis.changeCompanyConfig=changeCompanyConfig;',ctx);
-  return ctx.changeCompanyConfig;
+  return changeCompanyConfig;
 }
 function frontend(){
   const start=core.indexOf('function _cfgPublicBusiness(){');
@@ -68,7 +65,7 @@ test('configuração antiga não sobrescreve nova revisão durante sincronizaç�
   assert.match(sync,/const currentDirectory=window\.__ERP_COMPANY_DIRECTORY_STATE__/);
   assert.match(sync,/deletedCompanies:\(source\.deletedCompanies\|\|\[\]\)\.slice\(\)/);
   assert.match(core,/revision<\(Number\(window\.__ERP_COMPANY_DIRECTORY_REVISION__\)\|\|0\)/);
-  assert.match(api,/companyDirectoryRevision=/);
+  assert.match(api,/cfg\.companyDirectoryRevision = nextRevision/);
   assert.match(branding,/companyDirectoryRevision:/);
   assert.match(api,/companyDirectoryResponse\(await getCompanyDirectory\(db\)\)/);
 });

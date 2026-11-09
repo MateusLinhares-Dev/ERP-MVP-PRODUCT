@@ -14,8 +14,6 @@ if(isProd && process.env.CONFIRM_PRODUCTION_DEPLOY!=='MANUELA_PROD'){
   console.error('[DEPLOY] Produção bloqueada. Defina CONFIRM_PRODUCTION_DEPLOY=MANUELA_PROD conscientemente.');
   process.exit(2);
 }
-// Publicar regras genéricas mantém acesso transversal a dados do cliente.
-// Nunca fazer deploy acidental de um wildcard sem revisão explícita.
 const rules=JSON.parse(fs.readFileSync(path.join(process.cwd(),'database.rules.json'),'utf8'));
 const generic=rules.rules?.erp?.$node;
 if(generic && (String(generic['.read']||'').includes('erpAccess == true') || String(generic['.write']||'').includes('erpAccess == true'))){

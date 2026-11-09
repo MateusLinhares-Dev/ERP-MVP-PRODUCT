@@ -17,7 +17,6 @@ function byText(root,selector,re){return $$(selector,root).find(el=>re.test(Stri
 function removeByText(root,selector,re){$$(selector,root).forEach(el=>{const all=(el.textContent||'')+' '+(el.getAttribute('onclick')||'');if(re.test(all))el.remove();});}
 function filterRows(body,q){q=norm(q);if(!body)return;Array.from(body.rows||[]).forEach(row=>{row.hidden=!!q&&!norm(row.textContent).includes(q);});}
 
-/* ---------- Compra de sucata: observação também no histórico ---------- */
 let purchaseDetailKey='';
 const originalPurchaseDetail=global.abrirDetalheCompra;
 if(typeof originalPurchaseDetail==='function'){
@@ -67,7 +66,6 @@ global.phase2PurchaseObsSave=function(index,value){
   },180);
 };
 
-/* ---------- UI transversal ---------- */
 function removeNumberSpinners(){
   $$('input[type="number"]').forEach(input=>input.classList.add('phase2-no-spinner'));
 }
@@ -77,7 +75,6 @@ function fixPartyBanks(){
   if(supplierTab)removeByText(supplierTab,'button',/restaurarfornecedores|restaurar/i);
 }
 
-/* ---------- Calendário compacto ---------- */
 function rebuildCalendarTools(){
   const tab=$('#tab-afazeres');if(!tab)return;
   $('#phase1-calendar-tools')?.remove();
@@ -109,7 +106,6 @@ function renderCompactCalendarHistory(){
   h.innerHTML='<div class="phase2-section-head"><b>Histórico recente</b><small>Últimos 30 registros</small></div>'+arr.slice(0,30).map(a=>`<div class="phase2-cal-hrow"><span>${esc(a.data||String(a.criadoEm||'').slice(0,10)||'—')}</span><b>${esc(a.texto||'')}</b><em class="${a.feito?'ok':'pending'}">${a.feito?'Concluído':'Pendente'}</em></div>`).join('');
 }
 
-/* ---------- Preços: busca de pessoa e material ---------- */
 function ensurePriceSearch(tabId,selectId,renderFn){
   const tab=$('#'+tabId);if(!tab)return;
   if(tab.querySelector('.phase3-price-combo'))return;
@@ -129,7 +125,6 @@ function filterSelectOptions(select,q){
 function filterPriceMaterialRows(tab,q){q=norm(q);$$('tbody tr',tab).forEach(row=>{row.hidden=!!q&&!norm(row.textContent).includes(q);});const addSel=tab.querySelector('select[id*="add-mat"],select[id*="mat"]');if(addSel)filterSelectOptions(addSel,q);}
 function priceSearches(){ensurePriceSearch('tab-precos_fornecedores','pf-forn-sel');ensurePriceSearch('tab-precos_clientes','pc-cli-sel');}
 
-/* ---------- Cheques ---------- */
 const originalRenderChequeControl=global.renderChequesCompensar;
 const originalChqSetBusca=global.chqSetBusca;
 const originalChqModal=global._chqModal;
@@ -137,8 +132,6 @@ const originalChqSave=global.chqSalvarModal;
 function chequeData(){let obj={};try{obj=CHQ_CTRL||{};}catch(e){}return Object.values(obj||{}).filter(Boolean);}
 function chequeNumber(c){const n=parseInt(String(c?.n||c?.num||c?.numero||'').replace(/\D/g,''),10);return Number.isFinite(n)?n:null;}
 function chequeBank(c){return String(c?.b||c?.banco||c?.bank||'').trim();}
-// Computa saltos entre numeros cadastrados; nunca percorre numeros nao cadastrados.
-// Um intervalo de ate 250 posicoes e uma lacuna; acima disso pode indicar outro talao.
 const CHEQUE_LARGE_JUMP=250;
 const CHEQUE_MAX_RANGES_SHOWN=3;
 function chequeSequenceByBank(){
@@ -160,8 +153,6 @@ function chequeSequenceByBank(){
       missingCount+=gap;
       if(range.large)largeJumps++;
     }
-    // `missing` e mantido apenas como amostra pequena para consumidores legados.
-    // Nunca construa uma lista proporcional ao intervalo numerico.
     const missing=[];
     for(const range of ranges){
       if(range.large)continue;
@@ -186,7 +177,6 @@ function chequeGapSummary(group){
   }
   return parts.length?parts.join(' · '):'✓ Sequência sem lacunas internas';
 }
-// Mantem a lista de inconsistencias compacta: nunca enumera saltos extensos.
 const CHEQUE_REVIEW_MAX_ROWS=48;
 const CHEQUE_REVIEW_EXPAND_SMALL=8;
 function chequeReviewRows(groups){
@@ -292,7 +282,6 @@ global.phase2ChequeCreateMissing=function(bank,value){
   bankField.value=bank;numField.value=String(number);
   bankField.dispatchEvent(new Event('change',{bubbles:true}));
   numField.dispatchEvent(new Event('input',{bubbles:true}));
-  // Nenhum outro dado do cheque e preenchido automaticamente.
 };
 function phase2FilterChequeRows(q){q=norm(q);$$('#tab-cheques_compensar tbody tr').forEach(row=>row.hidden=!!q&&!norm(row.textContent).includes(q));}
 if(typeof originalRenderChequeControl==='function')global.renderChequesCompensar=function(){const result=originalRenderChequeControl.apply(this,arguments);setTimeout(cleanChequeControl,0);return result;};
@@ -377,7 +366,6 @@ if(typeof originalChqSave==='function')global.chqSalvarModal=function(){
   return r;
 };
 
-/* ---------- Contas a pagar empresarial mais limpa + módulo pessoal da dona ---------- */
 let ownerBills={};
 function simplifyPayables(){
   const tab=$('#tab-contas_pagar');if(!tab)return;
@@ -414,7 +402,6 @@ global.phase2OwnerBillSave=async function(){if(!store)return;const desc=String($
 global.phase2OwnerBillToggle=async id=>{if(!ownerBills[id]||!store)return;const changed={...ownerBills[id],active:ownerBills[id].active===false};try{await store.save('ownerBills',id,changed);ownerBills[id]=changed;renderOwnerBills();}catch(error){console.error('[Contas da Dona] Alteração não confirmada',error);notify('Alteração não salva no Firebase.','error');}};
 global.phase2OwnerBillRemove=async id=>{if(!ownerBills[id]||!store||!confirm('Excluir esta conta pessoal recorrente?'))return;delete ownerBills[id];await store.remove('ownerBills',id);renderOwnerBills();};
 
-/* ---------- Adiantamentos ---------- */
 const originalOm=global.om;
 if(typeof originalOm==='function')global.om=function(type){const r=originalOm.apply(this,arguments);setTimeout(()=>{if(type==='adiantamento')enhanceAdvanceModal();},0);return r;};
 function enhanceAdvanceModal(){
@@ -434,7 +421,6 @@ function cleanAdvances(){
   const search=$('#adt-busca-forn');if(search&&!search.dataset.phase2Bound){search.dataset.phase2Bound='1';search.removeAttribute('oninput');search.addEventListener('input',()=>{filterRows($('#tb-adiantamentos-list'),search.value);});}
 }
 
-/* ---------- Almoxarifado + EPI unificados ---------- */
 function isDiscreteItem(item){const u=norm(item?.un||'un');return !['kg','g','grama','gramas','l','lt','litro','litros','m','metro','metros','m2','m²','m3','m³'].includes(u);}
 function isEpiItem(item){const n=norm((item?.nome||'')+' '+(item?.cat||''));return /epi|luva|capacete|botina|bota|oculos|óculos|mascara|máscara|protetor|auricular|abafador|avental|mangote|cinto|colete|respirador|viseira|perneira/.test(n);}
 const originalAlxSaveItem=global.alxSalvarItem;
@@ -483,7 +469,6 @@ function addAlxMovementEdit(){const div=$('#alx-func-tabela');if(!div)return;$$(
 global.phase2AlxEditMovement=function(idx){let m=null;try{m=ALX_MOV?.[idx];}catch(e){}if(!m)return;const body=$('#modal-body');if(!body)return;body.className='modal';body.innerHTML=`<h3>✏️ Editar retirada do Almoxarifado</h3><div class="fg"><label>Data</label><input id="p2am-date" type="date" value="${esc(m.data||today())}"></div><div class="fg"><label>Quantidade</label><input id="p2am-qty" type="number" min="1" step="1" value="${Number(m.qtd||1)}"></div><div class="fg"><label>Observação</label><input id="p2am-obs" value="${esc(m.obs||'')}"></div><div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="phase2AlxSaveMovement(${idx})">Salvar</button></div>`;$('#modal-ov')?.classList.add('open');};
 global.phase2AlxSaveMovement=function(idx){let m=null,item=null;try{m=ALX_MOV?.[idx];item=(ALX_ITENS||[]).find(x=>x.nome===m.item);}catch(e){}if(!m)return;const newQty=Number($('#p2am-qty')?.value)||0;if(!(newQty>0)||(item&&isDiscreteItem(item)&&!Number.isInteger(newQty))){notify('Quantidade inválida.','error');return;}if(item){const delta=newQty-Number(m.qtd||0);if(delta>Number(item.qtd||0)){notify('Estoque insuficiente para aumentar esta retirada.','error');return;}item.qtd=Number(item.qtd||0)-delta;}m.qtd=newQty;m.data=$('#p2am-date')?.value||m.data;m.obs=String($('#p2am-obs')?.value||'').trim();try{if(m.epiId){const e=(EPI_DB||[]).find(x=>x.id===m.epiId);if(e){e.qtd=newQty;e.data=m.data.split('-').reverse().join('/');e.motivo=m.obs;saveEpi();}}saveAlmoxa();cm();alxRenderPorFunc();alxRenderItens();notify('Retirada atualizada.','success');}catch(e){}};
 
-/* ---------- Frota: manutenção em linha do tempo ---------- */
 const originalFrotaFicha=global.frotaFicha;
 if(typeof originalFrotaFicha==='function')global.frotaFicha=function(veiId){const r=originalFrotaFicha.apply(this,arguments);setTimeout(()=>redesignFrotaFicha(veiId),0);return r;};
 function phase2DateKey(value){const s=String(value||'');if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){const [d,m,y]=s.split('/');return y+m+d;}return s.replace(/\D/g,'');}
@@ -495,7 +480,6 @@ function redesignFrotaFicha(veiId){
 function maintenanceCard(m,idx){const desc=String(m.desc||'').split('\n').filter(Boolean),status=String(m.status||'');return `<article class="phase2-maint-card" data-search="${esc(norm([m.tipo,m.desc,m.oficina,m.status].join(' ')))}" data-status="${esc(status)}"><div class="date">${esc(m.data||'—')}</div><div class="main"><div><span class="type">${esc(m.tipo||'Manutenção')}</span><span class="status ${status==='Concluída'?'ok':''}">${esc(status||'—')}</span></div><b>${esc(desc[0]||m.obsNota||'Sem descrição')}</b><small>${[m.oficina&&'Oficina: '+m.oficina,m.km&&'Km: '+Number(m.km).toLocaleString('pt-BR'),m.revisao&&'Próxima revisão: '+m.revisao].filter(Boolean).map(esc).join(' · ')}</small>${desc.slice(1,4).map(x=>`<em>• ${esc(x)}</em>`).join('')}</div><strong>R$ ${money(m.custo)}</strong><button onclick="editManutencao(${idx})">✏️</button></article>`;}
 global.phase2FrotaFilter=function(){const q=norm($('#p2-frota-search')?.value),st=$('#p2-frota-status')?.value||'';$$('.phase2-maint-card').forEach(c=>c.hidden=(q&&!String(c.dataset.search||'').includes(q))||(st&&c.dataset.status!==st));};
 
-/* ---------- Viagem: organizar em etapas ---------- */
 function redesignTrip(){
   const tab=$('#tab-viagem_motorista');if(!tab||tab.dataset.phase2==='1')return;tab.dataset.phase2='1';
   const cards=Array.from(tab.children).filter(x=>x.classList?.contains('tcard'));
@@ -509,7 +493,6 @@ function redesignTrip(){
 }
 function refreshTripSummary(){const tab=$('#tab-viagem_motorista');if(!tab)return;let box=$('#phase2-trip-summary');if(!box){box=document.createElement('div');box.id='phase2-trip-summary';box.className='phase2-trip-summary';const obs=$('#vg-obs')?.closest('.fg');obs?.insertAdjacentElement('beforebegin',box);}const meals=parseMoney($('#vg-alim-dia-show')?.textContent),advance=Number($('#vg-dinheiro-alim')?.value)||0,extra=Number($('#vg-gastos-extras')?.value)||0,fuel=Number($('#vg-comb')?.value)||0,daily=parseMoney($('#vg-total-show')?.textContent),settlement=advance-(meals+extra);if(box)box.innerHTML=`<div><small>Diárias</small><b>R$ ${money(daily)}</b></div><div><small>Refeições controladas</small><b>R$ ${money(meals)}</b></div><div><small>Combustível registrado</small><b>R$ ${money(fuel)}</b></div><div><small>Outras despesas</small><b>R$ ${money(extra)}</b></div><div class="${settlement<0?'warn':'ok'}"><small>${settlement>=0?'Motorista devolve':'Empresa reembolsa'}</small><b>R$ ${money(Math.abs(settlement))}</b></div>`;}
 const originalRenderTripsPhase2=global.renderViagens;if(typeof originalRenderTripsPhase2==='function')global.renderViagens=function(){const r=originalRenderTripsPhase2.apply(this,arguments);setTimeout(()=>{renderTripHistoryCards();renderTripDriverCosts();},0);return r;};
-/* Histórico de viagens em formato lista/detalhe; o modal de edição legado permanece independente. */
 let phase2TripSelectedRef='';
 let phase2TripSearch='';
 function phase2TripRef(trip,index){return trip?.id?'id:'+String(trip.id):'index:'+index;}
@@ -519,7 +502,6 @@ function phase2TripResolve(ref){
   if(ref.startsWith('index:')){const index=Number(ref.slice(6));return Number.isInteger(index)&&index>=0?records[index]||null:null;}
   return null;
 }
-// Mantém os selects legados, mas concentra os filtros apenas na listagem.
 function phase2TripPrepareHistory(host,tb,card){
   const controls=host.querySelector('.phase2-trip-archive-controls');
   const legacy=card.querySelector('#phase2-trip-legacy-table')||document.createElement('div');
@@ -592,14 +574,11 @@ function phase2TripSettlement(v,cost,advance){
   if(v.acertoDevolucao!=null&&v.acertoDevolucao!==''&&Number.isFinite(Number(v.acertoDevolucao)))return Number(v.acertoDevolucao);
   return advance-(cost.alimentacao+cost.extras);
 }
-// Campos do relatório legado apresentados somente na ficha da viagem selecionada.
 function phase2TripFullFinancialDetail(v,parts,advance,settlement){
   const days=Math.max(1,Number(v.numDiarias)||1);
   const limit=phase2TripCostValue($('#vg-limite-alim')?.value);
   const dailyMeal=parts.alimentacao/days;
   const dailyLimitStatus=limit?dailyMeal<=limit?'Dentro do limite':`Excedeu R$ ${money((dailyMeal-limit)*days)}`:'Não configurado';
-  // Usar pares descrição/valor em vez de <table>: estilos globais da tabela de viagens
-  // alteravam a largura das células e espalhavam os números fora da ficha.
   const field=(label,value)=>`<div class="phase2-trip-financial-row"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`;
   const curr=value=>'R$ '+money(value);
   const rate=Number(v.vlrDia)||(Number(v.diaria||0)+Number(v.pernoite||0));
@@ -652,7 +631,6 @@ function phase2TripShowSelected(host){
     ${detail.obs?`<section class="phase2-trip-record-section phase2-trip-record-obs"><h4>Observações</h4><p>${esc(detail.obs)}</p></section>`:''}`;
 }
 function phase2TripShowList(){phase2TripSelectedRef='';renderTripHistoryCards();}
-/* ---------- Viagens: acesso ao registro e análise mensal por motorista ---------- */
 const phase2TripCostValue=v=>{const n=Number(v);return Number.isFinite(n)&&n>0?n:0;};
 function phase2TripCostParts(v){
   const diarias=phase2TripCostValue(v.totalDiarias!==undefined?v.totalDiarias:(v.total!==undefined?v.total:(Number(v.diaria||0)+Number(v.pernoite||0))*Number(v.numDiarias||1)));
@@ -738,7 +716,6 @@ function phase2TripHistoryActions(){
     if(button.hasAttribute('data-trip-delete')){
       const id=button.dataset.tripDelete;
       if(!id||typeof global.excluirViagem!=='function')return notify('Não foi possível identificar esta viagem para exclusão.','error');
-      // A confirmação e a persistência são responsabilidade da função legada.
       global.excluirViagem(id);
       if(!phase2TripData().some(v=>String(v?.id||'')===id)){
         if(phase2TripSelectedRef==='id:'+id)phase2TripSelectedRef='';
@@ -765,14 +742,11 @@ if(typeof originalSaveTripPhase2==='function')global.salvarViagem=function(){
   return result;
 };
 
-/* ---------- Fiscal independente completo ---------- */
 let fiscalParties={};
 let fiscalLiveRef=null,fiscalLoadSeq=0,fiscalReadBlockedUntil=0;
 async function loadFiscalParties(){
  const seq=++fiscalLoadSeq;
  if(Date.now()<fiscalReadBlockedUntil)return;
- // O painel Fiscal e opcional. Nao inscrever listeners para funcionarios
- // sem canFiscalRead ou antes de a sessao Firebase estar autenticada.
  if(global.firebase && typeof global.firebase.auth==='function'){
    const user=global.firebase.auth()?.currentUser;
    if(!user)return;
@@ -786,7 +760,6 @@ async function loadFiscalParties(){
    const ref=db.ref('erp/fiscalParties');
    if(!fiscalLiveRef){
      fiscalLiveRef=ref;
-     // Sincronizar a lista de clientes E fornecedores em tempo real, sem precisar de F5.
      ref.on('value',snapshot=>{const value=snapshot.val();fiscalParties=value&&typeof value==='object'&&!Array.isArray(value)?value:{};renderFiscalRegistry();},error=>{
        const code=String(error?.code||error?.message||'');
        if(/permission.denied|permission_denied/i.test(code))fiscalReadBlockedUntil=Date.now()+60000;
@@ -833,7 +806,7 @@ function bindFiscalModal(prefix,inputId,typeSelectId){
   if(label)label.textContent=prefix==='ne'?'Fornecedor fiscal':'Cliente / fornecedor fiscal';
   const container=input.closest('.fg');if(!container)return;
   container.classList.add('phase2-fiscal-picker-field');
-  input.removeAttribute('list'); // o datalist nativo não abre consistentemente no Chrome
+  input.removeAttribute('list');
   input.setAttribute('autocomplete','off');
   input.setAttribute('role','combobox');
   input.setAttribute('aria-autocomplete','list');
@@ -855,7 +828,6 @@ function bindFiscalModal(prefix,inputId,typeSelectId){
       const label=document.createElement('strong');label.textContent=fiscalPickerKey(x);
       const detail=document.createElement('small');detail.textContent=x.cnpj||x.cpf||x.tradeName||x.id||'';
       option.append(label,detail);
-      // pointerdown precede o blur do campo; a opção continua selecionável por mouse e teclado.
       option.addEventListener('click',()=>{
         input.value=fiscalPickerKey(x);input.dataset.fiscalPartyId=String(x.id||'');
         menu.hidden=true;input.setAttribute('aria-expanded','false');input.dispatchEvent(new Event('change',{bubbles:true}));
@@ -874,7 +846,6 @@ function bindFiscalModal(prefix,inputId,typeSelectId){
   });
   typeSel?.removeAttribute('onchange');
   input.placeholder='Pesquisar cadastro fiscal pelo nome ou documento';
-  // O cache local pode estar vazio até a primeira resposta do Firebase.
   Promise.resolve(loadFiscalParties()).then(()=>{error='';if(document.activeElement===input)render('',true);})
     .catch(()=>{error='Não foi possível carregar cadastros fiscais. Verifique sua permissão ou conexão.';if(document.activeElement===input)render('',true);});
 }
@@ -888,7 +859,6 @@ global.fiscalConfigurarPessoa=function(id,tipo){const input=$('#'+id);if(input?.
 const legacyFiscalPopularPessoas=global.fiscalPopularPessoas;
 global.fiscalPopularPessoas=function(){const result=typeof legacyFiscalPopularPessoas==='function'?legacyFiscalPopularPessoas.apply(this,arguments):undefined;setTimeout(()=>{[['ne','ne-forn','ne-pessoa-tipo'],['ns','ns-cli','ns-pessoa-tipo'],['fe','fe-pessoa','fe-pessoa-tipo']].forEach(args=>{if($('#'+args[1]))bindFiscalModal(...args);});},0);return result;};
 
-/* ---------- Administração ---------- */
 function simplifyExpensesGroup(){const tab=$('#tab-despesas_grupo');if(!tab)return;tab.classList.add('phase2-expenses-group');const title=tab.querySelector('.sec-title');if(title)title.textContent='🏢 Despesas do Grupo';const tabs=$$('.desp-tab-btn',tab);tabs.forEach(b=>{const t=String(b.textContent||'');if(/Lançar/.test(t))b.textContent='＋ Nova despesa';if(/Extrato/.test(t))b.textContent='Despesas do mês';if(/Histórico/.test(t))b.textContent='Histórico';if(/Resumo/.test(t))b.textContent='Por fornecedor';});const search=$('#phase1-desp-search');if(search){search.placeholder='🔍 Buscar despesa...';title?.insertAdjacentElement('afterend',search);}if(tab.dataset.phase2Default!=='1'){tab.dataset.phase2Default='1';try{if(typeof switchDespTab==='function')switchDespTab('extrato');}catch(e){}}}
 const originalRenderContracts=global.renderContratos;
 if(typeof originalRenderContracts==='function')global.renderContratos=function(){const r=originalRenderContracts.apply(this,arguments);setTimeout(addContractRenameButtons,0);return r;};
@@ -909,7 +879,7 @@ function phase2ContractCleanName(input, original){
   const ext=extMatch?extMatch[1]:'';
   if(ext){
     if(name.toLowerCase().endsWith(ext.toLowerCase()))name=name.slice(0,-ext.length);
-    else if(/\.[a-z\d]{1,12}$/i.test(name))return null; // Não disfarçar a extensão real.
+    else if(/\.[a-z\d]{1,12}$/i.test(name))return null;
   }
   name=name.trim();
   if(!name||name.length>120||name==='.'||name==='..')return null;
@@ -966,10 +936,8 @@ global.phase2ContractRename=async function(i,button){
   }
   if(button)button.disabled=true;
   try{
-    // Não cria registro incompleto se o contrato já tiver sido removido ou ainda não tiver migrado.
     const exists=await db.ref('erp/contratos/'+id+'/id').once('value');
     if(String(exists.val()||'')!==id)throw new Error('Contrato não encontrado na base remota');
-    // O anexo é um data URL salvo no RTDB; alterar apenas o nome não reenvia os bytes.
     await db.ref('erp/contratos/'+id).update({arquivoNome:newName});
     c.arquivoNome=newName;
     try{localStorage.setItem('mm_contratos',JSON.stringify(CONTRATOS_DB));}catch(e){console.warn('Cache local de contratos indisponível, nome salvo no Firebase.',e);}
@@ -1008,11 +976,9 @@ function mergeCasaGloria(){
   $('#cc-aba-Casa Glória')?.remove();$$('[data-cc-area]').forEach(b=>{if(norm(b.getAttribute('data-cc-area'))==='casa gloria')b.remove();});const note=$('#phase1-house-history-note');if(note)note.textContent='Histórico preservado por período. Casa e Casa Glória foram consolidadas em Casa; Sítio e Veículos Pessoais permanecem separados.';
 }
 
-
 const originalCcConfigAreas=global._ccConfigAreas;
 if(typeof originalCcConfigAreas==='function')global._ccConfigAreas=function(){return (originalCcConfigAreas.apply(this,arguments)||[]).filter(x=>norm(x?.name||x)!=='casa gloria');};
 
-/* ---------- Coordenação ---------- */
 const originalCoordFuncRenderPhase2=global.coordFuncRender;if(typeof originalCoordFuncRenderPhase2==='function')global.coordFuncRender=function(){const r=originalCoordFuncRenderPhase2.apply(this,arguments);setTimeout(filterCoordFunctionCards,0);return r;};
 function filterCoordFunctionCards(){let inactive=[];try{inactive=(FUNCIONARIOS||[]).filter(f=>!activeEmployee(f));}catch(e){}const names=inactive.map(f=>norm(f.nome)).filter(Boolean);['#coord-func-grafico','#coord-func-cards'].forEach(sel=>{const root=$(sel);if(!root)return;Array.from(root.children).forEach(el=>{const t=norm(el.textContent);if(names.some(n=>t.includes(n)))el.remove();});});}
 function restoreCoordTypes(){const select=$('#reu-tipo');if(select&&select.options.length<4)select.innerHTML='<option value="reuniao">Reunião</option><option value="dds">DDS — Diálogo Diário de Segurança</option><option value="treinamento">Treinamento</option><option value="inspecao">Inspeção / Segurança</option><option value="outro">Outro</option>';if(select&&!$('#phase2-coord-type-help')){const help=document.createElement('small');help.id='phase2-coord-type-help';help.className='phase2-help';help.textContent='Escolha o tipo do registro. Os tipos padrão já estão disponíveis aqui; não é necessário cadastrar em outra tela.';select.insertAdjacentElement('afterend',help);}const bag=$('#bags-mov-tipo');if(bag&&bag.options.length<5)bag.innerHTML='<option value="entrada_novo">Compra / Entrada de bag limpa</option><option value="saida_novo">Saída de bag limpa</option><option value="entrada_usado">Bag recebida com carga de fornecedor</option><option value="saida_usado">Envio de bag suja para lavagem</option><option value="lavagem">Retorno da lavagem (suja → limpa)</option>';}
@@ -1021,14 +987,12 @@ const originalReuRender=global.reuRender;if(typeof originalReuRender==='function
 const originalBagsRender=global.bagsRender;if(typeof originalBagsRender==='function')global.bagsRender=function(){const r=originalBagsRender.apply(this,arguments);setTimeout(redesignBags,0);return r;};
 function redesignBags(){const sub=$('#coord-subtab-bags');if(!sub)return;restoreCoordTypes();let intro=$('#phase2-bags-intro');if(!intro){intro=document.createElement('div');intro.id='phase2-bags-intro';intro.className='phase2-bags-intro';intro.innerHTML='<b>Como funciona</b><span><strong>Bag recebida com carga:</strong> vem vinculada ao fornecedor/ticket e aumenta o saldo a devolver.</span><span><strong>Lavagem:</strong> transforma bag suja em limpa.</span><span><strong>Retorno ao fornecedor:</strong> só é usado quando há saldo daquele fornecedor originado de compras.</span>';sub.prepend(intro);}const hist=$('#bags-hist');if(hist){hist.innerHTML=hist.innerHTML.replace(/Bags por fornecedor \(a devolver\)/g,'Bags recebidas de fornecedores — pendentes de retorno').replace(/Devolver pra/g,'Fornecedor de origem').replace(/↩ Devolver/g,'↩ Registrar retorno ao fornecedor');}}
 
-/* ---------- Geral: foco de buscas ---------- */
 function keepSearchFocus(input,callback){if(!input||input.dataset.phase2Focus==='1')return;input.dataset.phase2Focus='1';input.removeAttribute('oninput');input.addEventListener('input',function(){const pos=this.selectionStart,val=this.value;callback(val);requestAnimationFrame(()=>{this.focus();try{this.setSelectionRange(pos,pos);}catch(e){}});});}
 function fixSearchFocus(){
   const coord=$('#reu-busca');keepSearchFocus(coord,v=>{const q=norm(v);$$('#reu-lista>div').forEach(x=>x.hidden=!!q&&!norm(x.textContent).includes(q));});
   const adv=$('#adv-busca');keepSearchFocus(adv,v=>{const q=norm(v);$$('#adv-lista>div').forEach(x=>x.hidden=!!q&&!norm(x.textContent).includes(q));});
 }
 
-/* ---------- Navegação compacta dos módulos operacionais ---------- */
 function workspaceCreate(tab, entries, activeKey){
   if(tab.querySelector('.erp-workspace-nav'))return null;
   const nav=document.createElement('nav');
@@ -1161,7 +1125,6 @@ function workspacePoint(){
   views.imported.panel.appendChild(imported);
   tab.classList.add('erp-workspace-ready');
 }
-/* ---------- Aplicação recorrente ---------- */
 function apply(){
   removeNumberSpinners();fixPartyBanks();rebuildCalendarTools();priceSearches();cleanChequeControl();simplifyPayables();cleanAdvances();repairDiscreteStocks();ensureUnifiedEpi();redesignTrip();workspaceTrip();workspacePoint();replaceFiscalRegistry();simplifyExpensesGroup();addContractRenameButtons();mergeCasaGloria();restoreCoordTypes();filterCoordEmployees();filterCoordFunctionCards();fixSearchFocus();renderTripHistoryCards();
 }

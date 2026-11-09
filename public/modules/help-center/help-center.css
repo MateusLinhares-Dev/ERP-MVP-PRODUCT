@@ -1,4 +1,3 @@
-/* Manuela Metais · Central de conhecimento — estilos isolados da operação do ERP */
 #tab-help_center.mm-help-root{padding:24px clamp(16px,2.5vw,36px) 56px;min-width:0;background:#f4f7f5;color:#1a3528;font-family:Inter,system-ui,-apple-system,sans-serif}
 #tab-help_center.mm-help-root *{box-sizing:border-box}
 #tab-help_center .mm-help-hero{position:relative;display:flex;align-items:center;justify-content:space-between;gap:24px;overflow:hidden;padding:clamp(24px,3vw,44px);border:1px solid #164a34;border-radius:19px;background:linear-gradient(111deg,#103923 0%,#185039 67%,#23694b 100%);box-shadow:0 12px 25px rgba(15,56,35,.11);color:#fff}

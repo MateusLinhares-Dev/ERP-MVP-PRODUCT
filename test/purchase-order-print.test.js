@@ -32,6 +32,12 @@ function makePrint(ticket,payables=[],advances={},cheques={}){
   return {html,printedTicket};
 }
 
+function appliedAdvanceRows(html){
+  const section=/<section class="print-section applied-advances">([\s\S]*?)<\/section>/.exec(html)?.[1]||'';
+  return [...section.matchAll(/<tr><td>([\s\S]*?)<\/td><\/tr>/g)]
+    .map(match=>match[1].split(/<\/td><td[^>]*>/).map(cell=>cell.replace(/<[^>]+>/g,'').trim()));
+}
+
 const base={
   ticket:'T827763',numeroPedido:'T827763',fornecedor:'Fornecedor de teste',fornecedorCod:'F1',
   dataCompra:'2026-10-22',vencimentoSaldo:'2026-11-03',
@@ -56,7 +62,7 @@ test('impressão não confunde vencimento financeiro com data prevista de entreg
   const {html}=makePrint(base);
   assert.match(html,/<th>Data prevista<\/th><td><\/td>/);
   const unpaid=makePrint({...base,saldoPagar:31.25,adiantamento:0}).html;
-  assert.match(unpaid,/<td>03\/11\/2026<\/td>/); // O vencimento permanece somente em Parcelas.
+  assert.match(unpaid,/<td>03\/11\/2026<\/td>/);
   const withDelivery=makePrint({...base,dataPrevista:'2026-11-13'}).html;
   assert.match(withDelivery,/<th>Data prevista<\/th><td>13\/11\/2026<\/td>/);
 });
@@ -75,14 +81,12 @@ test('descrição detalhada impressa preserva quebras e escapa conteúdo do item
   assert.match(html,/\.item-description span\{white-space:pre-wrap/);
 });
 
-
 test('impressão inclui a logo enviada no cabeçalho com fallback em texto',()=>{
   const {html}=makePrint(base);
   assert.match(html,/class="logo-image"/);
   assert.match(html,/assets\/branding\/manuela-metais-logo\.webp/);
   assert.match(html,/class="logo-fallback">Manuela Metais</);
 });
-
 
 test('cadastro das observações gerais mantém o campo único antes dos totais e a persistência existente',()=>{
   const start=source.indexOf("'<section class=\"phase4-po-card phase4-po-notes-card");
@@ -111,7 +115,6 @@ test('observações gerais podem ser apagadas do formulário sem ressurgir ao sa
   assert.equal(JSON.parse(body.dataset.phase4Order).notes,'Entrega no pátio <seguro>');
 });
 
-
 test('canhoto reflete pagamento registrado após o fechamento sem dar baixa novamente',()=>{
   const ticket={...base,totalProdutos:39000,totalGeral:39000,adiantamento:15000,saldoPagar:24000};
   const accounts=[{id:'CP-1',ticket:'T827763',status:'Pendente',valor:14000,
@@ -124,8 +127,8 @@ test('canhoto reflete pagamento registrado após o fechamento sem dar baixa nova
   assert.match(html,/Total pago \/ abatido<\/th><td>R\$ 25\.000,00/);
   assert.match(html,/Saldo a pagar<\/th><td>R\$ 14\.000,00/);
   assert.match(html,/27\/10\/2026/);
-  assert.doesNotMatch(html,/Itaú/); // nome do banco é privado e não deve aparecer no recibo
-  assert.equal(printedTicket.saldoPagar,24000); // print cannot mutate the order
+  assert.doesNotMatch(html,/Itaú/);
+  assert.equal(printedTicket.saldoPagar,24000);
 });
 
 test('quitado via contas a pagar aparece no canhoto mesmo se ticket estiver atrasado',()=>{
@@ -148,14 +151,13 @@ test('não mistura pagamentos de outros pedidos ou duplica adiantamentos de orig
   assert.doesNotMatch(html,/Pagamentos registrados após o pedido/);
 });
 
-
 test('canhoto usa número do ticket definitivo mesmo quando numeroPedido estava defasado',()=>{
   const {html,printedTicket}=makePrint({...base,ticket:'T827797',numeroPedido:'T827796',pedidoCompra:{numero:'T827796'}});
   assert.match(html,/<h1>Pedido de compra Nº T827797<\/h1>/);
   assert.match(html,/<th>Número do pedido<\/th><td>T827797<\/td>/);
   assert.match(html,/<title>Pedido T827797<\/title>/);
   assert.doesNotMatch(html,/T827796/);
-  assert.equal(printedTicket.numeroPedido,'T827796'); // impressão não migra documentos antigos
+  assert.equal(printedTicket.numeroPedido,'T827796');
 });
 
 test('canhoto discrimina 3 adiantamentos vinculados ao ticket e mantém o total original',()=>{
@@ -170,10 +172,9 @@ test('canhoto discrimina 3 adiantamentos vinculados ao ticket e mantém o total 
   ]};
   const {html,printedTicket}=makePrint(purchase,[],advances);
   assert.match(html,/Adiantamentos e abatimentos desta compra/);
-  for(const [code,value] of [['ADT-01','20.000,00'],['ADT-02','30.000,00'],['ADT-03','30.000,00']]){
-    assert.match(html,new RegExp(code)); assert.match(html,new RegExp(value));
-  }
-  assert.doesNotMatch(html,/ADT-OUTRA|ADT-PEND/);
+  const rows=appliedAdvanceRows(html);
+  assert.deepEqual(rows,[['20/10/2026','Adiantamento','PIX','R$ 20.000,00'],['22/10/2026','Adiantamento','TED','R$ 30.000,00'],['25/10/2026','Adiantamento','PIX','R$ 30.000,00']]);
+  assert.doesNotMatch(html,/ADT-/);
   assert.match(html,/Total abatido no fechamento<\/th><td class="numeric">R\$ 80\.000,00/);
   assert.match(html,/Saldo a pagar<\/th><td>R\$ 135\.000,00/);
   assert.deepEqual(printedTicket,purchase);
@@ -190,8 +191,8 @@ test('snapshot financeiro tem precedência e não duplica adiantamento quitado n
     {cod:'ADT-02',data:'2026-10-22',forma:'TED',ticket:'T827763',status:'Quitado',valor:8000}
   ]};
   const {html}=makePrint(purchase,[],advances);
-  assert.equal((html.match(/ADT-01/g)||[]).length,1);
-  assert.equal((html.match(/ADT-02/g)||[]).length,1);
+  assert.deepEqual(appliedAdvanceRows(html),[['20/10/2026','Adiantamento','PIX','R$ 12.000,00'],['22/10/2026','Adiantamento','TED','R$ 8.000,00']]);
+  assert.doesNotMatch(html,/ADT-/);
   assert.match(html,/R\$ 20\.000,00/);
 });
 
@@ -202,8 +203,8 @@ test('detalhe parcial do legado não inventa pagamento não vinculado',()=>{
     {cod:'ADT-INDEVIDO',ticket:'',status:'Pendente',valor:5000}
   ]};
   const {html}=makePrint(purchase,[],advances);
-  assert.match(html,/ADT-01/);
-  assert.doesNotMatch(html,/ADT-INDEVIDO/);
+  assert.deepEqual(appliedAdvanceRows(html),[['26/10/2026','Adiantamento','—','R$ 10.000,00'],['—','Outros abatimentos aplicados','—','R$ 5.000,00']]);
+  assert.doesNotMatch(html,/ADT-/);
   assert.match(html,/Outros abatimentos aplicados/);
   assert.match(html,/R\$ 5\.000,00/);
 });
@@ -211,7 +212,6 @@ test('detalhe parcial do legado não inventa pagamento não vinculado',()=>{
 test('código de criação vincula numeroPedido ao ticket definitivo',()=>{
   assert.match(source,/ticket\.numeroPedido=String\(ticket\.ticket\|\|key\)/);
 });
-
 
 test('edição de ticket anterior prioriza identificador definitivo',()=>{
   assert.match(source,/orderNumber:String\(ticket\.ticket\|\|key\|\|ticket\.numeroPedido/);

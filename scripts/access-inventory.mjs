@@ -1,4 +1,3 @@
-/* Inventário estático de chaves do sincronizador e pontos cegos das Rules. */
 import fs from 'node:fs';
 import path from 'node:path';
 const root=process.cwd();

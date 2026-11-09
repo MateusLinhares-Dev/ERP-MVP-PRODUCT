@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {bankIntegrationKey,encryptCredentials,decryptCredentials,centsFromProvider,normalizeProviderTransaction,handleBankIntegration} from '../server/application/bank-integrations.js';
+import {bankIntegrationKey,encryptCredentials,decryptCredentials,centsFromProvider,normalizeProviderTransaction,handleBankIntegration} from '../server/modules/banking/application/bank-integrations.js';
 
 const key=Buffer.alloc(32,41);
 const oldKey=process.env.BANK_INTEGRATION_ENCRYPTION_KEY;
@@ -74,7 +74,7 @@ test('conexão Pluggy, escolha de conta e importação idempotente com paginaç�
  assert.equal(once.processed,2);
  const twice=await invoke('sync');assert.equal(twice.created,0);assert.equal(twice.duplicates,2);
  assert.equal(Object.keys(db.data.erp.bankReconciliationImports['BANK-1']).length,2);
- assert.equal(db.data.erp.lancBanco,undefined); // importar não movimenta saldo
+ assert.equal(db.data.erp.lancBanco,undefined);
  assert.ok(calls.some(call=>call[0]==='/v2/transactions'&&call[1].includes('after=NEXT')));
  assert.equal(Object.keys(db.data.erpBankIntegrationAudit['BANK-1']).length,2);
  const disconnected=await invoke('disconnect');assert.equal(disconnected.config.connected,false);

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-import {listAdvanceBankOptions} from '../server/application/finance-advances.js';
+import {listAdvanceBankOptions} from '../server/modules/advances/application/advances.js';
 
 const finance={uid:'u-1',erpAccess:true,canAdvances:true,canBanking:false};
 const source=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');

@@ -128,10 +128,7 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
     });
   });
   const issues=[];
-  // Mantido por compatibilidade: um adiantamento com vínculo inválido deixa de
-  // ser oferecido, mas NÃO impede compras que não o utilizam.
   const blockedIssues=[];
-  // Número que esta compra vai receber: o servidor aceita adiantamento vinculado ao próprio pedido.
   let reservedNumber='';
   try{reservedNumber=String(body?.dataset?.purchaseReservedNumber||(typeof getNextTicketId==='function'?getNextTicketId():'')||'').trim();}catch(e){reservedNumber='';}
   const all=(ADT_POR_FORN[code]||[]).filter(function(a){return a&&String(a.status||'Pendente').trim().toLowerCase()==='pendente'&&Number(a.valor||0)>0;});
@@ -159,8 +156,6 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
     }
     if(linked&&!origin&&!sourceKeys.has(linked)){
       if(reservedNumber&&linked===reservedNumber&&!a.ticketOrigem){eligible.push(a);return;}
-      // Fail-closed apenas para ESTE adiantamento: não é oferecido nem libera
-      // crédito residual, mas as demais compras do fornecedor continuam possíveis.
       issues.push('O adiantamento '+(id||'sem código')+' está vinculado ao ticket '+linked+', que não está no histórico, e não será oferecido nesta compra. Se ele ainda não foi usado, edite o adiantamento e limpe o campo "Vinculado ao Ticket".');
       return;
     }
@@ -186,10 +181,6 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
     });
     const legacyExcess=recordedTicket?Math.max(0,Number(recordedTicket.adiantamento||0)-Number(recordedTicket.totalGeral||0)):0;
     const legacyDuplicate=legacyExcess>0&&Math.abs(legacyExcess-persisted)<0.01;
-    // Crédito de sobra de compra antiga (ex.: T284: 500 adiantados, 300 comprados).
-    // Os demais adiantamentos pendentes NÃO são cópias desse saldo: podem coexistir.
-    // Só disponibilizar a sobra quando a origem, o pagamento original, o saldo
-    // persistido e o consumo posterior forem consistentes (fail-closed).
     const sourceAdvances=(ADT_POR_FORN[code]||[]).filter(function(a){
       return a&&a.status==='Quitado'&&String(a.ticket||'')===persistedTicket&&
         !String(a.forma||'').toLowerCase().includes('cheque');
@@ -209,7 +200,6 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
         Math.abs(Number(a.valor||0)-persisted)<0.01;
     });
     if(residualAlreadyInAdvance){
-      // Comprovado no adiantamento pendente; jamais disponibilizar novamente em saldoDevedor.
       balance=0;
     }else if(legacyVerified){
       balance=persisted;
@@ -217,8 +207,6 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
     }else if(!all.length&&(linkedAdvance||legacyDuplicate)){
       issues.push('O saldo anterior pode ser duplicação de um adiantamento já utilizado. É necessário conferir o histórico financeiro.');
     }else if(all.length&&!trackedSource){
-      // Saldo legado incerto NÃO é um motivo para esconder adiantamentos novos,
-      // independentes e ainda pendentes. Bloqueamos apenas o próprio saldo.
       issues.push('O saldo anterior deste fornecedor não tem conciliação comprovada e não será usado automaticamente.');
     }else if(persistedTicket&&!recordedTicket){
       issues.push('O saldo anterior aponta para um ticket excluído ou indisponível. Confira o histórico financeiro antes de aplicá-lo.');
@@ -233,8 +221,6 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
 function validatePurchaseCredits(state){
   if(state.editKey)return;
   const latest=financialData(null,state.supplierCode,state.sourceTicketKeys);
-  // Alertas de crédito legado não impedem uma nova compra SEM usar esse
-  // crédito. O backend valida cada adiantamento selecionado pelo ID.
   const creditSelected=Boolean(document.getElementById('cssdv')?.checked&&Number(state.previousCredit||0)>0);
   if(latest.blockedIssues.length)throw new Error(latest.blockedIssues.join(' '));
   if(creditSelected&&latest.issues.length)throw new Error(latest.issues.join(' '));
@@ -277,6 +263,8 @@ function currentState(body){
     purchaseOrder:'',
     purchaseDate:today(),
     dueDate:today(),
+    installments:[],
+    paymentCondition:'',
     sourceTicketKeys:jsonDataset(body,'ticketKeys',[]),
     adts:fin.adts,
     cheques:fin.cheques,
@@ -411,6 +399,234 @@ function paymentHtml(state){
   if(!adts&&!cheques&&!credit&&!issues)return '<div class="phase4-po-empty-pay">Nenhum adiantamento, cheque ou crédito pendente para este fornecedor.</div>';
   return issues+adts+cheques+credit;
 }
+const INSTALLMENT_FORMS=['PIX','TED','Boleto','Dinheiro','Cheque','Depósito','Transferência'];
+const MAX_INSTALLMENTS=36;
+function toCents(value){
+  const amount=Number(value||0);
+  return Number.isFinite(amount)?Math.round(amount*100):0;
+}
+function addDaysISO(iso,days){
+  const base=new Date(String(iso||today())+'T12:00:00');
+  if(Number.isNaN(+base))return today();
+  base.setDate(base.getDate()+Number(days||0));
+  return base.getFullYear()+'-'+String(base.getMonth()+1).padStart(2,'0')+'-'+String(base.getDate()).padStart(2,'0');
+}
+function parsePaymentCondition(text){
+  const raw=String(text||'').trim().toLocaleLowerCase('pt-BR');
+  if(!raw)return null;
+  if(/^(a|à)\s*vista$|^avista$/.test(raw))return [0];
+  const times=/^(\d{1,2})\s*x$/.exec(raw);
+  if(times){
+    const count=Number(times[1]);
+    if(count<1||count>MAX_INSTALLMENTS)return null;
+    return Array.from({length:count},function(_,index){return 30*(index+1);});
+  }
+  const parts=raw.replace(/\s*dias?$/,'').split(/[\s,;/+]+/).filter(Boolean);
+  if(!parts.length||parts.length>MAX_INSTALLMENTS||parts.some(function(part){return !/^\d{1,4}$/.test(part);}))return null;
+  return parts.map(Number);
+}
+function generateInstallments(days,balance,purchaseDate,previous){
+  const totalCents=Math.max(0,toCents(balance));
+  const count=days.length;
+  const share=Math.floor(totalCents/count);
+  return days.map(function(day,index){
+    const old=(previous||[])[index]||{};
+    return {date:addDaysISO(purchaseDate,day),value:(index===count-1?totalCents-share*(count-1):share)/100,
+      form:String(old.form||(previous||[])[0]?.form||''),obs:String(old.obs||'')};
+  });
+}
+function balanceInstallments(rows,balance){
+  if(!rows.length)return rows;
+  const others=rows.slice(0,-1).reduce(function(sum,row){return sum+toCents(row.value);},0);
+  rows[rows.length-1].value=(toCents(balance)-others)/100;
+  return rows;
+}
+function installmentPayload(rows){
+  return (rows||[]).map(function(row){
+    return {vencimento:String(row.date||''),valor:toCents(row.value)/100,forma:String(row.form||''),obs:String(row.obs||'').replace(/\s+/g,' ').trim().slice(0,200)};
+  });
+}
+function installmentKey(rows){
+  return JSON.stringify(installmentPayload(rows).map(function(row){return [row.vencimento,toCents(row.valor),row.forma,row.obs];}));
+}
+function validateInstallments(state,balance){
+  if(toCents(balance)<=0)return [];
+  const rows=state.installments||[];
+  if(!rows.length)throw new Error('Informe as parcelas do saldo a pagar.');
+  if(rows.length>MAX_INSTALLMENTS)throw new Error('Máximo de '+MAX_INSTALLMENTS+' parcelas.');
+  rows.forEach(function(row,index){
+    const line=index+1;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(row.date||'')))throw new Error('Informe a data de vencimento da parcela '+line+'.');
+    if(String(row.date)<String(state.purchaseDate||''))throw new Error('A parcela '+line+' vence antes da data da compra.');
+    if(toCents(row.value)<=0)throw new Error(index===rows.length-1&&rows.length>1
+      ?'A soma das parcelas passa do saldo a pagar. Ajuste os valores.'
+      :'Informe o valor da parcela '+line+'.');
+    if(row.form&&!INSTALLMENT_FORMS.includes(row.form))throw new Error('Forma de pagamento da parcela '+line+' inválida.');
+  });
+  const sum=rows.reduce(function(total,row){return total+toCents(row.value);},0);
+  if(sum!==toCents(balance))throw new Error('A soma das parcelas (R$ '+money(sum/100)+') precisa ser igual ao saldo a pagar (R$ '+money(balance)+').');
+  return installmentPayload(rows);
+}
+function syncInstallments(state,balance){
+  if(!Array.isArray(state.installments))state.installments=[];
+  if(!state.installmentsLocked&&toCents(balance)>0){
+    if(!state.installments.length)state.installments=[{date:state.dueDate||today(),value:balance,form:'',obs:''}];
+    balanceInstallments(state.installments,balance);
+  }
+  if(state.installments.length&&toCents(balance)>0)state.dueDate=state.installments[0].date||state.dueDate||today();
+  const hidden=document.getElementById('cs-lanc-venc');
+  if(hidden)hidden.value=state.dueDate||today();
+}
+function installmentFormOptions(selected){
+  return '<option value="">—</option>'+INSTALLMENT_FORMS.map(function(form){
+    return '<option value="'+esc(form)+'"'+(form===selected?' selected':'')+'>'+esc(form)+'</option>';
+  }).join('');
+}
+function installmentsHtml(state){
+  return '<div class="phase4-po-installments" id="phase4-po-installments">'+
+    '<div class="phase4-po-installments-head"><h4>Parcelas</h4>'+
+    '<div class="phase4-po-installments-tools" id="phase4-po-installments-tools">'+
+    '<label class="phase4-po-field"><span>Condição de pagamento</span><input id="phase4-po-condition" autocomplete="off" placeholder="Ex.: 30 60 90 ou 3x" value="'+esc(state.paymentCondition||'')+'" oninput="phase4PurchaseCondition(this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();phase4PurchaseGenerateInstallments();}"></label>'+
+    '<button type="button" class="phase4-po-outline" onclick="phase4PurchaseGenerateInstallments()">Gerar parcelas</button></div></div>'+
+    '<div id="phase4-po-installments-body"></div>'+
+    '<input id="cs-lanc-venc" type="hidden" value="'+esc(state.dueDate||today())+'">'+
+  '</div>';
+}
+function installmentRowHtml(state,row,index,count){
+  const last=index===count-1;
+  const locked=state.installmentsLocked===true;
+  const auto=last&&!locked;
+  return '<tr data-installment="'+index+'">'+
+    '<td class="idx">'+(index+1)+'</td>'+
+    '<td class="days"><input type="number" min="0" max="9999" inputmode="numeric" data-field="days" value="'+daysBetween(state.purchaseDate||today(),row.date)+'"'+(locked?' readonly':' oninput="phase4PurchaseInstallment('+index+',\'days\',this.value)"')+'></td>'+
+    '<td class="date"><input type="date" data-field="date" value="'+esc(row.date||'')+'"'+(locked?' readonly':' onchange="phase4PurchaseInstallment('+index+',\'date\',this.value)"')+'></td>'+
+    '<td class="value"><input inputmode="decimal" data-field="value" value="'+esc(money(row.value))+'"'+(locked||auto?' readonly':' oninput="phase4PurchaseInstallment('+index+',\'value\',this.value)" onblur="phase4PurchaseInstallmentBlur(this,'+index+')"')+
+      (auto&&count>1?' title="Calculada automaticamente: saldo a pagar menos as outras parcelas"':'')+'></td>'+
+    '<td class="form"><select data-field="form"'+(locked?' disabled':' onchange="phase4PurchaseInstallment('+index+',\'form\',this.value)"')+'>'+installmentFormOptions(row.form||'')+'</select></td>'+
+    '<td class="obs"><input maxlength="200" data-field="obs" placeholder="Ex.: NF 1234" value="'+esc(row.obs||'')+'"'+(locked?' readonly':' oninput="phase4PurchaseInstallment('+index+',\'obs\',this.value)"')+'></td>'+
+    '<td class="action">'+(!locked&&count>1?'<button type="button" title="Remover parcela" onclick="phase4PurchaseRemoveInstallment('+index+')">×</button>':'')+'</td>'+
+  '</tr>';
+}
+function renderInstallments(state,balance){
+  const container=document.getElementById('phase4-po-installments-body');
+  if(!container)return;
+  const tools=document.getElementById('phase4-po-installments-tools');
+  const rows=state.installments||[];
+  const locked=state.installmentsLocked===true;
+  const hasBalance=toCents(balance)>0;
+  if(tools)tools.hidden=locked||!hasBalance;
+  const mode=(locked?'locked':hasBalance?'open':'empty')+':'+rows.length;
+  const active=document.activeElement;
+  if(container.dataset.mode===mode&&mode.startsWith('open')&&active&&container.contains(active)){
+    container.querySelectorAll('tr[data-installment]').forEach(function(tr){
+      const row=rows[Number(tr.dataset.installment)];if(!row)return;
+      tr.querySelectorAll('[data-field]').forEach(function(input){
+        if(input===active)return;
+        const field=input.dataset.field;
+        input.value=field==='days'?String(daysBetween(state.purchaseDate||today(),row.date))
+          :field==='value'?money(row.value):String(row[field]||'');
+      });
+    });
+    updateInstallmentSummary(state);
+    return;
+  }
+  container.dataset.mode=mode;
+  if(!hasBalance&&!locked){
+    container.innerHTML='<div class="phase4-po-empty-pay">Sem saldo a pagar: não há parcelas para lançar em Contas a Pagar.</div>';
+    return;
+  }
+  const note=locked
+    ?'<div class="phase4-po-empty-pay" role="status">'+(Number(state.originalBalance||0)>0.005
+      ?'Já existe pagamento registrado nesta compra. As parcelas não podem ser alteradas aqui; ajuste em Financeiro → Contas a Pagar.'
+      :'Compra já quitada. Se o total aumentar, a diferença vira uma conta única em Contas a Pagar.')+'</div>'
+    :'';
+  container.innerHTML=note+(rows.length?'<div class="phase4-po-table-wrap"><table class="phase4-po-table phase4-po-installments-table"><thead><tr><th>#</th><th>Dias</th><th>Data</th><th>Valor</th><th>Forma</th><th>Observação</th><th></th></tr></thead><tbody>'+
+    rows.map(function(row,index){return installmentRowHtml(state,row,index,rows.length);}).join('')+
+    '</tbody></table></div>':'')+
+    (locked?'':'<div class="phase4-po-installments-foot"><button type="button" class="phase4-po-add-item" onclick="phase4PurchaseAddInstallment()">＋ Adicionar outra parcela</button><span id="phase4-po-installments-summary"></span></div>');
+  updateInstallmentSummary(state);
+}
+function updateInstallmentSummary(state){
+  const summary=document.getElementById('phase4-po-installments-summary');
+  if(!summary)return;
+  const rows=state.installments||[];
+  const sum=rows.reduce(function(total,row){return total+toCents(row.value);},0);
+  const overflow=rows.length>1&&toCents(rows[rows.length-1].value)<=0;
+  summary.className=overflow?'phase4-po-installments-alert':'';
+  summary.setAttribute('role',overflow?'alert':'status');
+  summary.textContent=overflow
+    ?'A soma das parcelas passa do saldo a pagar. Ajuste os valores.'
+    :rows.length+(rows.length===1?' parcela':' parcelas')+' · total R$ '+money(sum/100)+(rows.length>1?' · a última é calculada automaticamente':'');
+}
+global.phase4PurchaseCondition=function(value){
+  const tuple=getState(),body=tuple[0],state=tuple[1];
+  if(!body)return;
+  state.paymentCondition=String(value||'').slice(0,80);
+  storeState(body,state);
+};
+global.phase4PurchaseGenerateInstallments=function(){
+  const totals=global.phase4PurchaseRecalc();
+  const tuple=getState(),body=tuple[0],state=tuple[1];
+  if(!body||!totals||state.installmentsLocked)return;
+  if(toCents(totals.balance)<=0){try{showToast('Não há saldo a pagar para dividir em parcelas.','info');}catch(e){}return;}
+  const text=document.getElementById('phase4-po-condition')?.value??state.paymentCondition;
+  const days=parsePaymentCondition(text);
+  if(!days){
+    try{showToast('Condição inválida. Informe os dias separados por espaço (ex.: 30 60 90) ou a quantidade de parcelas (ex.: 3x).','error',6500);}catch(e){}
+    return;
+  }
+  if(toCents(totals.balance)<days.length){try{showToast('O saldo é pequeno demais para essa quantidade de parcelas.','error');}catch(e){}return;}
+  state.paymentCondition=String(text||'').trim().slice(0,80);
+  state.installments=generateInstallments(days,totals.balance,state.purchaseDate||today(),state.installments);
+  storeState(body,state);
+  global.phase4PurchaseRecalc();
+};
+global.phase4PurchaseInstallment=function(index,field,value){
+  const tuple=getState(),body=tuple[0],state=tuple[1];
+  const row=state.installments?.[index];
+  if(!body||!row||state.installmentsLocked)return;
+  if(field==='days'){
+    const days=Math.max(0,Math.min(9999,parseInt(value,10)||0));
+    row.date=addDaysISO(state.purchaseDate||today(),days);
+  }else if(field==='date'){
+    if(/^\d{4}-\d{2}-\d{2}$/.test(String(value||'')))row.date=String(value);
+  }else if(field==='value'){
+    row.value=Math.max(0,parseBR(value));
+  }else if(field==='form'){
+    row.form=INSTALLMENT_FORMS.includes(value)?value:'';
+  }else if(field==='obs'){
+    row.obs=String(value||'').slice(0,200);
+  }
+  storeState(body,state);
+  global.phase4PurchaseRecalc();
+};
+global.phase4PurchaseInstallmentBlur=function(input,index){
+  const state=getState()[1];
+  const row=state.installments?.[index];
+  if(input&&row)input.value=money(row.value);
+};
+global.phase4PurchaseAddInstallment=function(){
+  const tuple=getState(),body=tuple[0],state=tuple[1];
+  if(!body||state.installmentsLocked)return;
+  const rows=state.installments=Array.isArray(state.installments)?state.installments:[];
+  if(rows.length>=MAX_INSTALLMENTS){try{showToast('Máximo de '+MAX_INSTALLMENTS+' parcelas.','error');}catch(e){}return;}
+  const last=rows[rows.length-1];
+  if(last){
+    last.value=Math.floor(Math.max(0,toCents(last.value))/2)/100;
+    rows.push({date:addDaysISO(last.date||state.purchaseDate||today(),30),value:0,form:String(last.form||''),obs:''});
+  }else{
+    rows.push({date:addDaysISO(state.purchaseDate||today(),30),value:0,form:'',obs:''});
+  }
+  storeState(body,state);
+  global.phase4PurchaseRecalc();
+};
+global.phase4PurchaseRemoveInstallment=function(index){
+  const tuple=getState(),body=tuple[0],state=tuple[1];
+  if(!body||state.installmentsLocked||!Array.isArray(state.installments)||state.installments.length<=1)return;
+  state.installments.splice(index,1);
+  storeState(body,state);
+  global.phase4PurchaseRecalc();
+};
 function render(body){
   if(!body)return;
   hideLegacySupplier();
@@ -436,7 +652,7 @@ function render(body){
       '<section class="phase4-po-card"><h3>Totais da compra</h3><div class="phase4-po-summary"><div><span>Nº de itens</span><b id="phase4-po-item-count">0</b></div><div><span>Soma das quantidades</span><b id="phase4-po-qty-total">0 kg</b></div><div><span>Total dos produtos</span><b id="phase4-po-products-total">R$ 0,00</b></div><div class="grand"><span>Total do pedido</span><b id="phase4-po-grand-total">R$ 0,00</b></div></div><div class="phase4-po-form-grid two"><label class="phase4-po-field"><span>Desconto R$</span><input id="phase4-po-discount" inputmode="decimal" value="'+esc(state.discount?money(state.discount):'0,00')+'" oninput="phase4PurchaseRecalc()"></label><label class="phase4-po-field"><span>Frete R$</span><input id="phase4-po-freight" inputmode="decimal" value="'+esc(state.freight?money(state.freight):'0,00')+'" oninput="phase4PurchaseRecalc()"></label></div></section>'+
       '<section class="phase4-po-card"><h3>Detalhes da compra</h3><div class="phase4-po-form-grid"><label class="phase4-po-field"><span>Número do pedido</span><input id="phase4-po-number" value="'+esc(state.orderNumber||'')+'" readonly title="Número atribuído automaticamente pelo cadastro de compras"></label><label class="phase4-po-field"><span>Ordem de compra</span><input id="phase4-po-order" value="'+esc(state.purchaseOrder||'')+'" oninput="phase4PurchaseSyncMeta()"></label><label class="phase4-po-field"><span>Data da compra</span><input id="phase4-po-date" type="date" value="'+esc(state.purchaseDate||today())+'" onchange="phase4PurchaseSyncMeta()"></label></div></section>'+
     '</div>'+
-    '<section class="phase4-po-card"><h3>Pagamento</h3><div class="phase4-po-payment-head"><label class="phase4-po-field"><span>Vencimento do saldo</span><input id="cs-lanc-venc" type="date" value="'+esc(state.dueDate||today())+'" onchange="phase4PurchaseSyncMeta()"></label><div class="phase4-po-payment-total"><span>Adiantamentos / abatimentos</span><b id="phase4-po-advance-total">R$ 0,00</b></div><div class="phase4-po-payment-total main"><span>Saldo a pagar</span><b id="phase4-po-balance">R$ 0,00</b></div></div><div class="phase4-po-pay-list">'+paymentHtml(state)+'</div></section>'+
+    '<section class="phase4-po-card"><h3>Pagamento</h3><div class="phase4-po-payment-head"><div class="phase4-po-payment-total"><span>Adiantamentos / abatimentos</span><b id="phase4-po-advance-total">R$ 0,00</b></div><div class="phase4-po-payment-total main"><span>Saldo a pagar</span><b id="phase4-po-balance">R$ 0,00</b></div></div><div class="phase4-po-pay-list">'+paymentHtml(state)+'</div>'+installmentsHtml(state)+'</section>'+
     '<div class="phase4-po-footer"><button type="button" class="phase4-po-outline" onclick="phase4PurchaseCancel()">Cancelar</button><button type="button" class="phase4-po-save" onclick="phase4PurchaseSave()">Salvar pedido de compra</button></div>'+
   '</div>';
   renderItems(body,state);
@@ -528,7 +744,6 @@ global.phase4PurchaseSaveDescription=function(index){
 };
 function readOrderNotes(state){
   const field=document.getElementById('phase4-po-notes');
-  // Uma observação removida no formulário precisa continuar vazia, sem restaurar o valor anterior.
   return String(field?field.value:(state?.notes||'')).trim();
 }
 global.phase4PurchaseSyncMeta=function(){
@@ -539,6 +754,7 @@ global.phase4PurchaseSyncMeta=function(){
   state.dueDate=document.getElementById('cs-lanc-venc')?.value||state.dueDate||today();
   state.notes=readOrderNotes(state);
   storeState(body,state);
+  global.phase4PurchaseRecalc();
 };
 global.phase4PurchaseRecalc=function(){
   const tuple=getState(),body=tuple[0],state=tuple[1];
@@ -567,8 +783,6 @@ global.phase4PurchaseRecalc=function(){
   const credit=document.getElementById('cssdv');
   if(credit?.checked)advances+=Number(credit.value||0);
   if(state.editKey){
-    // All historic prepayments and paid installments have already been applied.
-    // Editing only changes the outstanding amount by the difference in gross total.
     advances=Math.max(0,Number(state.appliedAdvance||0));
   }
   if(!state.editKey)advances=Math.min(total,advances);
@@ -582,11 +796,7 @@ global.phase4PurchaseRecalc=function(){
   set('phase4-po-products-total','R$ '+money(productTotal));
   set('phase4-po-grand-total','R$ '+money(total));
   set('phase4-po-advance-total','R$ '+money(advances));
-  // Uma redução em pedido liquidado não gera crédito automaticamente.
-  // O servidor exige conciliação financeira: a prévia não pode anunciar R$ 30
-  // como saldo disponível antes que essa reconciliação seja confirmada.
   const reducesSettled=Boolean(state.editKey&&balance<0&&Number(state.originalBalance||0)>=0);
-  // Compra paga com adiantamento (recibo v2): a diferença volta ao adiantamento.
   const refundsAdvance=reducesSettled&&state.advanceRefundable===true&&Math.abs(balance)<=Number(state.appliedAdvance||0)+0.005;
   const requiresReconciliation=reducesSettled&&!refundsAdvance;
   set('phase4-po-balance',refundsAdvance
@@ -600,12 +810,12 @@ global.phase4PurchaseRecalc=function(){
     balanceEl.title=refundsAdvance?'Ao salvar, a diferença volta como saldo disponível do adiantamento usado nesta compra.'
       :requiresReconciliation?'Compra já liquidada: revisão financeira necessária antes de alterar o total.':'';
   }
+  syncInstallments(state,balance);
   storeState(body,state);
+  renderInstallments(state,balance);
   return {productTotal,total,advances,balance};
 };
 global.phase4PurchaseSupplierChanged=function(){
-  // A troca de fornecedor nunca deve desmontar o input dentro do evento change/blur.
-  // O Chrome pode disparar NotFoundError ao tentar atualizar o foco de um nó removido.
   const input=document.getElementById('phase4-po-supplier');
   const typed=String(input?.value||'').trim();
   const supplier=supplierByName(typed);
@@ -626,7 +836,6 @@ global.phase4PurchaseSupplierChanged=function(){
     if(manualMode){
       const target=document.getElementById('cs-lanc-body');if(!target)return;
       const next=currentState(target);
-      // Não reutilizar os datasets financeiros do fornecedor anterior.
       const fin=financialData(null,supplier.cod);
       next.supplierName=supplier.nome;
       next.supplierCode=supplier.cod||'';
@@ -796,8 +1005,6 @@ function patchCreatedTicket(key,state,legacyItems,totals){
       total:amount*price
     });
   });
-  // O identificador do pedido deve ser o mesmo ticket definitivo criado pelo legado.
-  // state.orderNumber pode ter sido calculado antes da criação e ficar um número atrás.
   ticket.numeroPedido=String(ticket.ticket||key);
   ticket.ordemCompra=state.purchaseOrder||'';
   ticket.dataCompra=state.purchaseDate||today();
@@ -806,9 +1013,6 @@ function patchCreatedTicket(key,state,legacyItems,totals){
   ticket.observacoesPedido=String(state.notes||'').trim();
   ticket.descontoCompra=Number(state.discount||0);
   ticket.freteCompra=Number(state.freight||0);
-  // O formulário atual não possui "valores extras" da fase 1: o total exibido
-  // é produtos - desconto + frete. Um acréscimo legado residual causaria
-  // TOTAL_MISMATCH no servidor e o pedido não seria salvo.
   ticket.acrescimo=0;
   ticket.acrescimos=[];
   ticket.totalProdutos=totals.productTotal;
@@ -816,6 +1020,8 @@ function patchCreatedTicket(key,state,legacyItems,totals){
   ticket.totalKg=(ticket.itens||[]).reduce(function(sum,item){return sum+Number(item.quantidade||item.pesoLiq||0);},0);
   ticket.saldoPagar=Math.max(0,totals.balance);
   ticket.status=totals.balance<=0.005?'Pago':'Pendente';
+  if(Array.isArray(state.installmentPlan)&&state.installmentPlan.length)ticket.parcelas=state.installmentPlan;
+  else delete ticket.parcelas;
   ticket.pedidoCompra={
     versao:1,
     numero:ticket.numeroPedido,
@@ -839,10 +1045,6 @@ function patchCreatedTicket(key,state,legacyItems,totals){
   try{if(typeof renderDashboard==='function')renderDashboard();}catch(e){}
   return ticket;
 }
-// Server acknowledgement is mandatory before the purchase screen reports success.
-// A printed PDF is not evidence that an RTDB write completed.
-// Pause legacy debounced writes while a purchase waits for the server transaction.
-// A failed purchase must not be silently pushed later by the generic save queue.
 const legacyFbSalvar=typeof global.fbSalvar==='function'?global.fbSalvar.bind(global):null;
 const legacyFbSalvarImediato=typeof global.fbSalvarImediato==='function'?global.fbSalvarImediato.bind(global):null;
 if(legacyFbSalvar)global.fbSalvar=function(){
@@ -853,8 +1055,6 @@ if(legacyFbSalvarImediato)global.fbSalvarImediato=function(){
   if(global.__ERP_PURCHASE_IN_PROGRESS__){global.__ERP_PURCHASE_DEFERRED_SAVE__=true;return;}
   return legacyFbSalvarImediato(...arguments);
 };
-// O sincronizador genérico ignora pedidos/títulos geridos pela API
-// (_purchaseOperationId, CPPO_), então é seguro publicar o restante.
 function schedulePostPurchaseSave(){
   try{if(typeof global.fbSalvar==='function')setTimeout(function(){try{global.fbSalvar();}catch(_e){}},0);}catch(_e){}
 }
@@ -873,8 +1073,6 @@ function purchaseStableSnapshot(value){
   if(value&&typeof value==='object')return '{'+Object.keys(value).sort().map(function(key){return JSON.stringify(key)+':'+purchaseStableSnapshot(value[key]);}).join(',')+'}';
   return JSON.stringify(value);
 }
-// A escrita foi confirmada no RTDB. Uma leitura geral que começou antes do
-// commit não pode esconder temporariamente esse ticket no Histórico.
 function purchaseRememberServerAck(key, ticket){
   if(!ticket || !ticket._purchaseOperationId)return;
   const recent=global.__ERP_PURCHASE_RECENT_CONFIRMED__ instanceof Map
@@ -902,14 +1100,11 @@ async function purchaseConfirmCloud(key,ticket,options={}){
     if(removed?.val?.())throw new Error('Este número está excluído na nuvem. Use outro identificador.');
   }
   const expected=options.expected||null;
-  // Listener ativo durante a transação: a 1ª chamada recebe o pedido real
-  // (com cache frio o SDK abortaria uma edição válida).
   const runTx=typeof global.__erpRunTransaction==='function'
     ?function(fn){return global.__erpRunTransaction(ref,fn);}
     :function(fn){return ref.transaction(fn,undefined,false);};
   const tx=await runTx(function(current){
     if(create){
-      // Repetição após perda da resposta não deve criar outro ticket ou sobrescrever terceiros.
       if(current!==null&&current!==undefined){
         if(payload._purchaseOperationId && current._purchaseOperationId===payload._purchaseOperationId
             && purchaseStableSnapshot(current)===purchaseStableSnapshot(payload))return current;
@@ -951,8 +1146,6 @@ async function purchaseCreateAtomic(key,ticket,state,body){
   const operationId=body.dataset.purchaseOperationId;
   const payload=JSON.stringify({operationId,ticketNo:key,fornecedorCod:state.supplierCode,ticket,
     advanceCodes,chequeIds,useLegacyCredit,sourceTicketKeys:state.sourceTicketKeys||[]});
-  // O servidor é idempotente por operationId: repetir a MESMA operação após
-  // queda de rede/instabilidade nunca cria um segundo pedido nem baixa crédito duas vezes.
   let response=null,result={},networkError=null;
   for(let attempt=1;attempt<=3;attempt++){
     networkError=null;
@@ -991,8 +1184,6 @@ async function purchaseCreateAtomic(key,ticket,state,body){
   if(result.saldo==null)delete SALDO_DEVEDOR_FORN[state.supplierCode];
   else{
     SALDO_DEVEDOR_FORN[state.supplierCode]=clone(result.saldo);
-    // Há saldo residual confirmado pelo servidor: desfaz a marca de exclusão
-    // criada pelo fluxo legado, que apagaria esse saldo nas outras sessões.
     try{
       if(typeof _DEL_SETS!=='undefined'&&_DEL_SETS.saldoDevedor?.delete(state.supplierCode)&&typeof _DEL_LS_KEY!=='undefined')
         localStorage.setItem(_DEL_LS_KEY.saldoDevedor,JSON.stringify([..._DEL_SETS.saldoDevedor]));
@@ -1001,13 +1192,13 @@ async function purchaseCreateAtomic(key,ticket,state,body){
   try{localStorage.setItem('mm_saldo_devedor',JSON.stringify(SALDO_DEVEDOR_FORN));}catch(_e){}
   if(Array.isArray(CONTAS_PAGAR)){
     for(let i=CONTAS_PAGAR.length-1;i>=0;i--)if(String(CONTAS_PAGAR[i]?.ticket||'')===key)CONTAS_PAGAR.splice(i,1);
-    if(result.payable)CONTAS_PAGAR.push(clone(result.payable));
+    const createdPayables=Array.isArray(result.payables)?result.payables:(result.payable?[result.payable]:[]);
+    createdPayables.forEach(function(row){if(row)CONTAS_PAGAR.push(clone(row));});
   }
   try{if(typeof _ticketsSnapJSON!=='undefined')_ticketsSnapJSON[key]=JSON.stringify(result.ticket);}catch(_e){}
   purchaseRememberServerAck(key,result.ticket);
   return result.ticket;
 }
-
 
 function sourceSignature(keys){
   return (keys||[]).map(String).filter(Boolean).sort().join('|');
@@ -1063,8 +1254,6 @@ function finishPurchaseSave(body,key,ticket,totals){
   if(typeof global.csTab==='function')global.csTab('historico');
   try{showToast('Pedido '+String(ticket?.numeroPedido||ticket?.ticket||key)+' salvo e fechado. Total R$ '+money(totals.total)+'.','success',6000);}catch(e){}
 }
-// O legado altera tickets de pesagem, adiantamentos e contas locais antes do ACK.
-// Uma recusa da transação deve desfazer SOMENTE as mutações dessa tentativa.
 function purchaseTakeLocalSnapshot(state){
   const code=String(state.supplierCode||'');
   const editKey=String(state.editKey||'');
@@ -1092,8 +1281,6 @@ function purchaseRollbackLocal(snapshot){
   restore(CHEQUES_POR_FORN,snapshot.code,snapshot.cheques);
   restore(SALDO_DEVEDOR_FORN,snapshot.code,snapshot.balance);
   restore(PRECOS_FORN_DATA,snapshot.code,snapshot.prices);
-  // Desfaz tambem o marcador de exclusao; caso contrario o proximo sync
-  // pode apagar da nuvem um saldo restaurado apos uma transacao recusada.
   try{
     if(typeof _DEL_SETS!=='undefined'&&_DEL_SETS.saldoDevedor){
       if(snapshot.balanceDeleted)_DEL_SETS.saldoDevedor.add(snapshot.code);
@@ -1102,8 +1289,6 @@ function purchaseRollbackLocal(snapshot){
         localStorage.setItem(_DEL_LS_KEY.saldoDevedor,JSON.stringify([..._DEL_SETS.saldoDevedor]));
     }
   }catch(e){}
-  // Preserva contas de outros pedidos e restaura as contas antes da edicao
-  // quando um 409 financeiro impede a confirmacao no servidor.
   if(Array.isArray(CONTAS_PAGAR)){
     for(let i=CONTAS_PAGAR.length-1;i>=0;i--){
       const row=CONTAS_PAGAR[i];
@@ -1163,8 +1348,9 @@ async function purchaseEditWithReconciliation(key,ticket,state){
   if(!current||typeof current.getIdToken!=='function')throw new Error('Sessão Firebase expirada. Entre novamente.');
   const operationId=state.editOperationId||(global.crypto?.randomUUID?.()||('00000000-0000-4000-8000-'+String(Date.now()).padStart(12,'0').slice(-12)));
   state.editOperationId=operationId;
-  const payload=JSON.stringify({operationId,ticketNo:key,expectedTicket:JSON.parse(state.ticketSnapshot),ticket});
-  // Mesmo operationId em todas as tentativas: o servidor devolve o recibo se já gravou.
+  const sent=JSON.parse(JSON.stringify(ticket));
+  if(!Array.isArray(state.installmentPlan))delete sent.parcelas;
+  const payload=JSON.stringify({operationId,ticketNo:key,expectedTicket:JSON.parse(state.ticketSnapshot),ticket:sent});
   let response=null,result={},networkError=null;
   for(let attempt=1;attempt<=3;attempt++){
     networkError=null;
@@ -1188,7 +1374,11 @@ async function purchaseEditWithReconciliation(key,ticket,state){
   if(result.advances&&typeof ADT_POR_FORN!=='undefined')ADT_POR_FORN[state.supplierCode]=result.advances;
   if(result.saldo&&typeof SALDO_DEVEDOR_FORN!=='undefined')SALDO_DEVEDOR_FORN[state.supplierCode]=result.saldo;
   if(result.creditLegacy&&!result.saldo&&typeof SALDO_DEVEDOR_FORN!=='undefined')SALDO_DEVEDOR_FORN[state.supplierCode]=result.creditLegacy;
-  if(result.payable&&typeof CONTAS_PAGAR!=='undefined'){const index=CONTAS_PAGAR.findIndex(c=>String(c?.id||'')===String(result.payable.id||''));if(index>=0)CONTAS_PAGAR[index]=result.payable;else CONTAS_PAGAR.push(result.payable);}
+  if(Array.isArray(result.payables)&&typeof CONTAS_PAGAR!=='undefined'){
+    const replaced=new Set([...(result.removedPayableIds||[]),...result.payables.map(function(row){return row?.id;})].map(String));
+    for(let i=CONTAS_PAGAR.length-1;i>=0;i--)if(replaced.has(String(CONTAS_PAGAR[i]?.id||'')))CONTAS_PAGAR.splice(i,1);
+    result.payables.forEach(function(row){if(row)CONTAS_PAGAR.push(row);});
+  }else if(result.payable&&typeof CONTAS_PAGAR!=='undefined'){const index=CONTAS_PAGAR.findIndex(c=>String(c?.id||'')===String(result.payable.id||''));if(index>=0)CONTAS_PAGAR[index]=result.payable;else CONTAS_PAGAR.push(result.payable);}
   if(result.advanceRefund&&Number(result.advanceRefund.valor)>0){
     const codes=(result.advanceRefund.adiantamentos||[]).map(function(row){return row.cod;}).join(', ');
     try{showToast('R$ '+money(result.advanceRefund.valor)+' voltou como saldo do adiantamento '+codes+'.','success',8000);}catch(e){}
@@ -1214,11 +1404,19 @@ global.phase4PurchaseSave=async function(){
     const editSnapshot=purchaseTakeLocalSnapshot(state);
     try{
       const totals=global.phase4PurchaseRecalc();
+      const fresh=currentState(body);
+      state.installments=fresh.installments;state.dueDate=fresh.dueDate;
+      const totalChanged=Math.abs(Number(totals.total||0)-Number(state.originalTotal||0))>0.005;
+      if(state.installmentsLocked&&state.installmentsMulti&&totalChanged&&Number(state.originalBalance||0)>0.005)
+        throw new Error('Esta compra tem parcela paga. Para mudar o valor, estorne o pagamento em Contas a Pagar.');
+      const plan=state.installmentsLocked?null:validateInstallments(state,totals.balance);
+      const planChanged=plan!==null&&(toCents(totals.balance)>0?installmentKey(state.installments):'[]')!==state.originalInstallmentKey;
+      state.installmentPlan=planChanged||totalChanged?plan:null;
       const ticket=saveEditedTicket(state,totals);
       purchasePendingKeys.add(String(state.editKey));
       let confirmed;
       try{
-        const financeChanged=Math.abs(Number(totals.total||0)-Number(state.originalTotal||0))>0.005;
+        const financeChanged=totalChanged||planChanged;
         confirmed=financeChanged
           ?await purchaseEditWithReconciliation(String(state.editKey),ticket,state)
           :await purchaseConfirmCloud(String(state.editKey),ticket,{
@@ -1238,7 +1436,6 @@ global.phase4PurchaseSave=async function(){
     }
     finally{
       finishPurchaseDeferredSave(false);setSaving(false);
-      // Edição confirmada: publica dados auxiliares alterados localmente (ex.: preços).
       if(editCommitted)schedulePostPurchaseSave();
     }
     return;
@@ -1253,6 +1450,15 @@ global.phase4PurchaseSave=async function(){
     return;
   }
   const totals=global.phase4PurchaseRecalc();
+  try{
+    const fresh=currentState(body);
+    state.installments=fresh.installments;state.dueDate=fresh.dueDate;
+    state.installmentPlan=validateInstallments(state,totals.balance);
+    storeState(body,state);
+  }catch(error){
+    try{showToast(error.message,'error',6500);}catch(e){alert(error.message);}
+    return;
+  }
   setSaving(true);
   global.__ERP_PURCHASE_IN_PROGRESS__=true;
   let purchaseCommitted=false;
@@ -1264,7 +1470,6 @@ global.phase4PurchaseSave=async function(){
     global.__ERP_PURCHASE_SELECTED_NUMBER__=availableNumber;
     const numberInput=document.getElementById('phase4-po-number');
     if(numberInput)numberInput.value=availableNumber;
-    // Mesmo ID de operação em todas as tentativas do formulário.
     if(!body.dataset.purchaseOperationId)
       body.dataset.purchaseOperationId=global.crypto?.randomUUID?.()||('po-'+Date.now()+'-'+Math.random().toString(36).slice(2));
     const advanceLimit={};
@@ -1273,7 +1478,6 @@ global.phase4PurchaseSave=async function(){
     const chequeLimit={};
     state.cheques.forEach(function(c,index){if(document.getElementById('cscheq-'+index)?.checked&&!c.cod)chequeLimit[String(c.id||c.num||c.numero||'')]=Number(c.valor||0);});
     global.__ERP_PURCHASE_APPROVED_ADVANCES__={supplierCode:state.supplierCode,amounts:advanceLimit,cheques:chequeLimit,originals:Object.fromEntries(state.adts.map(function(a){return [String(a.cod||''),Number(a.valorOriginal||a.valor||0)];})),spent:Object.fromEntries(state.adts.map(function(a){return [String(a.cod||''),Number(a.valorCompensado||0)];}))};
-    // Reconfere a fonte diretamente no servidor ANTES de alterar dados locais.
     await validateCloudSourceTickets(state);
     snapshot=purchaseTakeLocalSnapshot(state);
     const result=await legacy.confirmPurchase.call(global,prepared.supplier.nome);
@@ -1287,19 +1491,13 @@ global.phase4PurchaseSave=async function(){
     try{
       await purchaseCreateAtomic(key,ticket,state,body);
     }finally{purchasePendingKeys.delete(key);}
-    // Sem saveContasPagar/fbSalvar aqui: o backend já confirmou todas as
-    // coleções num único commit, e regravar cache local causaria corrida.
     purchaseCommitted=true;
     delete body.dataset.purchaseOperationId;
     finishPurchaseSave(body,key,TICKETS_DB[key],totals);
     return result;
   }catch(error){
-    // Rollback apenas quando o resultado é negativo ou desconhecido; se o ACK
-    // estiver incerto, os dados do formulário continuam preservados para conferência.
     purchaseRollbackLocal(snapshot);
     console.error('[purchase-order] salvar',error);
-    // Número tomado por OUTRA operação (o servidor confere o recibo desta antes):
-    // a próxima tentativa deve reservar um novo número e uma nova operação.
     if(['TICKET_EXISTS','OPERATION_REUSED'].includes(String(error?.code||''))){
       delete body.dataset.purchaseReservedNumber;
       delete body.dataset.purchaseOperationId;
@@ -1315,11 +1513,8 @@ global.phase4PurchaseSave=async function(){
   }finally{
     delete global.__ERP_PURCHASE_SELECTED_NUMBER__;
     delete global.__ERP_PURCHASE_APPROVED_ADVANCES__;
-    // A operação já foi persistida atomicamente; não republicar o snapshot legado.
     finishPurchaseDeferredSave(false);
     setSaving(false);
-    // Compra confirmada: os preços do fornecedor atualizados pelo pedido ainda
-    // precisam ir para a nuvem (antes ficavam só no navegador até outro salvamento).
     if(purchaseCommitted)schedulePostPurchaseSave();
   }
 };
@@ -1379,14 +1574,22 @@ function stateForExistingTicket(key,cloudTicket){
     dueDate:isoDate(ticket.vencimentoSaldo||po.vencimentoSaldo||ticket.data),
     sourceTicketKeys:[],adts:[],cheques:[],previousCredit:0,
     appliedAdvance:Number(ticket.adiantamento||0)||0,
-    // Recibo v2: uma redução pode devolver a diferença ao próprio adiantamento.
     advanceRefundable:Number(ticket.reciboFinanceiro?.versao)===2&&
       (ticket.reciboFinanceiro?.adiantamentos||[]).some(function(row){return Number(row?.valorAplicado||0)>0;})&&
       !(ticket.reciboFinanceiro?.cheques||[]).some(function(row){return Number(row?.valorAplicado||0)>0;})&&
       !(Number(ticket.creditoFornecedorAplicado||0)>0),
     originalBalance:Number(ticket.saldoPagar||0),
     originalTotal:Number(ticket.totalGeral||0)||0,
-    // Preserve legacy extras/taxes outside the product grid (e.g. extra services).
+    installments:(Array.isArray(ticket.parcelas)&&ticket.parcelas.length
+      ?ticket.parcelas
+      :(Number(ticket.saldoPagar||0)>0.005?[{vencimento:ticket.vencimentoSaldo||po.vencimentoSaldo||ticket.data,valor:Number(ticket.saldoPagar||0),forma:'',obs:''}]:[]))
+      .map(function(row){return {date:isoDate(row?.vencimento),value:Math.round(Number(row?.valor||0)*100)/100,form:String(row?.forma||''),obs:String(row?.obs||'')};}),
+    installmentsMulti:Array.isArray(ticket.parcelas)&&ticket.parcelas.length>1,
+    installmentsLocked:Number(ticket.saldoPagar||0)<=0.005||(typeof CONTAS_PAGAR!=='undefined'&&Array.isArray(CONTAS_PAGAR)?CONTAS_PAGAR:[]).some(function(cp){
+      return cp&&String(cp.ticket||'').trim()===String(ticket.ticket||key)&&(String(cp.status||'').toLowerCase()==='pago'||
+        (Array.isArray(cp.pagamentos)&&cp.pagamentos.length>0)||Number(cp.valorPago||0)>0||Number(cp.adtCompensado||0)>0);
+    }),
+    paymentCondition:'',
     legacyExtra:Math.round(((Number(ticket.totalGeral||0)||0)-
       ((ticket.itens||[]).reduce(function(sum,i){return sum+itemNet(i)*Number(i.preco||0);},0)-
       (Number(ticket.descontoCompra??po.desconto??0)||0)+(Number(ticket.freteCompra??po.frete??0)||0)))*100)/100,
@@ -1407,6 +1610,7 @@ global.phase4PurchaseEditTicket=async function(ticketRef){
     if(!confirmed||typeof confirmed!=='object')throw new Error('Pedido não encontrado na nuvem. Nenhuma edição foi iniciada.');
     if(confirmed.status==='Aguard. Preço'||confirmed._balSessao||confirmed._rodEntrada)throw new Error('Finalize a pesagem antes de editar este pedido.');
     state=stateForExistingTicket(entry[0],confirmed);
+    state.originalInstallmentKey=installmentKey(state.installments);
   }catch(e){try{showToast(e.message||'Não foi possível consultar o pedido no Firebase.','error',7500);}catch(_){}return;}
   manualMode=false;
   if(typeof global.csTab==='function')global.csTab('lancamento');
@@ -1458,13 +1662,15 @@ function saveEditedTicket(state,totals){
   ticket.observacoesPedido=String(state.notes||'').trim();
   ticket.saldoPagar=totals.balance;
   ticket.status=totals.balance>0.005?'Pendente':'Pago';
+  if(Array.isArray(state.installmentPlan)){
+    if(state.installmentPlan.length)ticket.parcelas=state.installmentPlan;
+    else delete ticket.parcelas;
+  }
   ticket.pedidoCompra=Object.assign({},ticket.pedidoCompra||{}, {
     numero:ticket.numeroPedido,ordemCompra:state.purchaseOrder,dataCompra:state.purchaseDate,
     vencimentoSaldo:state.dueDate,observacoes:ticket.observacoesPedido,
     desconto:state.discount,frete:state.freight,totalProdutos:totals.productTotal,totalPedido:totals.total
   });
-  // Do not touch ADT_POR_FORN, CHEQUES_POR_FORN or reciboFinanceiro: they were
-  // settled during creation. Only update the residual payable for this ticket.
   return ticket;
 }
 function afterConfirmedPurchaseEdit(ticket,state,totals){
@@ -1601,8 +1807,6 @@ if(typeof legacy.tab==='function'){
           }
           render(body);
         }else{
-          // Reopening the tab must reflect advances registered in another module
-          // without discarding the material/items already typed on this form.
           const state=currentState(body);
           if(!state.editKey&&state.supplierCode){
             const fresh=financialData(body,state.supplierCode);
@@ -1692,9 +1896,17 @@ function companyLogoSrc(){
     return 'assets/branding/manuela-metais-logo.webp';
   }
 }
-// Detalhamento documental de abatimentos efetivamente vinculados à compra.
-// Não considera adiantamentos pendentes de outras compras do mesmo fornecedor.
-// Preserve o valor original do ticket; o canhoto é somente leitura.
+function printPaymentForm(row){
+  if(row.kind==='Cheque')return row.ref?'Cheque nº '+row.ref:'Cheque';
+  return String(row.method||'').trim()||'—';
+}
+function printInstallmentPaid(ticketNo,index,count){
+  const id=count>1?'CPPO_'+ticketNo+'-'+(index+1):'CPPO_'+ticketNo;
+  try{
+    const account=(Array.isArray(CONTAS_PAGAR)?CONTAS_PAGAR:[]).find(function(cp){return cp&&String(cp.id||'')===id;});
+    return Boolean(account)&&String(account.status||'').toLowerCase()==='pago';
+  }catch(e){return false;}
+}
 function printAppliedAdvances(key,ticket,advance){
   const ticketNo=String(ticket.ticket||key||'').trim();
   const supplierCode=String(ticket.fornecedorCod||ticket.fornCod||'').trim();
@@ -1718,7 +1930,7 @@ function printAppliedAdvances(key,ticket,advance){
     }
     for(const c of (Array.isArray(snap.cheques)?snap.cheques:[])){
       if(!c)continue;
-      take('Cheque',c.num||c.id,c.bomPara,'',c.valorAplicado,
+      take('Cheque',c.num||c.numero||'',c.bomPara,'',c.valorAplicado,
         c.id?'CHQ:'+String(c.id):'SNAP-CHQ:'+candidates.length);
     }
   }
@@ -1734,7 +1946,7 @@ function printAppliedAdvances(key,ticket,advance){
     const rows=typeof CHEQUES_POR_FORN!=='undefined'&&supplierCode?(CHEQUES_POR_FORN[supplierCode]||[]):[];
     for(const c of rows){
       if(!c||![c._aplicadoTicket,c.vinculo,c.ticket].some(function(value){return String(value||'').trim()===ticketNo;}))continue;
-      take('Cheque',c.num||c.numero||c.id,c.bomPara||c.data,'',c.valor,
+      take('Cheque',c.num||c.numero||'',c.bomPara||c.data,'',c.valor,
         c.id?'CHQ:'+String(c.id):'LIVE-CHQ:'+candidates.length);
     }
   }catch(e){}
@@ -1751,8 +1963,6 @@ function printAppliedAdvances(key,ticket,advance){
   }
   return rows;
 }
-// Financial receipt is a live view of the linked payable. Never mutate the
-// ticket or create a second payment while printing.
 function printPaymentSnapshot(key,ticket,total){
   const safe=function(value){const n=Number(value);return Number.isFinite(n)?Math.max(0,n):0;};
   const ticketNo=String(ticket.ticket||key||'').trim();
@@ -1778,8 +1988,6 @@ function printPaymentSnapshot(key,ticket,total){
         details:String(payment.formaPagamento||payment.forma||payment.metodoPagamento||'').trim()});
     }
   }
-  // A payable that has been settled or partially paid is more recent than
-  // the ticket's initial balance in some legacy synchronization paths.
   const hasPayableChanges=linked.some(function(cp){
     return String(cp.status||'').toLowerCase()==='pago'||
       (Array.isArray(cp.pagamentos)&&cp.pagamentos.length>0)||safe(cp.valorPago)>0||safe(cp.adtCompensado)>0;
@@ -1793,8 +2001,6 @@ function printPaymentSnapshot(key,ticket,total){
   return {priorDebt,amountDue,advance,balance,settled,
     sincePurchase:Math.max(0,settled-advance),payments};
 }
-// Balance of supplier advances still available AFTER the purchase. This is not the
-// purchase payable (which can be zero), nor a new receivable or repasse.
 function supplierUnappliedAdvance(ticket){
   const code=String(ticket.fornecedorCod||ticket.fornCod||'').trim();
   let ledger=[];
@@ -1805,7 +2011,6 @@ function supplierUnappliedAdvance(ticket){
     const applied=Math.max(0,Number(a.valorCompensado||0));
     return sum+Math.min(current,Math.max(0,original-applied));
   },0);
-  // Only use the ticket receipt as fallback if the supplier ledger is not loaded.
   if(ledger.length)return Math.round(amount*100)/100;
   const rows=ticket?.reciboFinanceiro?.adiantamentos||[];
   return Math.round(rows.reduce((sum,row)=>sum+Math.max(0,Number(row.valorPendente||0)),0)*100)/100;
@@ -1814,11 +2019,8 @@ function printHtml(key,ticket){
   const info=companyInfo();
   const supplier=supplierInfo(ticket);
   const po=ticket.pedidoCompra||{};
-  // O canhoto deve identificar o ticket da linha selecionada, não o número
-  // sugerido no formulário antes do ticket definitivo ser criado.
   const orderNo=String(ticket.ticket||key||ticket.numeroPedido||po.numero||'');
   const purchaseDate=ticket.dataCompra||po.dataCompra||ticket.data||'';
-  // Vencimento financeiro não é a data prevista da entrega do material.
   const expectedDate=ticket.dataPrevista||po.dataPrevista||'';
   const dueDate=ticket.vencimentoSaldo||po.vencimentoSaldo||purchaseDate;
   const items=Array.isArray(ticket.itens)?ticket.itens:[];
@@ -1872,9 +2074,9 @@ function printHtml(key,ticket){
   const advanceRows=printAppliedAdvances(key,ticket,advance);
   const advanceDetails=advance>0
     ?'<section class="print-section applied-advances"><h2>Adiantamentos e abatimentos desta compra</h2>'+
-      '<table class="installments"><thead><tr><th>Data</th><th>Origem</th><th>Referência / forma</th><th>Valor aplicado</th></tr></thead><tbody>'+
+      '<table class="installments"><thead><tr><th>Data</th><th>Origem</th><th>Forma</th><th>Valor aplicado</th></tr></thead><tbody>'+
       advanceRows.map(function(row){return '<tr><td>'+esc(row.date?dateBR(row.date):'—')+'</td>'+
-        '<td>'+esc(row.kind)+'</td><td>'+esc([row.ref,row.method].filter(Boolean).join(' · ')||'—')+'</td>'+
+        '<td>'+esc(row.kind)+'</td><td>'+esc(printPaymentForm(row))+'</td>'+
         '<td class="numeric">R$ '+money(row.amount)+'</td></tr>';}).join('')+
       '<tr class="advance-total"><th colspan="3">Total abatido no fechamento</th><td class="numeric">R$ '+money(advance)+'</td></tr>'+
       '</tbody></table></section>':'';
@@ -1884,9 +2086,16 @@ function printHtml(key,ticket){
       finance.payments.map(function(p){return '<tr><td>'+esc(dateBR(p.date))+'</td><td>'+esc(p.description)+
         (p.details?' · '+esc(p.details):'')+'</td><td class="numeric">R$ '+money(p.amount)+'</td></tr>';}).join('')+
       '</tbody></table></section>':'';
-  const installments=balance>0
-    ?'<tr><td class="center">'+daysBetween(purchaseDate,dueDate)+'</td><td>'+esc(dateBR(dueDate))+'</td><td class="numeric">R$ '+money(balance)+'</td><td>'+esc(advance>0?'Abatimentos/adiantamentos aplicados: R$ '+money(advance):'Saldo do pedido')+'</td></tr>'
-    :'<tr><td class="center">0</td><td>'+esc(dateBR(purchaseDate))+'</td><td class="numeric">R$ 0,00</td><td>Pedido quitado por abatimentos/adiantamentos</td></tr>';
+  const plan=Array.isArray(ticket.parcelas)?ticket.parcelas.filter(function(row){return row&&Number(row.valor||0)>0;}):[];
+  const installments=plan.length>1
+    ?plan.map(function(row,index){
+      const paid=printInstallmentPaid(String(ticket.ticket||key||''),index,plan.length);
+      return '<tr><td class="center">'+daysBetween(purchaseDate,row.vencimento)+'</td><td>'+esc(dateBR(row.vencimento))+'</td><td class="numeric">R$ '+money(row.valor)+'</td>'+
+        '<td>'+esc(row.forma||'—')+'</td><td>'+esc([row.obs,paid?'Paga':''].filter(Boolean).join(' · ')||'—')+'</td></tr>';
+    }).join('')
+    :balance>0
+      ?'<tr><td class="center">'+daysBetween(purchaseDate,dueDate)+'</td><td>'+esc(dateBR(dueDate))+'</td><td class="numeric">R$ '+money(balance)+'</td><td>'+esc(plan[0]?.forma||'—')+'</td><td>'+esc(plan[0]?.obs||(advance>0?'Abatimentos/adiantamentos aplicados: R$ '+money(advance):'Saldo do pedido'))+'</td></tr>'
+      :'<tr><td class="center">0</td><td>'+esc(dateBR(purchaseDate))+'</td><td class="numeric">R$ 0,00</td><td>—</td><td>Pedido quitado por abatimentos/adiantamentos</td></tr>';
 
   const logoSrc=esc(companyLogoSrc());
 
@@ -1913,7 +2122,7 @@ function printHtml(key,ticket){
       '<table class="items"><colgroup><col class="col-description"><col class="col-quantity"><col class="col-unit-price"><col class="col-total"></colgroup>'+
       '<thead><tr><th>Descrição do material</th><th>Quantidade (kg)</th><th>Valor unitário</th><th>Valor total</th></tr></thead><tbody>'+itemRows+'</tbody></table>'+
       '<table class="print-totals" aria-label="Totais da compra"><tbody>'+totals+'</tbody></table></section>'+paymentSummary+advanceDetails+laterPayments+
-    '<section class="print-section"><h2>Parcelas</h2><table class="installments"><thead><tr><th>Dias</th><th>Data Vencimento</th><th>Valor</th><th>Observações</th></tr></thead><tbody>'+installments+'</tbody></table></section>'+
+    '<section class="print-section"><h2>Parcelas</h2><table class="installments"><thead><tr><th>Dias</th><th>Data Vencimento</th><th>Valor</th><th>Forma</th><th>Observações</th></tr></thead><tbody>'+installments+'</tbody></table></section>'+
     '<section class="print-section order-notes"><h2>Observações</h2><div class="notes">'+esc(orderNotes)+'</div></section>'+
   '</main>';
 }

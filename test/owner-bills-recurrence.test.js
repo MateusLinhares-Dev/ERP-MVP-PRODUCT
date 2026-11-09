@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const src=fs.readFileSync(new URL('../public/modules/phase3/phase3-homologation.js',import.meta.url),'utf8');
-const chunk=src.split('/* Contas pessoais da Dona — separadas por imóvel, sem alterar pagamentos anteriores */')[1]?.split('/* Adiantamentos: ticket selecionável')[0];
+const chunk=(src.includes('let ownerBills={};')?('let ownerBills={};'+src.split('let ownerBills={};')[1]).split("function supplierTicketOptions(fornCod,current=''){")[0]:undefined);
 assert.ok(chunk);
 function harness(data={}){
  const records=structuredClone(data),writes=[],notices=[];

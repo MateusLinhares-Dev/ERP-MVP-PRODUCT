@@ -56,8 +56,6 @@ test('acesso aos cadastros passa pelo guard existente e persiste via salvamento 
   assert.match(js,/global\.phase4MasterShowList\('fornecedor'\)/);
 });
 
-// Exercita os handlers reais, isolando apenas o DOM e as persistências legadas.
-// Garante que nenhuma gravação ocorra antes da validação do documento.
 function mountPartyFormTest(fields={}){
   const elements={};
   const saved=[];

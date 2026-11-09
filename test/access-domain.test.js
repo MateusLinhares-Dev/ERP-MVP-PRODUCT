@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
-import {buildSecurityClaims} from '../server/domain/access.js';
+import {buildSecurityClaims} from '../server/modules/access/domain/access-claims.js';
 
 test('claims por área distinguem RH, financeiro, comercial e compras',()=>{
   const finance=buildSecurityClaims({tabs:['contas_pagar']});

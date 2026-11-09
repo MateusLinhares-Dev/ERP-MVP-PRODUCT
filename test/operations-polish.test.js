@@ -10,7 +10,6 @@ const css=read('legacy/operations-polish.css');
 const bootstrap=read('app/bootstrap.js');
 const template=read('index.template.html');
 
-// Presentation must never copy, mutate or overwrite business records.
 test('Busca em vendas e estoque filtra apenas as linhas HTML',()=>{
   assert.match(ui,/tbodyId:'tb-vendas-list'/);
   assert.match(ui,/tbodyId:'tb-estoque'/);

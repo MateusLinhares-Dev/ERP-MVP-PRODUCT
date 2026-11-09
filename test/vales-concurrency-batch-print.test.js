@@ -122,9 +122,9 @@ test('filtros de vales distinguem dia, mês e ano independentemente',()=>{
 });
 
 test('adiantamento aguarda trava concorrente por tentativas controladas',async()=>{
-  const code=readFileSync(new URL('../server/application/finance-advances.js',import.meta.url),'utf8');
+  const code=readFileSync(new URL('../server/modules/advances/application/advances.js',import.meta.url),'utf8');
   const src=code.slice(code.indexOf('async function acquireAdvanceLock('),code.indexOf('export async function createAdvance('));
-  const {runTransaction,releaseLease}=await import('../server/infrastructure/rtdb-transaction.js');
+  const {runTransaction,releaseLease}=await import('../server/shared/firebase/rtdb-transaction.js');
   const ctx={setTimeout:callback=>callback(),runTransaction,releaseLease};
   runInNewContext(src,ctx);
   let attempts=0;

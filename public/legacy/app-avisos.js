@@ -21,13 +21,10 @@
   function _fmtBR(v){ try{ return Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2}); }catch(e){ return v; } }
   function _diasEntre(a,b){ return Math.round((b - a)/86400000); }
 
-  // Aniversário é um AVISO por data, não um serviço que exige baixa manual.
-  // Os AFBIRTH_* gerados por versões antigas são mantidos no histórico,
-  // porém excluídos dos contadores/avisos operacionais.
   function _isLegacyBirthdayTask(a){
     return !!a && (a.tipo==='aniversario'||String(a.id||'').startsWith('AFBIRTH_'));
   }
-  function _ensureBirthdayAgenda(){ /* intencionalmente não gera tarefas */ }
+  function _ensureBirthdayAgenda(){  }
 
   function _aniversariantes(){
     var h=_hojeD(); var hoje=[], mes=[];

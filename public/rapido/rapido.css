@@ -1,6 +1,3 @@
-/* Lançamento rápido — mesmo sistema visual do ERP (public/legacy/styles.css):
-   Inter, verde institucional, dourado de destaque, tcard, .fg, botões em degradê.
-   Alvos de toque maiores porque a tela é usada no celular. */
 :root{
   --primary:#1a3a2a;--primary-light:#2e6b46;--primary-dark:#0f2318;
   --accent:#c8a400;--accent-light:#f5e07a;
@@ -22,7 +19,6 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 [hidden]{display:none!important}
 :is(button,input,select,textarea,a,label):focus-visible{outline:2px solid var(--erp-focus);outline-offset:2px}
 
-/* ── Cabeçalho (igual ao ERP) ── */
 .header{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:12px;
   background:linear-gradient(90deg,var(--primary-dark) 0%,var(--primary) 60%,var(--primary-light) 100%);color:#fff;
   min-height:56px;padding:6px max(16px,env(safe-area-inset-right)) 6px max(16px,env(safe-area-inset-left));
@@ -45,7 +41,6 @@ section.centro{text-align:center;padding-top:48px}
 .grande-texto{font-size:1.3rem;font-weight:800;color:var(--primary);margin:10px 0 4px}
 .subtitulo{color:var(--gray);margin:2px 0 0;font-size:1rem}
 
-/* ── Início ── */
 .boas-vindas{display:flex;align-items:center;gap:14px;background:#fff;border-radius:var(--radius-lg);box-shadow:var(--shadow);
   padding:16px 18px;margin-bottom:18px;border-left:4px solid var(--accent)}
 .bv-avatar{width:48px;height:48px;font-size:1.25rem}
@@ -65,7 +60,6 @@ section.centro{text-align:center;padding-top:48px}
 .acao-seta{color:var(--border);width:24px;height:24px}
 .link-erp{display:block;text-align:center;margin-top:18px;color:var(--primary-light);font-weight:600;font-size:.9rem}
 
-/* ── Títulos e cartões ── */
 .barra-titulo{display:flex;align-items:center;gap:12px;margin-bottom:14px}
 .sec-title{margin:0;font-size:1.2rem;font-weight:800;color:var(--primary);letter-spacing:-.3px}
 .voltar{display:inline-flex;align-items:center;gap:4px;padding:9px 14px 9px 10px;border:1.5px solid var(--border);background:#fff;border-radius:8px;
@@ -78,7 +72,6 @@ section.centro{text-align:center;padding-top:48px}
 .tcard-corpo{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
 .dica{color:var(--gray);font-size:.9rem;margin:0;text-align:center}
 
-/* ── Campos (padrão .fg do ERP) ── */
 .fg{display:flex;flex-direction:column;gap:6px;min-width:0}
 .fg label,.item label>span{font-size:.72rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.6px}
 input,select,textarea{width:100%;padding:13px 14px;border:1.5px solid var(--border);border-radius:var(--radius);background:#fff;font-size:1rem;min-height:50px;
@@ -90,7 +83,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary-light);box-sh
 .erro-campo{border-color:var(--danger)!important;background:var(--danger-light)!important}
 .preenchido-voz{background:var(--warn-light)!important;border-color:var(--warn)!important}
 
-/* ── Botões (padrão btn-save / btn-cancel do ERP, maiores) ── */
 .botao{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:52px;padding:12px 18px;border-radius:var(--radius);
   font-size:1rem;font-weight:700;letter-spacing:.2px;cursor:pointer;text-align:center;border:1.5px solid transparent;
   transition:opacity var(--transition),background var(--transition),border-color var(--transition)}
@@ -102,11 +94,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary-light);box-sh
 .botao[disabled]{opacity:.55;cursor:wait}
 #tela-inicio>.botao.secundario{margin-top:4px}
 .arquivo{position:relative;overflow:hidden;cursor:pointer;user-select:none}
-/* O input fica invisível (sem a dica "Nenhum arquivo escolhido"); o rótulo inteiro é o botão. */
 .arquivo input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0 0 0 0);pointer-events:none}
 .arquivo:focus-within{outline:2px solid var(--erp-focus);outline-offset:2px}
 
-/* ── Microfone ── */
 .microfone{display:flex;flex-direction:column;align-items:center;gap:10px;margin:0 auto;padding:4px 0 0;border:0;background:none;cursor:pointer;
   font-size:1.05rem;font-weight:800;color:var(--primary)}
 .mic-circulo{display:flex;align-items:center;justify-content:center;width:112px;height:112px;border-radius:50%;background:var(--gradiente);color:#fff;
@@ -118,12 +108,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary-light);box-sh
 @keyframes ouvir{0%,100%{box-shadow:0 6px 18px rgba(192,57,43,.35),0 0 0 6px rgba(192,57,43,.15)}50%{box-shadow:0 6px 18px rgba(192,57,43,.35),0 0 0 16px rgba(192,57,43,.08)}}
 @media (prefers-reduced-motion:reduce){.microfone.ouvindo .mic-circulo{animation:none}}
 
-/* ── Avisos e dúvidas ── */
 .alerta{background:var(--warn-light);border:1px solid #f0d58a;border-left:4px solid var(--warn);border-radius:var(--radius);padding:12px 14px;font-size:.94rem;color:#5c3d00}
 .alerta strong{color:#7a4f00}
 .alerta ul{margin:6px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
 
-/* ── Fornecedor / cliente ── */
 .lista-opcoes{display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto}
 .lista-opcoes:empty{display:none}
 .opcao{min-height:48px;padding:10px 14px;border:1px solid var(--erp-line);border-radius:8px;background:#fff;text-align:left;font-weight:600;color:var(--primary);cursor:pointer}
@@ -132,7 +120,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary-light);box-sh
   background:var(--success-light);border:1.5px solid #9fd3b3;font-weight:800;color:var(--primary);font-size:1.05rem}
 .escolhido button{flex-shrink:0;padding:8px 14px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-size:.85rem;font-weight:600;color:var(--gray);cursor:pointer}
 
-/* ── Materiais ── */
 #itens{display:flex;flex-direction:column;gap:12px}
 #itens:empty{display:none}
 .item{border:1px solid var(--erp-line);border-radius:var(--radius);padding:12px 14px;background:var(--gray-lightest);display:flex;flex-direction:column;gap:10px}
@@ -145,7 +132,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary-light);box-sh
 .item .subtotal:empty{display:none}
 .usar-tabela{width:100%;border:1.5px dashed var(--info);color:var(--info);background:var(--info-light);border-radius:8px;padding:10px;font-weight:700;cursor:pointer}
 
-/* ── Anexos ── */
 .anexos{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .anexos:empty{display:none}
 .anexos li{display:flex;align-items:center;gap:10px;border:1px solid var(--erp-line);border-radius:8px;padding:8px 10px;font-size:.92rem;background:#fff}
@@ -154,14 +140,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary-light);box-sh
 .anexos .status{font-size:.82rem;color:var(--gray);font-weight:500}
 .anexos button{border:1px solid #f3c3bd;background:var(--danger-light);color:var(--danger);border-radius:7px;padding:6px 10px;font-weight:800;cursor:pointer}
 
-/* ── Barra do total ── */
 .total-fixo{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;align-items:center;gap:14px;background:#fff;border-top:1px solid var(--border);
   box-shadow:0 -4px 16px rgba(0,0,0,.06);padding:10px max(16px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
 .total-rotulo{font-size:.72rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.6px}
 .total-rotulo strong{display:block;font-size:1.35rem;color:var(--primary);letter-spacing:-.3px;text-transform:none;font-variant-numeric:tabular-nums}
 .botao.confirmar{flex:1;width:auto;max-width:360px;margin-left:auto}
 
-/* ── Conferência ── */
 .resumo{padding:16px 18px}
 .resumo h2{margin:0 0 6px;font-size:1.1rem;font-weight:800;color:var(--primary)}
 .resumo .linha{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--gray-light)}
@@ -170,12 +154,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary-light);box-sh
 .resumo .total-resumo{font-size:1.35rem;font-weight:900;color:var(--primary);text-align:right;margin-top:12px;font-variant-numeric:tabular-nums}
 .resumo .efeito{background:var(--info-light);border-left:4px solid var(--info);border-radius:8px;padding:10px 12px;margin-top:12px;font-size:.94rem;color:#123b56}
 
-/* ── Sucesso ── */
 .check{display:flex;align-items:center;justify-content:center;width:84px;height:84px;margin:0 auto;border-radius:50%;background:var(--success-light);color:var(--success)}
 .check svg{width:44px;height:44px;stroke-width:2.5}
 #tela-sucesso .botao{margin-top:12px}
 
-/* ── Histórico ── */
 #lista-historico{display:flex;flex-direction:column;gap:12px}
 .historico-item{background:#fff;border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:14px 16px;border-left:4px solid var(--primary-light)}
 .historico-item .cab{display:flex;justify-content:space-between;gap:10px;font-weight:800;color:var(--primary)}
@@ -189,7 +171,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary-light);box-sh
 .historico-item summary{cursor:pointer;font-weight:700;color:var(--primary-light)}
 .anexo-link{display:inline-flex;align-items:center;margin:6px 8px 0 0;border:1px solid var(--border);border-radius:7px;padding:7px 10px;background:#fff;font-size:.85rem;font-weight:600;color:var(--primary);cursor:pointer}
 
-/* ── Visualizador, carregamento e avisos flutuantes ── */
 .visualizador{position:fixed;inset:0;z-index:50;background:rgba(15,35,24,.92);display:flex;align-items:center;justify-content:center;padding:16px}
 .visualizador img{max-width:100%;max-height:85vh;border-radius:8px}
 .visualizador .fechar{position:absolute;top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));border:0;border-radius:8px;padding:10px 16px;font-weight:700;background:#fff;color:var(--primary);cursor:pointer}

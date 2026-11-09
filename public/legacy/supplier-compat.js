@@ -54,7 +54,6 @@
     if(!sel) return;
     var atual=sel.value;
     var lista=_activeSuppliers();
-    // Mudanças de página não devem reconstruir milhares de <option> de preços.
     var signature=lista.map(function(f){return String(f.cod||'')+'|'+String(f.nome||'');}).join('\u0001');
     if(sel.__fornOptionsSignature===signature && sel.options && sel.options.length===lista.length+1) return;
     sel.__fornOptionsSignature=signature;
@@ -142,8 +141,6 @@
     var tb=document.getElementById('tb-fornecedores'); if(!tb) return;
     var isElaine=(typeof _usuarioPodeOperarModulo==='function'&&_usuarioPodeOperarModulo('fornecedores'));
     var lista=(typeof _getFornFiltrados==='function')?_getFornFiltrados():_activeSuppliers();
-    // O compat de bancos/PIX substitui o renderizador legado. Paginar aqui é
-    // obrigatório: caso contrário, todos os fornecedores voltam ao DOM.
     var visiveis=(window.ERPListPager && typeof window.ERPListPager.slice==='function')
       ? window.ERPListPager.slice('fornecedores-compra',lista,'tb-fornecedores',window.renderTabelaFornecedores)
       : lista;

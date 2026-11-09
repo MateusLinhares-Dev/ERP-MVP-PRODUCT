@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {previewOrphanAdvance,recordVerifiedOrphanTransfer} from '../server/application/advance-orphan-recovery.js';
+import {previewOrphanAdvance,recordVerifiedOrphanTransfer} from '../server/modules/advances/application/orphan-recovery.js';
 const person={uid:'owner1',erpUser:'elaine',erpAccess:true,canAdvances:true,canBanking:true,admin:false};
 const advanceCode='ADT_BANCO_124';
 const movementId='LB_MISSING_124';

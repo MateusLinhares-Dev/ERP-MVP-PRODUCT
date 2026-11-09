@@ -1,4 +1,3 @@
-// Controle de cheques: cheques gerados por adiantamento (API) e permissão de Bancos.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -11,7 +10,7 @@ function slice(start,end){
   return core.slice(a,b);
 }
 const helpers=slice('function _chqHojeBR(){','function chqInit(){');
-const movement=slice('// O extrato (lancBanco) exige acesso a Bancos','function _chqMovBancoRemover(movId){');
+const movement=slice('function _chqPodeLancarBanco(){','function _chqMovBancoRemover(movId){');
 const remove=slice('function chqReabrir(id){','function _chqCadastroDestinos(){');
 
 test('compensação: cheque próprio de adiantamento baixa o banco; de terceiro não; legado pergunta',()=>{

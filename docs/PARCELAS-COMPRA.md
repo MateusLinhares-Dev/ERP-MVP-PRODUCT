@@ -1,0 +1,64 @@
+# Parcelas do pedido de compra
+
+Pedido da cliente (novembro de 2026): dividir o saldo de uma compra em parcelas, como no Bling. Exemplo: a NF de R$ 20.000 e duas TEDs. Cada parcela vira uma conta separada em **Contas a Pagar**, e a Elaine paga uma de cada vez.
+
+## Na tela de compra
+
+O quadro **Parcelas** fica no cartão **Pagamento**, abaixo dos adiantamentos.
+
+- **Sem mexer em nada:** a compra tem uma parcela só, com o saldo inteiro, como antes.
+- **Condição de pagamento + Gerar parcelas:**
+  - `0 30 60` ou `0/30/60` cria parcelas com esses dias, contados da data da compra;
+  - `3x` cria 30, 60 e 90 dias;
+  - `à vista` ou `0` cria uma parcela na data da compra.
+
+  O saldo é dividido igualmente entre as parcelas.
+- **Em cada linha:** Dias, Data, Valor, Forma (PIX, TED, Boleto, Dinheiro, Cheque, Depósito, Transferência) e Observação (ex.: "NF 4521"). Ao mudar os dias, a data muda junto, e o contrário também.
+- **A última parcela é calculada pelo sistema:** saldo a pagar menos as outras. Ela fica cinza e não aceita edição. Se a soma das outras passar do saldo, aparece o aviso em vermelho e o pedido não salva.
+- **+ Adicionar outra parcela** divide a última em duas. O **×** remove uma linha, e o valor dela volta para a última.
+- Se o total da compra ou os adiantamentos mudarem, a última parcela se ajusta sozinha.
+
+## Em Contas a Pagar
+
+| Parcelas | Contas criadas |
+|---|---|
+| 1 | `CPPO_<pedido>` (igual a antes) |
+| 2 ou mais | `CPPO_<pedido>-1`, `CPPO_<pedido>-2`, … com a descrição "… — parcela 2/3" |
+
+- Cada conta tem o vencimento e o valor da parcela.
+- Também guarda a **forma prevista**, que aparece na lista e na janela de baixa, e a observação da parcela.
+- Ao pagar uma parcela, o saldo do pedido diminui e a situação fica **Parcial**. Ao pagar a última, fica **Pago**.
+- No Histórico de compras, o botão de baixa abre a **próxima parcela em aberto**.
+
+## Editar e excluir
+
+- **Sem nenhuma parcela paga:** dá para mudar valores, datas, formas e a quantidade de parcelas. O servidor refaz as contas a pagar numa gravação única:
+  - recria as que mudaram;
+  - apaga as que sobraram;
+  - nunca duplica.
+- **Com alguma parcela paga:** as parcelas ficam travadas na tela, e o servidor recusa mudar o valor da compra. Antes é preciso estornar o pagamento em Contas a Pagar.
+- **Compra já quitada** que teve o total aumentado: a diferença vira uma conta única de ajuste, como antes. Não dá para parcelar essa diferença.
+- **Reduzir uma compra paga com adiantamento** abaixo do valor do adiantamento: a diferença volta para o adiantamento e as parcelas são apagadas.
+- **Excluir a compra:** remove todas as parcelas, desde que nenhuma tenha sido paga.
+
+## Notinha (impressão do pedido)
+
+- **Adiantamentos e abatimentos:** a coluna "Referência / forma" virou **Forma**. Os códigos internos (`ADT…`) não aparecem mais. Cheque aparece como "Cheque nº 000123".
+- **Parcelas:** colunas Dias, Data Vencimento, Valor, **Forma** e Observações. Uma parcela já paga mostra "Paga" na observação.
+
+## Técnico
+
+- **Regra pura:** `server/modules/purchases/domain/installments.ts`.
+  - `normalizeInstallments`: valida as parcelas e calcula a última;
+  - `installmentPayableIds`, `installmentPayables`, `installmentSignature`.
+- **Criação** (`create-purchase-order.js`): lê `ticket.parcelas` e grava `ticket.parcelas`, `vencimentoSaldo` = 1ª parcela, e uma conta por parcela. A resposta traz `payables` (todas) e `payable` (a primeira).
+- **Edição** (`edit-purchase-order.js`):
+  - trava o pedido e cada conta envolvida (`erpFinancePayableLocks/<id>`), e o pagamento usa as mesmas travas;
+  - a resposta traz `payables` e `removedPayableIds`.
+- **Exclusão** (`delete-purchase-order.js`): aceita as N contas do pedido conforme `ticket.parcelas`.
+- **Baixa** (`payables.js`): a conferência de uma parcela paga não exige o pedido inteiro pago.
+- **Tela:** `public/modules/purchase-order/purchase-order.js`, funções `phase4PurchaseGenerateInstallments`, `phase4PurchaseInstallment`, `phase4PurchaseAddInstallment` e `phase4PurchaseRemoveInstallment`. O campo oculto `cs-lanc-venc` continua com o vencimento da 1ª parcela para o código antigo.
+- **Compatibilidade:** pedidos antigos sem `parcelas` funcionam como uma parcela única. Uma tela antiga ainda aberta durante a publicação também continua funcionando, porque o servidor recalcula a última parcela.
+- **Testes:**
+  - `test/purchase-installments.test.js`: regra, SDK real contra o banco simulado (criar, pagar parcela por parcela, editar 3→2→1→3, excluir, devolução ao adiantamento), tela e notinha;
+  - `test/purchase-order-print.test.js`: sem códigos ADT na notinha.

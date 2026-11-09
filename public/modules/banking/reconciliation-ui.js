@@ -1,4 +1,3 @@
-/* Workspace de conciliação: seleção N:N, diferenças, criação idempotente e confirmação no servidor. */
 (function(root){
 'use strict';
 const ofx=root.erpBankReconciliationDomain;
@@ -41,8 +40,6 @@ async function api(body){
 }
 function imported(){return Object.values(workspace.imports||{}).filter(r=>r&&r.id);}
 function decisions(){
-  // Nunca misturar listener/cache local com autorização transacional. O estado
-  // exibido vem exclusivamente do snapshot calculado pela mesma API que grava.
   return new Map(Object.entries(workspace?.effectiveDecisions||{}));
 }
 function isDone(d){return ['reconciled','classified','archived'].includes(d?.status);}
@@ -230,7 +227,6 @@ async function refreshTargets(){
     state.targets=result.targets||[];
     state.state=result.state||{decisions:{},audit:{}};
     state.legacyDecisions=result.legacyDecisions||{};
-    // Fonte única de verdade: o mesmo mapa efetivo verificado na transação.
     state.effectiveDecisions=result.effectiveDecisions||Object.assign({},state.legacyDecisions,state.state.decisions||{});
     state.snapshotLoaded=true;
     return true;
@@ -241,10 +237,6 @@ async function runAction(body,confirm=false){
   if(!workspace||workspace.busy)return;
   if(confirm&&!root.confirm(body.action==='archive'?'Arquivar a movimentação sem conciliá-la? O registro ficará no histórico.':'Desfazer o vínculo? O histórico ficará preservado.'))return;
   const state=workspace;state.busy=true;notify('');try{
-    // Confere a decisão transacional mais recente antes de enviar a alteração.
-    // Impede que uma interface desatualizada tente substituir um vínculo ativo.
-    // Não autoriza a ação com snapshot descartado por uma leitura mais recente.
-    // Em caso de listener concorrente, repete a consulta ao servidor.
     let fresh=false;
     for(let attempt=0;attempt<3&&!fresh;attempt++)fresh=await refreshTargets();
     if(workspace!==state)return;
@@ -264,17 +256,13 @@ async function runAction(body,confirm=false){
     notify(body.action==='undo'?'Conciliação reaberta.':body.action==='classify'?'Movimento classificado.':body.action==='archive'?'Movimentação arquivada.':'Conciliação gravada no servidor.','ok');
   }catch(e){
     if(e.status===409&&workspace===state){
-      // Reconsulta a API (inclusive o fallback legado) em vez de aceitar
-      // um listener ainda atrasado como fonte final da decisão financeira.
       try {
         await refreshTargets();
         if(workspace===state){state.initializedDraft=false;}
-      } catch(_) { /* O listener mantém a atualização usual da tela. */ }
+      } catch(_) {  }
     }
     const warning=e.status>=500?' Confira o histórico antes de tentar novamente.':'';
     const current=body.importId?decisions().get(body.importId)?.status:'';
-    // Nunca mascarar um 409 de arquivamento/classificação com aviso verde de reabertura.
-    // Se a API continuar negando, preservar o erro real e orientar a consulta do estado.
     const informative=e.status===409&&body.action==='undo'&&current==='reversed';
     const message=informative?'Movimentação já reaberta. Selecione um título e concilie novamente.':e.message+warning+
       (e.status===409?' Confira o estado atualizado; se existir vínculo ativo, utilize Desfazer.':'');
@@ -409,8 +397,6 @@ root.erpReconciliationOpen=async function(bankCode){
           state[key]=snap.val()||{};
           if(!state.imports[state.selected])state.selected=Object.keys(state.imports)[0]||'';
         }
-        // O listener serve somente para detectar mudanças. Somente a API
-        // pode definir o status, evitando exibir 'Reaberto' com vínculo ativo.
         scheduleSnapshotRefresh();
         renderList();
       };

@@ -51,7 +51,7 @@ test('falha de permissão não confirma e não modifica ticket',async()=>{
 });
 test('falha de leitura posterior não é exibida como persistência confirmada',async()=>{
  const x=setup({}, {failRead:true});await assert.rejects(x.commit('T049',sample(),{create:true}),/Falha na confirmação/);
- assert.equal(x.commits(),1); // Gravação pode ter sido confirmada no servidor, mas UI deve alertar incerteza
+ assert.equal(x.commits(),1);
 });
 test('edição concorrente não sobrescreve outro usuário',async()=>{
  const current=sample();const x=setup({'erp/tickets/T049':{...current,totalGeral:50000}});

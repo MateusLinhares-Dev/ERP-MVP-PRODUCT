@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {fiscalStaffPublicView} from '../server/domain/fiscal-staff.js';
+import {fiscalStaffPublicView} from '../server/modules/fiscal/domain/fiscal-staff.js';
 
 const code=fs.readFileSync(new URL('../public/modules/phase1/phase1-fiscal-admin.js', import.meta.url),'utf8');
 const css=fs.readFileSync(new URL('../public/modules/phase1/phase1-fiscal-admin.css', import.meta.url),'utf8');
-const api=fs.readFileSync(new URL('../api/fiscal/staff.js', import.meta.url),'utf8');
+const api=fs.readFileSync(new URL('../api/fiscal/staff.ts', import.meta.url),'utf8')+'\n'+fs.readFileSync(new URL('../server/modules/fiscal/application/fiscal-staff-query.ts', import.meta.url),'utf8');
 
 test('primeira abertura monta os painéis no DOM antes da extensão e ativa uma única aba',()=>{
   const attach=code.indexOf("title.insertAdjacentElement('afterend', shell)");
@@ -33,8 +33,8 @@ test('vínculo documental consulta cadastros atuais, não cache inicializado ced
 });
 
 test('funcionários sem canHR são consultados no backend autenticado somente com canPayroll',()=>{
-  assert.match(api,/await requireIdentity\(req\)/);
-  assert.match(api,/identity\.canPayroll!==true/);
+  assert.match(api,/access: 'user'/);
+  assert.match(api,/identity\.canPayroll !== true/);
   assert.match(api,/fiscalStaffPublicView/);
   assert.match(code,/getIdToken\?\.\(\)/);
   assert.match(code,/fetch\('\/api\/fiscal\/staff'/);

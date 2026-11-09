@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {ABS,decimalCents,validatePlan,remainingForTarget,suggestions,suggestCombinations,batchSuggestions} from '../public/modules/banking/reconciliation-engine.mjs';
-import {executeReconciliation} from '../server/application/reconciliation-service.js';
+import {executeReconciliation} from '../server/modules/banking/application/reconciliation.js';
 const identity={uid:'uid-A',erpUser:'Elaine',erpAccess:true,canBanking:true,canFinance:true,canReceivables:true};
 const imp=(id,n)=>({id,date:'2026-10-26',amountCents:String(n),description:'Compra fornecedores'});
 const targets=[{id:'p1',kind:'payable',date:'2026-10-26',description:'Compra fornecedor',amount:60},{id:'p2',kind:'payable',date:'2026-10-26',description:'Compra fornecedor',amount:40},

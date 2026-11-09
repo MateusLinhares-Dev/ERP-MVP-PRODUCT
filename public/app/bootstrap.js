@@ -4,7 +4,7 @@ import { createLegacyDatabaseAdapter } from './legacy-db-adapter.js';
 import { createRealtimeBusinessRepository } from './realtime-business-repository.js';
 import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 
-const assetRevision = '20261109-rapido-cheques-datas-v5';
+const assetRevision = '20261109-parcelas-compra-v6';
 const crudCacheRevision = '20261108-crud-sync-per-record-v2';
 
 function loadClassic(src) {
@@ -243,7 +243,6 @@ async function main() {
 
   initProfilePhoto({ auth, db, storage });
 
-  // A folha visual deve ser a última para prevalecer sobre estilos de módulos legados.
   const uiStylesheet = document.querySelector('link[href^="/legacy/professional-ui.css"]');
   if (uiStylesheet) document.head.appendChild(uiStylesheet);
   loadStyle('/legacy/operations-polish.css');

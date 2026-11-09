@@ -97,14 +97,14 @@ test('histórico financeiro não conta pesagem de origem junto de pedido consoli
  assert.equal(testVisibility(TICKETS_DB.T151),true);
  assert.equal(testVisibility(TICKETS_DB.T152),true);
  delete TICKETS_DB.T151;
- assert.equal(testVisibility(TICKETS_DB.T150),true); // não oculta a fonte sem pedido final
+ assert.equal(testVisibility(TICKETS_DB.T150),true);
 });
 
 test('paginador de compra aparece antes da tabela e nunca é escondido com <=25 compras',()=>{
  assert.match(pager,/key === 'compra-historico' \? 'beforebegin' : 'afterend'/);
  assert.match(core,/ERPListPager\?\.slice\('compra-historico',all,'tb-compras',renderTickets,\{alwaysShow:true\}\)/);
- assert.match(bootstrap,/const assetRevision = '20261109-rapido-cheques-datas-v5'/);
- assert.match(html,/bootstrap\.js\?v=20261109-rapido-cheques-datas-v5/);
+ assert.match(bootstrap,/const assetRevision = '20261109-parcelas-compra-v6'/);
+ assert.match(html,/bootstrap\.js\?v=20261109-parcelas-compra-v6/);
 });
 
 test('sincronizador em lote não publica pedido provisório enquanto transação individual está em andamento',()=>{

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { firebaseArticleTransport, mutateHelpArticle } from '../server/application/help-article-mutation.js';
-import { mutateAgendaServiceCatalog, defaultAgendaServices, normalizeAgendaServiceName, agendaServiceCatalog } from '../server/domain/agenda-service-catalog.js';
+import { firebaseArticleTransport, mutateHelpArticle } from '../server/modules/help/application/help-article-mutation.js';
+import { mutateAgendaServiceCatalog, defaultAgendaServices, normalizeAgendaServiceName, agendaServiceCatalog } from '../server/modules/agenda/domain/service-catalog.js';
 const source=(path)=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const copy=(v)=>v==null?v:structuredClone(v);
 function fakeRef(key,initial){
@@ -109,9 +109,10 @@ test('validações de serviços bloqueiam tags e caracteres inválidos',()=>{
  assert.equal(normalizeAgendaServiceName('Coleta  de material'),'COLETA DE MATERIAL');
 });
 test('API de ajuda usa ETag; serviço exige permissão e regras privadas',()=>{
- const help=source('api/help/articles.js');
+ const help=source('server/modules/help/application/help-center.ts');
  assert.match(help,/mutateHelpArticle/);assert.match(help,/firebaseArticleTransport/);
- const api=source('api/agenda/services.js');assert.match(api,/canDeliveryAgenda/);assert.match(api,/assertSameOrigin/);
+ const api=source('server/modules/agenda/application/agenda-services.ts');assert.match(api,/canDeliveryAgenda/);
+ const endpoint=source('api/agenda/services.ts');assert.match(endpoint,/POST: \{/);assert.doesNotMatch(endpoint,/sameOrigin: 'optional'/);
  const rules=JSON.parse(source('database.rules.json')).rules.erpAgendaServices;
  assert.equal(rules['.read'],false);assert.equal(rules['.write'],false);
  const front=source('public/modules/phase1/phase1-agenda.js');
@@ -119,12 +120,10 @@ test('API de ajuda usa ETag; serviço exige permissão e regras privadas',()=>{
 });
 
 test('resposta de mutação da API de serviços corresponde ao contrato consumido pela interface',()=>{
- const api=source('api/agenda/services.js');
+ const api=source('server/modules/agenda/application/agenda-services.ts');
  const front=source('public/modules/phase1/phase1-agenda.js');
- // Regression: previous POST returned {items}, while the UI read {services},
- // corrupting the service catalog and throwing on serviceCatalog.length.
- assert.match(api,/res\.status\(200\)\.json\(\{ok:true,changed:result\.changed,services:result\.items\}\)/);
- assert.match(api,/res\.status\(200\)\.json\(\{services:agendaServiceCatalog/);
+ assert.match(api,/return \{ ok: true, changed: result\.changed, services: result\.items \}/);
+ assert.match(api,/return \{ services: agendaServiceCatalog/);
  assert.match(front,/function servicesFromResponse\(data\)/);
  assert.match(front,/serviceCatalog=servicesFromResponse\(data\)/);
  assert.match(front,/serviceCatalog=servicesFromResponse\(result\)/);

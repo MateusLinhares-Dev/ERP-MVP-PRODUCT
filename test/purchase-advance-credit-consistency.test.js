@@ -76,5 +76,5 @@ test('baixa envia a data escolhida sem referência a date inexistente',()=>{
 
 test('front publicado carrega os assets com revisão para não usar o JavaScript antigo',()=>{
   assert.match(bootstrap,/script\.src = src \+ '\?v=' \+ assetRevision/);
-  assert.match(html,/app\/bootstrap\.js\?v=20261109-rapido-cheques-datas-v5/);
+  assert.match(html,/app\/bootstrap\.js\?v=20261109-parcelas-compra-v6/);
 });

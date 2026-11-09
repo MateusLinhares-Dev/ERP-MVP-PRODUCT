@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {createAdvance,changeAdvance} from '../server/application/finance-advances.js';
+import {createAdvance,changeAdvance} from '../server/modules/advances/application/advances.js';
 
 const clone=x=>x===undefined?undefined:structuredClone(x);
 function dbFixture(){

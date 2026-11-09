@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {buildSecurityClaims} from '../server/domain/access.js';
+import {buildSecurityClaims} from '../server/modules/access/domain/access-claims.js';
 
 const read=path=>JSON.parse(readFileSync(new URL('../'+path,import.meta.url),'utf8'));
 const rules=read('database.rules.json').rules.erp;

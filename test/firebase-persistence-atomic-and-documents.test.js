@@ -50,7 +50,7 @@ test('se Storage recusar limpeza após commit, metadado não é ressuscitado',as
   const oldWarn=console.warn;console.warn=()=>{};
   try{await ctx.ref.remove();}finally{console.warn=oldWarn;}
   assert.equal(ctx.getRecord(),null);
-  assert.equal(ctx.files.size,1); // objeto órfão será reconciliado depois
+  assert.equal(ctx.files.size,1);
 });
 
 test('upload não sobrescreve versão anterior e respeita profundidade das regras Storage',async()=>{

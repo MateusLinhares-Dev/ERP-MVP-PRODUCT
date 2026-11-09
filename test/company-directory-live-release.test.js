@@ -2,21 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
+import {changeCompanyConfig,normalizeEmployeeCompanies} from '../server/modules/company/index.ts';
 
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const core=read('public/legacy/app-core.js');
 const sync=read('public/legacy/firebase-sync.js');
-const api=read('api/admin/employee-companies.js');
+const api=read('api/admin/employee-companies.ts')+'\n'+read('server/modules/company/application/company-directory-service.ts');
 const bootstrap=read('public/app/bootstrap.js');
 const template=read('public/index.template.html');
 const print=read('public/modules/purchase-order/purchase-order.js');
 
 function backend(){
-  const start=api.indexOf('function companyKey(value)');
-  const end=api.indexOf('export default async function handler',start);
-  const ctx={};
-  runInNewContext(api.slice(start,end).replaceAll('export function','function')+'\nthis.changeCompanyConfig=changeCompanyConfig;this.normalizeEmployeeCompanies=normalizeEmployeeCompanies;',ctx);
-  return ctx;
+  return {changeCompanyConfig,normalizeEmployeeCompanies};
 }
 function frontend(){
   const start=core.indexOf('function _cfgPublicBusiness(){');
@@ -68,7 +65,7 @@ test('empresas históricas e apelidos não geram duplicatas em novos lançamento
 
 test('a API não permite remover empresa principal ou mudar configurações fora da transação autenticada',()=>{
   assert.equal(backend().changeCompanyConfig({primaryCompanyKey:'Manuela Metais'},'archive','Manuela'),null);
-  assert.match(api,/requireIdentity\(req,\{admin:true\}\)/);
+  assert.match(api,/access: 'admin'/);
   assert.match(api,/ref\('erp\/companyDirectory'\)/);
   assert.match(sync,/ref\('erp\/companyDirectory'\)\.on\('value'/);
   assert.match(sync,/window\.__erpApplyCompanyDirectory\(\{employeeCompanies:cfg\.companies/);
@@ -76,8 +73,8 @@ test('a API não permite remover empresa principal ou mudar configurações fora
 
 test('inicialização faz leituras de configuração em paralelo e atualiza versão do frontend',()=>{
   assert.match(bootstrap,/Promise\.all\(\[/);
-  assert.match(template,/bootstrap\.js\?v=20261109-rapido-cheques-datas-v5/);
-  assert.match(bootstrap,/const assetRevision = '20261109-rapido-cheques-datas-v5'/);
+  assert.match(template,/bootstrap\.js\?v=20261109-parcelas-compra-v6/);
+  assert.match(bootstrap,/const assetRevision = '20261109-parcelas-compra-v6'/);
 });
 
 test('pedido de compra tem fonte legível e continua usando página A4',()=>{

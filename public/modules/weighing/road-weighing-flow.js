@@ -523,7 +523,6 @@ if(typeof original.updateRoadWeight==='function'){
   };
 }
 
-
 global.roadWeighingFocusFinalWeight=function(ticketId){
   const item=ticket(ticketId);
   if(!item)return;

@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {payPayable} from '../server/application/finance-payment.js';
-import {changeAdvance} from '../server/application/finance-advances.js';
+import {payPayable} from '../server/modules/payables/application/payables.js';
+import {changeAdvance} from '../server/modules/advances/application/advances.js';
 
 const actor={uid:'erp:thais',erpUser:'thais',erpAccess:true,canPayables:true,canAdvances:true,canBanking:false};
 const operationId='cebcaa20-2e4a-4e32-8e08-41ad07415dc0';

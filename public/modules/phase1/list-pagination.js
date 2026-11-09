@@ -1,4 +1,3 @@
-/* Paginação de listagens operacionais. Os dados e índices originais permanecem intactos. */
 (function (global) {
   'use strict';
   const states = new Map();
@@ -11,7 +10,6 @@
   }
 
   function controls(key, body, render, opts) {
-    // Aceita tabelas e listas de cards; paginador fora do conteúdo re-renderizado.
     const table = typeof body.closest === 'function' ? body.closest('table') : null;
     const anchor = table || body;
     const state = stateFor(key);
@@ -56,7 +54,6 @@
     const start = (state.page - 1) * state.size;
 
     if (bar) {
-      // DOM nodes em vez de interpolação de registros: nenhum texto do usuário entra em HTML.
       bar.replaceChildren();
       const count = document.createElement('span');
       count.className = 'erp-list-pager-count';

@@ -6,7 +6,7 @@ const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const js=read('public/modules/phase1/phase1-fiscal-admin.js');
 const css=read('public/modules/phase1/phase1-fiscal-admin.css');
 const rules=read('storage.rules');
-const extension=js.slice(js.indexOf("(function(global){\n'use strict';\n// Extensões do Fiscal."));
+const extension=js.slice(js.indexOf("(function(global){\n'use strict';\nconst $=(s,r=document)=>r.querySelector(s);"));
 
 test('cinco áreas fiscais acessíveis e interface responsiva',()=>{
   for(const t of ['Importar XML','Estoque inicial','NF de devolução','Documentos fiscais','Consulta de custos'])

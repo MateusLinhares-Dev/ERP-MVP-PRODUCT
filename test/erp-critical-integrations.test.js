@@ -8,7 +8,8 @@ const agendaSrc = read('public/modules/phase1/phase1-agenda.js');
 const supplierSrc = read('public/legacy/supplier-compat.js');
 const bankSrc = read('public/modules/phase3/phase3-homologation.js');
 const matrixSrc = read('public/modules/final-ops/final-ops.js');
-const apiSrc = read('api/training/matrix.js');
+const apiSrc = read('server/modules/training/application/training-matrix.ts');
+const endpointSrc = read('api/training/matrix.ts');
 
 function agendaFixture(remote={}) {
   const begin=agendaSrc.indexOf('const agendaRemoteParties=');
@@ -70,10 +71,10 @@ test('Matriz: cursos inativos são filtrados, preservados no histórico e podem 
   assert.match(matrixSrc,/data-course-filter="inativos"/);
   assert.match(matrixSrc,/Inativos \(\$\{inactive.length\}\)/);
   assert.match(matrixSrc,/Reativar/);
-  assert.match(apiSrc,/action==='activate'/);
-  assert.match(apiSrc,/\['courses\/'\+key\+'\/active'\]:true/);
-  assert.match(apiSrc,/assertSameOrigin\(req,\{required:true\}\)/);
-  assert.match(apiSrc,/if\(!isManager\)throw/);
+  assert.match(apiSrc,/case 'activate':/);
+  assert.match(apiSrc,/\['courses\/' \+ key \+ '\/active'\]: true/);
+  assert.match(endpointSrc,/POST: \{/);assert.doesNotMatch(endpointSrc,/sameOrigin: 'optional'/);
+  assert.match(apiSrc,/if \(!isTrainingManager\(identity\)\) throw err\('Somente Elaine pode alterar a matriz\.', 403\)/);
 });
 
 test('Clientes: abertura de contas reutiliza editor multibanco completo',()=>{

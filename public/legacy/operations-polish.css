@@ -1,4 +1,3 @@
-/* Administração, financeiro e operação — camada de apresentação não destrutiva. */
 #app-screen :is(#tab-funcionarios,#tab-ponto,#tab-folha_pagamento,#tab-vendas,#tab-estoque,#tab-usuarios,#tab-fin_clientes,#tab-viagem_motorista) {
   --work-border:#dae4dc;
   --work-soft:#f6f9f7;
@@ -66,7 +65,6 @@
 #app-screen #tab-viagem_motorista .erp-workspace-panel :is(input,select){min-height:36px}
 #app-screen #tab-viagem_motorista .erp-workspace-panel .tcard{overflow:visible}
 
-/* Ficha e extrato de clientes: hierarquia do saldo e leitura de movimentações. */
 #app-screen #tab-fin_clientes>div:nth-child(2){display:none}
 #app-screen #tab-fin_clientes #fc-view-extrato>div:first-child{display:none}
 #app-screen #tab-fin_clientes #fc-cli-box{max-height:116px;overflow-y:auto;gap:6px!important}
@@ -85,7 +83,6 @@
 #app-screen #tab-fin_clientes #fc-extrato-card td:nth-child(n+4){font-variant-numeric:tabular-nums;white-space:nowrap}
 #app-screen #tab-fin_clientes #fc-situacao{padding:12px 18px;margin-top:0!important;background:#f9fbf9}
 
-/* Modais financeiros de cliente e fornecedor compartilham grid e ações discretas. */
 :is(#modal-ficha-cli,#modal-ficha-forn){padding:20px 16px!important;align-items:flex-start!important;overflow:auto!important}
 :is(#modal-ficha-cli,#modal-ficha-forn)>div{width:min(1250px,100%)!important;max-width:1250px!important;max-height:calc(100dvh - 40px)!important;border-radius:10px!important;box-shadow:0 22px 60px #0004!important;overflow:auto!important}
 :is(#modal-ficha-cli,#modal-ficha-forn)>div>div:first-child{background:#203e2d!important;color:#fff!important;border-radius:10px 10px 0 0!important;padding:17px 20px!important;position:sticky;top:0;z-index:3}
@@ -116,7 +113,6 @@
 :is(#modal-ficha-cli,#modal-ficha-forn) td:last-child{white-space:nowrap;min-width:65px}
 :is(#modal-ficha-cli,#modal-ficha-forn) td:last-child button{margin:2px!important}
 
-/* Filtros de listas e extratos. */
 .erp-data-toolbar,.erp-ledger-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 16px;background:#fff;border-bottom:1px solid #e5ece6}
 .erp-data-toolbar :is(input,select),.erp-ledger-toolbar :is(input,select){font:inherit;font-size:.83rem;padding:9px 12px;background:#fff;color:#263d2c;border:1px solid #d0ded3;border-radius:6px;min-width:0;min-height:37px}
 .erp-data-toolbar input,.erp-ledger-toolbar input{width:clamp(210px,28vw,365px);max-width:100%;flex:0 1 365px}
@@ -154,14 +150,12 @@
   .erp-data-toolbar input,.erp-ledger-toolbar input,.erp-ledger-toolbar select{width:100%;flex:1 1 100%}
   .erp-data-count{margin-left:0}
 }
-/* Matricula e funcionário permanecem visíveis na folha durante a rolagem horizontal. */
 #app-screen #tab-folha_pagamento .folha-tbl :is(th,td):first-child{position:sticky;left:0;z-index:2;min-width:76px;background:#fff}
 #app-screen #tab-folha_pagamento .folha-tbl :is(th,td):nth-child(2){position:sticky;left:76px;z-index:2;min-width:145px;max-width:195px;background:#fff;white-space:normal}
 #app-screen #tab-folha_pagamento .folha-tbl th:first-child,
 #app-screen #tab-folha_pagamento .folha-tbl th:nth-child(2){z-index:4;background:#f6f9f7}
 #app-screen #tab-folha_pagamento .folha-tbl td:nth-child(2){border-right:1px solid #d5e1d7}
 
-/* Ações de linha padronizadas, sem códigos de cor decorativos. */
 #app-screen #tab-funcionarios tbody :is(.btn-edit,.btn-add){background:#f7faf8!important;color:#28533b!important;border:1px solid #d4e2d8!important}
 #app-screen #tab-vendas tbody :is(.btn-edit,.btn-add){background:#f7faf8!important;color:#28533b!important;border:1px solid #d4e2d8!important}
 #app-screen #tab-estoque tbody :is(.btn-edit,.btn-add){background:#f7faf8!important;color:#28533b!important;border:1px solid #d4e2d8!important}

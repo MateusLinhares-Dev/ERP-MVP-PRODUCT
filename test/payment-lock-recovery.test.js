@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {payPayable,inspectPayablePayment} from '../server/application/finance-payment.js';
+import {payPayable,inspectPayablePayment} from '../server/modules/payables/application/payables.js';
 import {inspectPaymentLock} from '../scripts/audit-payment-lock.mjs';
 
 const actor={uid:'erp:elaine',erpUser:'elaine',erpAccess:true,canPayables:true};

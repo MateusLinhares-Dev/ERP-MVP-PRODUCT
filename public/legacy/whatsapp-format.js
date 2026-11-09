@@ -1,7 +1,5 @@
 (function(global){
   'use strict';
-  // Unicode is preserved as UTF-8 by encodeURIComponent at the single URL boundary.
-  // Remove decorative pictograms from business messages, not names or financial data.
   function formatBusinessText(message){
     return String(message==null?'':message)
       .normalize('NFC')

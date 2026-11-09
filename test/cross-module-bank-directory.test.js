@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {buildSecurityClaims} from '../server/domain/access.js';
-import {listPaymentBanks} from '../server/application/finance-payment.js';
+import {buildSecurityClaims} from '../server/modules/access/domain/access-claims.js';
+import {listPaymentBanks} from '../server/modules/payables/application/payables.js';
 
 const core=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
 const rules=JSON.parse(readFileSync(new URL('../database.rules.json',import.meta.url),'utf8')).rules.erp;

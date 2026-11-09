@@ -2,9 +2,6 @@
 'use strict';
 const alertUser=(message,type='error')=>{if(typeof global.showToast==='function')global.showToast(message,type,6500);else global.alert(message);};
   const deleting = new Set();
-  // O backend serializa a coleção financeira por fornecedor. O navegador
-  // precisa respeitar a mesma ordem: duas exclusões clicadas em sequência
-  // não devem disputar o lock e disparar 409 desnecessariamente.
   const deletionQueues = new Map();
   const scheduledDeletes = new Set();
   function queueAdvanceDeletion(supplierCode,advanceCode,button){
@@ -36,8 +33,6 @@ const alertUser=(message,type='error')=>{if(typeof global.showToast==='function'
     return named.length ? named : result;
   }
 
-  // Conferência do negócio: o usuário financeiro decide com base no extrato
-  // REAL. O ERP não presume se houve PIX e jamais cria transferência externa.
   function el(parent,tag,text,css){
     const node=global.document.createElement(tag);
     if(text!=null)node.textContent=text;
@@ -81,7 +76,7 @@ const alertUser=(message,type='error')=>{if(typeof global.showToast==='function'
       const cancel=el(buttons,'button','Voltar','padding:10px 14px;border:1px solid #a8b7ae;background:white;border-radius:7px;cursor:pointer');
       const submit=el(buttons,'button','Confirmar conferência','padding:10px 14px;background:#17563e;color:white;border:0;border-radius:7px;cursor:pointer');
       let busy=false;
-      let pendingPayload=null; // Reenvio idempotente da MESMA decisão se a resposta se perder.
+      let pendingPayload=null;
       function update(){
         const v=choice.value;
         reference.style.display=v==='paid'?'block':'none';
@@ -231,7 +226,6 @@ const alertUser=(message,type='error')=>{if(typeof global.showToast==='function'
       const bankMismatch=code==='BANK_LEDGER_CHANGED'||
         /movimento bancário.*divergente|concilia[cç][aã]o financeira|movimento bancário.*ausente/i.test(message);
       if(bankMismatch){
-        // Mensagem pública sem termos de backend, IDs de operação ou instrução para F5.
         let canReview=false;
         try{
           const actor=await global.firebase?.auth?.()?.currentUser?.getIdTokenResult?.();
@@ -250,7 +244,6 @@ const alertUser=(message,type='error')=>{if(typeof global.showToast==='function'
       }else if(error?.status===403||code.toLowerCase()==='permission_denied'||/permission_denied/i.test(message)){
         alertUser('Você não tem permissão para excluir este adiantamento. Solicite autorização ao responsável financeiro.');
       }else{
-        // Preserve diagnósticos completos no console para suporte, sem expor o erro bruto.
         console.warn('advance.delete.rejected',{code,status:error?.status,reason:message});
         alertUser('Não foi possível concluir a exclusão. Nenhuma alteração foi confirmada. Solicite suporte ao administrador.');
       }
@@ -273,9 +266,6 @@ const alertUser=(message,type='error')=>{if(typeof global.showToast==='function'
   };
   global.excluirAdiantamento = (supplierCode, advanceCode) => queueAdvanceDeletion(String(supplierCode), String(advanceCode));
 
-// Na inclusão sequencial de cheques, o próximo herda o banco escolhido
-// na última linha. A escolha explícita de banco (p.ex., gerar sequência)
-// continua prevalecendo. Não altera nenhum cheque já preenchido.
 const legacyAddCheque=global._adtChqAddRow;
 if(typeof legacyAddCheque==='function'){
   global._adtChqAddRow=function(banco,...rest){

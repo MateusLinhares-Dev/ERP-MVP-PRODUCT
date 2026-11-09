@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {createAdvance,getAdvanceOperationStatus} from '../server/application/finance-advances.js';
+import {createAdvance,getAdvanceOperationStatus} from '../server/modules/advances/application/advances.js';
 
 const code=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
 const start=code.indexOf('let _adtSalvamentoAtivo=false;');
@@ -59,7 +59,7 @@ test('somente um POST é enviado apesar de vários cliques durante gravação le
   assert.equal(ui.elements.has('adt-saving-lock'),true);
   assert.equal(ui.button.disabled,true);
   assert.equal(await ui.call(),false);
-  assert.equal(ui.count().posts,1); // uma requisição já em andamento
+  assert.equal(ui.count().posts,1);
   release({ok:true,status:200,json:async()=>({advance:{cod:'ADTX',valor:500,bancoNome:'Conta principal'},entries:[{cod:'ADTX',valor:500}]})});
   assert.equal(await first,true);
   assert.deepEqual(ui.count(),{posts:1,checks:0,closed:1});

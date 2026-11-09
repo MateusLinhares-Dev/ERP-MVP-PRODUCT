@@ -12,7 +12,7 @@ const between = (start, end) => {
   assert.ok(a >= 0 && b > a, `Trecho não encontrado: ${start} ... ${end}`);
   return src.slice(a, b);
 };
-const helpers = between('// Consulta histórica: a inativação nunca remove vínculos', 'function getFolhaMes(){');
+const helpers = between('function _erpFuncionarioAtivo(f){', 'function getFolhaMes(){');
 const funcionarios = [
   {mat:'F001', nome:'FUNC ATIVO', cargo:'RH', status:'Ativo', sal:2200},
   {mat:'F002', nome:'FUNC INATIVO', cargo:'Fiscal', status:'Inativo', sal:2000},
@@ -58,7 +58,6 @@ function makeContext({filters={}, folha={}}={}) {
     confirm:()=>true,saveDB:()=>{throw Error('salvamento inesperado')},
     localStorage:{setItem:()=>{}}, fbSalvar:()=>{}, renderTbFuncionarios:()=>{},
     EPI_HELPER_STUB:null,
-    // Em teste unitário isolado, o paginador não é carregado pelo bootstrap.
     _erpPaginarDados:(_key, rows)=>rows,
   });
   vm.runInContext(helpers,ctx);

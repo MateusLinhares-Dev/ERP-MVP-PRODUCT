@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { hashPassword } from '../server/infrastructure/password-hasher.js';
+import { hashPassword } from '../server/modules/access/infrastructure/password-hasher.js';
 
 const projectId=process.env.FIREBASE_PROJECT_ID||'demo-manuela-erp';
 const host=process.env.FIREBASE_EMULATOR_HOST||'127.0.0.1';
@@ -19,7 +19,6 @@ const materials=JSON.parse(await fs.readFile(new URL('./dev-materials.json',impo
 const business=JSON.parse(await fs.readFile(new URL('./dev-business-data.json',import.meta.url),'utf8'));
 const profiles={}; const secure={}; const localCredentials=[];
 for(const [login,u] of Object.entries(users)){
-  // O ERP legado identifica o usuário pela senha. No emulador cada login precisa de uma senha única.
   const password=`${passwordBase}:${login}`;
   const profile={name:u.name,role:u.role,descricao:u.descricao||'',tabs:u.tabs||[],tabsCustom:false,admin:Boolean(u.admin),...(u.cpApenasFornecedor?{cpApenasFornecedor:true}:{})};
   profiles[login]=profile;
@@ -48,14 +47,10 @@ await put('erp/users',profiles);
 await put('erp/usersDeleted',[]);
 await put('erpAuth/users',secure);
 
-// Catálogo de desenvolvimento: vem de fixture de migração, não do front-end.
-// Produção/homologação devem usar o catálogo real existente em erp/metais/erp/estoque.
 const estoque=Object.fromEntries(materials.map((mat)=>[mat,{mat,inicial:0,entradas:0,saidas:0,precoVenda:0,obs:''}]));
 await putIfMissing('erp/metais',materials);
 await putIfMissing('erp/estoque',estoque);
 
-// Dados de desenvolvimento ficam SOMENTE nas fixtures do seed. O bundle público
-// nasce vazio e lê os registros do Realtime Database após autenticação.
 await putIfMissing('erp/config',{
   primaryCompanyKey:business.primaryCompanyKey||'',
   branding:business.branding||{},
@@ -84,7 +79,6 @@ await putIfMissing('erp/bancos',Object.fromEntries((business.legacyBanks||[]).ma
 await putIfMissing('erp/tickets',business.tickets||{});
 await putIfMissing('erp/frota',Object.fromEntries((business.fleet||[]).map((v,i)=>[(v.id||`DEV-VE-${i+1}`),v])));
 await putIfMissing('erp/chequesControle',Object.fromEntries((business.chequeControle||[]).filter(x=>x&&x.id).map(x=>[x.id,x])));
-
 
 console.log(`Emulador pronto. Fixtures de negócio são criadas somente quando o nó ainda não existe; dados já gravados no RTDB são preservados.`);
 console.table(localCredentials);

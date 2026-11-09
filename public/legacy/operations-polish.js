@@ -1,4 +1,3 @@
-/* Organização de tabelas e extratos sem modificar os registros de negócio. */
 (function () {
   'use strict';
   const $=(sel,root=document)=>root.querySelector(sel);

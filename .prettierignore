@@ -1,0 +1,9 @@
+dist
+node_modules
+public
+test
+scripts
+**/*.js
+**/*.mjs
+*.json
+*.md

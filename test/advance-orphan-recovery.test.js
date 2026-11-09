@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {previewOrphanAdvance,recoverOrphanAdvance} from '../server/application/advance-orphan-recovery.js';
+import {previewOrphanAdvance,recoverOrphanAdvance} from '../server/modules/advances/application/orphan-recovery.js';
 
 const admin={uid:'uid-admin',erpUser:'elaine',erpAccess:true,canAdvances:true,canBanking:true,admin:true};
 const basic={fornCod:'F675',adtCod:'ADTMW40XFZ82E29C267'};

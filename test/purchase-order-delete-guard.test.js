@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {deletePurchaseOrder} from '../server/application/purchase-order-delete.js';
+import {deletePurchaseOrder} from '../server/modules/purchases/application/delete-purchase-order.js';
 
 const user={uid:'erp:elaine',erpUser:'elaine',erpAccess:true,canPurchasing:true,canPayables:true};
 const op='4e2b0b8a-e5d8-40bd-a74d-d489eeb23a54';
@@ -141,7 +141,7 @@ test('front usa endpoint e nÃ£o apaga localmente antes do ACK; rules vedam deleÃ
 function frontend(response,shouldThrow=false){
   const core=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
   const begin=core.indexOf('const _purchaseDeletePending=new Set();');
-  const end=core.indexOf('// A baixa financeira deve passar',begin);
+  const end=core.indexOf('function abrirBaixaCompraNoFinanceiro(',begin);
   assert.ok(begin>0&&end>begin);
   const state={TICKETS_DB:{T310:{ticket:'T310',fornecedorCod:'F675',totalGeral:50}},
     CONTAS_PAGAR:[{id:'CPPO_T310',ticket:'T310',status:'Pendente',valor:50}],

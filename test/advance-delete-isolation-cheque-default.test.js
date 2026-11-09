@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {createAdvance,changeAdvance} from '../server/application/finance-advances.js';
+import {createAdvance,changeAdvance} from '../server/modules/advances/application/advances.js';
 
 const who={uid:'operador',erpUser:'Operador',erpAccess:true,canAdvances:true};
 const value={operationId:'a0d00000-1111-4111-8111-111111111111',fornCod:'F1',data:'2026-11-06',valor:12,forma:'PIX',bancoCod:'B1',empresa:'Empresa',ticket:'',obs:''};

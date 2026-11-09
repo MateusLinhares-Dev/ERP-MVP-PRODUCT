@@ -84,7 +84,6 @@ test('Coordenação exclui inativos, restaura tipos e explica bags',()=>{
   has('filterCoordFunctionCards','DDS — Diálogo Diário de Segurança','não é necessário cadastrar em outra tela','Fornecedor de origem','Registrar retorno ao fornecedor');
 });
 
-
 test('Contas da Dona não depende da permissão de uma tab inexistente no legado',()=>{
   assert.ok(js.includes("global.phase2OpenOwnerBills=function()"));
   assert.ok(!js.includes("switchTab('contas_dona');renderOwnerBills()"));

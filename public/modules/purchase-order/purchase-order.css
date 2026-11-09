@@ -1,6 +1,6 @@
 
 #cst-lancamento .phase4-po-legacy-supplier{display:none!important}
-.phase4-po{display:grid;gap:14px;max-width:1500px}
+.phase4-po{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;max-width:1500px}
 .phase4-po *{box-sizing:border-box}
 .phase4-po button{cursor:pointer}
 .phase4-po-title{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:2px 0 4px}
@@ -39,7 +39,7 @@
 .phase4-po-summary .grand{background:#edf5ef}
 .phase4-po-form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .phase4-po-form-grid.two{grid-template-columns:1fr 1fr}
-.phase4-po-payment-head{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(200px,.6fr) minmax(200px,.6fr);gap:12px;align-items:end}
+.phase4-po-payment-head{display:grid;grid-template-columns:repeat(2,minmax(200px,1fr));gap:12px;align-items:end}
 .phase4-po-payment-total{display:grid;gap:4px;padding:9px 12px;border-radius:7px;background:#f6f8f7}
 .phase4-po-payment-total span{font-size:.68rem;text-transform:uppercase;color:#728078;font-weight:700}
 .phase4-po-payment-total b{font-size:1rem}
@@ -52,6 +52,25 @@
 .phase4-po-pay-row small{color:#7a857f}
 .phase4-po-pay-row.credit{background:#fff9e8}
 .phase4-po-empty-pay{color:#89938e;font-size:.8rem;padding:6px 0}
+.phase4-po-installments{margin-top:14px;padding-top:12px;border-top:1px solid #edf1ee}
+.phase4-po-installments-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.phase4-po-installments-head h4{margin:0;color:#23372d;font-size:.84rem}
+.phase4-po-installments-tools{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
+.phase4-po-installments-tools[hidden]{display:none}
+.phase4-po-installments-tools .phase4-po-field{min-width:240px}
+.phase4-po-installments-tools .phase4-po-outline{min-height:37px}
+.phase4-po-installments-table{min-width:760px}
+.phase4-po-installments-table .days{width:86px}
+.phase4-po-installments-table .date{width:150px}
+.phase4-po-installments-table .value{width:150px}
+.phase4-po-installments-table .value input{text-align:right}
+.phase4-po-installments-table .form{width:150px}
+.phase4-po-installments-table select{width:100%;min-height:34px;padding:6px 8px;border:1px solid #d2dad5;border-radius:5px;background:#fff;color:#1f2f27;font-size:.82rem;outline:none}
+.phase4-po-installments-table select:focus{border-color:var(--primary,#1a3a2a);box-shadow:0 0 0 2px rgba(26,58,42,.08)}
+.phase4-po-installments-table select:disabled{background:#f4f6f5;color:#4e5b54}
+.phase4-po-installments-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.phase4-po-installments-foot span{font-size:.76rem;color:#69756f}
+.phase4-po-installments-foot span.phase4-po-installments-alert{color:#b42318;font-weight:800}
 .phase4-po-outline,.phase4-po-save{border-radius:6px;padding:8px 18px;font-weight:800;font-size:.8rem}
 .phase4-po-outline{background:#fff;color:var(--primary,#1a3a2a);border:1px solid var(--primary,#1a3a2a)}
 .phase4-po-save{background:var(--primary,#1a3a2a);color:#fff;border:1px solid var(--primary,#1a3a2a)}
@@ -98,7 +117,6 @@
 .phase4-pending-empty b{color:#2e6f46}
 @media(max-width:900px){.phase4-pending-card{grid-template-columns:1fr 1fr}.phase4-pending-actions{grid-column:1/-1}.phase4-pending-weight{text-align:left}}
 
-/* O preço total é calculado, mas mantém aparência de campo como no pedido de compra. */
 .phase4-po-table .total{min-width:150px}
 .phase4-po-table .phase4-po-row-total{min-width:136px;text-align:right;font-weight:800;color:#17492f;background:#f3f8f4;border-color:#dce9df;font-variant-numeric:tabular-nums;cursor:default}
 .phase4-po-table .phase4-po-row-total:focus{box-shadow:none}
@@ -108,7 +126,6 @@
 .phase4-po-duplicate-warnings[hidden]{display:none!important}
 .phase4-po-table tr.phase4-po-duplicate-item td:nth-child(2) input{border-color:#dd9d2f!important;background:#fffaf0!important}
 
-/* Consulta somente leitura do histórico de compras no Firebase. */
 .phase4-ticket-lookup{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:8px 0 14px;padding:12px 14px;border:1px solid #dbe6dd;border-radius:10px;background:#f9fcfa;color:#1d4831}
 .phase4-ticket-lookup label{font-size:.78rem;font-weight:750}
 .phase4-ticket-lookup input{width:120px;min-height:37px;box-sizing:border-box;border:1px solid #cbdacf;border-radius:7px;padding:8px 11px;font-size:.84rem;background:#fff}

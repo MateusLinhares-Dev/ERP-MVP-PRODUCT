@@ -30,9 +30,6 @@ export async function loadFirebaseCompat(runtimeConfig) {
     window.firebase.initializeApp(runtimeConfig.firebase);
   }
 
-  // O SDK escolhe automaticamente WebSocket ou long polling conforme a rede.
-  // Nao forcar o transporte com a API privada INTERNAL: proxies podem bloquear WebSocket.
-
   const auth = window.firebase.auth();
 
   if (runtimeConfig.emulators?.enabled) {

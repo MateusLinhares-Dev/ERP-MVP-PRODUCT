@@ -12,8 +12,6 @@ async function initFiscalParties(){
   }
   const seq=++fiscalPartyLoadId;
   try{
-    // Sem a permissão de leitura fiscal a consulta seria recusada pelas regras:
-    // não consultar (evita erro de permissão no console a cada abertura).
     const current=global.firebase?.auth?.()?.currentUser;
     if(current&&typeof current.getIdTokenResult==='function'){
       const claims=(await current.getIdTokenResult())?.claims||{};
@@ -24,8 +22,6 @@ async function initFiscalParties(){
         return;
       }
     }
-    // Ao voltar à aba, consultar a fonte atual: Phase1Store mantém cache e a
-    // primeira leitura pode ocorrer antes de o Firebase terminar a sincronização.
     const raw=global._fbDB;
     const value=raw ? (await raw.ref('erp/fiscalParties').once('value')).val() : (await store?.load('fiscalParties',{}));
     if(seq!==fiscalPartyLoadId)return;
@@ -62,7 +58,6 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
 })(window);
 (function (global) {
   'use strict';
-  // Apresentação somente. Os IDs, handlers e formulários fiscais originais são preservados.
   const $ = (selector, root = document) => root.querySelector(selector);
   const PANELS = ['mensal', 'anual', 'impostos', 'apuracao'];
   let currentArea = 'lancamentos';
@@ -77,7 +72,6 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
   }
 
   function callFiscalPanel(name) {
-    // Chama a rotina legada, que mantém os cálculos e o carregamento de cada seção.
     if (typeof global.fiscalSubTab === 'function') global.fiscalSubTab(name);
     else PANELS.forEach(p => {
       const el = $('#fiscal-panel-' + p);
@@ -111,7 +105,6 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
     });
     if(currentArea==='cadastros'){global.phase1FiscalPartiesReload?.();global.phase2FiscalReload?.();}
     global.FiscalExtensions?.onAreaChange(currentArea);
-    // Não alteramos empresa, competência ou estado das notas ao trocar de área.
   }
 
   function relocateRegistry() {
@@ -157,8 +150,6 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
     origin.prepend(node('div','fis-work-inline-label','Tipo de lançamento'));
     const estoque=$('#fmtab-btn-estoque');const resumo=$('#fmtab-btn-resumo');
     if(estoque&&resumo)resumo.insertAdjacentElement('afterend',estoque);
-    // Preservar o controle legado (handlers antigos podem chamá-lo), mas
-    // a importação está disponível somente em Ferramentas > Importar XML.
     const old=$('#fmtab-btn-importar');if(old){old.hidden=true;old.setAttribute('aria-hidden','true');old.tabIndex=-1;}
   }
 
@@ -192,7 +183,6 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
 
     originalPeriodBar.classList.add('fis-work-period');
     originalPeriodBar.removeAttribute('style');
-    // Controles de fechamento e exportação têm sua própria área, não ficam entre os filtros.
     const closingButtons = ['fiscal-btn-fechar', 'fiscal-btn-reabrir']
       .map(id => $('#' + id)).filter(Boolean);
     const exportButtons = Array.from(originalPeriodBar.querySelectorAll('button'))
@@ -225,7 +215,6 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
     nav.append(extraNav);
     shell.appendChild(nav);
 
-    // Mantém os botões legados no DOM (usados por funções antigas), mas evita navegação duplicada.
     originalTabBar.classList.add('fis-work-original-tabs');
     originalTabBar.hidden = true;
     originalTabBar.setAttribute('aria-hidden', 'true');
@@ -294,16 +283,12 @@ if(global.Phase1Dom)global.Phase1Dom.register(apply);setTimeout(()=>{initCategor
     replaceSubtabs();
     decorateCompanyButtons();
     relocateRegistry();
-    // Os controles da extensão precisam estar montados no document antes dos querySelector.
-    // Caso contrário, o init interrompe e todas as áreas ficam abertas.
     try { global.FiscalExtensions?.install(shell); } catch (error) { console.error('[Fiscal] montagem das áreas adicionais',error); }
     setArea('lancamentos');
     const observer = new MutationObserver(() => relocateRegistry());
     observer.observe(tab, {childList: true, subtree: true});
   }
 
-  // O cabeçalho da impressão não pode assumir a empresa principal nem depender de
-  // um botão que o legado recria ao alternar Manuela/Gratus.
   const legacyFiscalCompanySetter = global.fiscalSetEmpresa;
   if (typeof legacyFiscalCompanySetter === 'function') {
     global.fiscalSetEmpresa = function(company) {
@@ -358,7 +343,6 @@ h2{font-size:16px;color:#174b32;margin:23px 0 9px;}table{border-collapse:collaps
       if (typeof global._fiscalPeriodoInfo !== 'function' || typeof global._fiscalNotasDoMes !== 'function')
         return legacyFiscalPdf.apply(this,arguments);
       const company = selectedFiscalCompany();
-      // Mantém a chave financeira do relatório alinhada à empresa selecionada.
       if (typeof global.fiscalSetEmpresa === 'function' && typeof global._fiscalEnsureEmpresa === 'function'
           && global._fiscalEnsureEmpresa() !== company) global.fiscalSetEmpresa(company);
       const info = global._fiscalPeriodoInfo(), data = global._fiscalNotasDoMes();
@@ -384,7 +368,6 @@ h2{font-size:16px;color:#174b32;margin:23px 0 9px;}table{border-collapse:collaps
 
 (function(global){
 'use strict';
-// Extensões do Fiscal. Preservam os formulários, cálculos e persistência legados.
 const $=(s,r=document)=>r.querySelector(s);
 const money=n=>'R$ '+(Number(n)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -422,8 +405,6 @@ function init(shell){
     `<div class="fis-v3-fields fis-v3-xml-fields"><label><span>Arquivos XML ou ZIP</span><input id="fis-v3-xml-file" type="file" accept=".xml,.zip,text/xml,application/xml,application/zip" multiple></label><label><span>Destino do lançamento</span><select id="fis-v3-xml-dest"><option value="entrada">Entrada (compra)</option><option value="saida">Saída (venda)</option></select></label><button id="fis-v3-xml-read" type="button">Ler arquivos</button></div><p class="fis-v3-xml-help">ZIP de até 32 MB · XML de até 2,5 MB · até 300 XMLs por ZIP.</p><div id="fis-v3-xml-info" role="status" aria-live="polite"></div><div id="fis-v3-xml-preview" class="fis-v3-xml-batch"></div>`);
   xml.id='fis-v3-xml';xml.dataset.fiscalView='xml';shell.append(xml);
   $('#fis-v3-xml-read').onclick=readXML;
-  // Reaproveitar o importador de extratos Conta Azul. Seus IDs e eventos
-  // originais permanecem no DOM e somente a apresentação muda de lugar.
   const legacyImport=$('#fmtab-importar');
   if(legacyImport){
     const details=node('details','fis-v3-legacy-import');
@@ -465,7 +446,6 @@ function init(shell){
   $('#fis-v3-cost-view').onclick=renderCosts;
   $('#fis-v3-cost-kind').addEventListener('change',renderCosts);
   $('#fis-v3-doc-owner').addEventListener('change',renderDocuments);
-  // A sincronização remota pode completar depois da primeira abertura.
   document.addEventListener('erp:alert-source-changed',(event)=>{
     if(event.detail?.source==='funcionarios' && document.querySelector('[data-fiscal-area="custos-rh"].is-current'))renderCosts();
   });
@@ -481,7 +461,6 @@ async function onAreaChange(area){
     if(area==='custos-rh')await renderCosts();
   }catch(e){message('#fis-v3-'+area+'-info',e.message,true);}
 }
-// Parser limitado a NF-e modelo 55, sem DTD, com consulta explícita de campos.
 function parseNFeXML(xml){
   if(!xml||xml.length>2500000||/<!\s*(?:DOCTYPE|ENTITY)\b/i.test(xml))throw Error('XML inválido ou muito grande (máximo 2,5 MB).');
   const doc=new DOMParser().parseFromString(xml,'application/xml');
@@ -501,7 +480,6 @@ function parseNFeXML(xml){
 }
 let importedDrafts=[];
 function hasFiscalDuplicate(info){
-  // Comparar a competência da nota, não apenas a competência aberta no painel.
   const period=fiscalPrefix()+info.date.slice(0,7);
   const data=(typeof FISCAL_DB!=='undefined'?FISCAL_DB[period]:null)||{};
   const list=[...(Array.isArray(data.entradas)?data.entradas:[]),...(Array.isArray(data.saidas)?data.saidas:[])];
@@ -644,7 +622,6 @@ async function saveReturn(){
     await renderReturns();
   }catch(e){message('#fis-v3-ret-info',e.message,true);}
 }
-// Usa a origem fiscal remota, e não o cache de inicialização do Phase1Store.
 async function fiscalPartiesLive(){
   requireOnline();
   const snap=await db().ref('erp/fiscalParties').once('value');
@@ -757,8 +734,6 @@ async function renderCosts(){
     }
     if(!c.canPayroll){$('#fis-v3-cost-result').replaceChildren();throw Error('Consulta de funcionários exige acesso à Folha de Pagamento.');}
     let staff=typeof FUNCIONARIOS!=='undefined'&&Array.isArray(FUNCIONARIOS)?FUNCIONARIOS.filter(f=>f&&f.mat):[];
-    // O sincronizador restringe funcEdit a canHR. Uma pessoa com apenas canPayroll
-    // recebe os campos mínimos do cadastro pela API, que valida o token no servidor.
     if(!staff.length){
       const auth=global.__fbRaw?.auth;
       const jwt=await auth?.currentUser?.getIdToken?.();
@@ -829,8 +804,6 @@ function calcPayrollMonth(f,y,mm){
   return {period:mm+'/'+y,bruto,diarias,encargos,cost:Math.round((bruto+encargos)*100)/100};
 }
 global.FiscalExtensions={install:init,onAreaChange,parseNFeXML,calcPayrollMonth};
-// O script é carregado dinamicamente: o DOM pode já estar pronto.
-// Nesse caso o workspace antigo instalou antes da definição das extensões.
 const mounted=document.getElementById('fiscal-workspace');
 if(mounted){init(mounted);global.FiscalWorkspace?.setArea(document.querySelector('[data-fiscal-area].is-current')?.dataset.fiscalArea||'lancamentos');}
 })(window);

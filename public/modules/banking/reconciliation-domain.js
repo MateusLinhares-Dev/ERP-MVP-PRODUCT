@@ -1,4 +1,3 @@
-/* Domínio puro da conciliação: nenhuma operação financeira ou Firebase aqui. */
 (function (root) {
   'use strict';
   const ledger=root.erpBankLedger;
@@ -21,7 +20,6 @@
     return match?unescapeOfx(match[1]):'';
   }
   function cents(raw){
-    // Valores de OFX são decimais; não aceitar notação exponencial na importação.
     const value=String(raw||'').trim();
     if(!/^[+-]?\d+(?:[.,]\d{1,2})?$/.test(value))throw new Error('Valor OFX inválido: '+value);
     const result=ledger.toCents(value.replace(',','.'));

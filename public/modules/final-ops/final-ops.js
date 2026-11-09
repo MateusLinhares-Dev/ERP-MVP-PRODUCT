@@ -1,4 +1,3 @@
-/* Manuela Metais — ferramentas finais: relatórios, matriz, contratos e ajuda. */
 (function(global){
 'use strict';
 const $=(q,root=document)=>root.querySelector(q);
@@ -31,8 +30,6 @@ async function installMenu(){ensureTab('help_center');addNav('Ajuda','Central de
     const profileOwner=global.erpIsElaineOwner?.()===true;
     const t=await rawAuth()?.getIdTokenResult();
     const tokenOwner=Boolean(t?.claims?.admin)&&String(t?.claims?.erpUser||'').toLowerCase()==='elaine';
-    // O menu usa a identidade do ERP já autenticado; a API valida as claims
-    // do token novamente, inclusive quando a tela é aberta por URL ou script.
     trainingManager=profileOwner || tokenOwner || (Boolean(t?.claims?.engineer)&&t?.claims?.erpUser==='engadministrator');
     if(trainingManager){ensureTab('matriz_capacitacao');addNav('Administração','Matriz','matriz_capacitacao','▦');}
     if(!$('#mm-training-notice')){const widget=document.createElement('div');widget.id='mm-training-notice';widget.hidden=true;widget.setAttribute('role','status');$('#app-screen')?.append(widget);}
@@ -114,7 +111,6 @@ function renderTraining(){const host=$('#ops-training-main'),tab=trainingTab;$$(
  $('#ops-enroll-filter',host).oninput=e=>{const q=searchNorm(e.target.value);$$('[data-matrix-row]',host).forEach(row=>row.hidden=!row.dataset.matrixRow.includes(q));};
  $$('[data-edit-enroll]',host).forEach(b=>b.onclick=()=>{const e=trainingData.enrollments[b.dataset.editEnroll];if(!e)return;
    form.dataset.id=e.id;for(const [key,value] of Object.entries(e))if(form.elements[key]&&form.elements[key].type!=='checkbox')form.elements[key].value=value??'';
-   // Cursos inativos continuam editáveis no histórico, mas não em novos vínculos.
    if(![...form.elements.courseId.options].some(o=>o.value===e.courseId)){
      const opt=new Option(courseName(e.courseId)+' (inativo)',e.courseId);form.elements.courseId.add(opt);
    }
@@ -129,8 +125,6 @@ function renderTraining(){const host=$('#ops-training-main'),tab=trainingTab;$$(
    if(!confirm('Excluir o vínculo de '+employeeName(e.employeeId)+' com '+courseName(e.courseId)+'? A exclusão será registrada na auditoria. Vínculos com certificado não podem ser excluídos.'))return;
    b.disabled=true;try{await submitTraining({action:'removeEnrollment',id:e.id});}finally{if(b.isConnected)b.disabled=false;}
  });
- // O seletor permanece nativo para envio do formulário, mas ganha pesquisa e paginação.
- // Não depende de carregar manualmente outro módulo: o bootstrap importa a biblioteca.
  for(const [select,placeholder] of [[form.elements.employeeId,'Buscar funcionário por nome ou matrícula…'],[form.elements.courseId,'Buscar curso por nome…']]){
    global.ERPEnhanceSearchableSelect?.(select,{placeholder,label:placeholder});
  }
@@ -180,8 +174,6 @@ function renderTraining(){const host=$('#ops-training-main'),tab=trainingTab;$$(
  host.innerHTML=`<div class="ops-card"><h3>Vencimentos e avisos</h3><p>Avisos são exibidos no ERP conforme o login do funcionário, sem envio de mensagens externas.</p><div class="ops-list">${enroll.filter(e=>badgeFor(e)!=='Em dia').map(e=>`<div><b>${esc(employeeName(e.employeeId))}</b><span>${esc(courseName(e.courseId))} · ${esc(badgeFor(e))} · ${dateBR(expiry(e))}${e.notifyEnabled?' · aviso ativo':' · aviso desativado'}</span></div>`).join('')||'<p>Nenhum vencimento pendente.</p>'}</div></div>`;
 }
 async function submitTraining(body){try{await request(null,body);toast('Registro atualizado.');await refreshTraining();return true;}catch(e){toast(e.message,true);return false;}}
-// O mesmo arquivo enviado para o mesmo vínculo gera sempre o mesmo ID.
-// Isso evita documentos duplicados após F5, falhas de rede ou cliques repetidos.
 async function trainingDocumentId(enrollmentId,file){
  const hashBytes=new Uint8Array(await global.crypto.subtle.digest('SHA-256',await file.arrayBuffer()));
  const hash=Array.from(hashBytes,b=>b.toString(16).padStart(2,'0')).join('');
@@ -195,7 +187,6 @@ async function trainingObjectMetadata(ref){
 }
 async function uploadTrainingDoc(event){
  event.preventDefault();
- // O lock é adquirido SINCRONAMENTE antes de qualquer await.
  if(trainingUploadBusy)return;
  const form=event.currentTarget||event.target;
  const file=form.elements.file.files[0];
@@ -215,7 +206,6 @@ async function uploadTrainingDoc(event){
  try{
    status('Preparando certificado…',0);
    const id=await trainingDocumentId(enrollmentId,file);
-   // Um arquivo já confirmado na matriz não precisa ser enviado novamente.
    if(trainingData.documents?.[id]){toast('Este certificado já foi anexado a esta capacitação.');return;}
    const extension=extensions[file.type],path=`erp-files/training/${enrollmentId}/${id}.${extension}`;
    const ref=global.__fbRaw.storage.ref(path);
@@ -231,7 +221,6 @@ async function uploadTrainingDoc(event){
        });
        await task;
      }catch(uploadError){
-       // Outra aba pode ter criado exatamente o mesmo objeto nesse intervalo.
        metadata=await trainingObjectMetadata(ref);
        if(!metadata)throw uploadError;
      }
@@ -239,7 +228,6 @@ async function uploadTrainingDoc(event){
    if(metadata&&(Number(metadata.size)!==file.size||metadata.contentType!==file.type))throw Error('Já existe um anexo com identificador conflitante. Não foi substituído.');
    status('Confirmando o registro do certificado…',100);
    const result=await request(null,{action:'document',enrollmentId,id,extension,name:file.name});
-   // Sem um GET de toda a matriz depois do upload (economiza latência).
    trainingData.documents[id]=result.document||{id,enrollmentId,name:file.name,path,createdAt:new Date().toISOString()};
    toast(result.alreadyExists?'Este certificado já estava anexado.':'Certificado anexado com sucesso.');
    if(trainingTab==='certificados'&&$('#ops-training-main'))renderTraining();
@@ -309,8 +297,6 @@ function ensureReports(containerId,id,label,printer){
  box.innerHTML='<label>Competência<input type="month" value="'+nowMonth()+'" aria-label="Mês do relatório"></label><label>Motorista<select aria-label="Filtrar por motorista"></select></label><button type="button">'+esc(label)+'</button>';
  host.prepend(box);
  const select=$('select',box),input=$('input',box),isFuel=containerId==='tab-combustivel_rudnick';
- // As listas chegam do Firebase DEPOIS do primeiro render da página. Atualizar
- // antes de abrir o filtro evita o select com apenas “Todos”.
  const refreshOptions=()=>{
    const previous=select.value;
    const list=isFuel?fuelEntries():tripEntries();
@@ -321,7 +307,6 @@ function ensureReports(containerId,id,label,printer){
  };
  refreshOptions();
  ['focus','pointerdown','keydown'].forEach(type=>select.addEventListener(type,refreshOptions));
- // Ao entrar novamente em Combustível/Viagens, o Firebase pode ter concluído a carga.
  document.addEventListener('click',event=>{
    const nav=event.target.closest('[data-tab]');
    if(nav?.dataset.tab===containerId.slice(4))queueMicrotask(refreshOptions);
@@ -355,7 +340,6 @@ function ensureTripPrintButton(){const record=$('#phase2-trip-record');if(!recor
  };header.append(btn);
 }
 function addReportButtons(){ensureReports('tab-combustivel_rudnick','ops-fuel-print','Imprimir combustível do mês',printFuel);ensureReports('tab-viagem_motorista','ops-trip-print','Imprimir viagens do mês',printTrips);ensureTripPrintButton();} 
-// A ficha é renderizada sob demanda pelo módulo de viagens.
 document.addEventListener('click',e=>{if(e.target.closest('[data-trip-open]'))setTimeout(ensureTripPrintButton,60);});
 function contracts(){try{return typeof CONTRATOS_DB!=='undefined'&&Array.isArray(CONTRATOS_DB)?CONTRATOS_DB:[];}catch(_){return[];}}
 function enhanceContracts(){
@@ -369,8 +353,6 @@ function enhanceContracts(){
    const pager=document.createElement('nav');pager.id='ops-contract-table-pager';pager.className='ops-pagination';pager.setAttribute('aria-label','Paginação de contratos');table.insertAdjacentElement('afterend',pager);
    pager.addEventListener('click',event=>{const b=event.target.closest('button[data-contract-table-page]');if(!b)return;contractTablePage+=b.dataset.contractTablePage==='next'?1:-1;paginateContractTable();});
  }
- // A pesquisa legada altera display; a paginação é aplicada depois sem alterar
- // os índices que são usados por visualizar, renomear, baixar e excluir anexos.
  host.addEventListener('input',event=>{if(!event.target.matches('.phase1-admin-search'))return;contractTablePage=1;queueMicrotask(paginateContractTable);});
  renderContracts();paginateContractTable();
 }

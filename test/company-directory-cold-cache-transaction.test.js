@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {changeCompanyDirectory,transactCompanyDirectory} from '../server/domain/company-directory.js';
+import {changeCompanyDirectory,transactCompanyDirectory} from '../server/modules/company/domain/company-directory.js';
 
 const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
 const initial=()=>({schemaVersion:3,revision:11,primaryCompanyKey:'Manuela Metais',companies:['Manuela Metais','Mabor','Gratus'],deletedCompanies:[]});

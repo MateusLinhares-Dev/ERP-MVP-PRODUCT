@@ -1,4 +1,3 @@
-/* Extrato bancário: datas e valores monetários sem perda nas somas. Não modifica o Firebase. */
 (function (root) {
   'use strict';
   const MAX_SAFE_CENTS=BigInt(Number.MAX_SAFE_INTEGER);
@@ -23,7 +22,6 @@
     const match=/^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(raw);
     if(!match) throw new TypeError('Valor monetário inválido');
     const exp=Number(match[4]||0);
-    // Limita apenas escala patológica, sem arredondar movimentações válidas.
     if(!Number.isSafeInteger(exp)||Math.abs(exp)>400) throw new RangeError('Expoente monetário não suportado');
     const digits=BigInt(match[2]+(match[3]||''));
     const offset=exp-(match[3]||'').length+2;
@@ -61,7 +59,6 @@
     });
     let balance=0n,credit=0n,debit=0n,invalidValues=0;
     try{balance=toCents(openingBalance);}catch(error){invalidValues++;}
-    // Valores legados que já foram gravados como Number podem ter perdido dígitos ANTES deste cálculo.
     let hasUnsafeLegacyValues=typeof openingBalance==='number'&&Math.abs(openingBalance)*100>Number.MAX_SAFE_INTEGER;
     const rows=matches.map(({entry,index})=>{
       let amount=0n;

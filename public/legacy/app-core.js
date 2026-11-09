@@ -67,7 +67,6 @@ function _funcEditAtualizarSnapshot(){
   try{ _funcEditSnapJSON = localStorage.getItem('mm_funcionarios_edit') || JSON.stringify(typeof FUNCIONARIOS!=='undefined'?FUNCIONARIOS:[]); }catch(e){ _funcEditSnapJSON = null; }
 }
 
-
 function _mesclarFuncEdit(remoto, remotoDel){
   try{
     var local=[];
@@ -197,7 +196,6 @@ function _aplicarTombstonesRemotos(nome, target, listaRemota){
   try{ localStorage.setItem(_DEL_LS_KEY[nome], JSON.stringify([..._DEL_SETS[nome]])); }catch(e){}
 }
 
-
 function _mergeArrayPorId(localArr, remoteArr, idField){
   const porId = new Map();
   (Array.isArray(localArr) ? localArr : []).forEach(function(item){
@@ -226,7 +224,6 @@ function _mergeObjDeArraysPorId(local, remote, target, idField, confiavel){
   });
 }
 
-
 window._ADT_PENDENTES = window._ADT_PENDENTES || {};
 function _adtMarcarPendente(fornCod, item){
   try{
@@ -242,8 +239,6 @@ function _adtTemCod(arr, cod){
   return false;
 }
 function _adtReporPendentes(target, remote){
-  // API confirmation is authoritative; a pending local copy is NEVER evidence
-  // that a record still exists, and must never override a trusted cloud list.
   if(window.__ERP_ADVANCES_CLOUD_AUTHORITATIVE__===true){
     window._ADT_PENDENTES={};return;
   }
@@ -264,9 +259,6 @@ function _adtReporPendentes(target, remote){
 }
 
 function _adtSalvarNaNuvem(fornCod){
-  // DESATIVADO: nenhuma lista financeira completa pode ser escrita pelo navegador.
-  // Criação/edição/exclusão usam APIs transacionais; chamadas legadas não devem
-  // reintroduzir lançamentos já excluídos nem simular sucesso local.
   console.warn('advance.legacy.write.blocked',String(fornCod||''));
   return false;
 }
@@ -312,21 +304,6 @@ function _aplicarTombstonesItensPorForn(nome, targetPorForn, idField, listaRemot
   });
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 function _cpParaObjeto(){
   const obj={};
   CONTAS_PAGAR.forEach(function(c){
@@ -338,15 +315,9 @@ function _cpParaObjeto(){
 }
 let _cpMigracaoEmAndamento=false;
 
-
-
-
 function _cpMigrarParaFormatoPorChave(){
   if(_cpMigracaoEmAndamento || !window._fbDB) return;
   _cpMigracaoEmAndamento=true;
-  // Migração segura: nunca publicar uma fotografia local da coleção inteira.
-  // O callback recebe o estado ATUAL do servidor, e aborta se outro usuário
-  // já tiver convertido a coleção (ou se ela tiver sido excluída).
   return window._fbDB.ref('erp/contasPagar').transaction(function(atual){
     if(!Array.isArray(atual)) return;
     const destino={};
@@ -355,12 +326,12 @@ function _cpMigrarParaFormatoPorChave(){
       if(!conta || typeof conta!=='object')return;
       const id=String(conta.id||_cpIdDeterministico(conta));
       if(Object.prototype.hasOwnProperty.call(destino,id)){
-        duplicado=true; // exigirá saneamento explícito, não perda silenciosa.
+        duplicado=true;
         return;
       }
       destino[id]=Object.assign({},conta,{id});
     });
-    if(duplicado)return; // aborta a transação sem perder nenhuma conta.
+    if(duplicado)return;
     return destino;
   },undefined,false).then(function(result){
     if(result?.committed)console.info('Contas a Pagar migradas por transação confirmada.');
@@ -368,12 +339,6 @@ function _cpMigrarParaFormatoPorChave(){
     console.warn('Migração de Contas a Pagar não confirmada:',error);
   }).finally(function(){_cpMigracaoEmAndamento=false;});
 }
-
-
-
-
-
-
 
 function _cpCarregarDeRemoto(remotoContasPagar, confiavel){
   const remotoEhArray=Array.isArray(remotoContasPagar);
@@ -408,32 +373,12 @@ function _cpCarregarDeRemoto(remotoContasPagar, confiavel){
 let CONTAS_PAGAR_DELETED = new Set();
 function _novoIdCP(){ return 'CP'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 
-
-
-
-
 function _cpIdDeterministico(c){
   const chave=[c.ticket||'', c.desc||'', c.cred||'', Number(c.valor||0).toFixed(2), c.venc||'', c.status||''].join('|');
   let h=0;
   for(let i=0;i<chave.length;i++){ h=((h<<5)-h+chave.charCodeAt(i))|0; }
   return 'CPX'+Math.abs(h).toString(36);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 function _cpDeletedParaObjeto(){ const obj={}; CONTAS_PAGAR_DELETED.forEach(function(id){ obj[id]=true; }); return obj; }
 let _cpDeletedMigrando=false;
@@ -462,13 +407,6 @@ function _cpDeletedCarregarDeRemoto(remotoBruto){
   }
 }
 
-
-
-
-
-
-
-
 function _criarSincroniaPorChave(nome, lista, prefixoId){
   const deletedSet = new Set();
   const lsKey = 'mm_'+nome+'_deletados';
@@ -480,34 +418,21 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
   const confirmados=new Map();
   function marcarConfirmado(id){if(nome==='vales')confirmados.set(String(id),Date.now());}
   function novoId(){ return prefixoId+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
-  
-  
-  
+
   function _chaveConteudo(item){
     const chaves=Object.keys(item||{}).filter(function(k){ return k!=='id'; }).sort();
     const norm={};
     chaves.forEach(function(k){ norm[k]=item[k]; });
     return JSON.stringify(norm);
   }
-  
-  
-  
-  
-  
-  
-  
-  
+
   function _idDeterministico(item){
     const chave=_chaveConteudo(item);
     let h=0;
     for(let i=0;i<chave.length;i++){ h=((h<<5)-h+chave.charCodeAt(i))|0; }
     return prefixoId+'X'+Math.abs(h).toString(36);
   }
-  
-  
-  
-  
-  
+
   function limparDuplicatasExatas(){
     const vistos={};
     const remover_=[];
@@ -530,13 +455,9 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
     });
     return obj;
   }
-  
-  
-  
+
   function remover(idx){
-    
-    
-    
+
     if(typeof idx!=='number'){
       const _j=lista.findIndex(function(x){ return x && x.id===idx; });
       if(_j<0){
@@ -604,19 +525,13 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
     });
     if(remotoEhArray) migrar();
   }
-  
-  
+
   try{ if(deletedSet.size>5000){ console.warn('deletedSet('+nome+') local gigante ('+deletedSet.size+') — zerado por segurança'); deletedSet.clear(); localStorage.setItem(lsKey, '[]'); } }catch(_e){}
   function aplicarTombstonesRemotos(remotoDel){
-    
-    
-    
+
     const ids = _idsDeArrayOuObjeto(remotoDel);
     if(!ids.length) return;
-    
-    
-    
-    
+
     if(ids.length>5000){ console.warn('tombstones('+nome+'): '+ids.length+' IGNORADOS (limite de segurança)'); return; }
     ids.forEach(function(id){ deletedSet.add(id); });
     try{ localStorage.setItem(lsKey, JSON.stringify([...deletedSet])); }catch(e){}
@@ -625,20 +540,11 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
       if(it && it.id && deletedSet.has(it.id)) lista.splice(i,1);
     }
   }
-  
-  
-  
-  
-  
-  
-  
+
   async function buscarTombstonesRemotosEAplicar(){
     if(!window._fbDB) return;
     try{
-      
-      
-      
-      
+
       const [snap, snapV2] = await Promise.all([
         new Promise(function(resolve,reject){ window._fbDB.ref('erp/'+nome+'Deleted').once('value', resolve, reject); }),
         new Promise(function(resolve,reject){ window._fbDB.ref('erp/'+nome+'DeletedV2').once('value', resolve, reject); })
@@ -652,13 +558,6 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
   return { deletedSet:deletedSet, paraObjeto:paraObjeto, remover:remover, migrar:migrar, carregarDeRemoto:carregarDeRemoto, aplicarTombstonesRemotos:aplicarTombstonesRemotos, buscarTombstonesRemotosEAplicar:buscarTombstonesRemotosEAplicar, novoId:novoId, limparDuplicatasExatas:limparDuplicatasExatas, marcarConfirmado:marcarConfirmado };
 }
 
-
-
-
-
-
-
-
 function _cpIdxPorId(id){ return id ? CONTAS_PAGAR.findIndex(c=>c && c.id===id) : -1; }
 function _removerCPporIndice(idx){
   const c = CONTAS_PAGAR[idx];
@@ -668,16 +567,6 @@ function _removerCPporIndice(idx){
   }
   CONTAS_PAGAR.splice(idx,1);
 }
-
-
-
-
-
-
-
-
-
-
 
 function _cpAutoLimparDuplicatas(){
   const porChave={};
@@ -695,16 +584,6 @@ function _cpAutoLimparDuplicatas(){
   remover.sort((a,b)=>b-a).forEach(function(i){ _removerCPporIndice(i); });
   return true;
 }
-
-
-
-
-
-
-
-
-
-
 
 function _cpLimparDuplicatasExatas(){
   const vistos={};
@@ -729,9 +608,7 @@ async function _mesclarContasPagarComNuvem(){
       new Promise((resolve,reject)=>{ window._fbDB.ref('erp/contasPagar').once('value', s=>resolve(s), e=>reject(e)); }),
       new Promise((resolve,reject)=>{ window._fbDB.ref('erp/contasPagarDeleted').once('value', s=>resolve(s), e=>reject(e)); })
     ]);
-    
-    
-    
+
     const remotoDel = snapDel && snapDel.val ? snapDel.val() : null;
     _cpDeletedCarregarDeRemoto(remotoDel);
     if(remotoDel){
@@ -741,34 +618,19 @@ async function _mesclarContasPagarComNuvem(){
       }
     }
     const remotoBruto = snap && snap.val ? snap.val() : null;
-    
-    
-    
+
     const remoto = Array.isArray(remotoBruto) ? remotoBruto
       : (remotoBruto && typeof remotoBruto==='object' ? Object.values(remotoBruto).filter(Boolean) : null);
     if(!remoto || !remoto.length) return;
     const porIdLocal = {};
     CONTAS_PAGAR.forEach(function(c){ if(c && c.id) porIdLocal[c.id]=c; });
-    
-    
-    
+
     const chavesTicketLocais = new Set(CONTAS_PAGAR.filter(c=>c&&c.ticket).map(c=>c.ticket+'|'+c.status));
     remoto.forEach(function(rc){
       if(!rc) return;
       if(rc.id && CONTAS_PAGAR_DELETED.has(rc.id)) return;
       if(rc.id && porIdLocal[rc.id]){
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+
         if(Number(rc._upd||0) > Number(porIdLocal[rc.id]._upd||0)){
           Object.assign(porIdLocal[rc.id], rc);
         }
@@ -782,53 +644,24 @@ async function _mesclarContasPagarComNuvem(){
 }
 
 function populateFornSelects(){
-  
-  
-  
-  
-  
-  
-  
-  
+
   try{ if(_syncFornecedores.limparDuplicatasExatas()){ try{fbSalvar();}catch(e){} } }catch(e){}
   try{
-    
-    
-    
+
     const ativos=getFornAtivos().slice().filter(f=>f&&String(f.nome||'').trim()).sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
     const opt='<option value="">— Selecione —</option>'+ativos.map(f=>'<option value="'+f.cod+'">'+f.nome+'</option>').join('');
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
     ['pf-forn-sel','c-forn','cs-lanc-forn'].forEach(function(id){
       const s=document.getElementById(id); if(!s) return;
       const valorAtual=s.value;
       s.innerHTML=opt;
       if(valorAtual && [...s.options].some(o=>o.value===valorAtual)){ s.value=valorAtual; }
     });
-    
-    
-    
-    
+
     const dl=document.getElementById('dlist-forn-ativos');
     if(dl) dl.innerHTML=ativos.map(f=>'<option value="'+esc(_fornRotuloOpcao(f,ativos))+'"></option>').join('');
   }catch(e){}
 }
-
-
-
-
 
 function _fornNomeNormalizado(value){
   return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,' ').toLocaleLowerCase('pt-BR');
@@ -859,9 +692,6 @@ const _syncFornDespesa = _criarSincroniaPorChave('fornDespesa', FORNECEDORES_DES
 
 const USERS = {};
 
-
-
-
 let _USERS_DEL = [];
 try{ const _ud=localStorage.getItem('mm_users_del'); if(_ud) _USERS_DEL=JSON.parse(_ud)||[]; }catch(e){}
 function _usuarioEhAdmin(u){ return !!(u&&u.admin===true); }
@@ -873,8 +703,6 @@ function _usuarioPodeOperarModulo(tab){
     return Array.isArray(cu?.tabs)&&cu.tabs.includes(tab);
   }catch(e){return false;}
 }
-
-
 
 function _usuarioAtualEhElaine(){
   try{ return String(cuKey||'').trim().toLowerCase()==='elaine' && _usuarioAtualEhAdmin(); }catch(e){ return false; }
@@ -891,8 +719,6 @@ function _usersMarcarApagado(k){
 function _usersDesmarcarApagado(k){
   const i=_USERS_DEL.indexOf(k); if(i>=0) _USERS_DEL.splice(i,1);
 }
-// Mantém os testes de domínio e a inicialização anterior compatíveis caso
-// o paginador não tenha sido carregado em um cenário isolado.
 function _erpPaginarDados(key, dados, bodyId, callback, options){
   return typeof ERPListPager!=='undefined' && ERPListPager && typeof ERPListPager.slice==='function'
     ? ERPListPager.slice(key,dados,bodyId,callback,options) : dados;
@@ -914,11 +740,7 @@ function _getFornFiltrados(){
 }
 
 function renderTabelaFornecedores(){
-  
-  
-  
-  
-  
+
   try{ if(_syncFornecedores.limparDuplicatasExatas()){ try{fbSalvar();}catch(e){} } }catch(e){}
   const tbForn=document.getElementById('tb-fornecedores');
   if(!tbForn) return;
@@ -1032,8 +854,6 @@ const TABS_CFG = {
   lancamento_rapido:  {label:'Lançamento rápido (celular/voz)', icon:'🎤'}
 };
 
-// Usuário com perfil SIMPLES (só "Lançamento rápido") entra direto na tela do celular.
-// Quem também usa módulos do ERP recebe um botão no cabeçalho. ?completo=1 abre o ERP.
 const _TABS_BASICAS_RAPIDO=['lancamento_rapido','dashboard','avisos','help_center','chat','afazeres'];
 function _erpDeveAbrirRapido(perfil){
   try{
@@ -1053,10 +873,6 @@ window.erpDestinoRapido=function(login,perfil){
   location.replace('/rapido/');
   return true;
 };
-
-
-
-
 
 function _svgIcon(paths, cls=''){return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" class="'+cls+'">'+paths+'</svg>';}
 function _icon(kind){
@@ -1111,9 +927,6 @@ function _sidebarGroupIcon(groupId){
 
 const FUNCIONARIOS = [];
 
-
-
-
 let DOCS_EMPRESAS = JSON.parse(localStorage.getItem('mm_docs_empresas')||'[]');
 const _syncDocsEmpresas = _criarSincroniaPorChave('docsEmpresas', DOCS_EMPRESAS, 'DE');
 
@@ -1121,13 +934,7 @@ const FORNECEDORES = [
 
 ];
 
-
-
-
-
-
 const _syncFornecedores = _criarSincroniaPorChave('fornecedores', FORNECEDORES, 'FR');
-
 
 let METAIS = [
 
@@ -1135,18 +942,8 @@ let METAIS = [
 
 const BANCOS = [];
 
-
-
-
-
 let cu = null;
 let cuKey = null;
-
-
-
-
-
-
 
 (function _travarRodaMouseNosNumeros(){
   try{
@@ -1159,8 +956,6 @@ let cuKey = null;
     }, {passive:false, capture:true});
   }catch(_e){}
 })();
-
-
 
 try{ Object.keys(localStorage).filter(k=>k.startsWith('mm_sec_')).forEach(k=>localStorage.removeItem(k)); }catch(e){}
 
@@ -1223,13 +1018,9 @@ function _secResetarInatividade(){
   if(cu) _secIniciarInatividade();
 }
 
-
 ['click','keydown','mousemove','touchstart'].forEach(ev=>{
   document.addEventListener(ev, _secResetarInatividade, {passive:true});
 });
-
-
-
 
 function _atualizarUsuariosDaNuvem(cb){
   try{
@@ -1263,8 +1054,7 @@ function doLogin() {
     Object.keys(USERS).forEach(k=>{ _pwdOrig[k]=USERS[k].password; });
     
     try{ loadUsers(); }catch(e){}
-    
-    
+
     const _validar = ()=> Object.keys(USERS).find(k => {
       const pwd = USERS[k].password;
       const orig = _pwdOrig[k];
@@ -1308,8 +1098,7 @@ function doLogin() {
     let u = _validar();
     if(u){ _loginOk(u); }
     else {
-      
-      
+
       errEl.style.color=''; errEl.textContent='Verificando senha...'; errEl.style.display='block';
       _atualizarUsuariosDaNuvem(function(){
         try{ loadUsers(); }catch(e){}
@@ -1335,7 +1124,6 @@ function qlSenha(senha){ document.getElementById('inp-p').value=senha; doLogin()
 
 function ql(u,p){ qlSenha(p); }
 
-
 function _temaChave(){ let u=''; try{ u=sessionStorage.getItem('mm_sessao')||''; }catch(e){} return 'tema_erp_'+(u||'geral'); }
 function aplicarTemaSalvo(){
   let t='claro'; try{ t=localStorage.getItem(_temaChave())||'claro'; }catch(e){}
@@ -1355,15 +1143,11 @@ function startApp(username) {
   try{ sessionStorage.setItem('mm_sessao', username); }catch(e){}
   try{ document.dispatchEvent(new CustomEvent('erp:user-started',{detail:{login:username}})); }catch(e){}
   try{ aplicarTemaSalvo(); }catch(e){}
-  
-  
-  
+
   setTimeout(()=>{ try{ _snapshotDiario(); }catch(e){ console.warn('_snapshotDiario erro:',e); } }, 4000);
-  
-  
+
   setTimeout(()=>{ try{ checarAlertas(false); }catch(e){ console.warn('checarAlertas erro:',e); } }, 5500);
-  
-  
+
   setTimeout(()=>{ try{ _migrarDocsFuncParaNuvem(function(m){ if(m) console.log('Documentos de funcionário migrados para a nuvem.'); }); }catch(e){ console.warn('migração docs erro:',e); } }, 8000);
   setTimeout(()=>{ try{ _migrarDocsEmpresaParaNuvem(function(m){ if(m) console.log('Documentos de empresa migrados para a nuvem.'); }); }catch(e){ console.warn('migração docs empresa erro:',e); } }, 9500);
   setTimeout(()=>{ try{ _migrarDocsEntidadesParaNuvem(function(m){ if(m) console.log('Documentos de clientes/fornecedores migrados para o Storage.'); }); }catch(e){ console.warn('migração docs entidades erro:',e); } }, 10500);
@@ -1393,16 +1177,12 @@ function startApp(username) {
   const nav = document.getElementById('nav-bar');
   nav.innerHTML='';
 
-  
   const SIDEBAR_MODULES=[
     {id:'_dash', label:null, icon:null, tabs:['dashboard','avisos']},
     {id:'operacional', label:'Operacional', icon:'🏭', tabs:['agenda_entregas','rod_balanca','balanceiro','compra_sucata','canhoto_compra','estoque','fornecedores','precos_fornecedores']},
     {id:'comercial',   label:'Comercial',   icon:'💵', tabs:['vendas','clientes','precos_clientes']},
     {id:'financeiro',  label:'Financeiro',  icon:'💰', tabs:['contas_pagar','contas_receber','adiantamentos','cheques_compensar','fin_clientes','contas_banco','fluxo_caixa']},
-    
-    
-    
-    
+
     {id:'rh',          label:'RH',          icon:'👷', tabs:['funcionarios','ponto','folha_pagamento','vales','epi']},
     {id:'frota',       label:'Frota',       icon:'🚛', tabs:['caminhoes','combustivel_rudnick','viagem_motorista']},
     {id:'fiscal',      label:'Fiscal',       icon:'🧾', tabs:['fiscal']},
@@ -1454,7 +1234,6 @@ function startApp(username) {
   },100);
   switchTab(cu.tabs[0]);
 
-  
   if(cuKey === 'balanceiro'){
     
     const navBar = document.getElementById('nav-bar');
@@ -1498,7 +1277,6 @@ async function doLogout(){
   }
 }
 
-
 function _restaurarSessao(){
   let un=''; try{ un=sessionStorage.getItem('mm_sessao')||''; }catch(e){}
   if(!un) return;
@@ -1513,7 +1291,7 @@ function _restaurarSessao(){
         try{ fbIniciarListener(); }catch(e){}
         try{ _secIniciarInatividade(); }catch(e){}
       });
-    }, function(){ /* se a autenticação falhar, permanece na tela de login */ });
+    }, function(){  });
   }catch(e){}
 }
 if(document.readyState==='loading'){
@@ -1581,7 +1359,6 @@ function renderFornInativos(){
   }
 }
 
-
 function toggleFornInativoLista(ev){
   if(ev) ev.preventDefault();
   const nomes=document.getElementById('dash-forn-inativo-nomes');
@@ -1592,7 +1369,6 @@ function toggleFornInativoLista(ev){
   if(tg) tg.textContent=aberto?'ver lista':'ocultar lista';
 }
 window.toggleFornInativoLista=toggleFornInativoLista;
-
 
 function saveFornDespesa(){ localStorage.setItem('mm_forn_despesa', JSON.stringify(FORNECEDORES_DESPESA)); try{fbSalvar();}catch(e){} }
 
@@ -1763,9 +1539,6 @@ function toggleSidebar(){
   document.getElementById('sidebar').classList.toggle('collapsed');
 }
 
-
-
-
 function _montarFinClientes(){
   try{
     var host=document.getElementById('fincli-host');
@@ -1898,10 +1671,8 @@ function renderDashboard(){
   if(el('kpi-dash-cheques')) el('kpi-dash-cheques').textContent=fmtR(totalChequesPend);
   if(el('kpi-dash-cheques-sub')) el('kpi-dash-cheques-sub').textContent=qtdCheqPend+' cheque'+(qtdCheqPend!==1?'s':'')+' pendente'+(qtdCheqPend!==1?'s':'');
 
-  
   if(typeof Chart === 'undefined') return;
 
-  
   const canvas1=el('chart-faturamento');
   if(canvas1){
     const labels=[], dataCompras=[], dataVendas=[];
@@ -1947,7 +1718,6 @@ function renderDashboard(){
     }
   }
 
-  
   const canvas2=el('chart-estoque');
   if(canvas2){
     const mats=Object.keys(estoqueMatData).filter(m=>estoqueMatData[m]>0).sort(function(a,b){return a.localeCompare(b,'pt-BR');});
@@ -1992,33 +1762,23 @@ function populateAll(){
   
   atualizarKpisFuncionarios();
 
-  
-  
-  
-  
-  // The active and inactive lists must share the same renderer on first load
-  // and after cloud synchronization; do not put inactive rows into the active table.
   try{ renderTbFuncionarios(); }catch(e){ console.warn('Falha ao atualizar funcionários',e); }
 
   const tbP=document.getElementById('tb-ponto');
   if(tbP) tbP.innerHTML=FUNCIONARIOS.map(f=>
     `<tr><td>${f.mat}</td><td>${f.nome}</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>—</td></tr>`).join('');
 
-  
   const tbFolha=document.getElementById('tb-folha');
   renderFolha();
 
-  
   renderEstoque();
   const kpiM=document.getElementById('kpi-total-metais');
   if(kpiM) kpiM.textContent=METAIS.length;
 
-  
   const tbCM=document.getElementById('tb-config-metais');
   if(tbCM) tbCM.innerHTML=METAIS.map((m,i)=>
     `<tr><td>${i+1}</td><td>${m}</td><td>kg</td><td>R$ 0,00</td><td>R$ 0,00</td></tr>`).join('');
 
-  
   renderTabelaFornecedores();
   const _isElaine=_usuarioPodeOperarModulo('fornecedores');
   if(!_isElaine){
@@ -2027,13 +1787,10 @@ function populateAll(){
     const btnRest=document.getElementById('btn-restaurar-forn'); if(btnRest) btnRest.style.display='none';
   }
 
-  
   try{ renderBancos(); }catch(e){}
 
-  
   renderFrota();
 
-  
   const pfSel=document.getElementById('pf-forn-sel');
   if(pfSel){
     pfSel.innerHTML='<option value="">— Selecione —</option>'+
@@ -2068,8 +1825,6 @@ function populateUsers(){
   grid.innerHTML=users.map(([un,u])=>{
     const isAdmin=_usuarioEhAdmin(u);
     const tabs=(Array.isArray(u.tabs)?u.tabs:[]).filter(t=>TABS_CFG[t] && (t!=='matriz_capacitacao' || ((un==='elaine'||un==='engadministrator')&&isAdmin)));
-    // Direitos efetivos não dependem de salvar uma alteração de perfil: a ajuda é
-    // acessível a todos; a matriz só à administradora Elaine.
     if(!tabs.includes('help_center'))tabs.push('help_center');
     if(un==='elaine'&&isAdmin&&!tabs.includes('matriz_capacitacao'))tabs.push('matriz_capacitacao');
     const granted=tabs.map(t=>`<span class="tag">${esc(TABS_CFG[t].label)}</span>`).join('');
@@ -2125,7 +1880,6 @@ function mudarSenha(un){
   };
   setTimeout(()=>{ const el=document.getElementById('_ms-nova'); if(el) el.focus(); },80);
 }
-
 
 function editUsuario(un){
   const u=USERS[un];
@@ -2381,15 +2135,12 @@ function onCanhotFornChange(){
   painel.style.display='block';
 }
 
-
 function _adtsDescontadosTicket(tk){
   const fornCod=tk.fornecedorCod||tk.fornCod||'';
   return (ADT_POR_FORN[fornCod]||[]).filter(a=>a.status==='Quitado'&&a.ticket===tk.ticket);
 }
 
 function _reciboFinanceiroDoTicket(tk){
-  // Excedente de compra antiga não foi aplicado integralmente no ticket;
-  // o recibo exibe abatimento real, sem apagar o PIX original.
   const alvo=Math.max(0,_numFinito(_compraAdiantamentoAplicado(tk),0));
   const snap=tk&&tk.reciboFinanceiro;
   if(snap&&typeof snap==='object'&&(Array.isArray(snap.adiantamentos)||Array.isArray(snap.cheques))){
@@ -2579,7 +2330,6 @@ function getMsgTicket(){
 
   const div='━━━━━━━━━━━━━━━━━━━━━━━━━';
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-
 
   let msg=`🏭 *${_empresaPrincipalLabel()}*\n`;
   msg+=`_${_empresaPrincipalRazao()}_\n`;
@@ -3444,8 +3194,6 @@ function imprimirCanhoto(){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const fornCod=tk.fornecedorCod||tk.fornCod||'';
 
-  
-  
   const sdRaw=SALDO_DEVEDOR_FORN[fornCod];
   const sdValor=sdRaw?(typeof sdRaw==='object'?(sdRaw.valor||0):Number(sdRaw||0)):0;
   const sdData=sdRaw&&typeof sdRaw==='object'?sdRaw.data:'';
@@ -3642,8 +3390,6 @@ async function compartilharImagem(){
   }
 }
 
-
-
 async function abrirEdicaoDadosEmpresa(){
   if(!_usuarioAtualEhElaine()){alert('Somente Elaine pode editar os dados da empresa.');return;}
   const cfg=(window.__PUBLIC_BUSINESS_CONFIG__||{});
@@ -3669,8 +3415,7 @@ async function salvarEdicaoDadosEmpresa(){
   try{
     const company=collect(fields,'company'),branding=collect(bfields,'brand');
     const previous=window.__PUBLIC_BUSINESS_CONFIG__||{},oldBrand=previous.branding||{};
-    
-    
+
     const nomeMudou=company.nome && company.nome!==(previous.company||{}).nome;
     const marcaInalterada=branding.logoPrefix===(oldBrand.logoPrefix||'') && branding.logoAccent===(oldBrand.logoAccent||'');
     if(nomeMudou&&marcaInalterada){branding.logoPrefix=company.nome;branding.logoAccent='';}
@@ -3683,8 +3428,6 @@ async function salvarEdicaoDadosEmpresa(){
     window.location.reload();
   }catch(error){if(btn)btn.disabled=false;alert('Não foi possível salvar: '+error.message);}
 }
-
-
 
 let EMPRESAS_INFO = {};
 let ERP_BUSINESS_CONFIG = {};
@@ -4092,7 +3835,6 @@ function _bcPreencheEndereco(selId, endId){
   const info=EMPRESAS_INFO[sel.value];
   if(info && info.endereco) end.value=info.endereco;
 }
-
 
 const FORMS={
   compra:`<h3>🛒 Nova Entrada de Compra</h3>
@@ -4593,28 +4335,12 @@ const FORMS={
     <div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarCustoCasa()">💾 Salvar</button></div>`
 };
 
-
-
-
-
-
 const PRECOS_FORN_DATA = {};
 FORNECEDORES.forEach(f=>{ PRECOS_FORN_DATA[f.cod]={}; }); 
 
-
 const PRECOS_CLI_DATA = {};   
 
-
-
-
-
-
-
 const ADT_POR_FORN = {};
-
-
-
-
 
 var FISCAL_DB = {};
 
@@ -4623,9 +4349,6 @@ function saveFiscalApur(){ try{ localStorage.setItem('mm_fiscal_apur', JSON.stri
 function fiscalApurSeed(){
   
 }
-
-
-
 
 let FISCAL_LANC_SEED_2026 = {};
 function fiscalLancamentosSeed(){
@@ -4641,8 +4364,7 @@ function fiscalLancamentosSeed(){
       (existente.saidas||[]).some(s=>Number(s.valorTotal)>0)
     );
     if(mm==='07'){
-      
-      
+
       if(existente){
         try{ localStorage.setItem('mm_backup_fiscal_2026-07_'+Date.now(), JSON.stringify(existente)); }catch(_){}
       }
@@ -4682,10 +4404,6 @@ function fiscalKgEnrich2026(){
   fiscalSalvar();
 }
 
-
-
-
-
 let FISCAL_KG_PATCH_2026_V6 = {};
 function fiscalKgEnrichV6_2026(){
   if(typeof FISCAL_KG_PATCH_2026_V6==='undefined') return;
@@ -4702,14 +4420,6 @@ function fiscalKgEnrichV6_2026(){
   FISCAL_DB.__kgEnrich2026V6Done = true;
   fiscalSalvar();
 }
-
-
-
-
-
-
-
-
 
 let FISCAL_ENTRADA_PATCH_NF4954 = {};
 function fiscalEntradaPatchNF4954(){
@@ -4729,14 +4439,7 @@ function fiscalEntradaPatchNF4954(){
   FISCAL_DB.__entradaPatchNF4954Done = true;
 }
 
-
-
-
-
-
 let FISCAL_DEVOLUCAO_PATCHES_2026 = [];
-
-
 
 function _fiscalAplicarPatchesLancamento(lista_patches){
   let mudou=false;
@@ -4768,22 +4471,11 @@ function fiscalDevolucaoPatches2026(){
   if(mudou) fiscalSalvar();
 }
 
-
-
-
 let FISCAL_DOCS_JUL2026_PATCHES = [];
 function fiscalDocsJul2026Patches(){
   const mudou = _fiscalAplicarPatchesLancamento(FISCAL_DOCS_JUL2026_PATCHES);
   if(mudou) fiscalSalvar();
 }
-
-
-
-
-
-
-
-
 
 let FISCAL_DATA_REAL_2026 = {};
 function fiscalCorrigeDatasReais2026(){
@@ -4801,11 +4493,6 @@ function fiscalCorrigeDatasReais2026(){
   });
   if(mudou) fiscalSalvar();
 }
-
-
-
-
-
 
 function fiscalMarcarPagas2026(){
   if(FISCAL_DB.__pagamentosInit2026Done) return;
@@ -4868,11 +4555,6 @@ const CHEQUES_POR_FORN = {
   
 };
 
-
-
-
-
-
 let HISTORICO_DB = [];
 const _syncHistorico = _criarSincroniaPorChave('historico', HISTORICO_DB, 'HI');
 var SALDO_DEVEDOR_FORN = {}; 
@@ -4886,13 +4568,9 @@ let VIAGEM_DB = [];
       let COMBUSTIVEL_DB = [];
       let TANQUE_DB = []; 
 
-
 const _syncViagem = _criarSincroniaPorChave('viagem', VIAGEM_DB, 'VG');
 const _syncCombustivel = _criarSincroniaPorChave('combustivel', COMBUSTIVEL_DB, 'CB');
 const _syncTanque = _criarSincroniaPorChave('tanque', TANQUE_DB, 'TK');
-
-
-
 
 function saveUsers(){
   try{ localStorage.setItem('mm_users_del', JSON.stringify(_USERS_DEL)); }catch(e){}
@@ -4917,13 +4595,11 @@ function loadUsers(){
           
           if(v.tabs){
             if(v.tabsCustom){
-              
-              
+
               USERS[k].tabs=[...v.tabs];
               USERS[k].tabsCustom=true;
             } else {
-              
-              
+
               const base=USERS[k].tabs;
               v.tabs.forEach(t=>{ if(!base.includes(t)) base.push(t); });
             }
@@ -4937,8 +4613,6 @@ function loadUsers(){
   
   _usersAplicarTombstones();
 }
-
-
 
 function toggleCcParc(on){
   const box=document.getElementById('cc-parc-box');
@@ -4961,7 +4635,6 @@ function previewCcParc(){
   prev.style.display='block';
   prev.textContent='📅 '+nparc+' parcela(s), vencendo todo dia '+dia+', a partir de '+mes.replace('-','/');
 }
-
 
 let _ccArea = '';
 function _ccConfigAreas(){
@@ -5163,7 +4836,6 @@ function ccExcluir(mes,idx){
   showToast('Despesa excluída','success');
 }
 
-
 function ccEditar(mes,idx){
   const x=CUSTO_CASA[mes] && CUSTO_CASA[mes][idx];
   if(!x){ showToast('Despesa não encontrada.','error'); return; }
@@ -5234,8 +4906,7 @@ function salvarCustoCasa(){
   } else {
     const venc=document.getElementById('cc-data')?.value||'';
     const pago=status==='Pago';
-    
-    
+
     const dataPagoInput=document.getElementById('cc-datapago')?.value||'';
     const dataPgto=pago?(dataPagoInput||_hojeISO()):'';
     CUSTO_CASA[mes].push({desc,cat,valor,venc,forma,obs,pago,dataPgto,area:_ccArea});
@@ -5243,7 +4914,6 @@ function salvarCustoCasa(){
   }
   saveDB(); cm(); renderCustoCasa();
 }
-
 
 const _MNP_TIPOS=['Preventiva','Corretiva','Revisão','Troca de Óleo','Pneus','Elétrica','Suspensão','Freios','Outros'];
 const _MNP_STATUS=['Concluída','Em Andamento','Agendada'];
@@ -5427,18 +5097,11 @@ function manutPessExcluir(id){
   showToast('Manutenção excluída.','success');
 }
 
-
-
-
-
-
-
 let SENHAS_DB = [];
 let _senhaKey = null;   
 let _senhaSalt = null;
 let _senhaBusca = '';   
 function _senhasEhElaine(){ return _usuarioAtualEhAdmin(); }
-
 
 function _b64FromBuf(buf){ let b=''; const a=new Uint8Array(buf); for(let i=0;i<a.length;i++) b+=String.fromCharCode(a[i]); return btoa(b); }
 function _bufFromB64(s){ const bin=atob(s); const a=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) a[i]=bin.charCodeAt(i); return a; }
@@ -5701,10 +5364,7 @@ function loadDB(){
     const fd=localStorage.getItem('mm_folha_db'); if(fd) FOLHA_DB=JSON.parse(fd);
     const a=localStorage.getItem('mm_adt');        if(a) Object.assign(ADT_POR_FORN, JSON.parse(a));
     const c=localStorage.getItem('mm_cheques');    if(c) Object.assign(CHEQUES_POR_FORN, JSON.parse(c));
-    
-    
-    
-    
+
     for(const key of ['mm_adt_cli','mm_cheques_cli','mm_fc_lanc','mm_fc_saldoini']){
       try{
         const antigo=localStorage.getItem(key);
@@ -5733,8 +5393,7 @@ function loadDB(){
     const _bags=localStorage.getItem('mm_bags');        if(_bags){ const bg=JSON.parse(_bags); BAGS_DB.mov.length=0; (bg.mov||[]).forEach(m=>BAGS_DB.mov.push(m)); _bagsRecalcularTotais(); }
     const _cfobs=localStorage.getItem('mm_coord_fobs'); if(_cfobs){ Object.assign(COORD_FUNC_OBS, JSON.parse(_cfobs)); }
     const _hist=localStorage.getItem('mm_historico'); if(_hist){ try{ HISTORICO_DB.length=0; JSON.parse(_hist).forEach(h=>HISTORICO_DB.push(h)); }catch(e){} }
-    
-    
+
     const _fne = localStorage.getItem('mm_fornecedores_edit');
     if(_fne){ try{ const _arr=JSON.parse(_fne); if(Array.isArray(_arr)&&_arr.length&&_arr.length>=FORNECEDORES.length){ FORNECEDORES.length=0; _arr.forEach(f=>FORNECEDORES.push(f)); } }catch(e){} }
     const _fnd = localStorage.getItem('mm_fornecedores_deleted');
@@ -5746,12 +5405,7 @@ function loadDB(){
       const _raw=localStorage.getItem(_DEL_LS_KEY[nome]);
       if(_raw){ try{ JSON.parse(_raw).forEach(k=>_DEL_SETS[nome].add(k)); }catch(e){} }
     });
-    
-    
-    
-    
-    
-    
+
     try{
       if(!localStorage.getItem('mm_migra_limpa_adt_tomb_v1')){
         _DEL_SETS.adtItens.clear();
@@ -5770,8 +5424,7 @@ function loadDB(){
   }catch(e){console.warn('loadDB error',e);}
   loadFornDespesa();
   loadEstoque();
-  
-  
+
   try{ if(typeof refreshMetaisGlobals==='function') refreshMetaisGlobals(); }catch(e){}
   loadFrota();
   loadManutencao();
@@ -5779,11 +5432,6 @@ function loadDB(){
   loadVendas();
   loadBancos();
 }
-
-
-
-
-
 
 function registrarHistorico(modulo, acao, resumo, registro, extra){
   try{
@@ -5797,11 +5445,7 @@ function registrarHistorico(modulo, acao, resumo, registro, extra){
       registro: registro?JSON.parse(JSON.stringify(registro)):null,
       extra: extra||null
     });
-    
-    
-    
-    
-    
+
     if(HISTORICO_DB.length>1000) HISTORICO_DB.splice(0,HISTORICO_DB.length-1000);
     saveDB();
   }catch(e){ console.warn('registrarHistorico erro:',e); }
@@ -5878,8 +5522,6 @@ function buildHistoricoForm(){
     +'</div>';
 }
 
-
-
 async function _carregarHistoricoRestauracoes(containerId){
   const el=document.getElementById(containerId);
   if(!el || !_usuarioAtualEhElaine())return;
@@ -5900,11 +5542,6 @@ async function _carregarHistoricoRestauracoes(containerId){
   }catch(error){el.textContent='Não foi possível consultar o log do Firebase: '+error.message;}
 }
 
-
-
-
-
-
 function _montarDadosSnapshot(){
   return {
     tickets: (typeof TICKETS_DB!=='undefined'?TICKETS_DB:{}),
@@ -5920,15 +5557,13 @@ function _montarDadosSnapshot(){
     contasReceber: (typeof CONTAS_RECEBER!=='undefined'?CONTAS_RECEBER:[]),
     estoque: (typeof ESTOQUE_DB!=='undefined'?ESTOQUE_DB:{}),
     historico: (typeof HISTORICO_DB!=='undefined'?HISTORICO_DB:[]),
-    
-    
+
     funcEdit: (function(){ try{ return JSON.parse(localStorage.getItem('mm_funcionarios_edit')||'null') || (typeof FUNCIONARIOS!=='undefined'?FUNCIONARIOS:[]); }catch(e){ return (typeof FUNCIONARIOS!=='undefined'?FUNCIONARIOS:[]); } })(),
     folha: (typeof FOLHA_DB!=='undefined'?FOLHA_DB:{}),
     vales: (typeof VALES_DB!=='undefined'?VALES_DB:[]),
     ponto: (typeof PONTO_DB!=='undefined'?PONTO_DB:[]),
     epi: (typeof EPI_DB!=='undefined'?EPI_DB:[]),
-    
-    
+
     frota: (typeof FROTA_DB!=='undefined'?FROTA_DB:[]),
     manutencao: (typeof MANUTENCAO_DB!=='undefined'?MANUTENCAO_DB:[]),
     viagem: (typeof VIAGEM_DB!=='undefined'?VIAGEM_DB:[]),
@@ -5936,8 +5571,7 @@ function _montarDadosSnapshot(){
     agendaEntregas: (typeof AGENDA_DB!=='undefined'?AGENDA_DB:[]),
     almoxa: (typeof ALX_ITENS!=='undefined'?ALX_ITENS:[]),
     almoxaMov: (typeof ALX_MOV!=='undefined'?ALX_MOV:[]),
-    
-    
+
     custosCasa: (typeof CUSTO_CASA!=='undefined'?CUSTO_CASA:{}),
     veicPess: (typeof VEICPESS_DB!=='undefined'?VEICPESS_DB:[]),
     manutPess: (typeof MANUTPESS_DB!=='undefined'?MANUTPESS_DB:[]),
@@ -5945,7 +5579,6 @@ function _montarDadosSnapshot(){
     _user: (typeof cu!=='undefined'&&cu)?cu.name:'?'
   };
 }
-
 
 async function _snapshotDiario(){
   try{
@@ -5963,10 +5596,7 @@ async function _snapshotDiario(){
 }
 
 function _limparSnapshotsAntigos(){
-  
-  
-  
-  
+
   try{
     if(!window._fbDB || typeof firebase==='undefined' || !firebase.auth || !firebase.auth().currentUser) return;
     firebase.auth().currentUser.getIdToken().then(function(tk){
@@ -6030,8 +5660,6 @@ function abrirSnapshots(){
     body.innerHTML='<div style="padding:28px;text-align:center;color:#c0392b">Erro ao buscar snapshots: '+esc(e.message||String(e))+'</div>';
   });
 }
-
-
 
 async function _criarSnapshotManual(){
   if(!_usuarioAtualEhElaine()||!firebase.auth().currentUser)return;
@@ -6113,8 +5741,6 @@ function _snapshotPersistirExato(s){
   return Promise.all(ops);
 }
 
-
-
 async function restaurarSnapshot(dataKey){
   if(!_usuarioAtualEhElaine()){alert('Apenas a Elaine pode restaurar snapshots.');return;}
   if(!window._fbDB || !firebase.auth().currentUser){alert('Firebase desconectado.');return;}
@@ -6139,8 +5765,6 @@ async function restaurarSnapshot(dataKey){
     alert('Restauração NÃO confirmada: '+error.message+'; preserve a cópia de emergência e verifique o console.');
   }
 }
-
-
 
 function editAdiantamento(fornCod, adtCod){
   try{ adtCorrigeEmpresa(); }catch(_){}
@@ -6210,8 +5834,6 @@ async function _adtCommitTransacional(payload,button){
   const id=button?.dataset.operationId||(crypto.randomUUID?crypto.randomUUID():('00000000-0000-4000-8000-'+String(Date.now()).padStart(12,'0').slice(-12)));
   if(button){button.dataset.operationId=id;button.disabled=true;}
   try{
-    // Mesmo operationId em todas as tentativas: o servidor devolve o recibo se já
-    // confirmou, sem segunda exclusão/edição nem segundo movimento bancário.
     let response=null,result={},networkError=null;
     for(let attempt=1;attempt<=3;attempt++){
       networkError=null;
@@ -6338,8 +5960,6 @@ function _bancoValorMonetarioValido(valor){
   return Number.isFinite(valor) && valor>0 && Number.isSafeInteger(Math.round(valor*100));
 }
 
-// Movimentos criados por Adiantamentos são parte de uma operação financeira
-// atômica. Alterações diretas pelo extrato quebram o vínculo e provocam 409.
 function _movimentoPertenceAdiantamento(movement){
   if(!movement)return false;
   if(movement.source==='advance'||movement.advanceCode)return true;
@@ -6403,10 +6023,6 @@ function salvarEditLancBanco(id, cod){
   showToast('Lançamento atualizado.','success');
 }
 
-
-
-
-
 function _removerMovBancoDeAdiantamento(fornCod, a){
   if(!a) return;
   let i=-1;
@@ -6424,7 +6040,6 @@ function _removerMovBancoDeAdiantamento(fornCod, a){
   if(i>=0){ _syncLancBanco.remover(i); saveBancos(); renderBancos(); }
 }
 
-// Exclusão antiga que regravava a lista inteira DESATIVADA. Somente API transacional.
 function excluirAdiantamento(fornCod, adtCod){
   if(window.ERPAdvanceActions?.deleteAdvance)return window.ERPAdvanceActions.deleteAdvance(fornCod,adtCod);
   alert('Serviço financeiro indisponível. Reabra Adiantamentos e tente novamente.');
@@ -6442,8 +6057,6 @@ async function zerarTodosAdiantamentos(){
   return false;
 }
 window['zerarTodosAdiantamentos']=zerarTodosAdiantamentos;
-
-
 
 function verValesFunc(mat){
   const f=FUNCIONARIOS.find(x=>x.mat===mat);
@@ -6500,10 +6113,6 @@ async function excluirValeModal(idx,mat){
     showToast('Vale excluído e confirmado no Firebase.','success');
   }catch(error){showToast('Não foi possível excluir o vale: '+error.message,'error',7000);}
 }
-
-
-
-
 
 const _EPI_CATALOGO = [
   {epi:'Luva de Vaqueta',       risco:'Corte / Impacto',           atividade:'Manuseio de materiais / sucata'},
@@ -6656,8 +6265,6 @@ function excluirEpi(id){
   showToast('Registro removido.','info');
 }
 
-
-
 function epiAssinarModal(id){
   const e=EPI_DB.find(x=>x.id===id);
   if(!e) return;
@@ -6726,8 +6333,6 @@ function epiRemoverAss(id){
   saveEpi(); cm(); renderEpi(); showToast('Assinatura removida.','info');
 }
 
-
-
 function epiGerarRecibo(id){
   const e=EPI_DB.find(x=>x.id===id); if(!e) return;
   const f=FUNCIONARIOS.find(x=>x.mat===e.mat);
@@ -6757,8 +6362,6 @@ function epiGerarRecibo(id){
   </body></html>`);
   win.document.close();
 }
-
-
 
 function epiImprimirFicha(){
   const filFunc=(document.getElementById('epi-fil-func')?.value||'');
@@ -6843,16 +6446,6 @@ function epiImprimirFicha(){
   setTimeout(()=>win.print(),500);
 }
 
-
-
-
-
-
-
-
-
-
-
 function epiImprimirRelatorioMensal(){
   const filFunc=(document.getElementById('epi-fil-func')?.value||'');
   const filMes=(document.getElementById('epi-fil-mes')?.value||'');
@@ -6871,7 +6464,6 @@ function epiImprimirRelatorioMensal(){
   });
   if(!lista.length){ showToast('Nenhum EPI encontrado para os filtros selecionados.','info'); return; }
 
-  
   const toIso=d=>{ const p=(d||'').split('/'); return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:''; };
   const sorted=[...lista].sort((a,b)=>toIso(a.data).localeCompare(toIso(b.data)));
 
@@ -6940,8 +6532,6 @@ function epiImprimirRelatorioMensal(){
   win.document.close();
   setTimeout(()=>win.print(),500);
 }
-
-
 
 function valeAssinarModal(idx, mat){
   const v=VALES_DB[idx];
@@ -7090,7 +6680,6 @@ function valeGerarRecibo(idx){
   win.document.close();
 }
 
-
 function _valeMesChave(v){
   const data=String(v&&v.data||'').trim();
   let m=data.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -7187,9 +6776,6 @@ function valeGerarTodosRecibosMes(){
   win.document.close();
 }
 
-
-
-// Consulta histórica: a inativação nunca remove vínculos nem documentos já lançados.
 function _erpFuncionarioAtivo(f){
   if(!f || f.ativo===false || !!f.dataRescisao) return false;
   const status=String(f.status||'Ativo').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
@@ -7238,7 +6824,6 @@ function setFolhaValor(mat,campo,val){
   saveDB();
   renderFolha();
 }
-
 
 function parseDataBR(d){
   if(!d) return null;
@@ -7292,7 +6877,6 @@ function renderFluxo(){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const mNomes=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
-  
   const cats=[
     {key:'vendas',   lbl:'Vendas de Metais',        tipo:'entrada', fn:(m,y)=>fluxoSumCR(m,y)},
     {key:'receb-repasse',lbl:'Dinheiro recebido para repasse',tipo:'entrada',fn:(m,y)=>window.SupplierCashRepasse?.flowTotal(m,y,'entradas')||0},
@@ -7354,7 +6938,6 @@ function renderFluxo(){
 
   tbody.innerHTML=html;
 
-  
   const kpis=document.getElementById('fluxo-kpis');
   if(kpis) kpis.innerHTML=
     '<div class="kpi g"><div class="kpi-lbl">Total Entradas '+ano+'</div><div class="kpi-val">R$ '+fmt(totEntG)+'</div><div class="kpi-sub">Recebimentos</div></div>'+
@@ -7362,12 +6945,9 @@ function renderFluxo(){
     '<div class="kpi '+(resultG>=0?'g':'r')+'"><div class="kpi-lbl">Resultado '+ano+'</div><div class="kpi-val">R$ '+fmt(resultG)+'</div><div class="kpi-sub">'+(resultG>=0?'Superávit':'Déficit')+'</div></div>';
 }
 
-
 function fecharFolha(){
   if(_erpSituacaoFiltro('folha-situacao')!=='ativos'){ showToast('Selecione Ativos para fechar a folha. A consulta de inativos é somente histórica.','error'); return; }
-  
-  
-  
+
   try{ if(_syncPonto.limparDuplicatasExatas()){ saveDB(); } }catch(e){}
   const mes=getFolhaMes();
   const [ano,mn]=mes.split('-');
@@ -7375,7 +6955,6 @@ function fecharFolha(){
   const nomeMes=meses[parseInt(mn)-1]+'/'+ano;
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
 
-  
   let totalLiq=0;
   const lista=FUNCIONARIOS.filter(_erpFuncionarioAtivo);
   lista.forEach(f=>{
@@ -7513,8 +7092,7 @@ function renderFolha(){
     else if(bruto>2826.66) irrf=bruto*0.15-354.80;
     else if(bruto>2259.20) irrf=bruto*0.075-169.44;
     if(irrf<0) irrf=0;
-    
-    
+
     const vtDesc=Math.min(Number(f.sal||0)*0.06, Number(f.valeTransporte||0));
     const desc=inss+irrf+vales+vtDesc;
     const liq=bruto-desc>0?bruto-desc:0;
@@ -7777,7 +7355,6 @@ function _valeRef(id){
   return window._fbDB.ref('erp/vales/'+id);
 }
 
-// Transação com cache aquecido (ver window.__erpRunTransaction em firebase-sync.js).
 function _rtdbTransacao(ref,update){
   const runner=(typeof window!=='undefined'&&window&&typeof window.__erpRunTransaction==='function')?window.__erpRunTransaction:null;
   return runner?runner(ref,update):ref.transaction(update,undefined,false);
@@ -7905,17 +7482,7 @@ function renderPontoTab(){
   if(kFunc) kFunc.textContent=String(ativos);
   if(kFaltas) kFaltas.textContent=String(faltasMes);
   if(kHe) kHe.textContent=_pontoFormatarHoras(minutosExtrasMes);
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+
   try{ if(_syncPonto.limparDuplicatasExatas()){ saveDB(); } }catch(e){}
   const paginaPonto=_erpPaginarDados('ponto-mensal',funcionarios,'tb-ponto',renderPontoTab,{searchable:true,alwaysShow:true,placeholder:'Pesquisar funcionário ou matrícula...',text:f=>[f.mat,f.nome].join(' ')});
   tb.innerHTML=paginaPonto.map(f=>{
@@ -7939,9 +7506,6 @@ function renderPontoTab(){
   try{ _popularSelectPontoFuncionarios(); }catch(e){}
   try{ renderCartaoPontoImportado(); }catch(e){}
 }
-
-
-
 
 function _popularSelectPontoFuncionarios(){
   const sel=document.getElementById('ponto-cartao-func');
@@ -7973,12 +7537,9 @@ function renderCartaoPontoImportado(){
   }
   if(!regs.length){ host.innerHTML='<div style="color:#888;font-size:.85rem;padding:10px 0">Nenhuma batida importada pra esse funcionário'+(mesFiltro?' nesse mês':'')+'.</div>'; return; }
 
-  
   function isoData(d){ const p=(d||'').split('/'); return p.length===3 ? p[2]+'-'+p[1]+'-'+p[0] : ''; }
   regs=regs.slice().sort((a,b)=>isoData(a.data).localeCompare(isoData(b.data)));
 
-  
-  
   const extraChaves=new Set();
   regs.forEach(r=>Object.keys(r.extras||{}).forEach(k=>extraChaves.add(k)));
   const extraChavesOrdenadas=[...extraChaves].sort();
@@ -8016,14 +7577,12 @@ function excluirPontoFunc(mat){
   if(!f || !_erpFuncionarioAtivo(f)){ alert('Registros de funcionários inativos são somente para consulta.'); return; }
   if(!confirm('Excluir SOMENTE os lançamentos de '+(f?f.nome:mat)+' em '+mes+'? Os outros períodos serão preservados.')) return;
   const before=PONTO_DB.length;
-  
-  
+
   for(let i=PONTO_DB.length-1;i>=0;i--){ if(PONTO_DB[i] && PONTO_DB[i].mat===mat && _erpRegistroMes(PONTO_DB[i].data,mes)) _syncPonto.remover(i); }
   saveDB();
   renderPontoTab();
   alert('✅ '+(before-PONTO_DB.length)+' lançamento(s) removido(s).');
 }
-
 
 function adtTipoTab(tipo){
   const painForn=document.getElementById('adt-painel-forn');
@@ -8047,14 +7606,8 @@ function adtTipoTab(tipo){
   }
 }
 
-
 function saveAdtCli(){ localStorage.setItem('mm_adt_cli', JSON.stringify(ADT_CLI)); fbSalvar(); }
 function saveChequesCli(){ localStorage.setItem('mm_cheques_cli', JSON.stringify(CHEQUES_CLI)); fbSalvar(); }
-
-
-
-
-
 
 let _fcAba='extrato';
 let _fcCliente='';
@@ -8247,7 +7800,6 @@ function fcSalvarPagamento(){
 }
 function saveFcLanc(){ try{ localStorage.setItem('mm_fc_lanc', JSON.stringify(FC_LANC)); localStorage.setItem('mm_fc_saldoini', JSON.stringify(FC_SALDO_INI)); }catch(_){ } if(typeof fbSalvar==='function') fbSalvar(); }
 
-
 function _popularClientesSel(){
   const opts='<option value="">— Selecione o cliente —</option>'+(CLIENTES||[]).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{sensitivity:'base'})).map(c=>`<option value="${esc(c.nome)}">${esc(c.nome)}</option>`).join('');
   ['adtcli-cli','cheqcli-cli'].forEach(id=>{ const s=document.getElementById(id); if(s) s.innerHTML=opts; });
@@ -8326,7 +7878,6 @@ function salvarAdiantamentoCli(){
   showToast('✅ Adiantamento de '+cliNome+' registrado! R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2}),'success');
 }
 
-
 function renderAdtCli(){
   const tbody=document.getElementById('tb-adtcli-list');
   if(!tbody) return;
@@ -8368,7 +7919,6 @@ function excluirAdtCli(cliNome,cod){
   showToast('Adiantamento excluído.','warn');
 }
 
-
 function salvarChequeCli(){
   const cliNome=document.getElementById('cheqcli-cli')?.value||'';
   const valor=parseFloat(document.getElementById('cheqcli-valor')?.value)||0;
@@ -8390,7 +7940,6 @@ function salvarChequeCli(){
   saveChequesCli(); renderChequesCli(); cm();
   showToast('✅ Cheque de '+cliNome+' lançado!','success');
 }
-
 
 function renderChequesCli(){
   const tbody=document.getElementById('tb-cheques-cli-list');
@@ -8460,7 +8009,6 @@ function excluirChequeCli(cliNome,num){
   saveChequesCli(); renderChequesCli();
 }
 
-
 function editarChequeCli(cliNome,num){
   const lista=CHEQUES_CLI[cliNome]||[];
   const c=lista.find(x=>x.num===num);
@@ -8518,24 +8066,12 @@ function salvarEdicaoChequeCli(cliNome,numOrig){
   try{showToast('Cheque atualizado!','success');}catch(e){}
 }
 
-
-
-
-
-
-
-
-
-
 function adtCorrigeEmpresa(){
   let mudou=false;
   Object.values(ADT_POR_FORN).forEach(lista=>{
     (lista||[]).forEach(a=>{
       if(a._empresaAuto){ a.empresa=''; delete a._empresaAuto; mudou=true; }
-      
-      
-      
-      
+
       else if((a.bancoNome||'').toLowerCase().includes('terceiro') && a.empresa===_empresaPrincipalChave()){
         a.empresa=''; mudou=true;
       }
@@ -8543,16 +8079,6 @@ function adtCorrigeEmpresa(){
   });
   if(mudou) saveDB();
 }
-
-
-
-
-
-
-
-
-
-
 
 function _adtCorrigirDataCompensacaoParcial(){
   let mudou=false;
@@ -8566,13 +8092,6 @@ function _adtCorrigirDataCompensacaoParcial(){
   if(mudou) saveDB();
   return mudou;
 }
-
-
-
-
-
-
-
 
 function sincronizarAdiantamentosBanco(){
   const usados=new Set(
@@ -8599,9 +8118,6 @@ function sincronizarAdiantamentosBanco(){
     });
   });
 
-  
-  
-  
   const orfaos=LANC_BANCO_DB.filter(l=>!usados.has(l.id) && !paraVincular.some(p=>p.movId===l.id) && /^Adiantamento:/.test(l.descricao||''));
 
   if(pendentes.length===0 && paraVincular.length===0 && orfaos.length===0){
@@ -8619,7 +8135,6 @@ function sincronizarAdiantamentosBanco(){
   msg+='\nUm backup de contas e lançamentos será baixado antes. Continuar?';
   if(!confirm(msg)) return;
 
-  
   try{
     const agora=new Date();
     const backup={geradoEm:agora.toISOString(),bancos:JSON.parse(JSON.stringify(BANCOS_DB)),lancamentos:JSON.parse(JSON.stringify(LANC_BANCO_DB)),adiantamentos:JSON.parse(JSON.stringify(ADT_POR_FORN))};
@@ -8646,12 +8161,6 @@ function sincronizarAdiantamentosBanco(){
   alert('✅ Pronto! '+paraVincular.length+' vinculado(s), '+pendentes.length+' lançamento(s) novo(s) criado(s) (R$ '+fmt(totalPendente)+') e '+orfaos.length+' lançamento(s) órfão(s) removido(s) (R$ '+fmt(totalOrfaos)+'). Confira o saldo em Contas Bancárias.');
 }
 
-
-
-
-
-
-
 function sincronizarPagamentosBanco(){
   if(typeof CONTAS_PAGAR==='undefined'||!Array.isArray(CONTAS_PAGAR)){ alert('Contas a Pagar não carregou ainda. Abra a aba Contas a Pagar e tente de novo.'); return; }
   const fmt=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
@@ -8674,8 +8183,7 @@ function sincronizarPagamentosBanco(){
   }
   function _tentar(alvo, banco, valor, dataISO, desc){
     if(!banco||!(Number(valor)>0)) return;
-    
-    
+
     const existente=LANC_BANCO_DB.find(l=>
       !usados.has(l.id) && l.bancoCod===banco.cod && l.tipo==='Saida' &&
       Math.abs(Number(l.valor)-Number(valor))<0.01 &&
@@ -8719,7 +8227,6 @@ function sincronizarPagamentosBanco(){
   msg+='\nUm backup de contas e lançamentos será baixado antes. Continuar?';
   if(!confirm(msg)) return;
 
-  
   try{
     const agora=new Date();
     const backup={geradoEm:agora.toISOString(),bancos:JSON.parse(JSON.stringify(BANCOS_DB)),lancamentos:JSON.parse(JSON.stringify(LANC_BANCO_DB)),contasPagar:JSON.parse(JSON.stringify(CONTAS_PAGAR))};
@@ -8749,9 +8256,6 @@ function sincronizarPagamentosBanco(){
   alert('✅ Pronto! '+paraVincular.length+' pagamento(s) vinculado(s) e '+pendentes.length+' saída(s) nova(s) criada(s) (R$ '+fmt(totalPendente)+'). Confira o saldo em Contas Bancárias.');
 }
 
-
-
-
 function adtSetEmpresaInline(fornCod, adtCod, novaEmpresa){
   const lista=ADT_POR_FORN[fornCod]||[];
   const a=lista.find(x=>x.cod===adtCod);
@@ -8761,9 +8265,6 @@ function adtSetEmpresaInline(fornCod, adtCod, novaEmpresa){
   saveDB();
   showToast('Empresa do adiantamento '+adtCod+' definida como '+novaEmpresa+'.','success');
 }
-
-
-
 
 function _bancoKey(nome){
   var s=(nome||'').toString().toLowerCase().trim();
@@ -8790,9 +8291,6 @@ function _bancoDisplay(key){
   }).join(' ');
 }
 
-
-
-
 function _adtIso(d){
   d=String(d||'').trim(); if(!d) return '';
   if(d.indexOf('/')>=0){ var p=d.split(' ')[0].split('/'); if(p.length===3) return p[2]+'-'+String(p[1]).padStart(2,'0')+'-'+String(p[0]).padStart(2,'0'); }
@@ -8811,16 +8309,11 @@ function renderAdiantamentos(){
     const forn=FORNECEDORES.find(f=>f.cod===cod)||window.__ERP_ADVANCE_SUPPLIER_OPTIONS__?.find(f=>f.cod===cod);
     lista.forEach(a=>all.push({...a,fornNome:forn?forn.nome:cod,fornCod:cod}));
   });
-  
-  
-  
-  
+
   const _pagCargaOcultos=all.filter(_adtEhPagamentoCarga);
   const allVis=all.filter(a=>!_adtEhPagamentoCarga(a));
   return _renderAdiantamentosLista(allVis, _pagCargaOcultos.length);
 }
-
-
 
 function _adtEhPagamentoCarga(a){
   return !!(a && a.origem==='compra_inline');
@@ -8866,12 +8359,7 @@ function _renderAdiantamentosLista(all, _qtdCargaOculta){
         <button class="btn-edit-danger" data-forn="${a.fornNome}" data-cod="${a.cod}" onclick="excluirAdiantamentoLista(this)" title="Excluir">🗑️</button>
       </td>
     </tr>`).join('');
-  
-  
-  
-  
-  
-  
+
   const pend=all.filter(a=>a.status!=='Quitado');
   const quit=all.filter(a=>a.status==='Quitado');
   const totalAberto=pend.reduce((s,a)=>s+Number(a.valor),0);
@@ -8882,12 +8370,10 @@ function _renderAdiantamentosLista(all, _qtdCargaOculta){
   if(kPend) kPend.textContent=pend.length;
   if(kQuit) kQuit.textContent=quit.length;
 
-  
   const histEl=document.getElementById('adt-historico-cards');
   const histPanel=document.getElementById('adt-panel-historico');
   if(!histEl||!histPanel||histPanel.style.display==='none') return;
 
-  
   const porBanco={};
   all.forEach(a=>{
     const k=_bancoKey(a.bancoNome);
@@ -8896,7 +8382,6 @@ function _renderAdiantamentosLista(all, _qtdCargaOculta){
     else porBanco[k].pendentes.push(a);
   });
 
-  
   const porForn={};
   all.forEach(a=>{
     const n=a.fornNome||'—';
@@ -8933,7 +8418,6 @@ function _renderAdiantamentosLista(all, _qtdCargaOculta){
     </div>`;
   };
 
-  
   const bancosOrdenados=Object.entries(porBanco).sort((a,b)=>b[1].pendentes.length-a[1].pendentes.length);
   
   const fornTodos=Object.entries(porForn).sort((a,b)=>{
@@ -8982,9 +8466,6 @@ function _renderAdiantamentosLista(all, _qtdCargaOculta){
     `</div>`;
 }
 
-
-
-
 function _adtSincronizaEmpresa(bancoSelId, empresaSelId){
   const select=document.getElementById(bancoSelId);
   const field=document.getElementById(empresaSelId);
@@ -8993,8 +8474,6 @@ function _adtSincronizaEmpresa(bancoSelId, empresaSelId){
   if(match?.empresa&&field){field.value=match.empresa;return;}
   _sincronizarEmpresaPorBanco(bancoSelId,empresaSelId);
 }
-
-
 
 var _ADT_CHQ_BANCOS=[];
 var _adtChqDefBanco='';
@@ -9015,7 +8494,6 @@ function _adtFormaChange(){
     _adtChqCalc();
   }
 }
-
 
 function _adtChqRowBankOptions(sel){
   _ADT_CHQ_BANCOS=_cfgChequeBankNames();
@@ -9051,8 +8529,6 @@ function _adtChqAddRow(banco, num, valor, dataISO, vencISO, cli){
   _adtChqCalc();
 }
 
-
-
 function _adtChqGerarSeq(){
   const banco=document.getElementById('adt-seq-banco')?.value||_adtChqDefBanco;
   const val=_adtParseVal(document.getElementById('adt-seq-val')?.value||'');
@@ -9070,7 +8546,6 @@ function _adtChqGerarSeq(){
   }
   showToast('Adicionei '+qtd+' cheque(s) '+banco+' à lista','success');
 }
-
 
 function _adtChqAplicarDatas(){
   const lanc=document.getElementById('adt-datas-lanc')?.value||'';
@@ -9376,7 +8851,6 @@ function _btnFoto(destInputId){
   return '<button type="button" onclick="abrirCamera(\''+destInputId+'\')" style="margin-top:6px;background:#1565c0;color:#fff;border:none;border-radius:7px;padding:8px 14px;font-size:.85rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px">📷 Tirar Foto</button>';
 }
 
-
 function adtSubTab(t){
   ['controle','historico'].forEach(function(n){
     const panel=document.getElementById('adt-panel-'+n);
@@ -9393,7 +8867,6 @@ function adtSubTab(t){
     try{ renderAdiantamentos(); }catch(e){}
   }
 }
-
 
 function excluirCheque(cheqId){
   if(!confirm('Excluir este cheque?')) return;
@@ -9429,8 +8902,6 @@ function compensarCheque(cheqId, dataVal){
   });
   if(found){ saveDB(); renderCheques(); }
 }
-
-
 
 function abrirBaixaCheque(cheqId){
   let cheq=null;
@@ -9523,7 +8994,6 @@ function salvarEdicaoCheque(){
   document.getElementById('modal-editar-cheque').style.display='none';
   showToast('✅ Cheque atualizado!','success');
 }
-
 
 function cheqTab(t){
   ['lista','desconto','historico'].forEach(id=>{
@@ -9618,9 +9088,6 @@ function renderCheqHistorico(){
   }).join('');
 }
 
-
-
-
 function _cheqDescPend(c){
   return c && c.status!=='Cancelado' && (c.statusDesc ? c.statusDesc==='A descontar' : c.finalidade==='Adiantamento');
 }
@@ -9709,7 +9176,6 @@ function renderDescontoForn(){
   box.innerHTML=html;
 }
 
-
 function renderCheques(){
   const tbody=document.getElementById('tb-cheques-list');
   if(!tbody)return;
@@ -9736,7 +9202,6 @@ function renderCheques(){
   }
   all.sort((a,b)=>b.bomPara.localeCompare(a.bomPara));
 
-  
   const buscaNum=(document.getElementById('cheq-busca-num')?.value||'').trim().toLowerCase();
   const buscaDe=document.getElementById('cheq-busca-de')?.value||'';
   const buscaAte=document.getElementById('cheq-busca-ate')?.value||'';
@@ -9760,7 +9225,6 @@ function renderCheques(){
     return;
   }
 
-  
   const totalEmitido=all.filter(c=>c.tipo&&c.tipo.includes('Emitido')&&c.status==='Pendente').reduce((s,c)=>s+Number(c.valor),0);
   const totalReceber=all.filter(c=>c.tipo&&c.tipo.includes('Recebido')&&c.status==='Pendente').reduce((s,c)=>s+Number(c.valor),0);
   const totalACompensar=all.filter(c=>c.status==='Pendente').reduce((s,c)=>s+Number(c.valor),0);
@@ -9771,7 +9235,6 @@ function renderCheques(){
   if(kpis[2]) kpis[2].textContent='R$ '+fmt(totalACompensar);
   if(kpis[3]) kpis[3].textContent='R$ '+fmt(totalCompensado);
 
-  
   const filtDe=document.getElementById('cheq-filt-de')?.value||'';
   const filtAte=document.getElementById('cheq-filt-ate')?.value||'';
   const dataCompISO=dc=>{
@@ -9788,8 +9251,6 @@ function renderCheques(){
     return true;
   };
 
-  
-  
   const BANCOS_CHEQ_LISTA=(function(){
     const cfg=_cfgChequeBanks().map(function(x){return {nome:x.name,cor:x.color||'#2c7b7b',bg:'#f5f7f7'};});
     const seen=new Set(cfg.map(x=>x.nome));
@@ -9819,7 +9280,6 @@ function renderCheques(){
   const grandPend=Object.values(totPorBanco).reduce((s,v)=>s+v.pend,0)+semBanco.pend;
   const grandQtdPend=Object.values(totPorBanco).reduce((s,v)=>s+v.qtdPend,0)+semBanco.qtdPend;
 
-  
   const gc=document.getElementById('cheq-grand-comp');
   const gp=document.getElementById('cheq-grand-pend');
   const gt=document.getElementById('cheq-grand-total');
@@ -9829,7 +9289,6 @@ function renderCheques(){
   const gps=document.getElementById('cheq-grand-pend-sub');
   if(gps) gps.textContent=grandQtdPend+' cheque'+(grandQtdPend!==1?'s':'')+' pendente'+(grandQtdPend!==1?'s':'');
 
-  
   const cardsEl=document.getElementById('cheq-banco-cards');
   if(cardsEl){
     
@@ -9851,7 +9310,6 @@ function renderCheques(){
       const borderColor=temPend?'#c0392b':'#27ae60';
       const headerBg=temPend?'#c0392b':'#1a5c35';
 
-      
       const pendRows=pendentes.sort((a,b)=>(a.bomPara||'').localeCompare(b.bomPara||'')).map(c=>
         `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid #fde8e8;background:#fff9f9">
           <span style="font-size:1rem;font-weight:900;color:#c0392b;min-width:80px">Nº ${c.num||'—'}</span>
@@ -9861,7 +9319,6 @@ function renderCheques(){
         </div>`
       ).join('');
 
-      
       const compRows=compensados.sort((a,b)=>(b.dataCompensacao||'').localeCompare(a.dataCompensacao||'')).map(c=>
         `<div style="display:flex;align-items:center;gap:8px;padding:5px 10px;border-bottom:1px solid #e8f5e9;background:#f6fff8">
           <span style="font-size:.9rem;font-weight:700;color:#27ae60;min-width:80px">Nº ${c.num||'—'}</span>
@@ -9904,7 +9361,6 @@ function renderCheques(){
     }).join('') || '<p style="color:#aaa;text-align:center;padding:20px;grid-column:1/-1">Nenhum cheque lançado.</p>';
   }
 
-  
   const baseList=temFiltro?allFiltrado:all;
   const allParaLista=baseList.filter(c=>c.status!=='Compensado'||compDentroFiltro(c));
   tbody.innerHTML=allParaLista.map(c=>{
@@ -9949,7 +9405,6 @@ function renderCheques(){
   }).join('');
 }
 
-
 function limparFiltrosCompra(){
   const s=document.getElementById('filt-compra-status');
   const d=document.getElementById('filt-compra-de');
@@ -9961,11 +9416,6 @@ function limparFiltrosCompra(){
   if(f) f.value='';
   renderTickets();
 }
-
-
-
-
-
 
 let _dcDbKey=null;
 function abrirDetalheCompra(dbKey){
@@ -10047,11 +9497,6 @@ function fecharDetalheCompra(){
   _dcDbKey=null;
 }
 
-
-
-
-
-
 function corrigirDataCompra(){
   const t=TICKETS_DB[_dcDbKey];
   if(!t){ showToast('Ticket não encontrado.','error'); return; }
@@ -10080,8 +9525,7 @@ function salvarDataCompra(){
     if(cp.ticket!==t.ticket) return;
     
     if(!cp.lancto || cp.lancto===antiga){ cp.lancto=nova; mudouCP=true; }
-    
-    
+
     if(!cp.venc || cp.venc===antiga){ cp.venc=nova; mudouCP=true; }
     if(mudouCP) cp._upd=Date.now();
   });
@@ -10091,11 +9535,6 @@ function salvarDataCompra(){
   showToast('✅ Data corrigida para '+nova+'!','success');
   abrirDetalheCompra(_dcDbKey);
 }
-
-
-
-
-
 
 function editarAdiantamentoCompra(){
   const t=TICKETS_DB[_dcDbKey];
@@ -10147,13 +9586,6 @@ function salvarAdiantamentoCompra(){
   abrirDetalheCompra(_dcDbKey);
 }
 
-
-
-
-
-
-
-
 function adicionarItemTicket(){
   const t=TICKETS_DB[_dcDbKey];
   if(!t){ showToast('Ticket não encontrado.','error'); return; }
@@ -10200,10 +9632,6 @@ function adicionarItemTicket(){
   try{ renderTickets(); }catch(e){}
 }
 
-
-
-
-
 function _recalcTotaisCompra(t){
   const itensSum=(t.itens||[]).reduce(function(s,it){
     const liq=Number(it.pesoLiqAjust!=null?it.pesoLiqAjust:(it.pesoLiq!=null?it.pesoLiq:(it.pesoBruto!=null?it.pesoBruto:(it.br||0))));
@@ -10227,10 +9655,7 @@ function lancarValorCompra(sinal){
   t.acrescimos.push({v:v, obs:obs, quando:_hojeISO()});
   t.acrescimo=t.acrescimos.reduce(function(s,a){ return s+Number(a.v||0); },0);
   _recalcTotaisCompra(t);
-  
-  
-  
-  
+
   try{
     const cpPend=CONTAS_PAGAR.find(function(cp){ return cp.ticket===t.ticket && cp.status==='Pendente'; });
     if(cpPend){
@@ -10283,8 +9708,6 @@ function compararTicketsHistorico(a,b){
 }
 
 function _compraHistoricoVisivel(ticket){
-  // A pesagem de origem permanece no Balanceiro. Não contabilize essa mesma
-  // carga duas vezes no histórico financeiro depois de gerar o pedido final.
   if(!ticket || ticket._balSessao || ticket._rodEntrada || ticket.status==='Aguard. Saída')return false;
   if(ticket.status==='Consolidado' && ticket._consolidadoEm){
     const final=TICKETS_DB[String(ticket._consolidadoEm)];
@@ -10293,8 +9716,6 @@ function _compraHistoricoVisivel(ticket){
   return true;
 }
 
-// O histórico legado guarda o adiantamento ORIGINAL, inclusive o excedente.
-// Para KPIs mostrar apenas a parcela aplicada, sem alterar o lançamento bancário.
 function _compraAdiantamentoAplicado(tk){
   const original=Math.max(0,Number(tk?.adiantamento||0));
   const total=Math.max(0,Number(tk?.totalGeral||0));
@@ -10305,7 +9726,7 @@ function _compraAdiantamentoAplicado(tk){
       !String(a.forma||'').toLowerCase().includes('cheque');
   });
   if(linked.length===1&&Math.abs(Number(linked[0].valor||0)-original)<0.01)return total;
-  return original; // legado ambíguo: nunca inventar abatimento sem origem unívoca
+  return original;
 }
 
 function renderTickets(){
@@ -10317,28 +9738,17 @@ function renderTickets(){
   };
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
 
-  
-  
-  
-  
-  
-  
-
-  
   const filtStatus=(document.getElementById('filt-compra-status')?.value)||'todos';
   const filtDe=document.getElementById('filt-compra-de')?.value||'';
   const filtAte=document.getElementById('filt-compra-ate')?.value||'';
   const filtForn=document.getElementById('filt-compra-forn')?.value||'';
 
-  
   const toIso=d=>{
     if(!d) return '';
     if(d.includes('-')) return d;
     const p=d.split('/'); return p[2]+'-'+p[1]+'-'+p[0];
   };
 
-  
-  
   const dlForn=document.getElementById('filt-compra-forn-list');
   if(dlForn){
     const nomesForn=[...new Set(Object.values(TICKETS_DB)
@@ -10347,10 +9757,6 @@ function renderTickets(){
       .filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
     dlForn.innerHTML=nomesForn.map(n=>`<option value="${esc(n)}">`).join('');
   }
-
-  
-  
-  
 
   const baseTodos=Object.values(TICKETS_DB).filter(_compraHistoricoVisivel);
   const creditosTodos=[];
@@ -10370,7 +9776,6 @@ function renderTickets(){
     if(kpiA) kpiA.textContent='R$ '+fmt(totalAdtKpi);
     if(kpiS) kpiS.textContent='R$ '+fmt(Math.max(0,totalSaldoKpi)); }
 
-  
   let all=Object.entries(TICKETS_DB).filter(([k,tk])=>_compraHistoricoVisivel(tk)).map(([k,tk])=>({...tk,_dbKey:k}));
   if(filtStatus==='aguard_preco') all=all.filter(tk=>tk._balFinalizado && tk.status==='Aguard. Preço');
   else if(filtStatus==='pendente') all=all.filter(tk=>{
@@ -10385,8 +9790,6 @@ function renderTickets(){
   if(filtDe) all=all.filter(tk=>toIso(tk.data)>=filtDe);
   if(filtAte) all=all.filter(tk=>toIso(tk.data)<=filtAte);
 
-
-  
   const creditos=[];
   if(filtStatus!=='pago'){
     Object.entries(ADT_POR_FORN).forEach(([cod,lista])=>{
@@ -10454,7 +9857,6 @@ function renderTickets(){
     </tr>`;
   }).join('');
 
-  
   if(creditos.length>0){
     rows+=`<tr style="background:#e8eceb">
       <td colspan="9" style="color:#fff;font-weight:700;font-size:.82rem;padding:8px 12px;letter-spacing:.5px">
@@ -10473,7 +9875,6 @@ function renderTickets(){
       </tr>`).join('');
   }
 
-  
   if(all.length>0){
     const totPeso=all.reduce((s,tk)=>s+(tk.itens?tk.itens.reduce((ss,i)=>ss+Number(i.pesoLiq||0),0):0),0);
     const totVal=all.reduce((s,tk)=>s+Number(tk.totalGeral||0),0);
@@ -10491,8 +9892,6 @@ function renderTickets(){
   tbody.innerHTML=rows;
 }
 
-// Excluir compra somente após confirmação transacional do servidor.
-// Compras pagas/compensadas exigem estorno e nunca são removidas aqui.
 const _purchaseDeletePending=new Set();
 async function excluirEntradaCompra(ticket){
   const id=String(ticket||'').trim(),tk=TICKETS_DB[id];
@@ -10523,8 +9922,6 @@ async function excluirEntradaCompra(ticket){
     if(result.status!=='CONFIRMED'||String(result.ticketNo)!==id){
       showToast('A exclusão não foi confirmada pelo servidor. Atualize a tela antes de tentar novamente.','warning',6500);return;
     }
-    // A API já gravou os tombstones e removeu tudo na nuvem. NÃO chamar
-    // _ticketExcluir(), _removerCPporIndice(), saveDB() nem saveContasPagar().
     delete TICKETS_DB[id];
     try{delete _ticketsSnapJSON[id];}catch(_error){}
     TICKETS_DELETED.add(id);
@@ -10538,7 +9935,6 @@ async function excluirEntradaCompra(ticket){
       deletedPayables.forEach(item=>CONTAS_PAGAR_DELETED.add(item));
       try{localStorage.setItem('mm_cp_deletados',JSON.stringify([...CONTAS_PAGAR_DELETED]));}catch(_error){}
     }
-    // Compra paga com adiantamento: o servidor devolveu o valor aos adiantamentos no mesmo commit.
     if(Array.isArray(result.advances)&&result.supplierCode&&typeof ADT_POR_FORN!=='undefined'){
       ADT_POR_FORN[result.supplierCode]=result.advances;
       try{renderAdiantamentos();}catch(_error){}
@@ -10555,29 +9951,24 @@ async function excluirEntradaCompra(ticket){
   }finally{_purchaseDeletePending.delete(id);}
 }
 
-
-
-
-
-
-
-// A baixa financeira deve passar pelo mesmo serviço transacional de Contas a Pagar.
-// Nunca marcar o ticket como pago alterando só o estado local do navegador.
 function abrirBaixaCompraNoFinanceiro(ticketNumero){
   const codigo=String(ticketNumero||'').trim();
   const abertas=(CONTAS_PAGAR||[]).filter(c=>c&&String(c.ticket||'').trim()===codigo&&c.status!=='Pago'&&Number(c.valor||0)>0);
-  if(abertas.length!==1){
+  const parcelas=abertas.length>1&&abertas.every(c=>Number(c.parcelas||0)>1&&Number(c.parcela||0)>0)
+    ?abertas.slice().sort((a,b)=>Number(a.parcela)-Number(b.parcela)):null;
+  if(abertas.length!==1&&!parcelas){
     showToast(abertas.length>1
       ?'Existem várias contas em aberto para esta compra. Consulte Financeiro → Contas a Pagar para escolher a conta correta.'
       :'Nenhuma conta a pagar em aberto foi localizada para esta compra. Confira a situação no Financeiro → Contas a Pagar.',
       'warning',6500);
     return;
   }
-  const conta=abertas[0],indice=CONTAS_PAGAR.indexOf(conta);
+  const conta=parcelas?parcelas[0]:abertas[0],indice=CONTAS_PAGAR.indexOf(conta);
   if(indice<0||typeof pagarContaRapido!=='function'){
     showToast('Não foi possível abrir a baixa. Acesse Financeiro → Contas a Pagar.','error',6500);
     return;
   }
+  if(parcelas)showToast('Abrindo a parcela '+conta.parcela+'/'+conta.parcelas+', a próxima em aberto desta compra.','info',4500);
   pagarContaRapido(indice,String(conta.id||''));
 }
 
@@ -10595,8 +9986,7 @@ function marcarCompraPaga(dbKey){
   tk.adiantamento=0;      
   tk.saldoPagar=0;
   tk.status='Pago';
-  
-  
+
   try{
     var cps=CONTAS_PAGAR.filter(function(c){ return c && c.ticket===tk.ticket && c.status!=='Pago'; });
     cps.forEach(function(c){
@@ -10613,7 +10003,6 @@ function marcarCompraPaga(dbKey){
   showToast('✅ Compra '+(tk.ticket||'')+' marcada como paga.','success');
 }
 window['marcarCompraPaga']=marcarCompraPaga;
-
 
 async function desmarcarCompraPaga(dbKey){
   const ticket=TICKETS_DB[dbKey];
@@ -10659,7 +10048,6 @@ async function desmarcarCompraPaga(dbKey){
   }catch(error){showToast(error.message||'Não foi possível desfazer a marcação.','error',7500);}
 }
 window['desmarcarCompraPaga']=desmarcarCompraPaga;
-
 
 function getPrecosFornMsg(){
   const cod=document.getElementById('pf-forn-sel')?.value;
@@ -10717,7 +10105,6 @@ async function compartilharImagemPrecosForn(){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
 
-  
   const box=document.getElementById('pf-img-box');
   box.style.display='block';
   box.innerHTML=`
@@ -10981,12 +10368,6 @@ function salvarPrecoFornInline(cod,mat,el){
     :`<span style="font-size:.73rem;color:var(--gray)">—</span>`;
 }
 
-
-
-
-
-
-
 function _acharCompraSimilar(fornCod, dataFmt, totalGeral, ticketAtual){
   if(!fornCod || !dataFmt || !(totalGeral>0)) return null;
   const TOL=0.02;
@@ -11023,14 +10404,7 @@ function salvarCompra(forcar, ignorarFaltantes){
 
   const itens=[];
   let itensInvalidos=0;
-  
-  
-  
-  
-  
-  
-  
-  
+
   const itensIgnorados=[];
   let _novoMetalRegistrado=false;
   for(let i=1;i<=compraRowId;i++){
@@ -11051,8 +10425,7 @@ function salvarCompra(forcar, ignorarFaltantes){
       continue;
     }
     rowEl.style.background='';
-    
-    
+
     const matEstoque=_matEfetivoEstoque(mat,id);
     if(matEstoque!==mat && !METAIS.includes(matEstoque)){ _garantirMetalCadastrado(matEstoque); _novoMetalRegistrado=true; }
     itens.push({mat:matEstoque,matBase:mat,ident:id,pesoBruto:br||lq,pesoLiq:lq,preco:pr,total:_r2(lq*pr)});
@@ -11078,13 +10451,6 @@ function salvarCompra(forcar, ignorarFaltantes){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const dataFmt=data?data.split('-').reverse().join('/'):'';
 
-  
-  
-  
-  
-  
-  
-  
   if(!forcar){
     const parecida=_acharCompraSimilar(fornCod, dataFmt, totalGeral, ticket);
     if(parecida){
@@ -11097,12 +10463,9 @@ function salvarCompra(forcar, ignorarFaltantes){
     }
   }
 
-  
   if(!ADT_POR_FORN[fornCod]) ADT_POR_FORN[fornCod]=[];
   if(!CHEQUES_POR_FORN[fornCod]) CHEQUES_POR_FORN[fornCod]=[];
-  
-  
-  
+
   const _adtChks=[...document.querySelectorAll('.c-adt-chk')];
   const _adtSelecionados=_adtChks.length ? new Set(_adtChks.filter(c=>c.checked).map(c=>c.dataset.cod)) : null;
   const _approved=window.__ERP_PURCHASE_APPROVED_ADVANCES__?.supplierCode===fornCod?window.__ERP_PURCHASE_APPROVED_ADVANCES__.amounts:null;
@@ -11124,14 +10487,11 @@ function salvarCompra(forcar, ignorarFaltantes){
   const totalCheqPendente=pendentesCheq.reduce((s,c)=>s+Number(c.valor),0);
   const totalPendenteGeral=totalAdtPendente+totalCheqPendente;
 
-  
   const adtEfetivo=totalPendenteGeral>0 ? totalPendenteGeral : adtManual;
   const _sdRaw=SALDO_DEVEDOR_FORN&&SALDO_DEVEDOR_FORN[fornCod];
   const saldoAnterior=_approved?0:(_sdRaw?(typeof _sdRaw==='object'?(_sdRaw.valor||0):Number(_sdRaw||0)):0);
   const saldoPagar=_r2(totalGeral - adtEfetivo + saldoAnterior);  
 
-  
-  
   let aRestante=totalGeral;
   for(let _ai=0;_ai<pendentesAdt.length;_ai++){
     const a=pendentesAdt[_ai];
@@ -11188,21 +10548,14 @@ function salvarCompra(forcar, ignorarFaltantes){
       valorAplicado:_r2(usado),valorPendente:_r2(Math.max(0,adtManual-usado))
     });
   }
-  
-  
-  // Em compra integrada, o servidor grava pedido e crédito no mesmo commit.
+
   if(!window.__ERP_PURCHASE_IN_PROGRESS__)try{ _adtSalvarNaNuvem(fornCod); }catch(e){}
 
-  
   if(saldoAnterior>0){
     _apagarChave('saldoDevedor', SALDO_DEVEDOR_FORN, fornCod);
     localStorage.setItem('mm_saldo_devedor', JSON.stringify(SALDO_DEVEDOR_FORN));
   }
-  
-  
-  
-  
-  
+
   try{
     if(typeof TICKETS_DELETED!=='undefined' && TICKETS_DELETED.has && TICKETS_DELETED.has(ticket)){
       TICKETS_DELETED.delete(ticket);
@@ -11223,13 +10576,11 @@ function salvarCompra(forcar, ignorarFaltantes){
     acrescimos: extrasCompra.map(function(e){ return {v:e.v, obs:e.obs, quando:_hojeISO()}; })
   };
 
-  
   try{
     var _cBags=parseInt(document.getElementById('c-bags')?.value)||0;
     if(_cBags>0){ bagsRegistrarEntradaForn(fornNome, _cBags, ticket); document.getElementById('c-bags').value=''; }
   }catch(e){}
 
-  
   try{
     if(!PRECOS_FORN_DATA[fornCod]) PRECOS_FORN_DATA[fornCod]={};
     if(!PRECOS_FORN_DATA[fornCod]._datas) PRECOS_FORN_DATA[fornCod]._datas={};
@@ -11244,7 +10595,6 @@ function salvarCompra(forcar, ignorarFaltantes){
     if(precoAtualizado) localStorage.setItem('mm_precos_forn', JSON.stringify(PRECOS_FORN_DATA));
   }catch(e){ console.warn('auto-preco',e); }
 
-  
   if(saldoPagar > 0){
     const jaExiste=CONTAS_PAGAR.find(cp=>cp.ticket===ticket);
     if(!jaExiste){
@@ -11261,10 +10611,7 @@ function salvarCompra(forcar, ignorarFaltantes){
   }
 
   saveDB();
-  
-  
-  
-  
+
   try{ fbSalvarImediato(); }catch(e){}
   try{ renderTickets(); }catch(e){ console.warn('renderTickets',e); }
   try{ renderAdiantamentos(); }catch(e){ console.warn('renderAdiantamentos',e); }
@@ -11287,7 +10634,6 @@ function salvarCompra(forcar, ignorarFaltantes){
 }
 
 let _adtSalvamentoAtivo=false;
-// Um recibo pendente sobrevive ao F5 para não nascer uma segunda operação.
 function _adtPendenteKey(uid){return 'mm_finance_advance_pending_v1_'+String(uid||'').replace(/[^a-zA-Z0-9_-]/g,'_');}
 function _adtLerPendente(uid){
   try{
@@ -11362,8 +10708,6 @@ async function _adtRecuperarResposta(opId,fornCod,token){
 }
 
 async function salvarAdiantamento(){
-  // O bloqueio é global: impede confirmação duplicada, fechamento ou novo cadastro
-  // enquanto uma requisição financeira do navegador está sem resposta.
   if(_adtSalvamentoAtivo)return false;
   const fornBusca=document.getElementById('adt-forn-busca');
   const data=document.getElementById('adt-data')?.value;
@@ -11417,8 +10761,6 @@ async function salvarAdiantamento(){
     const user=firebase?.auth?.().currentUser;
     if(!user)throw new Error('Sua sessão expirou. Entre novamente no sistema.');
     const token=await user.getIdToken();
-    // Um refresh ou uma aba diferente não pode criar outro adiantamento enquanto
-    // houver um recibo incerto para esta conta autenticada.
     const pending=_adtLerPendente(user.uid);
     if(pending&&pending.operationId!==opId){
       _adtBloquearInteracao('Conferindo o lançamento anterior após a atualização da página...');
@@ -11435,7 +10777,6 @@ async function salvarAdiantamento(){
       if(previous.state!=='not_found')throw new Error('A operação financeira anterior ainda está sendo verificada. Nenhum novo lançamento foi enviado.');
       _adtLimparPendente(user.uid,pending.operationId);
     }
-    // Sempre verifica o identificador antigo ANTES de qualquer nova tentativa.
     let result=null;
     if(button?.dataset.operationSent==='1'){
       const prior=await _adtConsultarStatus(opId,fornCod,token);
@@ -11478,9 +10819,6 @@ async function salvarAdiantamento(){
         else if(status.state==='processing')
           throw new Error('Outra operação financeira ainda está em processamento. Nenhum novo adiantamento foi enviado. Aguarde a confirmação antes de tentar novamente.');
         else if(status.state==='not_found'&&response?.status===409&&reply?.code==='ADVANCE_IN_PROGRESS'){
-          // O primeiro POST foi recusado ANTES da gravação. Quando a trava
-          // deixa de existir, é seguro tentar UMA vez com a MESMA operação.
-          // A chave de idempotência nunca muda neste segundo envio.
           _adtBloquearInteracao('A operação anterior foi concluída. Confirmando este adiantamento, sem criar duplicidades...');
           let retryResponse=null,retryReply=null;
           try{({response:retryResponse,result:retryReply}=await enviar());}
@@ -11497,7 +10835,6 @@ async function salvarAdiantamento(){
         }else
           throw new Error('Não foi possível confirmar se o Firebase gravou o lançamento. O mesmo identificador foi preservado; verifique o Histórico antes de tentar novamente.');
       }else{
-        // Rejeição conhecida: o servidor não iniciou nenhuma gravação.
         _adtLimparPendente(user.uid,opId);
         if(button){delete button.dataset.operationSent;delete button.dataset.operationId;delete button.dataset.operationPayload;}
         throw new Error(reply?.message||'O servidor recusou o adiantamento ('+response.status+').');
@@ -11524,7 +10861,6 @@ async function salvarAdiantamento(){
       const nome=(FORNECEDORES.find(f=>f.cod===fornCod)||window.__ERP_ADVANCE_SUPPLIER_OPTIONS__?.find(f=>f.cod===fornCod)||{}).nome||fornCod;
       registrarHistorico('Adiantamento','Criado',nome+' — R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+' — '+dataFmt+' — '+(result.advance.bancoNome||forma),null,{fornCod,cod:result.advance.cod});
     }catch(e){}
-    // A interface só libera uma nova operação após confirmação do Firebase.
     _adtLimparPendente(user.uid,opId);
     _adtLiberarInteracao();
     cm();
@@ -11586,7 +10922,6 @@ function limparCheques(){
   if(lbl) lbl.textContent='';
   calcCheqTotal();
 }
-
 
 function _loadSheetJS(cb){
   if(window.XLSX){ cb(); return; }
@@ -11733,7 +11068,6 @@ function downloadTemplateCheques(){
   _baixarTemplateEstatico('/templates/controle_cheques.xlsx','controle_cheques.xlsx');
 }
 
-
 function addCheqRow(){
   const tbody=document.getElementById('cheq-rows');
   if(!tbody) return;
@@ -11818,7 +11152,6 @@ function salvarCheques(){
   const pagosCount=Array.from(document.querySelectorAll('#cheq-rows tr')).filter(r=>r.dataset.statusImport==='Compensado').length;
   showToast(salvos+' cheque(s) salvos com sucesso!'+(pagosCount?' ('+pagosCount+' ja compensados)':''),'success');
 }
-
 
 function _addCheqCliRowEl(num, valor, bomParaISO, banco, vinculo, idx, statusImport, emitente){
   const tbody=document.getElementById('cheqcli-rows'); if(!tbody) return;
@@ -11972,7 +11305,6 @@ function salvarChequesCli(){
   try{showToast(salvos+' cheque(s) de '+cliNome+' salvos!','success');}catch(e){}
 }
 
-
 function salvarCheque(){
   const num=document.getElementById('cheq-num')?.value.trim();
   const banco=document.getElementById('cheq-banco')?.value.trim();
@@ -12000,32 +11332,16 @@ function salvarCheque(){
   alert('✅ Cheque salvo!');
 }
 
-
-
-
 let METAIS_OPTS = METAIS.map(m=>`<option>${m}</option>`).join('');
 let METAIS_DATALIST = `<datalist id="metais-list">${METAIS.map(m=>`<option value="${m}">`).join('')}</datalist>`;
 const FORN_OPTS   = '<option value="">— Selecione o Fornecedor —</option>'+FORNECEDORES.map(f=>`<option value="${f.cod}">${f.nome}</option>`).join('');
 BAL_FORN_OPTS = '<option value="">— Selecione o Fornecedor —</option>'+FORNECEDORES.slice().sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR')).map(f=>`<option value="${f.nome}">${f.nome}</option>`).join('');
 let compraRowId=0, vendaRowId=0;
 
-
 const IDENT = ['LIMPO','SUJO','MISTO','100%','DL','DM','DF','PRENSADO','SOLTO','304','316','410','430','201','310','FERRO'];
 const IDENT_OPTS = IDENT.map(i=>`<option>${i}</option>`).join('');
 
-
-
-
-
-
-
-
-
-
 const IDENT_SEPARA_ESTOQUE = new Set(IDENT);
-
-
-
 
 function _matEfetivoEstoque(mat, ident){
   const id=(ident||'').trim().toUpperCase();
@@ -12046,9 +11362,6 @@ function _materialEfetivoDoItem(item){
   const efetivo=_matEfetivoEstoque(base,it.ident||'');
   return efetivo||original;
 }
-
-
-
 
 function _normalizarTombstoneEstoque(nome){
   return String(nome||'').trim().toUpperCase();
@@ -12084,11 +11397,9 @@ function _estoqueLimparExclusao(nome){
 }
 function _garantirMetalCadastrado(nome){
   if(!nome) return;
-  
-  
+
   if(/[.#$\/\[\]]/.test(nome) || String(nome).length>60) return;
-  
-  
+
   if(/nf\s*:/i.test(nome) || /\d\s*,/.test(nome)) return;
   if(typeof METAIS==='undefined') return;
   _estoqueLimparExclusao(nome);
@@ -12100,8 +11411,6 @@ function _garantirMetalCadastrado(nome){
     ESTOQUE_DB[nome]={mat:nome,inicial:0,entradas:0,saidas:0,precoVenda:0,obs:''};
   }
 }
-
-
 
 function _r2(x){ var n=Number(x); if(!isFinite(n)) return 0; return Math.round((n+Number.EPSILON)*100)/100; }
 window['_r2']=_r2;
@@ -12143,8 +11452,6 @@ function _limparMateriaisInvalidos(){
     }
     if(window._fbDB && !window._estqLimpoNuvem){
       window._estqLimpoNuvem=true;
-      // Never write a stale full list back after reading. An unrelated item
-      // may have been added by a second user while this request was in flight.
       window._fbDB.ref('erp/estoque').transaction(function(current){
         if(!current || typeof current!=='object')return;
         var next=Object.assign({},current),changed=false;
@@ -12167,17 +11474,9 @@ function _limparMateriaisInvalidos(){
 }
 window['_limparMateriaisInvalidos']=_limparMateriaisInvalidos;
 
-
 function getNextTicketId(){
   try{
-    
-    
-    
-    
-    
-    
-    
-    
+
     const usados=new Set(Object.keys(TICKETS_DB));
     try{ if(typeof TICKETS_DELETED!=='undefined') TICKETS_DELETED.forEach(t=>usados.add(String(t))); }catch(e){}
     let max=0;
@@ -12189,7 +11488,6 @@ function getNextTicketId(){
     return 'T'+String(nxt).padStart(3,'0');
   }catch(e){ return 'T'+Date.now().toString().slice(-4); }
 }
-
 
 function importarRomaneioPDF(input){
   const file = input.files[0];
@@ -12211,7 +11509,6 @@ function importarRomaneioPDF(input){
       const pdfData = new Uint8Array(e.target.result);
       const pdf = await pdfjsLib.getDocument({data: pdfData}).promise;
 
-      
       let fullText = '';
       for(let i=1; i<=pdf.numPages; i++){
         const page = await pdf.getPage(i);
@@ -12219,16 +11516,13 @@ function importarRomaneioPDF(input){
         fullText += content.items.map(it=>it.str).join(' ') + '\n';
       }
 
-      
       const get = (pattern, flags='i') => {
         const m = fullText.match(new RegExp(pattern, flags));
         return m ? m[1].trim() : '';
       };
 
-      
       const ticket = get('TICKET\\s+(\\d+)') || get('(\\d{3,6})\\s+$','im') || '';
 
-      
       const pesoBrutoStr  = get('Peso\\s+Bruto[:\\s]+([\\d.,]+)');
       const pesoTaraStr   = get('Peso\\s+Tara[:\\s]+([\\d.,]+)');
       const pesoLiqStr    = get('TOTAL\\s+PESO\\s+LIQUIDO\\s*[:\\s]+([\\d.,]+)')
@@ -12239,21 +11533,17 @@ function importarRomaneioPDF(input){
       const pesoTara  = parsePeso(pesoTaraStr);
       const pesoLiq   = parsePeso(pesoLiqStr) || (pesoBruto - pesoTara);
 
-      
       const produto = get('PRODUTO[:\\s]+[\\d]+\\s*[-–]?\\s*([\\w\\s]+?)(?:\\s{2,}|EXPEDI|$)');
 
-      
       const clienteRaw = get('CLIENTE[:\\s]+([^\\n]{3,60})');
       
       const cliMatch = clienteRaw.match(/^(\d+)\s*[-–]\s*(.+?)(?:\s*[-–]\s*[\d./-]{5,})?$/);
       const cliCod  = cliMatch ? cliMatch[1].trim() : '';
       const cliNome = cliMatch ? cliMatch[2].trim().toUpperCase() : clienteRaw.toUpperCase();
 
-      
       const placa     = get('PLACA[:\\s]+([A-Z0-9]{6,8})');
       const motorista = get('MOTORISTA[:\\s]+([^\\n]{3,40})');
 
-      
       let msgs = [];
 
       if(ticket){
@@ -12272,7 +11562,6 @@ function importarRomaneioPDF(input){
         if(el) el.value=motorista;
       }
 
-      
       let fornFound = false;
       if(cliCod || cliNome){
         const sel = document.getElementById('c-forn');
@@ -12294,7 +11583,6 @@ function importarRomaneioPDF(input){
         }
       }
 
-      
       if(pesoBruto > 0){
         const elBr = document.getElementById('cbr-1');
         if(elBr){ elBr.value=pesoBruto; }
@@ -12306,7 +11594,6 @@ function importarRomaneioPDF(input){
         msgs.push('Peso Líq: '+pesoLiq+' kg');
       }
 
-      
       if(produto){
         const elMat = document.getElementById('cmat-1');
         if(elMat){
@@ -12330,22 +11617,6 @@ function importarRomaneioPDF(input){
   };
   reader.readAsArrayBuffer(file);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 function _agruparItensPorLinha(items){
   const porY = {};
@@ -12398,18 +11669,12 @@ async function _lerCartaoPontoRHiD(pdfData){
 
 function _cpfSoDigitos(s){ return (s||'').replace(/\D/g,''); }
 
-// A prévia impede que nomes semelhantes ou CPFs não cadastrados sejam
-// vinculados a outro funcionário automaticamente. Nada é salvo antes da revisão.
 let _rhidPaginasPendentes = [];
 let _rhidImportando = false;
-// Os vínculos ficam em memória enquanto o usuário pesquisa/pagina na prévia.
-// Nunca são persistidos até a confirmação explícita da importação.
 let _rhidVinculosPendentes = new Map();
 let _rhidPaginaPrevia = 0;
 let _rhidFiltroPrevia = '';
 const _RHID_PREVIA_POR_PAGINA = 6;
-// A prévia permanece aberta enquanto o RH cadastra funcionários. A lista de
-// matrículas precisa refletir o cadastro atual sem refazer a leitura do PDF.
 let _rhidAssinaturaCadastro = '';
 let _rhidUltimaConsultaCadastro = 0;
 let _rhidConsultaCadastroPendente = null;
@@ -12439,8 +11704,6 @@ function _rhidAtualizarOpcoesFuncionarios(){
     const mat=_rhidVinculosPendentes.get(indice)||'';
     select.innerHTML=_rhidOpcoesFuncionarios(funcionarios,mat);
     select.value=mat||'';
-    // O campo visível é autossuficiente: não depende de outro módulo JS
-    // ter sido carregado para oferecer pesquisa na prévia RH iD.
     const combo=select.closest('.rhid-picker');
     if(!combo)return;
     const input=combo.querySelector('.rhid-picker-input');
@@ -12448,8 +11711,6 @@ function _rhidAtualizarOpcoesFuncionarios(){
     else if(input)input.value=_rhidRotuloFuncionario(mat);
   });
 }
-// Consulta dirigida SOMENTE ao cadastro de funcionários. Não dispara fbCarregar
-// ou fbSalvar e não regrava os dados de outros módulos.
 async function atualizarFuncionariosPreviaRHiD(forcar=false){
   if(!_rhidPaginasPendentes.length||_rhidImportando)return;
   _rhidAtualizarOpcoesFuncionarios();
@@ -12464,8 +11725,6 @@ async function atualizarFuncionariosPreviaRHiD(forcar=false){
       const snapshot=await window._fbDB.ref('erp/funcEdit').once('value');
       const remoto=snapshot.val();
       if(remoto&&typeof remoto==='object'){
-        // Mescla versões com o mecanismo existente para não descartar um
-        // cadastro recém-criado nesta sessão que ainda está sincronizando.
         const mesclado=_mesclarFuncEdit(remoto,null);
         if(Array.isArray(mesclado)&&mesclado.length){
           const antes=_rhidAssinaturaFuncionarios();
@@ -12481,8 +11740,6 @@ async function atualizarFuncionariosPreviaRHiD(forcar=false){
   })();
   return _rhidConsultaCadastroPendente;
 }
-// O Firebase já emite este evento quando recebe mudanças de outros usuários.
-// Os cadastros feitos nesta mesma aba passam pelo renderTbFuncionarios().
 document.addEventListener?.('erp:alert-source-changed',event=>{
   if(event.detail?.source==='funcionarios')_rhidAtualizarOpcoesFuncionarios();
 });
@@ -12540,8 +11797,6 @@ function atualizarVinculoCartaoPontoRHiD(indice,mat){
   _rhidVinculosPendentes.set(Number(indice),mat||'');
   _rhidAtualizarResumoPrevia();
 }
-// Combobox exclusivo da prévia RH iD. O select original fica oculto para
-// compatibilidade; a busca funciona mesmo se o seletor global não carregar.
 const _RHID_SUGESTOES_POR_PAGINA=8;
 function _rhidRotuloFuncionario(mat){
   if(!mat)return '';
@@ -12563,8 +11818,6 @@ function _rhidFecharBuscas(exceto){
     }
   });
 }
-// Mantém o menu inteiramente visível no viewport, independentemente da posição
-// da linha na tabela. A paginação fica fora da área rolável das opções.
 function _rhidPosicionarSugestoes(combo){
   if(!combo||combo.dataset.open!=='1')return;
   const list=combo.querySelector('.rhid-picker-options');
@@ -12585,7 +11838,6 @@ function _rhidPosicionarSugestoes(combo){
   list.style.width=width+'px';
   list.style.left=left+'px';
   list.style.maxHeight=maxHeight+'px';
-  // Ajuste depois do layout, para ficar encostado ao campo mesmo com poucos resultados.
   const realHeight=Math.min(maxHeight,list.getBoundingClientRect().height||maxHeight);
   list.style.top=(opensUp?Math.max(8,rect.top-realHeight-4):Math.min(vh-8,rect.bottom+4))+'px';
   list.dataset.direction=opensUp?'up':'down';
@@ -12679,7 +11931,6 @@ function _rhidAtivarCombos(tbody){
       if(combo.dataset.open==='1')_rhidFecharBuscas();
       else{_rhidAbrirBusca(combo);input.focus();}
     });
-    // Permite escolher com teclado sem abrir o select nativo.
     input.addEventListener('keydown',event=>{
       if(event.key==='Escape'){_rhidFecharBuscas();input.blur();return;}
       if(event.key==='Tab'){_rhidFecharBuscas();return;}
@@ -12693,7 +11944,6 @@ function _rhidAtivarCombos(tbody){
 document.addEventListener?.('pointerdown',event=>{
   if(!event.target?.closest?.('#ponto-rhid-preview .rhid-picker'))_rhidFecharBuscas();
 },true);
-// Ao rolar a janela ou redimensionar, o popup acompanha o campo original.
 function _rhidReposicionarBuscas(){
   document.querySelectorAll?.('#ponto-rhid-preview .rhid-picker[data-open="1"]').forEach(_rhidPosicionarSugestoes);
 }
@@ -12817,11 +12067,7 @@ async function confirmarImportacaoCartaoPontoRHiD(){
         novos.push(item);
       });
     }
-    // Grava apenas esta coleção. A API Firebase confirma o sucesso antes de
-    // atualizar a tela, ao contrário do agendador genérico de salvamento.
     await window._fbDB.ref('erp/pontoBatidas').update(updates);
-    // O Firebase pode atualizar o array via listener durante o await. Não usar
-    // índices calculados antes da gravação, pois outras linhas podem ter mudado.
     for(let i=PONTO_BATIDAS_DB.length-1;i>=0;i--){
       const old=PONTO_BATIDAS_DB[i];
       if(!old||old.origem!=='rhid'||!substituir.get(old.mat)?.has(old.data))continue;
@@ -12892,7 +12138,6 @@ function verificarPesos(){
   if(!div) return;
   if(rodVal <= 0){ div.innerHTML='<span style="color:#888;font-size:.8rem">Informe o peso da rodoviária para iniciar a conferência.</span>'; return; }
 
-  
   let rows = [];
   let somaLiq = 0;
   for(let i=1; i<=compraRowId; i++){
@@ -12913,13 +12158,11 @@ function verificarPesos(){
   const zerou = Math.abs(restFinal) <= rodVal*0.02;
   const excedeu = restFinal < -(rodVal*0.02);
 
-  
   const barColor = zerou ? '#2e7d32' : excedeu ? '#c62828' : '#1565c0';
   const barHTML = `<div style="background:#cfd8dc;border-radius:20px;height:12px;margin-bottom:8px;overflow:hidden">
     <div style="background:${barColor};height:100%;width:${pctFinal.toFixed(1)}%;border-radius:20px;transition:width .3s"></div>
   </div>`;
 
-  
   let tableHTML = '';
   if(rows.length > 0){
     tableHTML = '<table style="width:100%;border-collapse:collapse;font-size:.78rem;margin-bottom:8px">'
@@ -12944,7 +12187,6 @@ function verificarPesos(){
     tableHTML += '</tbody></table>';
   }
 
-  
   let statusHTML = '';
   if(zerou){
     statusHTML = `<div style="background:#e8f5e9;border-radius:6px;padding:7px 12px;color:#2e7d32;font-weight:800;font-size:.85rem">
@@ -13042,9 +12284,7 @@ function buildCompraForm(){
 function addCompraRow(){
   compraRowId++;
   const n=compraRowId;
-  
-  
-  
+
   try{ if(typeof refreshMetaisGlobals==='function') refreshMetaisGlobals(); }catch(e){}
   const tr=document.createElement('tr');
   tr.id=`crow-${n}`;
@@ -13069,7 +12309,6 @@ function getFornCod(){
   const opt=sel.options[sel.selectedIndex];
   return opt ? opt.value : null;
 }
-
 
 function _extraRowHTML(v,obs){
   const ev=(v===0||v==='')?'':String(v);
@@ -13107,7 +12346,6 @@ function _coletarExtras(){
 }
 function _somaExtras(){ return _coletarExtras().reduce(function(s,e){ return s+e.v; },0); }
 
-
 function _vExtraRowHTML(v,obs){
   const ev=(v===0||v==='')?'':String(v);
   return '<div class="v-extra-row" style="display:flex;gap:8px;align-items:flex-end;margin-bottom:6px">'
@@ -13137,11 +12375,6 @@ function _coletarVExtras(){
   return out;
 }
 function _somaVExtras(){ return _coletarVExtras().reduce(function(s,e){ return s+e.v; },0); }
-
-
-
-
-
 
 let _cFornIdx=-1; 
 function _cFornNorm(s){ return (s||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim(); }
@@ -13224,7 +12457,6 @@ function onFornChange(){
   const cod=getFornCod();
   const infoDiv=document.getElementById('c-forn-info');
 
-  
   for(let i=1;i<=compraRowId;i++){ try{onMaterialChange(i);}catch(e){} }
 
   if(!infoDiv||!cod){ return; }
@@ -13233,7 +12465,6 @@ function onFornChange(){
   const adts=(ADT_POR_FORN[cod]||[]);
   const cheqs=(CHEQUES_POR_FORN[cod]||[]);
 
-  
   const adtPend=adts.filter(a=>a.status==='Pendente'&&a.forma!=='Crédito');
   const adtCred=adts.filter(a=>a.forma==='Crédito'&&a.status!=='Quitado');
   const cheqPend=cheqs.filter(c=>c.status==='Pendente');
@@ -13243,11 +12474,9 @@ function onFornChange(){
   const totalCheqPend=cheqPend.reduce((s,c)=>s+Number(c.valor),0);
   const totalGeral=totalAdtPend+totalAdtCred+totalCheqPend;
 
-  
   const sdRaw=SALDO_DEVEDOR_FORN&&SALDO_DEVEDOR_FORN[cod];
   const saldoDev=sdRaw?(typeof sdRaw==='object'?(sdRaw.valor||0):Number(sdRaw||0)):0;
 
-  
   const ticksForn=Object.values(TICKETS_DB)
     .filter(t=>t.fornecedorCod===cod)
     .sort((a,b)=>{ const da=a.data.split('/').reverse().join('-'); const db=b.data.split('/').reverse().join('-'); return db.localeCompare(da); })
@@ -13255,15 +12484,12 @@ function onFornChange(){
 
   const totalDesconto=totalGeral+saldoDev;
 
-  
   const adtInput=document.getElementById('c-adt');
   if(adtInput){ adtInput.value=totalDesconto>0?totalDesconto.toFixed(2):'0'; calcCompra(); }
 
-  
   let html='<div style="background:#f0f7ff;border:1.5px solid #2980b9;border-radius:10px;padding:14px 16px;margin-bottom:10px;font-size:.82rem">';
   html+='<div style="font-weight:800;color:#1a5276;margin-bottom:10px;font-size:.88rem">📋 Resumo Financeiro do Fornecedor</div>';
 
-  
   html+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">';
   html+=`<div style="background:#fff;border-radius:7px;padding:8px 12px;border:1px solid #bee3f8;min-width:140px">
     <div style="font-size:.7rem;color:#666;text-transform:uppercase;letter-spacing:.4px">Adiantamentos Pend.</div>
@@ -13283,8 +12509,6 @@ function onFornChange(){
   </div>`;
   html+='</div>';
 
-  
-  
   if(adtPend.length>0){
     html+='<div style="font-weight:700;color:#1a5276;margin-bottom:4px">💰 Adiantamentos Pendentes <span style="font-weight:400;color:#666;font-size:.72rem">(desmarque os que NÃO quer descontar nesta compra)</span></div>';
     html+='<table style="width:100%;border-collapse:collapse;font-size:.76rem;margin-bottom:8px"><thead><tr style="background:#d6eaf8"><th style="padding:4px 6px;text-align:center">Usar?</th><th style="padding:4px 6px;text-align:left">Cód.</th><th style="padding:4px 6px;text-align:left">Data</th><th style="padding:4px 6px;text-align:right">Valor</th><th style="padding:4px 6px;text-align:left">Forma</th></tr></thead><tbody>';
@@ -13292,7 +12516,6 @@ function onFornChange(){
     html+='</tbody></table>';
   }
 
-  
   if(cheqPend.length>0){
     html+='<div style="font-weight:700;color:#1a5276;margin-bottom:4px">📋 Cheques Pendentes</div>';
     html+='<table style="width:100%;border-collapse:collapse;font-size:.76rem;margin-bottom:8px"><thead><tr style="background:#d6eaf8"><th style="padding:4px 6px;text-align:left">Nº</th><th style="padding:4px 6px;text-align:right">Valor</th><th style="padding:4px 6px;text-align:left">Bom Para</th></tr></thead><tbody>';
@@ -13300,8 +12523,6 @@ function onFornChange(){
     html+='</tbody></table>';
   }
 
-  
-  
   const ticksAberto=ticksForn.filter(function(t){ return !(t.status==='Pago'||t.status==='Quitado'||Number(t.saldoPagar||0)<=0.01); });
   if(ticksAberto.length>0){
     html+='<div style="font-weight:700;color:#1a5276;margin-bottom:4px">🛒 Compras em aberto</div>';
@@ -13317,9 +12538,6 @@ function onFornChange(){
   html+='</div>';
   infoDiv.innerHTML=html;
 }
-
-
-
 
 function recalcAdtSelecionado(){
   const cod=getFornCod();
@@ -13368,8 +12586,7 @@ function calcCompra(){
       saldoEl.style.color='var(--primary)';
       saldoEl.style.background=''; saldoEl.style.padding='';
     } else if(saldo<-0.005){
-      
-      
+
       if(saldoLbl){ saldoLbl.textContent='✅ Carga paga. Sobrou:'; saldoLbl.style.color='#1a7f4b'; }
       saldoEl.textContent='R$ '+Math.abs(saldo).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' (crédito p/ próxima carga)';
       saldoEl.style.color='#1a7f4b';
@@ -13493,9 +12710,7 @@ function buildVendaForm(){
 function addVendaRow(){
   vendaRowId++;
   const n=vendaRowId;
-  
-  
-  
+
   try{ if(typeof refreshMetaisGlobals==='function') refreshMetaisGlobals(); }catch(e){}
   const _optsMat = (typeof METAIS!=='undefined' && METAIS.length)
     ? METAIS.map(m=>`<option>${m}</option>`).join('')
@@ -13567,14 +12782,7 @@ function rmRow(id){
   if(el) el.remove();
 }
 
-
-
-
 let CLIENTES = [];
-
-
-
-
 
 const _syncClientes = _criarSincroniaPorChave('clientes', CLIENTES, 'CL');
 function saveClientes(){
@@ -13625,10 +12833,8 @@ function renderPrecosCliTab(){
   if(shareBar && comPreco.length>0) shareBar.style.display='flex';
   else if(shareBar) shareBar.style.display='none';
 
-  
   const semPreco=METAIS.filter(m=>!(precos[m]>0));
 
-  
   const addRow=semPreco.length>0?`
     <tr style="background:#f0f7ff">
       <td style="padding:6px 10px">
@@ -13884,8 +13090,7 @@ function filtrarTabelaCli(val){
 }
 
 function renderClientes(){
-  
-  
+
   try{ if(_syncClientes.limparDuplicatasExatas()){ try{fbSalvar();}catch(e){} } }catch(e){}
   const tbody=document.getElementById('tb-clientes-list');
   if(!tbody) return;
@@ -13918,8 +13123,6 @@ function renderClientes(){
   }).join('');
 }
 
-
-
 const _erpExclusoesEmAndamento=new Set();
 async function excluirCliente(idx){
   if(!_usuarioPodeOperarModulo('clientes')){alert('Sem acesso ao módulo Clientes.');return;}
@@ -13945,14 +13148,7 @@ async function excluirCliente(idx){
   finally{_erpExclusoesEmAndamento.delete('cliente:'+id);}
 }
 
-
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-
-
-
-
-
 
 function _parseValorBR(v){
   let s=String(v==null?'':v).trim();
@@ -13974,9 +13170,6 @@ function _parseValorBR(v){
   const n=parseFloat(s);
   return isNaN(n)?0:n;
 }
-
-
-
 
 function _digits(v){ return String(v||'').replace(/\D/g,''); }
 function _fmtCpf(v){
@@ -14014,7 +13207,6 @@ function _parseMoney(v){
 
 function _moneyFromNum(n){ return _fmtMoney(String(Math.round((Number(n)||0)*100))); }
 
-
 function _fmtPix(v){
   const s=String(v||'');
   if(/[a-zA-Z@]/.test(s)) return s;            
@@ -14040,18 +13232,12 @@ document.addEventListener('input', function(e){
   if(novo!==el.value){ el.value=novo; }
 });
 
-
-
 function restaurarFornecedores(){
   if(!_usuarioAtualEhElaine()){ alert('Apenas a Elaine pode restaurar fornecedores.'); return; }
   if(!confirm('Restaurar todos os fornecedores?\nIsso vai trazer de volta todos que foram removidos.')) return;
   FORN_DELETED.clear();
   localStorage.removeItem('mm_fornecedores_deleted');
-  
-  
-  
-  
-  
+
   try{ if(window._fbDB) window._fbDB.ref('erp/fornDeleted').set({}); }catch(e){}
   
   _fornFiltroAtual='';
@@ -14252,10 +13438,6 @@ function salvarNovoFornecedor(){
   alert('✅ Fornecedor '+nome+' cadastrado!');
 }
 
-
-
-
-
 function _digForn(s){ return String(s||'').replace(/\D/g,''); }
 function importarFornecedores(input){
   const file=input && input.files && input.files[0];
@@ -14333,7 +13515,6 @@ function importarFornecedores(input){
   });
 }
 
-
 function atualizarKpisFuncionarios(){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const ativos=FUNCIONARIOS.filter(_erpFuncionarioAtivo);
@@ -14393,8 +13574,6 @@ function _funcRow(x){
     '</td></tr>';
 }
 
-
-
 let _funcSort={col:'nome',dir:1};
 function funcSelecionarOrdenacao(valor){
   const [col,dir]=String(valor||'nome:1').split(':');
@@ -14435,26 +13614,22 @@ function renderTbFuncionarios(){
   const ativos   = FUNCIONARIOS.filter(_erpFuncionarioAtivo).slice().sort(_funcCmp);
   const inativos = FUNCIONARIOS.filter(x=>!_erpFuncionarioAtivo(x)).slice().sort(_funcCmp);
 
-  
   const ba=document.getElementById('func-badge-ativos');
   const bi=document.getElementById('func-badge-inativos');
   if(ba) ba.textContent=ativos.length;
   if(bi) bi.textContent=inativos.length;
 
-  
   const tbA=document.getElementById('tb-funcionarios');
   if(tbA) tbA.innerHTML=ativos.length
     ? _erpPaginarDados('funcionarios-ativos',ativos,'tb-funcionarios',renderTbFuncionarios,{searchable:true,placeholder:'Pesquisar funcionário ou matrícula...',alwaysShow:true,text:f=>[f.mat,f.nome,f.cpf,f.cargo].join(' ')}).map(_funcRow).join('')
     : '<tr><td colspan="8" style="text-align:center;color:var(--gray);padding:20px">Nenhum funcionário ativo</td></tr>';
 
-  
   const tbI=document.getElementById('tb-funcionarios-inativos');
   if(tbI) tbI.innerHTML=inativos.length
     ? _erpPaginarDados('funcionarios-inativos',inativos,'tb-funcionarios-inativos',renderTbFuncionarios,{searchable:true,placeholder:'Pesquisar funcionário inativo...',alwaysShow:true,text:f=>[f.mat,f.nome,f.cpf].join(' ')}).map(_funcRow).join('')
     : '<tr><td colspan="8" style="text-align:center;color:var(--gray);padding:20px">Nenhum funcionário inativo</td></tr>';
 
   _funcAtualizarSetas();
-  // RH iD pode estar aberto em outra aba do ERP; sincronize sem recarregar o PDF.
   _rhidAtualizarOpcoesFuncionarios();
 }
 
@@ -14494,7 +13669,6 @@ function excluirFuncionario(mat){
   alert('✅ Funcionário excluído.');
 }
 
-
 function salvarNovoFuncionario(){
   const nome=(document.getElementById('nfu-nome')?.value||'').trim().toUpperCase();
   if(!nome){ showToast('Digite o nome do funcionário','error'); return; }
@@ -14530,10 +13704,6 @@ function salvarNovoFuncionario(){
   showToast('✅ Funcionário '+mat+' — '+nome+' cadastrado!','success');
 }
 
-
-
-
-
 function _hojeISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function _diasEntreISO(a,b){ if(!a||!b) return null; const da=new Date(a+'T12:00:00'), db=new Date(b+'T12:00:00'); return Math.round((db-da)/86400000); }
 function _coletarAlertas(){
@@ -14559,8 +13729,7 @@ function _coletarAlertas(){
       lista.push({sourceTab:'documentos_empresas',mat:null, nome:(d.empresaNome||'Empresa')+' — '+(d.categoria||'Documento'), tipo:'Vence documento: '+(d.nomeArq||d.categoria||''), data:d.validade, dias:_diasEntreISO(hoje,d.validade), aviso:(d.avisarDias!=null?d.avisarDias:30), key:'doc|'+d.id });
     });
   }catch(e){}
-  
-  
+
   try{
     lista=lista.filter(function(a){
       if(!a||!a.sourceTab) return false;
@@ -14621,15 +13790,9 @@ function checarAlertas(forcar){
   window._alertasAtuais=mostrar;
 }
 
-
-
-
-
 let LISTA_COMPRAS = [];
 try{ LISTA_COMPRAS = JSON.parse(localStorage.getItem('mm_lista_compras')||'[]'); }catch(e){ LISTA_COMPRAS=[]; }
 function lcSalvar(){ try{ localStorage.setItem('mm_lista_compras', JSON.stringify(LISTA_COMPRAS)); }catch(e){} }
-
-
 
 function _lcGravar(item){ try{ if(window._fbDB && item && item.id) window._fbDB.ref('erp/listaCompras/'+item.id).set(item); }catch(e){} }
 function _lcRemover(id){ try{ if(window._fbDB && id) window._fbDB.ref('erp/listaCompras/'+id).remove(); }catch(e){} }
@@ -14757,11 +13920,6 @@ function renderListaCompras(){
     '</tr>';
   }).join('');
 }
-
-
-
-
-
 
 function funcImprimirModal(){
   document.querySelectorAll('.modal-ov[data-dynamic="1"]').forEach(e=>e.remove());
@@ -14915,8 +14073,6 @@ function editFuncionario(mat){
   document.getElementById('modal-ov').classList.add('open');
 }
 
-
-
 function _efnResumoAlertas(f){
   const hoje=(typeof _hojeISO==='function')?_hojeISO():_hojeISO();
   const linhas=[];
@@ -14928,7 +14084,6 @@ function _efnResumoAlertas(f){
   if(!linhas.length) return '<span style="color:#a08a4a">Nenhum alerta ativo ainda. Preencha abaixo e clique em 💾 Salvar.</span>';
   return '<div style="font-weight:700;color:#8a6d0b;margin-bottom:4px">✅ Alertas ativos:</div>'+linhas.map(l=>'<div style="margin:2px 0">'+l+'</div>').join('');
 }
-
 
 let _efnLembretes = [];
 function _efnLerInputs(){
@@ -15002,18 +14157,12 @@ function salvarEditFuncionario(){
   f.banco  = document.getElementById('efn-banco').value.trim();
   f._upd=Date.now();
   localStorage.setItem('mm_funcionarios_edit', JSON.stringify(FUNCIONARIOS));
-  
-  
-  
-  
+
   try{fbSalvar();}catch(e){}
   renderTbFuncionarios();
   cm();
   alert('✅ Funcionário atualizado!');
 }
-
-
-
 
 function funcDocsModal(mat){
   const f=FUNCIONARIOS.find(x=>x.mat===mat);
@@ -15089,15 +14238,6 @@ function funcDocsModal(mat){
   document.getElementById('modal-ov').classList.add('open');
   _renderFuncDocsList();
 }
-
-
-
-
-
-
-
-
-
 
 function fdSalvarContrato(mat){
   const f=FUNCIONARIOS.find(x=>x.mat===mat);
@@ -15231,7 +14371,6 @@ function fdExcluir(mat,idx){
   showToast('Documento excluído.','success');
 }
 
-
 function fdRenomear(mat,idx){
   const f=FUNCIONARIOS.find(x=>x.mat===mat);
   if(!f||!f.docs||!f.docs[idx]) return;
@@ -15246,9 +14385,6 @@ function fdRenomear(mat,idx){
   funcDocsModal(mat);
   showToast('Documento renomeado.','success');
 }
-
-
-
 
 function _migrarDocsFuncParaNuvem(cb){
   if(!window._fbDB || typeof FUNCIONARIOS==='undefined'){ cb&&cb(false); return; }
@@ -15269,9 +14405,6 @@ function _migrarDocsFuncParaNuvem(cb){
   if(pend===0) cb&&cb(false);
 }
 
-
-
-
 function _migrarDocsEmpresaParaNuvem(cb){
   if(!window._fbDB || typeof DOCS_EMPRESAS==='undefined'){ cb&&cb(false); return; }
   let pend=0, mudou=false;
@@ -15289,13 +14422,8 @@ function _migrarDocsEmpresaParaNuvem(cb){
   if(pend===0) cb&&cb(false);
 }
 
-
-
-
 function _entidadeDocsModal(entidade, nomeLabel, salvarFn){
-  
-  
-  
+
   if(!entidade.docs) entidade.docs=[];
 
   function _renderLista(){
@@ -15395,8 +14523,7 @@ function _entidadeDocsModal(entidade, nomeLabel, salvarFn){
     reader.onload=function(e){
       const nomeCustom=(document.getElementById('ed-nome')?.value||'').trim();
       const id='de_'+Date.now()+'_'+Math.floor(Math.random()*100000);
-      
-      
+
       window._fbDB.ref('erp/empresaDocs/'+id).set(e.target.result)
         .then(function(){
           entidade.docs.push({
@@ -15415,9 +14542,6 @@ function _entidadeDocsModal(entidade, nomeLabel, salvarFn){
     reader.readAsDataURL(file);
   };
 }
-
-
-
 
 function _migrarDocsEntidadesParaNuvem(cb){
   if(!window._fbDB){ cb&&cb(false); return; }
@@ -15468,7 +14592,6 @@ function cliDocsModal(idx){
     try{saveClientes();}catch(e){}
   });
 }
-
 
 function editCliente(idx){
   const c=CLIENTES[idx];
@@ -15557,18 +14680,10 @@ function salvarNovoCliente(){
   saveClientes(); renderClientes(); populatePrecosCliSel(); cm(); alert('✅ Cliente cadastrado!');
 }
 
-
-
-
-
 let ESTOQUE_DB = {};
 METAIS.forEach(m => {
   ESTOQUE_DB[m] = {mat:m, inicial:0, entradas:0, saidas:0, precoVenda:0, obs:''};
 });
-
-
-
-
 
 const MATERIAIS_BASE = [];
 function _mesclarMateriaisBase(){
@@ -15593,8 +14708,7 @@ function _mesclarMateriaisBase(){
 }
 
 function saveEstoque(){
-  
-  
+
   try{ fbSalvar(); }catch(e){}
   try{ localStorage.setItem('mm_estoque', JSON.stringify(ESTOQUE_DB)); }catch(e){}
   try{ localStorage.setItem('mm_metais', JSON.stringify(METAIS)); }catch(e){}
@@ -15602,9 +14716,7 @@ function saveEstoque(){
 }
 function loadEstoque(){
   try{
-    
-    
-    
+
     const cloudJaHidratou = (typeof _fbDadosCarregados!=='undefined' && _fbDadosCarregados===true);
     if(!cloudJaHidratou){
       const e=localStorage.getItem('mm_estoque');
@@ -15635,8 +14747,7 @@ function getSaidasMaterial(mat){
   let s = VENDAS_DB.reduce((acc,vd)=>{
     return acc + (vd.itens||[]).filter(it=>_normalizarChaveMaterialEstoque(_materialEfetivoDoItem(it))===alvo).reduce((ss,it)=>ss+Number(it.qt||0),0);
   },0);
-  
-  
+
   try{
     if(typeof FC_LANC==='object' && FC_LANC){
       Object.keys(FC_LANC).forEach(function(cli){
@@ -15650,10 +14761,6 @@ function getSaidasMaterial(mat){
   }catch(e){}
   return s;
 }
-
-
-
-
 
 function _dedupeMetais(){
   try{
@@ -15685,8 +14792,7 @@ function refreshMetaisGlobals(){
     const dl=document.getElementById(dlId);
     if(dl) dl.innerHTML=METAIS.map(m=>`<option value="${m}">`).join('');
   });
-  
-  
+
   try{
     const sel=document.getElementById('bal-material');
     if(sel){
@@ -15696,10 +14802,6 @@ function refreshMetaisGlobals(){
     }
   }catch(e){}
 }
-
-
-
-
 
 function _recuperarMateriaisComMovimento(silent){
   try{
@@ -15730,9 +14832,6 @@ function _recuperarMateriaisComMovimento(silent){
     return mudou;
   }catch(e){ console.warn('recuperar materiais', e); return false; }
 }
-
-
-
 
 function renderEstoque(){
   const tbE=document.getElementById('tb-estoque');
@@ -15778,12 +14877,7 @@ function renderEstoque(){
   if(el('kpi-est-valor')) el('kpi-est-valor').textContent='R$ '+fmt(totalValor);
 }
 
-
-
-
-
 async function excluirMaterial(mat){
-  // O frontend não determina autorização: confirmação das claims do Firebase.
   const auth=window.__fbRaw?.auth?.currentUser;
   const db=window._fbDB;
   if(!auth||!db){showToast('Faça login novamente para gerenciar os materiais.','error');return;}
@@ -15795,7 +14889,6 @@ async function excluirMaterial(mat){
   const e=ESTOQUE_DB[mat]||{mat,inicial:0,saidas:0};
   const entradas=getEntradasMaterial(mat),saidas=getSaidasMaterial(mat)+Number(e.saidas||0);
   const inicial=Number(e.inicial||0);
-  // Não romper vínculo de materiais já movimentados com Compras / Vendas.
   if(entradas>0||saidas>0||Math.abs(inicial)>0.0001){
     showToast('Este material tem saldo ou movimentações. Para preservar a rastreabilidade, corrija o lançamento de origem ou solicite sua inativação, sem excluir o histórico.','error');return;
   }
@@ -15803,7 +14896,6 @@ async function excluirMaterial(mat){
   if(window.__ERP_STOCK_DELETE_BUSY__)return;
   window.__ERP_STOCK_DELETE_BUSY__=true;
   try{
-    // A exclusão é confirmada na nuvem ANTES de alterar a lista local.
     const deletedRef=db.ref('erp/estoqueDeleted');
     const tx=await deletedRef.transaction(function(current){
       const items=Array.isArray(current)?current.filter(Boolean):current&&typeof current==='object'?Object.keys(current):[];
@@ -15848,8 +14940,6 @@ function editEstoque(mat){
     '<button class="btn-save" onclick="salvarEditEstoque()">💾 Salvar</button></div>';
   _ovE.classList.add('open');
 }
-
-
 
 function novoMaterial(){
   document.querySelectorAll('.modal-ov[data-dynamic="1"]').forEach(e=>e.remove());
@@ -15916,10 +15006,6 @@ function salvarEditEstoque(){
   showToast('✅ '+(matNew!==matOld?'Renomeado para '+matNew+' e atualizado!':'Estoque de '+matNew+' atualizado!'),'success');
 }
 
-
-
-
-
 function _supLog(msg, tipo='info'){
   const log=document.getElementById('sup-log');
   if(!log) return;
@@ -15930,21 +15016,10 @@ function _supLog(msg, tipo='info'){
   log.scrollTop=log.scrollHeight;
 }
 
-
-
-
-
-
-
-
-
-
 const CHQ_SEED = [];
 var CHQ_CTRL = {};
 var _chqDel = {};
 var _chqInited = false;
-
-
 
 var _CHQ_ENSURE = [];
 var _chqFbanco = 'TODOS';
@@ -15959,10 +15034,6 @@ function _chqFmt(v){
   return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
 }
 function _chqHojeBR(){ const d=new Date(); return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear(); }
-// Cheques gerados pela API de adiantamentos NÃO lançam saída no banco quando o
-// adiantamento é criado. Decide automaticamente se a compensação baixa o saldo:
-// cheque próprio = sim; cheque de terceiro = não (não sai da conta da empresa);
-// adiantamento que já tem movimento bancário = não. null = cheque legado (perguntar).
 function _chqDescontaBancoAuto(c){
   if(!c||!c.advanceCode) return null;
   if(String(c.tipoCheque||'')==='Cheque de Terceiro') return false;
@@ -15981,12 +15052,7 @@ function chqInit(){
   if(!db){ setTimeout(chqInit, 2000); return; }
   _chqInited=true;
   _chqDelRef().on('value', function(s){ _chqDel=s.val()||{}; });
-  
-  
-  
-  
-  
-  
+
   function _chqRepararBase(){
     _chqRef().once('value').then(function(s){
       var cur=s.val()||{};
@@ -16034,7 +15100,6 @@ function _chqAdtCheque(banco, num){
   return found;
 }
 
-
 function chqToggleDesconto(id){
   var c=CHQ_CTRL[id]; if(!c) return;
   var adt=_chqAdtCheque(c.b, c.n);
@@ -16043,7 +15108,6 @@ function chqToggleDesconto(id){
   else { if(typeof marcarDescontado==='function') marcarDescontado(adt.id); }
   try{ renderChequesCompensar(); }catch(e){}
 }
-
 
 function chqToggleCompra(id){
   var c=CHQ_CTRL[id]; if(!c) return;
@@ -16058,9 +15122,7 @@ function chqToggleCompra(id){
 function renderChequesCompensar(){
   var root=document.getElementById('chq-ctrl-root');
   if(!root) return;
-  
-  
-  
+
   var _chqSec=false;
   try{ _chqSec = (typeof cu!=='undefined' && cu) && ((typeof cuKey!=='undefined'&&cuKey==='thais') || (cu.role&&String(cu.role).indexOf('Secretária')>=0)); }catch(e){}
   var tot=_chqTotais();
@@ -16074,7 +15136,6 @@ function renderChequesCompensar(){
     else if(s==='C'){ abBanco[b].cq++; abBanco[b].cv+=(+c.v||0); }
   });
 
-  
   var arr=_chqLista().filter(function(c){
     if(_chqFsit!=='TODOS' && (c.s||'A')!==_chqFsit) return false;
     if(_chqFbanco!=='TODOS' && c.b!==_chqFbanco) return false;
@@ -16084,8 +15145,7 @@ function renderChequesCompensar(){
     }
     return true;
   });
-  
-  
+
   var _bOrdem=Object.fromEntries(_cfgChequeBanks().map(function(x,i){return [x.name,Number(x.order||i+1)];}));
   arr.sort(function(a,b){
     var ba=_bOrdem[a.b]||8, bb=_bOrdem[b.b]||8;
@@ -16107,7 +15167,6 @@ function renderChequesCompensar(){
        '🛒 A coluna <b>"Desc. Compra?"</b> é pra você marcar os cheques que são de <b>adiantamento</b> (descontam da compra). Nesses, o sistema pergunta antes de descontar do banco, pra não contar em dobro.</div>';
   }
 
-  
   if(!_chqSec){
   h+='<div class="kpi-grid">'+
      '<div class="kpi o"><div class="kpi-lbl">A Compensar</div><div class="kpi-val">'+_chqFmt(tot.A.v)+'</div><div class="kpi-sub">'+tot.A.q+' cheques pendentes no banco</div></div>'+
@@ -16117,8 +15176,6 @@ function renderChequesCompensar(){
      '</div>';
   }
 
-  
-  
   var cardBancos=bancos.filter(function(b){ return abBanco[b]&&(abBanco[b].aq||abBanco[b].cq); });
   if(!_chqSec && cardBancos.length){
     h+='<div style="display:flex;flex-wrap:wrap;gap:10px;margin:4px 0 16px">';
@@ -16135,7 +15192,6 @@ function renderChequesCompensar(){
     h+='</div>';
   }
 
-  
   h+='<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 12px;padding:8px 10px;background:#f6f8f7;border-radius:9px">';
   h+='<span style="font-size:.78rem;color:#666;font-weight:700;margin-right:2px">📚 Ver por banco (em ordem):</span>';
   [['TODOS','Todos']].concat(bancos.map(function(b){ return [b,b]; })).forEach(function(o){
@@ -16144,7 +15200,6 @@ function renderChequesCompensar(){
   });
   h+='</div>';
 
-  
   h+='<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">';
   h+='<div style="display:inline-flex;border:1px solid #ddd;border-radius:8px;overflow:hidden">';
   [['A','🟠 A Compensar'],['C','🟢 Compensados'],['X','⚪ Cancelados'],['N','⛔ Não existe'],['TODOS','Todos']].forEach(function(o){
@@ -16158,8 +15213,7 @@ function renderChequesCompensar(){
   h+='</select>';
   h+='<input type="text" placeholder="🔍 Nº ou cliente..." value="'+esc(_chqFbusca)+'" oninput="chqSetBusca(this.value)" style="font-size:.82rem;padding:6px 10px;border:1px solid #ddd;border-radius:7px;min-width:170px">';
   if(!_chqSec){
-    
-    
+
     var _rpComp=_legacyRepairConfig('gratusSicrediComplete');
     var _rpAcredi=_legacyRepairConfig('gratusAcredi');
     if(_rpComp&&_rpComp.bank&&Array.isArray(_rpComp.records)&&_rpComp.records.length){
@@ -16176,10 +15230,8 @@ function renderChequesCompensar(){
   if(!_chqSec){ h+='<button class="btn-edit" onclick="chqExportCSV()" title="Baixar em Excel/CSV">⬇️ Exportar</button>'; }
   h+='</div>';
 
-  
   h+='<div style="font-size:.82rem;color:#666;margin-bottom:8px">Mostrando <b>'+arr.length+'</b> cheque(s)'+(_chqSec?'':' — total <b>'+_chqFmt(somaFiltro)+'</b>')+'</div>';
 
-  
   h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.84rem">'+
      '<thead><tr style="background:#1a3a2a;color:#fff;text-align:left">'+
      '<th style="padding:7px 9px">Nº</th><th style="padding:7px 9px">Banco</th><th style="padding:7px 9px">Cliente</th>'+
@@ -16189,8 +15241,7 @@ function renderChequesCompensar(){
   if(!arr.length){
     h+='<tr><td colspan="10" style="padding:18px;text-align:center;color:#aaa">Nenhum cheque neste filtro.</td></tr>';
   }
-  
-  
+
   var _adtIdx={};
   try{
     if(typeof CHEQUES_POR_FORN!=='undefined'){
@@ -16218,8 +15269,7 @@ function renderChequesCompensar(){
       if(s==='A'){ acoes+='<button onclick="chqMarcarComp(\''+c.id+'\')" title="Marcar como compensado (caiu no banco)" style="border:none;background:#1a5e2a;color:#fff;border-radius:6px;padding:4px 9px;font-size:.75rem;cursor:pointer;font-weight:700">✔ Compensou</button> '; }
       else if(s==='C'){ acoes+='<button onclick="chqReabrir(\''+c.id+'\')" title="Voltar para a compensar" style="border:none;background:#f39c12;color:#fff;border-radius:6px;padding:4px 9px;font-size:.75rem;cursor:pointer">↩ Reabrir</button> '; }
     }
-    
-    
+
     var _descSt=_adtIdx[(c.b||'')+'|'+String(c.n)];
     if(_descSt!==undefined){
       var _feito=(_descSt==='Descontado');
@@ -16243,15 +15293,9 @@ function renderChequesCompensar(){
   root.innerHTML=h;
 }
 
-
-
-
-
 var _CHQ_BANCO_COD={};
 
 var _CHQ_BANCO_COR={};
-// O extrato (lancBanco) exige acesso a Bancos (claim canBanking). Sem ele a gravação
-// era descartada em silêncio pelo filtro de permissões e o saldo ficava errado.
 function _chqPodeLancarBanco(){
   try{ return !!(cu && (cu.admin===true || (Array.isArray(cu.tabs)&&cu.tabs.some(function(t){ return t==='contas_banco'||t==='bancos'; })))); }catch(e){ return false; }
 }
@@ -16285,8 +15329,7 @@ function chqMarcarComp(id){
   var d=prompt('Data que o cheque nº '+c.n+' ('+c.b+') caiu no banco (dd/mm/aaaa):', c.cd||_chqHojeBR());
   if(d===null) return;
   var r=_chqRef(); if(!r) return;
-  
-  
+
   var descontarBanco=true;
   var _auto=_chqDescontaBancoAuto(c);
   if(_auto!==null){ descontarBanco=_auto; }
@@ -16303,8 +15346,6 @@ function chqMarcarComp(id){
     .then(function(){ showToast('Cheque '+c.n+' compensado'+(movId?' — saiu do saldo do banco':'')+' ✔','success'); })
     .catch(function(e){ showToast('Erro: '+e.message,'error'); });
 }
-
-
 
 function chqRemessaDeposito(){
   var pend=Object.keys(CHQ_CTRL).map(function(k){ return {id:k,c:CHQ_CTRL[k]}; }).filter(function(o){ return o.c && (o.c.s||'A')==='A'; });
@@ -16417,10 +15458,7 @@ function chqExcluir(id){
     .catch(function(e){ showToast('Erro: '+e.message,'error'); });
 }
 
-
 function _chqCadastroDestinos(){
-  // Use the same canonical purchase-supplier source as the Fornecedores module.
-  // Never rely on a stale datalist populated before Firebase finishes loading.
   var grupos=[
     {lista:Array.isArray(CLIENTES)?CLIENTES:[],tipo:'Cliente'},
     {lista:typeof getFornAtivos==='function'?getFornAtivos():(Array.isArray(FORNECEDORES)?FORNECEDORES:[]),tipo:'Fornecedor'},
@@ -16469,8 +15507,6 @@ function _chqBindDestinoAutocomplete(ov){
   }
   function open(){
     var q=norm(inp.value);
-    // Only filter if the user is typing, not if the input contains a
-    // previously selected person whose list should still show everyone.
     var isChosen=!!type.value;
     visible=_chqCadastroDestinos().filter(function(item){
       return !q||isChosen||norm(item.nome).includes(q)||norm(item.cod).includes(q)||norm(item.tipo).includes(q);
@@ -16544,9 +15580,6 @@ function _chqModal(id){
   _chqBindDestinoAutocomplete(ov);
 }
 
-
-
-
 function chqCorrigirAcredi(){
   var cfg=_legacyRepairConfig('gratusAcredi');
   if(!cfg.bank){ showToast('Configuração de correção não encontrada no Firebase.','error'); return; }
@@ -16566,8 +15599,6 @@ function chqCorrigirAcredi(){
 function chqNovo(){ _chqModal(null); }
 function chqEditar(id){ _chqModal(id); }
 function chqFecharModal(){ var ov=document.getElementById('chq-modal-ov'); if(ov) ov.style.display='none'; }
-
-
 
 function chqRemessa(){
   var bancos=_cfgChequeBankNames();
@@ -16669,8 +15700,6 @@ function chqSalvarModal(){
   var chosenType=(document.getElementById('chqm-destino-tipo')?.value||'').trim();
   var destinos=_chqCadastroDestinos();
   var _selected=destinos.find(function(x){return x.cod===chosenCode&&x.tipo===chosenType&&nomeNorm(x.nome)===nomeNorm(cli);});
-  // When the user typed the full name, infer only unambiguous matches.
-  // Same-name client and supplier must never be linked to the wrong person.
   if(!_selected){var _matches=destinos.filter(function(x){return nomeNorm(x.nome)===nomeNorm(cli);});if(_matches.length===1)_selected=_matches[0];}
   var obj={id:id,b:b,n:n,c:cli,v:val,d:d,venc:venc,cd:cd,s:s};
   if(_selected && _selected.tipo==='Cliente'){
@@ -16679,7 +15708,6 @@ function chqSalvarModal(){
   if(_selected && _selected.tipo.indexOf('Fornecedor')===0){
     obj.fornecedorNome=_selected.nome;obj.fornecedorCod=_selected.cod;obj.dest=cli;
   }
-  // Preserve the destination metadata when editing an existing cheque without changing it.
   if(CHQ_CTRL[id] && nomeNorm(CHQ_CTRL[id].c)===nomeNorm(cli)){
     ['dc','movBancoId','origem','fornecedorCod','fornecedorNome','clienteCod','clienteNome','dest'].forEach(function(field){
       if(obj[field]==null&&CHQ_CTRL[id][field]!=null)obj[field]=CHQ_CTRL[id][field];
@@ -16694,8 +15722,6 @@ function chqSalvarModal(){
 }
 
 var _CHQ_FIX_GS=[];
-
-
 
 function chqCorrigirGratusSicredi(){
   var cfg=_legacyRepairConfig('gratusSicrediDefinitive');
@@ -16714,9 +15740,6 @@ function chqCorrigirGratusSicredi(){
   try{ renderChequesCompensar(); }catch(e){}
   r.update(batch).then(function(){ showToast(cfg.successText||'✔ Correção aplicada.','success',8000); }).catch(function(e){ showToast('Erro: '+e.message,'error'); });
 }
-
-
-
 
 function chqCompletarGratusSicredi(){
   var cfg=_legacyRepairConfig('gratusSicrediComplete');
@@ -16743,11 +15766,6 @@ function chqCompletarGratusSicredi(){
   try{ renderChequesCompensar(); }catch(e){}
   r.update(batch).then(function(){ showToast('✔ Correção aplicada: '+add+' cheque(s) adicionado(s)'+(jaTinha?(' ('+jaTinha+' já existiam)'):'')+(corr?(' + '+corr+' correção(ões)'):'')+'.','success',8000); }).catch(function(e){ showToast('Erro: '+e.message,'error'); });
 }
-
-
-
-
-
 
 function chqSincronizarAbaAntiga(){
   if(typeof CHEQUES_POR_FORN==='undefined'){ showToast('A aba antiga de Cheques não carregou. Recarregue a página.','error'); return; }
@@ -16777,11 +15795,7 @@ function chqSincronizarAbaAntiga(){
     if(ex&&ex.movBancoId) o.movBancoId=ex.movBancoId;
     batch[id]=o;
   });
-  
-  
-  
-  
-  
+
   var fantasmasIds=[], fantasmasLbl=[];
   Object.keys(CHQ_CTRL).forEach(function(id){
     var c=CHQ_CTRL[id]; if(!c||(c.s||'A')!=='A'||!bancosOld[c.b]) return;
@@ -16800,7 +15814,6 @@ function chqSincronizarAbaAntiga(){
     .then(function(){ showToast('✔ Sincronizado! '+nov+' novos, '+atu+' corrigidos'+(fantasmasIds.length?', '+fantasmasIds.length+' marcados "não existe"':'')+'.','success',7000); })
     .catch(function(e){ showToast('Erro: '+e.message,'error'); });
 }
-
 
 function cheqExportarJSON(){
   try{
@@ -16831,8 +15844,6 @@ function chqExportCSV(){
   var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='cheques_controle.csv';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
-
-
 
 function _supGetDB(){
   if(window._fbDB) return window._fbDB;
@@ -16881,14 +15892,10 @@ function supTogglePatch(id, ativo){
     .catch(e=>showToast('Erro: '+e.message,'error'));
 }
 
-
 function _supCarregarEExecutarPatches(){
-  
-  
+
   return;
 }
-
-
 
 function renderSuporteTecnico(){
   
@@ -17013,9 +16020,6 @@ function supRenderizarModulos(){
   showToast('Tela atualizada!','success');
 }
 
-
-
-
 function recuperarRHparaNuvem(){
   
   showToast('Ferramenta de reparo desativada por segurança. Use somente backups RTDB verificados.','error'); return;
@@ -17043,9 +16047,6 @@ function recuperarRHparaNuvem(){
   }catch(e){ if(statusEl) statusEl.innerHTML='<span style="color:red">❌ Erro: '+(e.message||e)+'</span>'; }
 }
 window['recuperarRHparaNuvem']=recuperarRHparaNuvem;
-
-
-
 
 function reconstruirRHdaNuvem(){
   
@@ -17097,14 +16098,11 @@ async function supEnviarFirebase(){
   try{
     if(statusEl)statusEl.textContent='⏳ Sincronização solicitada...';
     await _fbSalvarAgora();
-    
-    
+
     await window.__businessRepository.read('bancos');
     if(statusEl)statusEl.textContent='✅ Envio concluído e Firebase acessível. Faça exportação separada do RTDB e Storage antes de qualquer restauração.';
   }catch(error){if(statusEl)statusEl.textContent='❌ '+error.message;}
 }
-
-
 
 async function _supAdminApi(path,payload){
   if(!_usuarioAtualEhElaine())throw new Error('Somente Elaine pode executar backups.');
@@ -17140,9 +16138,6 @@ async function supImportarBackup(event){
     window.location.reload();
   }catch(error){window.__ERP_RESTORING__=false;if(el)el.textContent='❌ '+error.message;}finally{inp.value='';}
 }
-
-
-
 
 let FROTA_DB = [];
 const _syncFrota = _criarSincroniaPorChave('frota', FROTA_DB, 'VE');
@@ -17269,14 +16264,12 @@ function renderFrota(){
   }).join('');
 }
 
-
 const FROTA_TIPOS = ['Caminhão','Empilhadeira','Máquina','Balança','Prensa Hidráulica','Moedor de Alumínio','Retroescavadeira','Carro','Outros'];
 function _frotaTipoOpts(atual){
   var lista = FROTA_TIPOS.slice();
   if(atual && lista.indexOf(atual)<0) lista.unshift(atual); 
   return lista.map(function(t){ return '<option value="'+esc(t)+'"'+(t===atual?' selected':'')+'>'+esc(t)+'</option>'; }).join('');
 }
-
 
 function excluirVeiculo(idx){
   const v=FROTA_DB[idx];
@@ -17288,10 +16281,6 @@ function excluirVeiculo(idx){
   showToast('Item removido da frota.','success');
 }
 window['excluirVeiculo']=excluirVeiculo;
-
-
-
-
 
 function _frSafeKey(id){ return String(id||'').replace(/[.#$\[\]\/\s]+/g,'_'); }
 function frotaDocsModal(idx){
@@ -17505,9 +16494,6 @@ function salvarNovoVeiculo(){
   saveFrota(); renderFrota(); cm(); alert('✅ Veículo '+id+' cadastrado!');
 }
 
-
-
-
 let MANUTENCAO_DB = [];   
 const _syncManutencao = _criarSincroniaPorChave('manutencao', MANUTENCAO_DB, 'MN');
 function saveManutencao(){ localStorage.setItem('mm_manut', JSON.stringify(MANUTENCAO_DB)); try{fbSalvar();}catch(e){} }
@@ -17516,10 +16502,7 @@ function loadManutencao(){
 }
 
 function frotaAbrirManutencoes(veiId){
-  
-  
-  
-  
+
   const b=document.getElementById('manut-btn-add');
   if(b) b.dataset.vei=veiId||'';
   frotaFicha(veiId);
@@ -17604,7 +16587,6 @@ function frotaFicha(veiId){
     '</div>';
   }
 
-  
   let hManut='';
   if(!manuts.length){
     hManut='<div style="color:#999;padding:20px;text-align:center;background:#fff;border-radius:12px">Nenhuma manutenção registrada pra este equipamento ainda.</div>';
@@ -17689,9 +16671,7 @@ window['frotaFicha']=frotaFicha;
 window['_ffFechar']=_ffFechar;
 
 function _frotaModalCompartilhado(){
-  
-  
-  
+
   let ov=document.getElementById('modal-ov');
   let body=document.getElementById('modal-body');
   if(!ov || !body || body.parentNode!==ov){
@@ -17737,7 +16717,6 @@ function abrirNovaManutencao(veiIdOverride){
   _modalManut.ov.classList.add('open');
   nmItensInit([]);
 }
-
 
 function _nmFmt(v){ return Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2}); }
 function nmItensInit(itens){
@@ -17890,9 +16869,6 @@ function excluirManutencao(idx){
   if(_retornarFicha&&veiId) setTimeout(()=>{ try{ frotaFicha(veiId); }catch(e){} },20);
 }
 
-
-
-
 let CONTAS_PAGAR   = [];
 let VALES_DB       = [];
 let EPI_DB         = []; 
@@ -17906,39 +16882,21 @@ const _syncAdvertencias = _criarSincroniaPorChave('advertencias', ADVERTENCIAS_D
 let BAGS_DB        = {novos:0, usados:0, mov:[]}; 
 const _syncBagsMov = _criarSincroniaPorChave('bagsMov', BAGS_DB.mov, 'BM');
 
-
-
-
 let COORD_FUNC_OBS = {}; 
 let PONTO_DB       = []; 
 const _syncPonto = _criarSincroniaPorChave('ponto', PONTO_DB, 'PT');
 
-
-
-
-
-
-
-
-
 let PONTO_BATIDAS_DB = [];
 const _syncPontoBatidas = _criarSincroniaPorChave('pontoBatidas', PONTO_BATIDAS_DB, 'PB');
-
 
 let FOLHA_DB       = {}; 
 let CONTAS_RECEBER = [];
 const _syncVales = _criarSincroniaPorChave('vales', VALES_DB, 'VL');
 const _syncContasReceber = _criarSincroniaPorChave('contasReceber', CONTAS_RECEBER, 'CR');
 
-
-
 let AFAZERES_DB = [];
 const _syncAfazeres = _criarSincroniaPorChave('afazeres', AFAZERES_DB, 'AF');
 function saveAfazeres(){ localStorage.setItem('mm_afazeres', JSON.stringify(AFAZERES_DB)); try{fbSalvar();}catch(e){} }
-
-
-
-
 
 let _afFiltro = 'todos';
 
@@ -17974,7 +16932,6 @@ function afDataChange(){
   const di=document.getElementById('af-data');
   if(di&&di.value){ afSelDia(di.value); }
 }
-
 
 function _afSomaMes(iso, n){
   const [y,m,d]=iso.split('-').map(Number);
@@ -18054,7 +17011,6 @@ function renderAfazeres(){
   const setT=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
   setT('af-kpi-fazer',fazer); setT('af-kpi-feito',feitos); setT('af-kpi-total',afVisiveis.length);
 
-  
   const di=document.getElementById('af-data'); if(di && !di.value) di.value=_afDiaSel;
   const MES_NOME=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const [ay,am]=_afMesAtual.split('-').map(Number);
@@ -18089,7 +17045,6 @@ function renderAfazeres(){
     cal.innerHTML=h;
   }
 
-  
   const dtit=document.getElementById('af-dia-titulo');
   if(dtit){ const bg=_afDiaSel; dtit.textContent='Serviços de '+_afISOparaBR(_afDiaSel)+(_afDiaSel===hojeISO?' (hoje)':''); }
   let lista=afVisiveis.filter(a=>_afDataISO(a)===_afDiaSel);
@@ -18149,8 +17104,6 @@ function saveContasPagar(){
 }
 function saveContasReceber(){ localStorage.setItem('mm_cr', JSON.stringify(CONTAS_RECEBER)); try{fbSalvar();}catch(e){} }
 function saveContratos(){
-  // O Firebase é a fonte de verdade. O cache local é apenas uma otimização;
-  // anexos antigos (data URLs) nunca devem esgotar o armazenamento do navegador.
   try {
     const cache=CONTRATOS_DB.map(function(c){
       if(!c || typeof c!=='object')return c;
@@ -18167,11 +17120,7 @@ function saveContratos(){
 function loadContas(){
   try{
     const cp=localStorage.getItem('mm_cp'); if(cp) CONTAS_PAGAR=JSON.parse(cp);
-    
-    
-    
-    
-    
+
     const cr=localStorage.getItem('mm_cr');
     if(cr && !localStorage.getItem('mm_cr_backup_pre_cloud_v28'))
       localStorage.setItem('mm_cr_backup_pre_cloud_v28',cr);
@@ -18195,12 +17144,9 @@ function excluirContaReceber(idx){
 }
 window['excluirContaReceber']=excluirContaReceber;
 
-
 let _cpFiltroDia = ''; 
 let _cpSelecionados = new Set(); 
 let _cpFiltroTipo = 'todos'; 
-
-
 
 function cpSetTipo(t){
   _cpFiltroTipo=t;
@@ -18212,7 +17158,6 @@ function cpSetTipo(t){
   });
   renderContasPagar();
 }
-
 
 let _cpMesFiltro = (function(){ try{ return _hojeISO().slice(0,7); }catch(e){ return ''; } })(); 
 let _cpFiltroEmpresa = ''; 
@@ -18263,19 +17208,12 @@ function cpLimparFiltros(){
   renderContasPagar();
 }
 
-
-
-
-
 function _cpVisiveis(){
   if(typeof cu!=='undefined' && cu && cu.cpApenasFornecedor){
     return CONTAS_PAGAR.filter(c=>c.tipoForn==='compra');
   }
   return CONTAS_PAGAR;
 }
-
-
-
 
 function cpPopularFiltrosDropdowns(){
   const selCat=document.getElementById('cp-filtro-cat');
@@ -18293,8 +17231,6 @@ function cpPopularFiltrosDropdowns(){
     if(bancos.includes(bancoAtual)) selBanco.value=bancoAtual;
   }
 }
-
-
 
 function _cpAplicarFiltros(lista){
   const toISO=v=>v&&v.indexOf('/')>=0?v.split('/').reverse().join('-'):v||'';
@@ -18398,7 +17334,6 @@ function cpExcluirSelecionadas(){
   });
 }
 
-
 let _cpCalAberto = false;
 let _cpCalAno = new Date().getFullYear();
 let _cpCalMes = new Date().getMonth(); 
@@ -18433,7 +17368,6 @@ function cpRenderCalendario(){
   const meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   if(label) label.textContent = meses[_cpCalMes]+' '+_cpCalAno;
 
-  
   const diasComContas = {}; 
   const mesStr = String(_cpCalAno)+'-'+String(_cpCalMes+1).padStart(2,'0');
   _cpVisiveis().forEach(c=>{
@@ -18488,9 +17422,7 @@ function cpCalFiltrarDia(iso){
   
   const [y,m,d]=iso.split('-');
   const diaFmt=d+'/'+m+'/'+y;
-  
-  
-  
+
   const opcaoEl=document.getElementById('cp-filtro-opcao');
   if(opcaoEl) opcaoEl.value='todas';
   _cpFiltroDia = iso;
@@ -18516,13 +17448,9 @@ function cpRenderHoje(){
   </div>`).join('');
 }
 
-
 function renderContasPagar(){
   try{ _cpRenderEmpresaBotoes(); }catch(e){}
-  
-  
-  
-  
+
   try{ if(_cpAutoLimparDuplicatas()) saveContasPagar(); }catch(e){}
   try{ if(_cpLimparDuplicatasExatas()) saveContasPagar(); }catch(e){}
   
@@ -18537,13 +17465,11 @@ function renderContasPagar(){
   
   const toISO=v=>v&&v.indexOf('/')>=0?v.split('/').reverse().join('-'):v||'';
 
-  
   cpRenderDias();
 
   const todosExibidos=_cpAplicarFiltros(_cpVisiveis()).sort((a,b)=>toISO(a.venc).localeCompare(toISO(b.venc)));
   const exibidos=_erpPaginarDados('contas-pagar',todosExibidos,'tb-contas-pagar',renderContasPagar,{searchable:true,placeholder:'Pesquisar credor, descrição ou vencimento...',text:c=>[c.cred,c.desc,c.venc,c.bancoNome].join(' ')});
 
-  
   const _mesLbl=document.getElementById('cp-mes-label');
   if(_mesLbl){
     if(_cpMesFiltro){
@@ -18567,18 +17493,13 @@ function renderContasPagar(){
 
   const diasSemana=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
-  
-  
-  
   function _cpMontarLinhasDias(lista, rows){
     let lastDiaKey='';
     lista.forEach(c=>{
       const idx=CONTAS_PAGAR.indexOf(c);
       const vISO=toISO(c.venc);
       const atrasado=c.status==='Pendente'&&vISO&&vISO<hoje;
-      
-      
-      
+
       const temHistPgto=Array.isArray(c.pagamentos)&&c.pagamentos.length>0;
       const parcial=c.status==='Pendente'&&temHistPgto&&!atrasado;
       const stCls=c.status==='Pago'?'b-pago':atrasado?'b-pend':(parcial?'':'b-zerado');
@@ -18604,7 +17525,7 @@ function renderContasPagar(){
       rows.push('<tr style="'+(atrasado?'background:#fff8f8':'')+'">'
         +'<td>'+(idAttr?'<input type="checkbox" class="cp-row-check" value="'+esc(idAttr)+'" '+marcado+' onchange="cpMarcarUm(\''+esc(idAttr)+'\', this.checked)">':'')+'</td>'
         +'<td>'+esc(c.cred||'—')+'</td>'
-        +'<td><b>'+esc(c.desc)+'</b></td>'
+        +'<td><b>'+esc(c.desc)+'</b>'+(c.formaPrevista&&c.status!=='Pago'?'<br><span style="font-size:.72rem;color:var(--gray)">Forma prevista: '+esc(c.formaPrevista)+'</span>':'')+'</td>'
         +'<td style="font-size:.78rem">'+esc(c.bancoNome||'—')+(function(){var _e=_cpEmpresa(c);return _e?'<br><span style="font-size:.68rem;font-weight:700;color:'+_cfgFinanceCompanyColor(_e)+'">'+esc(_e)+'</span>':'';})()+'</td>'
         +'<td>'+fmtDate(c.venc)+'</td>'
         +'<td style="font-weight:800;text-align:right">R$ '+fmt(c.valor)+'</td>'
@@ -18623,10 +17544,7 @@ function renderContasPagar(){
     tbody.innerHTML='<tr><td colspan="8" style="color:var(--gray);text-align:center;padding:20px">Nenhuma conta encontrada com os filtros atuais.</td></tr>';
   } else {
     const rows=[];
-    
-    
-    
-    
+
     if(_cpFiltroTipo==='despesa'){
       const ordemEmp=_cfgFinanceCompanies();
       const grupos={};
@@ -18655,15 +17573,12 @@ function renderContasPagar(){
     tbody.innerHTML=rows.join('');
   }
 
-  
   const checkTodos=document.getElementById('cp-check-todos');
   if(checkTodos){
     const idsExibidos=exibidos.filter(c=>c.id).map(c=>c.id);
     checkTodos.checked=idsExibidos.length>0 && idsExibidos.every(id=>_cpSelecionados.has(id));
   }
 
-  
-  
   const mesAtual=_cpMesFiltro||hoje.slice(0,7);
   const _cpKpiBase=_cpVisiveis().filter(c=>!_cpFiltroEmpresa||_cpEmpresa(c)===_cpFiltroEmpresa);
   const doMes=_cpKpiBase.filter(c=>toISO(c.venc).startsWith(mesAtual));
@@ -18733,8 +17648,6 @@ function previewCpParc(){
   prev.textContent='📅 '+nparc+' parcela(s) — 1ª em '+d1+' · última em '+dN+' · todo dia '+dia+' de cada mês';
 }
 
-
-
 function ctToggleLanc(val){
   document.getElementById('ct-avista-box').style.display=(val==='avista')?'block':'none';
   document.getElementById('ct-parc-box').style.display=(val==='parcelado')?'block':'none';
@@ -18773,7 +17686,6 @@ function popularDatalistContrato(){
 
 let _contratoSalvamentoEmAndamento=false;
 async function salvarContrato(){
-  // Bloqueio síncrono: duplo clique / FileReader não podem criar contratos repetidos.
   if(_contratoSalvamentoEmAndamento)return;
   const button=document.querySelector('#modal-body .btn-save[onclick*="salvarContrato"]')||document.querySelector('#modal-body .btn-save');
   const value=id=>String(document.getElementById(id)?.value||'').trim();
@@ -18795,7 +17707,6 @@ async function salvarContrato(){
   }
   const db=window._fbDB;
   if(!db||window.__FB_DATA_READY__!==true){showToast('A sincronização com o Firebase não terminou. Tente novamente quando estiver conectado.','error');return;}
-  // Um ID por tentativa, mesmo se a conexão cair após o servidor confirmar a gravação.
   const isRetry=Boolean(button?.dataset.contractPendingId);
   const id=button?.dataset.contractPendingId||'CT'+(window.crypto?.randomUUID?.().replace(/-/g,'')||Date.now().toString(36)+Math.random().toString(36).slice(2));
   if(button)button.dataset.contractPendingId=id;
@@ -18807,7 +17718,6 @@ async function salvarContrato(){
   try{
     const contrato={id,desc,valor,forn,ini,fim,debito:value('ct-debito')||'Não',banco:value('ct-banco'),obs:value('ct-obs'),lanc:lancOpt,
       dataCad:_hojeISO(),arquivoBase64:'',arquivoNome:file?.name||'',arquivoMime:file?.type||'',arquivoStoragePath:''};
-    // Se a conexão caiu depois da gravação anterior, a repetição NÃO cria outro contrato.
     if(isRetry){
       const previous=await db.ref('erp/contratos/'+id).once('value');
       if(previous.val()?.id===id)throw Error('Este contrato já consta no Firebase. Atualize a lista antes de cadastrar novamente.');
@@ -18818,7 +17728,6 @@ async function salvarContrato(){
       storagePath='erp-files/contracts/'+id+'/document.'+ext;
       storageRef=window.__fbRaw.storage.ref(storagePath);
       if(status)status.textContent='Enviando documento com acesso restrito...';
-      // Em uma repetição após falha de rede, reaproveitar o mesmo objeto já enviado.
       let existing=false;
       if(typeof storageRef.getMetadata==='function'){
         try{const meta=await storageRef.getMetadata();
@@ -18847,8 +17756,6 @@ async function salvarContrato(){
         contas.push({...base,id:'CP'+id.slice(2)+'_'+(i+1),lancto:hojeFmt,desc:desc+' ('+(i+1)+'/'+installments+')',cat:value('ct-parc-cat')||'Outros',venc:due,obs:'Contrato: '+desc});
       }
     }
-    // Contrato e parcelas entram no RTDB num único update atômico.
-    // O sucesso visual depende da confirmação remota, não do localStorage.
     const patch={['contratos/'+id]:contrato};
     for(const cp of contas)patch['contasPagar/'+cp.id]=cp;
     await db.ref('erp').update(patch);
@@ -18862,8 +17769,6 @@ async function salvarContrato(){
     showToast(contas.length?'Contrato salvo e '+contas.length+' lançamento(s) criado(s) em Contas a Pagar.':'Contrato salvo no Firebase.','success');
   }catch(error){
     console.error('[Contratos] Falha no salvamento:',error);
-    // Falha de rede pode ocorrer DEPOIS de o Firebase aceitar o update. Não
-    // apagar o anexo: ele pode já estar vinculado a um contrato confirmado.
     if(uploadedNow&&!committed)console.warn('[Contratos] Confira o registro remoto antes de remover eventual anexo pendente:',storagePath);
     if(status)status.textContent='Falha: contrato não confirmado. Confira a lista antes de tentar novamente.';
     showToast('Não foi possível confirmar o contrato no Firebase: '+String(error?.message||'erro desconhecido').slice(0,160),'error');
@@ -18889,8 +17794,6 @@ function renderContratos(){
   const kpiSub=document.getElementById('kpi-cont-sub');
   const kpiT=document.getElementById('kpi-cont-total');
   if(kpiT) kpiT.textContent=CONTRATOS_DB.length;
-  // A contagem de vencidos é atualizada pelo painel da agenda contratual.
-  // Não substituir o número por 'OK' ou 'Atenção' neste render legado.
   const lancLabel={nao:'Não lançado',avista:'À Vista',parcelado:'Parcelado'};
   tb.innerHTML=CONTRATOS_DB.map((c,i)=>{
     const venceEmBreve=c.fim&&c.fim>=hoje&&c.fim<=new Date(Date.now()+30*86400000).toISOString().slice(0,10);
@@ -18947,9 +17850,6 @@ function ctVerArquivo(idx){
     win.location.href=URL.createObjectURL(blob);
   }
 }
-
-
-
 
 function _deSalvar(){
   localStorage.setItem('mm_docs_empresas', JSON.stringify(DOCS_EMPRESAS));
@@ -19101,12 +18001,6 @@ function deExcluir(id){
   showToast('Documento excluído.','success');
 }
 
-
-
-
-
-
-
 function _bancoNomePorCod(cod){
   if(!cod) return '';
   const src=_erpBankDirectory.ready?_erpBankDirectory.banks:((typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB))?BANCOS_DB:[]);
@@ -19125,10 +18019,7 @@ function salvarContaPagar(){
   const cred=document.getElementById('cp-cred')?.value.trim()||'';
   const cat=document.getElementById('cp-cat')?.value.trim()||'Outros';
   const obs=document.getElementById('cp-obs')?.value.trim()||'';
-  
-  
-  
-  
+
   let tipoForn=document.getElementById('cp-tipo-forn')?.value||'';
   if(tipoForn!=='compra'&&tipoForn!=='despesa'){
     if(cred && typeof getFornAtivos==='function' && getFornAtivos().some(f=>f.nome===cred)) tipoForn='compra';
@@ -19182,9 +18073,7 @@ function salvarContaPagar(){
 }
 
 function editContaPagar(idx, id){
-  
-  
-  
+
   if(id){ const fresh=_cpIdxPorId(id); if(fresh>=0) idx=fresh; }
   const c=CONTAS_PAGAR[idx];
   if(!c) return;
@@ -19256,14 +18145,9 @@ function salvarEditContaPagar(){
   c.status=document.getElementById('ecp-status').value;
   c.dataPgto=pgto?pgto.split('-').reverse().join('/'):'';
   c.obs=document.getElementById('ecp-obs').value.trim();
-  
-  
-  
-  
+
   c._upd=Date.now();
-  
-  
-  
+
   if(c.status==='Pago' && statusAntes!=='Pago' && c.bancoNome && !c.movBancoIdCP && (Number(c.valor)||0)>0){
     const _movEdit=registrarMovBanco(c.bancoNome, pgto||'', 'Pagto: '+(c.desc||c.cred||''), 'Saida', Number(c.valor)||0);
     if(_movEdit) c.movBancoIdCP=_movEdit.id;
@@ -19273,9 +18157,7 @@ function salvarEditContaPagar(){
   try{renderDashboard();}catch(e){}
   cm();
   showToast('Conta a pagar atualizada!','success');
-  
-  
-  
+
   if(c.ticket && c.status==='Pago' && statusAntes!=='Pago' && TICKETS_DB[c.ticket]){
     _baixarSaldoTicket(c.ticket, Number(c.valor)||0, c.dataPgto);
     saveDB();
@@ -19285,9 +18167,7 @@ function salvarEditContaPagar(){
 }
 
 function registrarMovBanco(bancoNome, dataISO, descricao, tipo, valor){
-  
-  
-  
+
   if(!bancoNome||!valor) return null;
   const b=BANCOS_DB.find(x=>{
     const n=x.banco+(x.tipo==='Conta Terceiro'?' ('+x.titular+')':'');
@@ -19333,13 +18213,11 @@ function pagarContaRapido(idx,id){
   const totalAdtDisp=adtsPendentes.reduce((sum,a)=>sum+Math.max(0,Number(a.valor)||0),0);
   const valorCP=Number(c.valor),adtSugerido=Math.min(totalAdtDisp,valorCP);
   const bloqueados=todosAdiantamentos.filter(a=>a&&a.status==='Pendente'&&a.ticket&&String(a.ticket).trim()!==ticket);
-  // Não consumir créditos automaticamente: uma baixa bancária precisa ser uma
-  // escolha explícita, e o banco não deve nascer desabilitado por um desconto presumido.
   const adtBlock=totalAdtDisp>0
     ?'<div class="fg"><label>Abater adiantamento nesta operação (R$)</label><input id="pcp-adt" type="number" min="0" step="0.01" max="'+adtSugerido.toFixed(2)+'" value="0.00" oninput="atualizarLiquidoCP('+valorCP+')"><small>Crédito disponível: R$ '+fmt(totalAdtDisp)+'. Para pagar pelo banco, mantenha 0,00. Para compensar crédito, informe o valor que deseja usar.'+(totalAdtDisp>valorCP?' Crédito acima do valor desta compra continuará disponível.':'')+'</small></div>':'<div class="fg"><small>Nenhum adiantamento disponível para esta compra.</small></div>';
   const avisoVinculo=bloqueados.length?'<div style="font-size:.78rem;color:#75511b;margin-bottom:10px">Há adiantamentos vinculados a outras compras. Eles não serão utilizados neste pagamento.</div>':'';
   body.innerHTML='<h3>💳 Baixar Pagamento</h3>'+
-    '<div style="background:#fde8e8;border-radius:8px;padding:12px;margin-bottom:14px"><b>'+esc(c.desc||c.cred)+'</b><div>Saldo em aberto: R$ '+fmt(valorCP)+'</div></div>'+
+    '<div style="background:#fde8e8;border-radius:8px;padding:12px;margin-bottom:14px"><b>'+esc(c.desc||c.cred)+'</b><div>Saldo em aberto: R$ '+fmt(valorCP)+'</div>'+(c.formaPrevista?'<div>Forma prevista: '+esc(c.formaPrevista)+'</div>':'')+'</div>'+
     '<input type="hidden" id="pcp-id" value="'+esc(c.id||'')+'"><input type="hidden" id="pcp-forn-cod" value="'+esc(fornCod)+'">'+
     '<div class="fg"><label>Valor total a quitar nesta operação (R$)</label><input id="pcp-valor-pagar" type="number" min="0.01" step="0.01" max="'+valorCP.toFixed(2)+'" value="'+valorCP.toFixed(2)+'" oninput="atualizarLiquidoCP('+valorCP+')"></div>'+
     adtBlock+avisoVinculo+'<div id="pcp-liquido-label" style="font-weight:700;margin-bottom:10px"></div>'+
@@ -19382,7 +18260,6 @@ function atualizarLiquidoCP(valorCP){
   }
 }
 
-// Verificação SOMENTE LEITURA. Não reenvia a baixa e não altera o banco.
 async function _cpVerificarSituacaoPagamento(){
   const modal=document.getElementById('modal-body');
   const id=document.getElementById('pcp-id')?.value;
@@ -19465,8 +18342,6 @@ async function confirmarPagarCP(modo){
     if(!response.ok){
       if(result.code==='PAYMENT_IN_PROGRESS'){
         const seconds=Math.max(1,Math.min(120,Math.ceil(Number(result.retryAfterSeconds)||10)));
-        // Respeite o lease retornado pelo servidor; tentativas a cada 15s apenas
-        // repetiam o conflito e induziam o operador a clicar novamente.
         const blockedUntil=Date.now()+seconds*1000;
         modal.dataset.paymentLockedUntil=String(blockedUntil);
         _cpPendingPayments.set(id,{operationId:modal.dataset.paymentOperation,expiresAt:Date.now()+180000,blockedUntil});
@@ -19495,7 +18370,6 @@ async function confirmarPagarCP(modo){
   finally{modal.dataset.paymentBusy='false';buttons.forEach(button=>button.disabled=Number(modal.dataset.paymentLockedUntil||0)>Date.now());}
 }
 
-
 function _baixarSaldoTicket(ticketId, valorPago, dataFmt, cpJaTratadoId){
   const tk=TICKETS_DB[ticketId]; if(!tk) return;
   const novoSaldo=Math.max(0, Number(tk.saldoPagar||0) - Number(valorPago||0));
@@ -19503,20 +18377,10 @@ function _baixarSaldoTicket(ticketId, valorPago, dataFmt, cpJaTratadoId){
   tk.status = novoSaldo<=0.01 ? 'Pago' : 'Parcial';
   const dataFmtUsar = dataFmt || new Date().toLocaleDateString('pt-BR');
 
-  
-  
-  
-  
-  
-  
-  
   const pendentesDoTicket = CONTAS_PAGAR.filter(cp=>cp.ticket===ticketId && cp.status==='Pendente' && cp.id!==cpJaTratadoId);
 
   if(novoSaldo>0.01){
-    
-    
-    
-    
+
     if(pendentesDoTicket.length){
       pendentesDoTicket[0].valor=novoSaldo;
       pendentesDoTicket[0]._upd=Date.now();
@@ -19525,10 +18389,7 @@ function _baixarSaldoTicket(ticketId, valorPago, dataFmt, cpJaTratadoId){
         if(idx>=0) _removerCPporIndice(idx);
       }
     } else if(!cpJaTratadoId){
-      
-      
-      
-      
+
       CONTAS_PAGAR.push({ id:_novoIdCP(),
         lancto:tk.data, desc:'Compra Sucata – Ticket '+ticketId+' – '+(tk.fornecedor||'')+' (saldo restante)',
         cred:tk.fornecedor||'', cat:'Compra de Sucata', bancoCod:'', bancoNome:'', tipoForn:'compra',
@@ -19538,9 +18399,7 @@ function _baixarSaldoTicket(ticketId, valorPago, dataFmt, cpJaTratadoId){
       });
     }
   } else if(pendentesDoTicket.length){
-    
-    
-    
+
     pendentesDoTicket.forEach(function(cp){
       cp.status='Pago'; cp.dataPgto=dataFmtUsar;
       cp.obs=(cp.obs?cp.obs+' | ':'')+'Baixado automaticamente — saldo do ticket já quitado por outro pagamento';
@@ -19561,15 +18420,7 @@ function _aplicarAdiantamentosCP(fornCod, adtAplicar, c, dataFmt){
       a.status='Quitado'; a.ticket=a.ticket||c.ticket||'';
       a.obs=(a.obs?a.obs+' | ':'')+'Compensado em CP '+dataFmt;
     } else {
-      
-      
-      
-      
-      
-      
-      
-      
-      
+
       ADT_POR_FORN[fornCod].push({
         cod:'ADT'+String(Date.now()).slice(-6), data:dataFmt, valor:usado,
         status:'Quitado', ticket:c.ticket||'', forma:a.forma,
@@ -19580,11 +18431,9 @@ function _aplicarAdiantamentosCP(fornCod, adtAplicar, c, dataFmt){
     }
     restante-=usado;
   }
-  
-  
+
   try{ _adtSalvarNaNuvem(fornCod); }catch(e){}
 }
-
 
 function confirmarAcao(msg, onOk, okLabel, okStyle){
   const old=document.getElementById('modal-ov-confirm'); if(old) old.remove();
@@ -19605,12 +18454,7 @@ function confirmarAcao(msg, onOk, okLabel, okStyle){
 }
 
 function excluirContaPagar(idx, id){
-  
-  
-  
-  
-  
-  
+
   if(id){ const fresh=_cpIdxPorId(id); if(fresh>=0) idx=fresh; }
   const conta = CONTAS_PAGAR[idx];
   if(!conta) return;
@@ -19694,9 +18538,7 @@ function cpExcluirTodas(grupoId){
 function renderContasReceber(){
   const tbody=document.getElementById('tb-contas-receber');
   if(!tbody) return;
-  
-  
-  
+
   try{ if(_syncContasReceber.limparDuplicatasExatas()){ try{ saveContasReceber(); }catch(e){} } }catch(e){}
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=_hojeISO();
@@ -19798,9 +18640,7 @@ function salvarEditContaReceber(){
   c.venc=document.getElementById('ecr-venc').value.split('-').reverse().join('/');
   c.status=document.getElementById('ecr-status').value;
   c.dataReceb=receb?receb.split('-').reverse().join('/'):'';
-  
-  
-  
+
   c.obs=document.getElementById('ecr-obs').value.trim();
   saveContasReceber(); renderContasReceber(); renderFluxo(); try{renderDashboard();}catch(e){} cm();
 }
@@ -19840,7 +18680,6 @@ function receberContaRapido(idx){
     '</div>';
   document.getElementById('modal-ov').classList.add('open');
 }
-
 
 function crAddChequeRow(){
   const lst=document.getElementById('rcr-cheques-list'); if(!lst) return;
@@ -19883,8 +18722,7 @@ function confirmarReceberCR(){
   c.dataReceb=dataFmt;
   if(obs) c.obs=obs;
   if(cheques.length){
-    
-    
+
     if(typeof CHEQUES_CLI==='undefined') window.CHEQUES_CLI={};
     if(!CHEQUES_CLI[c.cli]) CHEQUES_CLI[c.cli]=[];
     let somaCh=0;
@@ -19908,10 +18746,7 @@ function confirmarReceberCR(){
     showToast('Recebimento em '+cheques.length+' cheque(s) registrado! Eles estão na aba Cheques do cliente.','success');
     return;
   }
-  
-  
-  
-  
+
   const _cfgMov=_legacyRepairConfig('bankMovement');
   const _corteMov=String((_cfgMov&&_cfgMov.cutoffDate)||'').trim();
   const _antigo = Boolean(_corteMov&&data<_corteMov);
@@ -19929,29 +18764,12 @@ function confirmarReceberCR(){
     : 'Recebimento baixado! R$ '+Number(c.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})+(banco?' | '+banco:''),'success');
 }
 
-
-
-
-
-
-
-
-
 let BANCOS_DB = [];
-
-
-
-
-
-
-
 
 const _syncBancos = _criarSincroniaPorChave('bancos', BANCOS_DB, 'BC');
 let LANC_BANCO_DB = []; 
 const _syncLancBanco = _criarSincroniaPorChave('lancBanco', LANC_BANCO_DB, 'LB');
 function saveBancos(){ localStorage.setItem('mm_bancos', JSON.stringify(BANCOS_DB)); localStorage.setItem('mm_lanc_banco', JSON.stringify(LANC_BANCO_DB)); try{fbSalvar();}catch(e){} }
-
-
 
 function loadBancos(){
   try{
@@ -19968,15 +18786,8 @@ function loadBancos(){
         localStorage.setItem('mm_lanc_banco_backup_pre_cloud_v28',lb);
     }
   }catch(e){ console.warn('Backup de cache bancário legado indisponível',e); }
-  
-  
+
 }
-
-
-
-
-
-
 
 function bancosCorrigeEmpresa(){
   let mudou=false;
@@ -19991,8 +18802,7 @@ function bancosCorrigeEmpresa(){
 
 function compartilharBanco(idx){
   const b=BANCOS_DB[idx]; if(!b) return;
-  
-  
+
   const emp=EMPRESAS_INFO[b.empresa||_empresaPorTexto([b.banco,b.titular,b.pix,b.cpfcnpj].filter(Boolean).join(' '))] || _empresaPrincipalInfo();
   const titular=String(b.titular||emp.razaoSocial||'').trim();
   const doc=String(b.cpfcnpj||emp.cnpj||'').trim();
@@ -20051,16 +18861,6 @@ function wppNumeroDadosBanco(){
   window.open('https://wa.me/55'+num.replace(/\D/g,'')+'?text='+msg,'_blank');
 }
 
-
-
-
-
-
-
-
-
-
-
 function _bancoDataCriacao(b){
   if(b && b.criadoEm){
     const iso=String(b.criadoEm).slice(0,10);
@@ -20076,7 +18876,6 @@ function _bancoDataCriacao(b){
   return maisAntigo ? new Date(maisAntigo.ts).toLocaleDateString('pt-BR') : null;
 }
 
-// Menu fora da tabela: o container de rolagem não pode recortar as ações.
 let _erpBankMorePopover=null;
 let _erpBankMoreAnchor=null;
 function _erpBankMoreClose(){
@@ -20131,9 +18930,7 @@ function renderBancos(){
   if(typeof _erpBankMoreClose === 'function') _erpBankMoreClose();
   const tbody=document.getElementById('tb-bancos');
   if(!tbody) return;
-  
-  
-  
+
   if(!window.__ERP_BANKS_CLOUD_READY__){
     tbody.innerHTML='<tr><td colspan="11" style="text-align:center;padding:20px">Carregando contas do Firebase...</td></tr>';
     const kpi=document.querySelector('#tab-contas_banco .kpi-val');
@@ -20178,7 +18975,6 @@ function renderBancos(){
     +'</tr>';
   }).join('');
 
-  
   if(typeof tbody.addEventListener==='function' && !tbody.dataset?.reconcileBound){
     tbody.addEventListener('click',function(event){
       const button=event.target.closest('button[data-bank-reconcile]');
@@ -20202,19 +18998,8 @@ function renderBancos(){
   if(kpiSub) kpiSub.textContent=[...balanceByCode.values()].some(value=>value?.hasUnsafeLegacyValues||value?.invalidValues)
     ?'Revise lançamentos antigos fora da precisão ou inválidos':'Saldo consolidado atualizado';
 
-  
   window._bancosDropdown=BANCOS_DB.map(b=>b.banco+(b.titular&&b.titular!==_empresaPrincipalRazao()?' ('+b.titular+')':''));
 }
-
-
-
-
-
-
-
-
-
-
 
 function _proximoCodBanco(){
   let max=0;
@@ -20227,8 +19012,6 @@ function _proximoCodBanco(){
   return cod;
 }
 
-
-
 function _bancosPrepararTombstonesCloud(){
   if(window.__ERP_BANKS_TOMBSTONES_INIT__) return;
   try{
@@ -20236,18 +19019,12 @@ function _bancosPrepararTombstonesCloud(){
     const antigo=localStorage.getItem(key);
     if(antigo && !localStorage.getItem('mm_bancos_deletados_backup_pre_cloud_v28'))
       localStorage.setItem('mm_bancos_deletados_backup_pre_cloud_v28',antigo);
-    
-    
-    
-    
+
     _syncBancos.deletedSet.clear();
     localStorage.setItem(key,'[]');
     window.__ERP_BANKS_TOMBSTONES_INIT__=true;
   }catch(e){console.warn('Tombstones bancários:',e);}
 }
-
-
-
 
 function _normalizarBancosRemotos(remoto){
   if(!remoto || typeof remoto!=='object' || Array.isArray(remoto)) return remoto;
@@ -20263,16 +19040,13 @@ async function recarregarBancosDoBanco(){
   try{
     if(!window.__businessRepository) return false;
     const remoto=await window.__businessRepository.read('bancos');
-    
-    
+
     _bancosPrepararTombstonesCloud();
     _syncBancos.carregarDeRemoto(_normalizarBancosRemotos(remoto||{}), true);
     window.__ERP_BANKS_CLOUD_READY__=true;
-    
-    
+
     try{ bancosCorrigeEmpresa(); }catch(e){ console.warn('bancosCorrigeEmpresa',e); }
-    
-    
+
     try{
       const backup=JSON.parse(localStorage.getItem('mm_bancos_backup_pre_cloud_v28')||'[]');
       if(Array.isArray(backup) && backup.length){
@@ -20295,15 +19069,11 @@ async function recarregarBancosDoBanco(){
   }
 }
 
-
-
-
 async function salvarBanco(){
   const banco=document.getElementById('bc-banco')?.value.trim();
   if(!banco){alert('Informe o nome do banco!');return;}
   if(!window.__businessRepository || !window.__ERP_BANKS_CLOUD_READY__){alert('Aguarde a confirmação do cadastro de contas pelo Firebase antes de salvar.');return;}
-  
-  
+
   try{
     const cloud=await window.__businessRepository.read('bancos');
     const registros=cloud ? (Array.isArray(cloud)
@@ -20377,11 +19147,7 @@ function salvarEditBanco(){
   const idx=parseInt(document.getElementById('eb-idx').value);
   const b=BANCOS_DB[idx]; if(!b) return;
   const _saldoAntes=b.saldo;
-  
-  
-  
-  
-  
+
   const novoCod=(document.getElementById('eb-cod')?.value||'').trim();
   if(novoCod && novoCod!==b.cod){
     const colide=BANCOS_DB.some((x,i)=>i!==idx && x && x.cod===novoCod);
@@ -20418,8 +19184,6 @@ function salvarEditBanco(){
 
 function excluirBanco(idx){
   const conta=BANCOS_DB[idx]; if(!conta) return;
-  // Regra: conta com extrato ou adiantamento pendente não pode sumir — os
-  // lançamentos ficariam órfãos e os saldos/conciliações deixariam de fechar.
   const cod=String(conta.cod||'');
   const movimentos=cod?LANC_BANCO_DB.filter(l=>l&&String(l.bancoCod||'')===cod).length:0;
   let adiantamentos=0;
@@ -20439,18 +19203,10 @@ function excluirBanco(idx){
   _syncBancos.remover(idx); saveBancos(); renderBancos(); cm();
 }
 
-
-
-
-
-
-
-
 function zerarSaldosBancos(){
   if(BANCOS_DB.length===0){ alert('Nenhuma conta cadastrada.'); return; }
   if(!confirm('Isso vai:\n\n1) Baixar um backup de todas as contas e lançamentos atuais.\n2) Arquivar (não apagar) os lançamentos bancários até ontem.\n3) Zerar o Saldo Inicial de TODAS as '+BANCOS_DB.length+' contas.\n\nDepois disso você edita cada conta e digita o saldo real de ontem. Lançamentos de hoje em diante continuam contando normal.\n\nContinuar?')) return;
 
-  
   const agora=new Date();
   const backup={geradoEm:agora.toISOString(),bancos:JSON.parse(JSON.stringify(BANCOS_DB)),lancamentos:JSON.parse(JSON.stringify(LANC_BANCO_DB))};
   try{
@@ -20462,29 +19218,23 @@ function zerarSaldosBancos(){
     setTimeout(()=>URL.revokeObjectURL(url),2000);
   }catch(e){ console.warn('backup download falhou:',e); }
 
-  
   try{ localStorage.setItem('mm_lanc_banco_arquivado_'+agora.getTime(), JSON.stringify(LANC_BANCO_DB)); }catch(e){}
 
-  
   const hoje=new Date(agora.getFullYear(),agora.getMonth(),agora.getDate());
   const parseDataBR=s=>{ const p=(s||'').split('/'); if(p.length!==3) return null; const d=new Date(Number(p[2]),Number(p[1])-1,Number(p[0])); return isNaN(d)?null:d; };
   const arquivadosQtd=LANC_BANCO_DB.length - LANC_BANCO_DB.filter(l=>{ const d=parseDataBR(l.data); return d && d>=hoje; }).length;
-  
-  
-  
+
   for(let i=LANC_BANCO_DB.length-1;i>=0;i--){
     const d=parseDataBR(LANC_BANCO_DB[i].data);
     if(!(d && d>=hoje)) _syncLancBanco.remover(i);
   }
 
-  
   BANCOS_DB.forEach(b=>{ b.saldo=0; });
 
   saveBancos(); renderBancos();
   alert('✅ Pronto! '+BANCOS_DB.length+' contas zeradas, '+arquivadosQtd+' lançamento(s) antigo(s) arquivado(s) (backup baixado). Agora edite cada conta e digite o saldo real de ontem no campo Saldo Inicial.');
 }
 
-// Apenas leitura para conciliação. Não altera baixa de títulos, saldo nem histórico.
 window.erpReconciliationSources=function(){
   return {
     banks:BANCOS_DB.filter(Boolean).map(b=>({cod:String(b.cod||''),name:String(b.banco||'Conta'),account:String(b.conta||'')})),
@@ -20631,8 +19381,7 @@ function saveVendas(){
     if(typeof fbSalvarImediato==='function') fbSalvarImediato(); else if(typeof fbSalvar==='function') fbSalvar();
   }catch(e){ console.warn('saveVendas:',e); }
 }
-function loadVendas(){ /* RTDB é a fonte de verdade; a carga ocorre em fbCarregar(). */ }
-
+function loadVendas(){  }
 
 function verVendaDoCR(vendaId){
   const idx=VENDAS_DB.findIndex(v=>v.id===vendaId);
@@ -20765,7 +19514,6 @@ function renderVendas(){
   }).join('');
 }
 
-
 function marcarVendaPaga(idx){
   const v=VENDAS_DB[idx]; if(!v) return;
   if(!confirm('Marcar a venda de '+v.cliente+' — R$ '+Number(v.total||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+' como PAGA?')) return;
@@ -20789,7 +19537,6 @@ function marcarVendaPaga(idx){
 }
 window['marcarVendaPaga']=marcarVendaPaga;
 
-
 function reabrirVenda(idx){
   const v=VENDAS_DB[idx]; if(!v) return;
   if(!confirm('Reabrir a venda de '+v.cliente+'? Ela volta a ficar pendente.')) return;
@@ -20811,7 +19558,6 @@ function reabrirVenda(idx){
 }
 window['reabrirVenda']=reabrirVenda;
 
-
 function excluirVenda(btnOrIdx){
   var idx, vid;
   if(typeof btnOrIdx==='object'&&btnOrIdx!==null){
@@ -20829,8 +19575,7 @@ function excluirVenda(btnOrIdx){
   
   _syncVendas.remover(idx);
   saveVendas();
-  
-  
+
   var crAntes=CONTAS_RECEBER.length;
   for(var i=CONTAS_RECEBER.length-1;i>=0;i--){
     var cr=CONTAS_RECEBER[i];
@@ -20848,7 +19593,6 @@ function excluirVenda(btnOrIdx){
   showToast('Venda excluída com sucesso.','success');
 }
 window['excluirVenda']=excluirVenda;
-
 
 function vSubTab(tab){
   var panels=['lancar','hist'];
@@ -20941,7 +19685,6 @@ function renderHistoricoVendas(){
       +'</tr>';
   }).join('');
 
-  
   var tfoot=document.getElementById('vh-tfoot');
   if(tfoot) tfoot.innerHTML='<tr style="background:#e8f5e9;font-weight:700">'
     +'<td colspan="4" style="padding:6px 8px">TOTAL ('+lista.length+' vendas)</td>'
@@ -21011,7 +19754,6 @@ function vhImprimir(){
 }
 window['vhImprimir']=vhImprimir;
 
-
 const _vBancoOpts=()=>_erpBankDirectory.ready?_erpBankDirectory.banks.map(b=>'<option value="'+esc(b.banco)+'">'+esc(b.banco)+'</option>').join(''):'<option value="">Carregando bancos...</option>';
 
 let vPgtoRowId=0;
@@ -21077,8 +19819,6 @@ function salvarVenda(){
   }
   if(itens.length===0){showToast('⚠️ Adicione pelo menos um item!','error');return;}
 
-  
-  
   const qtPorMat={};
   itens.forEach(it=>{
     if(!it.mat) return;
@@ -21102,7 +19842,6 @@ function salvarVenda(){
     ).join('\n');
     showToast('⚠️ Estoque insuficiente:<br>'+linhas.replace(/\n/g,'<br>')+'<br>Venda salva com aviso.','error',6000);
   }
-  
 
   const _r2v=x=>Math.round((Number(x)+Number.EPSILON)*100)/100;
   const subtotal=_r2v(itens.reduce((s,i)=>s+i.total,0));
@@ -21116,7 +19855,6 @@ function salvarVenda(){
   const dataFmt=data?data.split('-').reverse().join('/'):'';
   const vencFmt=venc?venc.split('-').reverse().join('/'):'';
 
-  
   const pagamentos=[];
   document.querySelectorAll('#v-pgto-rows tr').forEach(tr=>{
     const sels=tr.querySelectorAll('select');
@@ -21128,9 +19866,6 @@ function salvarVenda(){
     if(valor>0) pagamentos.push({forma,banco,valor,obs:obsP});
   });
 
-  
-  
-  
   const _abateAdt=[], _abateCheq=[];
   document.querySelectorAll('.v-abate-adt:checked').forEach(function(chk){
     const a=(ADT_CLI[cliente]||[])[Number(chk.dataset.idx)];
@@ -21154,7 +19889,6 @@ function salvarVenda(){
   renderVendas();
   renderEstoque();
 
-  
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   if(pagamentos.length>0){
     pagamentos.forEach(p=>{
@@ -21211,7 +19945,6 @@ function salvarVenda(){
   try{ renderContasReceber(); }catch(e){ console.warn('renderCR',e); }
   try{ renderFichaCliente(); if(typeof fcSelecionarCliente==='function') fcSelecionarCliente(cliente); }catch(e){ console.warn('renderFichaCliente',e); }
 
-  
   if(pagamentos.length>0 && status==='Pago'){
     pagamentos.forEach(p=>{
       if(p.banco && p.forma!=='A prazo' && p.valor>0){
@@ -21307,7 +20040,6 @@ function evRecalcAbate(){
   const scEl=document.getElementById('ev-saldo-carga'); if(scEl) scEl.textContent='R$ '+saldo.toLocaleString('pt-BR',{minimumFractionDigits:2});
 }
 
-
 let _evRowId=0, _evTotalAtual=0;
 function evAddItem(item){
   item=item||{};
@@ -21378,7 +20110,6 @@ function salvarEditVenda(){
   v.status=document.getElementById('evv-status').value;
   v.obs=document.getElementById('evv-obs').value.trim();
 
-  
   const _novosItens=[];
   const _body=document.getElementById('ev-itens-body');
   if(_body) _body.querySelectorAll('tr').forEach(function(tr){
@@ -21418,7 +20149,6 @@ function salvarEditVenda(){
     }
   }
 
-  
   const cli=v.cliente||'';
   const _adtsPend=((typeof ADT_CLI!=='undefined'&&ADT_CLI[cli])||[]).filter(a=>(a.status||'Pendente')==='Pendente');
   const _chsPend=((typeof CHEQUES_CLI!=='undefined'&&CHEQUES_CLI[cli])||[]).filter(c=>{const st=(c.status||'Pendente');return st!=='Compensado'&&st!=='Devolvido'&&st!=='Quitado';});
@@ -21451,7 +20181,6 @@ function salvarEditVenda(){
   }
   if(_mexeu){ try{ saveAdtCli(); }catch(e){} try{ saveChequesCli(); }catch(e){} try{ saveContasReceber(); }catch(e){} try{ renderAdtCli(); }catch(e){} try{ renderChequesCli(); }catch(e){} }
 
-  
   if(v.status==='Permuta'){
     var _mexeuCR=false;
     CONTAS_RECEBER.forEach(function(cr){
@@ -21471,14 +20200,12 @@ function salvarEditVenda(){
   showToast('Venda atualizada!','success');
 }
 
-
 function om(k){
   if(_adtSalvamentoAtivo)return;
   
   const oldOv=document.getElementById('modal-ov');
   if(oldOv && oldOv.parentNode) oldOv.parentNode.removeChild(oldOv);
 
-  
   const ov=document.createElement('div');
   ov.className='modal-ov'; ov.id='modal-ov';
   const body=document.createElement('div');
@@ -21502,12 +20229,9 @@ function om(k){
       let html; try{ html=buildCompraForm(); }catch(e){ showFormError('buildCompraForm: '+e.message); return; }
       body.innerHTML=html;
       setTimeout(()=>{
-        
-        
-        
+
         try{populateFornSelects();}catch(e){}
-        
-        
+
         try{ if(typeof refreshMetaisGlobals==='function') refreshMetaisGlobals(); }catch(e){}
         try{addCompraRow();}catch(e){showToast('Erro linha: '+e.message,'error',7000);console.error('addCompraRow',e);}
         try{onFornChange();}catch(e){console.error('onFornChange',e);}
@@ -21528,9 +20252,7 @@ function om(k){
       setTimeout(()=>{ try{addVendaRow();}catch(e){console.error('addVendaRow',e);} try{_popularClientesVenda();}catch(e){} },50);
     } else {
       body.innerHTML=FORMS[k]||'<p>Formulário não encontrado.</p>';
-      
-      
-      
+
       if(k==='vale') setTimeout(()=>{ try{
         var sel=document.getElementById('vl-func');
         if(sel){
@@ -21551,8 +20273,7 @@ function om(k){
       if(k==='conta_receber') setTimeout(()=>{ try{popularCrCliList();}catch(e){} },20);
       if(k==='adiantamento_cli'||k==='cheque_cli') setTimeout(()=>{ try{ _popularClientesSel(); }catch(e){} },20);
       if(k==='cheque_cli') setTimeout(()=>{ try{ addCheqCliRow(); addCheqCliRow(); }catch(e){} },40);
-      
-      
+
       setTimeout(()=>{ try{
         if(k==='funcionario'){
           const sel=document.getElementById('nfu-emp'); if(sel) sel.innerHTML=_cfgEmployeeCompanyOptionsHtml(sel.value||'');
@@ -21580,9 +20301,7 @@ function om(k){
       }catch(e){} },20);
       
       setTimeout(()=>{ try{_populateBancosSelects();if(k==='adiantamento')_adtCarregarContasPermitidas(true);}catch(e){} },20);
-      
-      
-      
+
       setTimeout(()=>{ try{populateFornSelects();}catch(e){} },20);
     }
     ov.classList.add('open');
@@ -21604,8 +20323,6 @@ function showToast(msg, tipo='success', dur=4000){
   let box=document.getElementById('toast');
   if(!box){ box=document.createElement('div'); box.id='toast'; document.body.appendChild(box); }
   const el=document.createElement('div');
-  // 'warning' é usado pelos fluxos financeiros; o tema CSS denomina essa classe 'warn'.
-  // Centralizar a normalização impede avisos sem fundo/contraste em qualquer módulo.
   const _t=String(tipo||'info').toLowerCase().trim();
   const _kind=_t==='warning'?'warn':(['success','warn','error','info'].includes(_t)?_t:'info');
   el.className='toast-msg '+_kind;
@@ -21614,8 +20331,6 @@ function showToast(msg, tipo='success', dur=4000){
   requestAnimationFrame(()=>{ requestAnimationFrame(()=>{ el.classList.add('show'); }); });
   setTimeout(()=>{ el.classList.remove('show'); setTimeout(()=>el.remove(),350); }, dur);
 }
-
-
 
 let DESP_DB = [];
 const _syncDespGrupo = _criarSincroniaPorChave('despGrupo', DESP_DB, 'DG');
@@ -21626,7 +20341,6 @@ function saveDespDB(){ localStorage.setItem('mm_desp_grupo', JSON.stringify(DESP
 function loadDespDB(){ if(window.__FB_DATA_READY__===true) return; try{ const v=localStorage.getItem('mm_desp_grupo'); if(v){ DESP_DB.length=0; JSON.parse(v).forEach(x=>DESP_DB.push(x)); } }catch(e){} }
 
 function despFmt(v){ return Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2}); }
-
 
 function getMes(){
   const el=document.getElementById('fil-mes');
@@ -21668,12 +20382,6 @@ function _popularEmpresasDespesa(){
   }
 }
 
-
-
-
-
-
-
 function _cpParaDespesa(c){
   const mapEmp=_cfgExpenseGroupCompanyMap();
   const empRaw=(typeof _cpEmpresa==='function'?_cpEmpresa(c):(c.empresa||''));
@@ -21692,7 +20400,6 @@ function _despMescladas(){
     : [];
   return DESP_DB.concat(extras);
 }
-
 
 function _despStatusCel(d){
   if(d && d._cp){
@@ -21732,7 +20439,7 @@ function switchDespTab(id){
 
 function _despPopularBancos(){
   const sel=document.getElementById('f-banco');
-  if(!sel || sel.tagName!=='SELECT') return; // Despesas usa identificação digitada livremente.
+  if(!sel || sel.tagName!=='SELECT') return;
   const atual=sel.value;
   const bancos=_erpBankDirectory.ready?_erpBankDirectory.banks:[];
   sel.innerHTML='<option value="">— Selecione uma conta cadastrada —</option>'+bancos.map(function(b){
@@ -21757,7 +20464,6 @@ function renderKpis(){
   const filtrados=getFiltrados();
   const total=filtrados.reduce((s,d)=>s+Number(d.valor),0);
 
-  
   const porEmp={};
   const _todas=_despMescladas();
   EMPRESAS.forEach(e=>{
@@ -21821,7 +20527,6 @@ function renderResumo(){
     return;
   }
 
-  
   const porForn={};
   filtrados.forEach(d=>{
     const key=d.fornecedor||'Sem fornecedor';
@@ -21847,7 +20552,6 @@ function renderResumo(){
     '</div>';
   }).join('');
 
-  
   const porBanco={};
   filtrados.forEach(d=>{
     const b=d.banco||'Não informado';
@@ -21880,8 +20584,7 @@ function buildFornList(){
     ].filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'pt-BR'));
     dl.innerHTML=nomes.map(n=>'<option value="'+esc(n)+'">').join('');
   }
-  
-  
+
   const dlc=document.getElementById('f-cat-list');
   if(dlc){
     const fixas=['Aluguel','Energia Elétrica','Água/Esgoto','Telefone/Internet','Combustível','Manutenção','Material de Escritório','Folha de Pagamento','Impostos/Taxas','Frete/Transporte','Alimentação','Serviços Terceiros','Compra Matéria-Prima','Seguro','Financiamento','Outros'];
@@ -22046,7 +20749,6 @@ function excluirDespesa(id){
   showToast('🗑️ Despesa excluída.','warn',3000);
 }
 
-
 loadDespDB();
 
 (function(){
@@ -22140,9 +20842,6 @@ function initDespesas(){
   despAtualizar();
 }
 
-
-
-
       function calcAlimDia(){
         const wrap=document.getElementById('vg-dias-refeicoes');
         const limEl=document.getElementById('vg-limite-alim');
@@ -22200,7 +20899,6 @@ function initDespesas(){
         if(el && v!==null) el.value=v;
       }
 
-      
       let _custoAnualMode = false;
 
       function toggleCustoAnual(){
@@ -22292,7 +20990,6 @@ function initDespesas(){
         }
       }
 
-      
       function calcViagemTotal(){
         const saida=document.getElementById('vg-data').value;
         const volta=document.getElementById('vg-volta').value;
@@ -22496,16 +21193,8 @@ function initDespesas(){
         return abrirFichaForn(cod);
       }
 
-
-      
-      
-      
       var _fcCliAtual = null;
 
-      
-      
-      
-      
       function _fcTodosNomesCli(){
         var s={};
         (CLIENTES||[]).forEach(function(c){ if(c&&c.nome) s[c.nome.trim()]=1; });
@@ -22593,7 +21282,6 @@ function initDespesas(){
         var sEl = document.getElementById('fc-subtitulo');
         if(sEl && cli) sEl.textContent = [(cli.cnpj||cli.cpf||''),(cli.tel||''),(cli.cidade||'')].filter(Boolean).join(' | ');
 
-        
         var fmtKg = function(v){ return Number(v).toLocaleString('pt-BR',{maximumFractionDigits:1}); };
         var vendaInfo = function(v){
           var mats = (v.itens||[]).map(function(it){ return (it.mat||it.material||''); }).filter(Boolean);
@@ -22608,34 +21296,20 @@ function initDespesas(){
 
         _fcCliAtual = nomeCliente;
 
-        
-        
-        
         var entries = [];
 
-        
-        
-        
-        
         var _normNome = function(s){ return String(s||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' '); };
         var _alvoNome = _normNome(nomeCliente);
         var _casaNome = function(nomeVenda){
           var a=_normNome(nomeVenda); if(!a||!_alvoNome) return false;
-          
-          
-          
-          
+
           return a===_alvoNome;
         };
         
         (VENDAS_DB||[]).filter(function(v){ return _casaNome(v.cliente); }).forEach(function(v){
           entries.push({ data: v.data||v.dataVenda||'', ord:0, kind:'entrega', raw:v });
         });
-        
-        
-        
-        
-        
+
         (CONTAS_RECEBER||[]).filter(function(c){
           return _casaNome(c.cli) && (c.status==='Recebido') && c.forma!=='Adiantamento' && c.forma!=='Cheque';
         }).forEach(function(c){
@@ -22673,13 +21347,11 @@ function initDespesas(){
           return !(filtDe&&iso<filtDe) && !(filtAte&&iso>filtAte);
         };
 
-        
         var _si = (typeof FC_SALDO_INI!=='undefined' && FC_SALDO_INI[nomeCliente]) ? FC_SALDO_INI[nomeCliente] : null;
         var saldoIni = _si ? r2(_si.valor||0) : 0;
         var saldo = saldoIni, totDeb=0, totCred=0, totPeso=0, totEntrega=0, totDevol=0;
         var saldoAntesPeriodo = saldoIni, saldoFimPeriodo = saldoIni, jaAbriuPeriodo = false;
 
-        
         var TOL = 0.05;
         
         var saldoCellHtml = function(s){
@@ -22713,9 +21385,6 @@ function initDespesas(){
           return '';
         };
 
-        
-        
-        
         var linhas = [];
         entries.forEach(function(e){
           var mostra = emPeriodo(e);
@@ -22770,8 +21439,6 @@ function initDespesas(){
                   + ' <span style="cursor:pointer;font-size:.85rem" title="Excluir" onclick="fcExcluirLanc(\''+l.id+'\')">🗑️</span>';
           }
 
-          
-          
           debito = r2(debito); credito = r2(credito); credStruck = r2(credStruck);
           saldo = r2(saldo + credito - debito); 
 
@@ -22779,8 +21446,7 @@ function initDespesas(){
             saldoFimPeriodo = saldo;
             totDeb = r2(totDeb+debito); totCred = r2(totCred+credito); totPeso += peso;
             if(ehEntrega) totEntrega = r2(totEntrega+debito);
-            
-            
+
             var valorCell;
             if(_pendVal>0) valorCell='<span style="background:#fff59d;color:#a67c00;font-weight:800;padding:2px 7px;border-radius:5px" title="ainda não pago — não conta no saldo">R$ '+fmt(_pendVal)+' 🟡</span>';
             else if(debito>0) valorCell='<span style="color:#c00000;font-weight:700">+ R$ '+fmt(debito)+'</span>';
@@ -22820,7 +21486,6 @@ function initDespesas(){
         }
         rows += linhas.join('');
 
-        
         if(linhas.length){
           rows += '<tr style="background:#dce6f1;font-weight:800;color:#1f3864;border-top:2px solid #9db3d1">'
             +'<td style="padding:8px 10px">TOTAIS</td>'
@@ -22832,11 +21497,8 @@ function initDespesas(){
             +'</tr>';
         }
 
-        
-        
         try{ window._fcSaldoTotal = r2(saldo); window._fcSaldoCli = nomeCliente; }catch(_e){}
 
-        
         var totEntregue = totEntrega;
         var recebidoValido = totCred; 
         var saldoFinal = saldoFimPeriodo;
@@ -22857,7 +21519,6 @@ function initDespesas(){
         if(tb) tb.innerHTML = rows||'<tr><td colspan="6" style="text-align:center;padding:28px;color:#aaa">Nenhuma movimentação encontrada para este cliente.</td></tr>';
       }
 
-      
       function fcNovoLanc(){
         if(!_fcCliAtual){ showToast('Selecione um cliente primeiro.','info'); return; }
         document.getElementById('fcl-titulo').textContent='➕ Novo lançamento — '+_fcCliAtual;
@@ -22951,8 +21612,7 @@ function initDespesas(){
           FC_LANC[_fcCliAtual].push({ id:'fcl'+Date.now()+Math.floor(Math.random()*1000), data:data,tipo:tipo,peso:peso,valorkg:valorkg,material:material,num:num,emitente:emit,destino:destino,debito:debito,credito:credito,hist:hist });
         }
         saveFcLanc();
-        
-        
+
         if(tipo==='entrega' && material && Number(peso)>0){
           try{ if(typeof _garantirMetalCadastrado==='function') _garantirMetalCadastrado(material); }catch(e){}
           try{ saveDB(); }catch(e){}
@@ -22971,10 +21631,7 @@ function initDespesas(){
         fcReRender();
         showToast('Lançamento excluído.','info');
       }
-      
-      
-      
-      
+
       function fcQuitarSaldo(){
         if(!_fcCliAtual){ showToast('Selecione um cliente primeiro.','info'); return; }
         var saldo = Number(window._fcSaldoTotal||0);
@@ -22990,8 +21647,7 @@ function initDespesas(){
         try{ fcReRender(); }catch(e){}
         showToast('Saldo de '+_fcCliAtual+' quitado! Reembolso de R$ '+fmtBR(valor)+' lançado — ficha no zero. ✅','success');
       }
-      
-      
+
       function _fcNorm(s){ return String(s||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' '); }
       function fcJuntarAbrir(){
         if(!_usuarioAtualEhAdmin()){ showToast('Apenas a '+_usuarioAdminNome()+' pode juntar clientes.','info'); return; }
@@ -23083,9 +21739,7 @@ function initDespesas(){
       }
 
       function fcBaixar(){
-        
-        
-        
+
         if(!_fcCliAtual){ showToast('Selecione um cliente primeiro.','info'); return; }
         var titulo = document.getElementById('fc-titulo')?document.getElementById('fc-titulo').textContent.trim():_fcCliAtual;
         var linhas = [];
@@ -23164,13 +21818,8 @@ function initDespesas(){
         var forn=FORNECEDORES.find(function(f){ return f.cod===cod; });
         if(!forn) return;
 
-        
-        
-        
-        
         try{ _adtCorrigirDataCompensacaoParcial(); }catch(e){}
 
-        
         var infoDiv=document.getElementById('ff-forn-info');
         if(infoDiv) infoDiv.style.display='';
         var tEl=document.getElementById('ff-titulo');
@@ -23178,7 +21827,6 @@ function initDespesas(){
         var sEl=document.getElementById('ff-subtitulo');
         if(sEl) sEl.textContent=[(forn.cpf||''),(forn.tel||''),(forn.cidade||'')].filter(Boolean).join(' | ');
 
-        
         var entries=[];
         
         if(SALDO_DEVEDOR_FORN[cod]){
@@ -23202,24 +21850,7 @@ function initDespesas(){
         (CHEQUES_POR_FORN[cod]||[]).forEach(function(ch){
           entries.push({ data:ch.data, tipo:'cheque', sinal:1, status:ch.status, raw:ch });
         });
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+
         CONTAS_PAGAR.filter(function(c){
           return c.ticket && Array.isArray(c.pagamentos) && c.pagamentos.length && TICKETS_DB[c.ticket] &&
             (TICKETS_DB[c.ticket].fornecedorCod===cod || TICKETS_DB[c.ticket].fornecedor===forn.nome);
@@ -23250,8 +21881,7 @@ function initDespesas(){
             badge=isPagoTk?'<span style="background:#e8f5e9;color:#1a5e2a;padding:1px 6px;border-radius:4px;font-size:.72rem;font-weight:700">Pago</span>'
               :tk.status==='Parcial'?'<span style="background:#fff3cd;color:#856404;padding:1px 6px;border-radius:4px;font-size:.72rem;font-weight:700">Parcial</span>'
               :'<span style="background:#fdecea;color:#c0392b;padding:1px 6px;border-radius:4px;font-size:.72rem;font-weight:700">Pendente</span>';
-            
-            
+
             descHtml='<div style="font-weight:700;color:#c0392b">Ticket '+tk.ticket+'</div>'
               +'<div style="font-size:.76rem;color:#555;margin-top:2px">'+esc(tk.fornecedor||forn.nome||'')+'</div>';
           } else if(e.tipo==='saldo_anterior'){
@@ -23265,22 +21895,7 @@ function initDespesas(){
             descHtml='<div style="font-weight:700;color:#c0392b">&#x23F3; Saldo Devedor Registrado – aguardando proxima compra</div>'
               +'<div style="font-size:.76rem;color:#888;margin-top:2px">Sera automaticamente aplicado na proxima compra deste fornecedor</div>';
           } else if(e.tipo==='adiantamento'){
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
+
             var a=e.raw; valor=Number(a.valor||0);
             var adtAplicado=a.status==='Pago'||a.status==='Quitado';
             saldo-=valor;
@@ -23332,9 +21947,7 @@ function initDespesas(){
         }).join('');
 
         var totC=filtered.filter(function(e){return e.tipo==='compra';}).reduce(function(s,e){return s+Number(e.raw.totalGeral||0);},0);
-        
-        
-        
+
         var totP=filtered.filter(function(e){
           return e.tipo!=='compra';
         }).reduce(function(s,e){return s+Number(e.raw.valor||0);},0);
@@ -23675,8 +22288,7 @@ function initDespesas(){
           (document.getElementById('ff-de')||{}).value||'',
           (document.getElementById('ff-ate')||{}).value||'');
       }
-      
-      
+
       function ffSaldoInicial(){
         var cod=_ffCodAtual;
         if(!cod){ showToast('Abra a ficha de um fornecedor primeiro.','info'); return; }
@@ -23715,7 +22327,6 @@ function initDespesas(){
       window['__abrirFichaFornAcao']=__abrirFichaFornAcao;
       window['filtrarTabelaForn']=filtrarTabelaForn;
 
-      
       function ffAbrirLancarAdt(){
         if(!_ffCodAtual){ alert('Abra a ficha de um fornecedor primeiro.'); return; }
         var box=document.getElementById('ff-lanc-adt'); if(!box) return;
@@ -23848,7 +22459,6 @@ function initDespesas(){
         renderCustoMotorista();
       }
 
-      
       function _ensureEditViagemModal(){
         let m=document.getElementById('modal-edit-viagem');
         if(m) return m;
@@ -23992,7 +22602,6 @@ function initDespesas(){
         showToast('Viagem atualizada!','success');
       }
 
-      
       function calcCombustivel(){
         const km=parseFloat(document.getElementById('cru-km').value)||0;
         const kmAnt=parseFloat(document.getElementById('cru-km-ant').value)||0;
@@ -24199,7 +22808,6 @@ function initDespesas(){
         renderTanque();
       }
 
-      
       function calcTanque(){
         const l=parseFloat(document.getElementById('tk-litros').value)||0;
         const p=parseFloat(document.getElementById('tk-preco').value)||0;
@@ -24326,7 +22934,6 @@ function initDespesas(){
         }).join('');
       }
 
-      
       let _cruSubTabAtiva='registro';
       function renderHistoricoEntradasTanque(){
         const panel=document.getElementById('cru-panel-historico');
@@ -24456,8 +23063,7 @@ function initDespesas(){
         if(cnt) cnt.textContent='('+list.length+' saídas · saldo '+fmt(getSaldoTanque())+' L)';
         const cntE=document.getElementById('entradas-count');
         if(cntE) cntE.textContent='('+entradas.length+' entradas · +'+fmt(totalEntL)+' L)';
-        
-        
+
         const tbE=document.getElementById('tb-entradas-tanque');
         if(tbE){
           const entOrd=entradas.slice().sort(function(a,b){ return (b.data||'').localeCompare(a.data||''); });
@@ -24510,7 +23116,6 @@ function initDespesas(){
           +'<div style="background:#fff;border:1px solid #e3e8ee;border-radius:10px;padding:12px 16px"><div style="font-size:.72rem;color:#6b7885;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Saldo atual do tanque</div><div style="font-weight:700;font-size:1.25rem;margin-top:4px;color:#1f6feb">'+fmt(getSaldoTanque())+' L</div></div>';
       }
 
-            
       function editCombustivel(id){
         const c=COMBUSTIVEL_DB.find(x=>x.id===id);
         if(!c) return;
@@ -24600,8 +23205,6 @@ function initDespesas(){
         showToast('Abastecimento atualizado!','success');
       }
 
-    
-
 document.addEventListener('click', function(ev){
   
   var editBtn2 = ev.target.closest ? ev.target.closest('[data-ff-edit-tipo]') : null;
@@ -24629,10 +23232,6 @@ document.addEventListener('click', function(ev){
   }
 });
 
-
-/* ═══════════════════════════════════════════
-   MODO BALANÇA TABLET
-═══════════════════════════════════════════ */
 let _mbBagCount = 0;
 let _mbPesadoTotal = 0;
 
@@ -24653,12 +23252,10 @@ function abrirModoBalanca(){
   if(!ov) return;
   _solicitarWakeLock();
 
-  
   const fornEl = document.getElementById('c-forn');
   const fornText = fornEl ? (fornEl.options[fornEl.selectedIndex]?.text||'—') : '—';
   const rodVal = parseFloat(document.getElementById('c-peso-rod')?.value)||0;
 
-  
   let pesadoAtual = 0;
   for(let i=1;i<=compraRowId;i++){
     const br=parseFloat(document.getElementById('cbr-'+i)?.value)||0;
@@ -24668,7 +23265,6 @@ function abrirModoBalanca(){
   _mbPesadoTotal = pesadoAtual;
   _mbBagCount = compraRowId; 
 
-  
   const el=id=>document.getElementById(id);
   
   const balSel2 = document.getElementById('mb-balanca-sel');
@@ -24679,11 +23275,9 @@ function abrirModoBalanca(){
   if(el('mb-pesado'))    el('mb-pesado').textContent    = pesadoAtual.toFixed(1)+' kg';
   if(el('mb-restante'))  el('mb-restante').textContent  = Math.max(0,rodVal-pesadoAtual).toFixed(1)+' kg';
 
-  
   const dl = document.getElementById('metais-list-mb');
   if(dl) dl.innerHTML = METAIS.map(m=>`<option value="${m}">`).join('');
 
-  
   _mbBagCount++;
   if(el('mb-bag-num'))    el('mb-bag-num').textContent  = 'BAG #'+_mbBagCount;
   if(el('mb-peso-bruto'))  el('mb-peso-bruto').value     = '';
@@ -24744,7 +23338,6 @@ function atualizarMBSaldo(){
     Restante após esta bag: <b style="color:${restante<0?'#ff8a65':'#90caf9'}">${restante.toFixed(1)} kg</b>`;
   }
 
-  
   const rc = document.getElementById('mb-restante-chip');
   if(rc) rc.style.background = restante<=0?'rgba(255,100,100,.3)':'rgba(255,255,255,.12)';
 }
@@ -24760,7 +23353,6 @@ function confirmarBagPesagem(){
 
   const pesoFinal = lq>0?lq:br;
 
-  
   addCompraRow();
   const rowId = compraRowId;
   const matEl = document.getElementById('cmat-'+rowId);
@@ -24774,16 +23366,13 @@ function confirmarBagPesagem(){
 
   _mbPesadoTotal += pesoFinal;
 
-  
   const rodVal = parseFloat(document.getElementById('c-peso-rod')?.value)||0;
   const el=id=>document.getElementById(id);
   if(el('mb-pesado'))   el('mb-pesado').textContent   = _mbPesadoTotal.toFixed(1)+' kg';
   if(el('mb-restante')) el('mb-restante').textContent = Math.max(0,rodVal-_mbPesadoTotal).toFixed(1)+' kg';
 
-  
   imprimirTicketBag(bag, mat, br, pesoFinal);
 
-  
   _mbBagCount++;
   if(el('mb-bag-num'))    el('mb-bag-num').textContent  = 'BAG #'+_mbBagCount;
   if(el('mb-peso-bruto'))  el('mb-peso-bruto').value     = '';
@@ -24794,7 +23383,6 @@ function confirmarBagPesagem(){
   if(el('mb-peso-val'))    el('mb-peso-val').textContent = '0.0';
   atualizarMBSaldo();
 
-  
   const restante = rodVal - _mbPesadoTotal;
   if(Math.abs(restante) <= rodVal*0.02 && rodVal>0){
     setTimeout(()=>{
@@ -24830,10 +23418,6 @@ function imprimirTicketBag(bagNum, mat, pesoB, pesoL){
   }
 }
 
-
-/* ═══════════════════════════════════════════
-   INTEGRAÇÃO BALANÇA TOLEDO (RS-232/BT/IP)
-═══════════════════════════════════════════ */
 let _serialPort  = null;
 let _serialReader = null;
 let _btDevice    = null;
@@ -24938,8 +23522,6 @@ function rodConectarIP(){
 let _pesoEstavel = 0;
 let _pesoEstabilTimer = null;
 
-
-
 function parsearPesoToledo(linha){
   linha = linha.trim();
   
@@ -24948,7 +23530,6 @@ function parsearPesoToledo(linha){
   const val = parseFloat(m[1].replace(/\s/g,'').replace(',','.'));
   return isNaN(val) ? null : Math.abs(val);
 }
-
 
 function atualizarPesoBalanca(peso){
   if(peso === null || peso === undefined) return;
@@ -24959,7 +23540,6 @@ function atualizarPesoBalanca(peso){
   if(elBr) elBr.value = peso.toFixed(1);
   if(elPv){ elPv.textContent = peso.toFixed(1); elPv.classList.add('mb-peso-live'); }
 
-  
   clearTimeout(_pesoEstabilTimer);
   if(Math.abs(peso - _pesoEstavel) < 0.1){
     _pesoEstabilTimer = setTimeout(()=>{
@@ -24972,7 +23552,6 @@ function atualizarPesoBalanca(peso){
     if(elSt) elSt.textContent = `⏳ Pesando... ${peso.toFixed(1)} kg`;
   }
 }
-
 
 async function conectarSerial(){
   if(!('serial' in navigator)){
@@ -25014,9 +23593,6 @@ async function lerSerialLoop(){
     if(_mbLeituraAtiva) showToast('Leitura serial interrompida: '+e.message,'error',5000);
   }
 }
-
-
-
 
 async function conectarBluetooth(){
   if(!('bluetooth' in navigator)){
@@ -25097,10 +23673,6 @@ async function desconectarBalanca(){
   if(pv) pv.classList.remove('mb-peso-live');
 }
 
-
-/* ═══════════════════════════════════════════
-   ABA BALANCEIRO
-═══════════════════════════════════════════ */
 let _balTicketAtivo = null; 
 let _balBags = {};          
 let _balBagCount = 0;
@@ -25140,13 +23712,11 @@ function renderBalanceiro(){
   const dl = document.getElementById('metais-list-bal');
   if(dl) dl.innerHTML = METAIS.map(m=>`<option value="${m}">`).join('');
 
-  
   const list = document.getElementById('bal-ticket-list');
   if(!list) return;
   const keys = Object.keys(TICKETS_DB).filter(k=>TICKETS_DB[k]._balSessao);
   if(!keys.length){ list.innerHTML='<div class="bal-none" style="padding:16px;text-align:center;color:#aaa">Nenhuma pesagem pendente.<br><span style="font-size:.8rem">Use "Iniciar Nova Sessão" abaixo ou registre entrada na Balança Rodoviária.</span></div>'; return; }
 
-  
   const sorted = keys.slice().sort((a,b)=>{
     const da = TICKETS_DB[a]?.data||''; const db2 = TICKETS_DB[b]?.data||'';
     return db2.localeCompare(da);
@@ -25166,7 +23736,6 @@ function renderBalanceiro(){
     
     const taraRecebidaSemBags = isRod && temTara && !bagsFinalizado;
 
-    
     let stateBar = '';
     let cardStyle = '';
     let extraBtn = '';
@@ -25229,9 +23798,7 @@ function _balConfirmarExclusao(){
   var tid=window._balDelTid;
   var pwd=(document.getElementById('_del-pwd')?.value||'').trim();
   var err=document.getElementById('_del-err');
-  
-  
-  
+
   if(err){ err.textContent='Confirmação administrativa segura indisponível.'; err.style.display='block'; }
   return;
   cm();
@@ -25261,25 +23828,20 @@ function balSelecionarTicket(tid){
             style="width:80px;padding:3px 6px;border:2px solid #1565c0;border-radius:5px;font-weight:800"> kg</span>` : '');
   }
 
-  
   balAtualizarProgress();
 
-  
   balRenderBags();
 
-  
   _balBagCount++;
   const bl = document.getElementById('bal-bag-label');
   if(bl) bl.textContent = `BAG #${_balBagCount}`;
 
-  
   ['bal-material','bal-peso-br','bal-desconto','bal-peso-lq'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
   const pb = document.getElementById('bal-peso-big');
   if(pb){ pb.textContent='0.0'; pb.classList.remove('live'); }
 
-  
   renderBalanceiro();
 }
 
@@ -25314,12 +23876,7 @@ function balAtualizarProgress(){
 }
 
 function balCalcLiq(){
-  
-  
-  
-  
-  
-  
+
   const br   = parseFloat(document.getElementById('bal-peso-br')?.value)||0;
   const desc = parseFloat(document.getElementById('bal-desconto')?.value)||0;
   const el = document.getElementById('bal-peso-lq');
@@ -25361,18 +23918,15 @@ function balConfirmarBag(){
   const bag = { bagNum, mat, br, desc, lq: lq||br };
   _balBags[_balTicketAtivo].push(bag);
 
-  
   if(!TICKETS_DB[_balTicketAtivo].bags) TICKETS_DB[_balTicketAtivo].bags = [];
   TICKETS_DB[_balTicketAtivo].bags.push(bag);
 
-  
   balSincronizarComCompra(_balTicketAtivo, bag);
 
   balAtualizarProgress();
   balImprimirTicket(bagNum-1);
   balRenderBags();
 
-  
   _balBagCount++;
   const bl = document.getElementById('bal-bag-label');
   if(bl) bl.textContent = 'BAG #'+_balBagCount;
@@ -25440,7 +23994,6 @@ function balImprimirTicket(idx){
   if(area){ area.innerHTML=html; setTimeout(()=>window.print(),200); }
 }
 
-
 function _balAtualizarPeso(peso){
   if(peso===null||peso===undefined) return;
   const elBr=document.getElementById('bal-peso-br');
@@ -25448,12 +24001,7 @@ function _balAtualizarPeso(peso){
   const elPb=document.getElementById('bal-peso-big');
   const elSt=document.getElementById('bal-connect-status');
   if(elBr) elBr.value=peso.toFixed(1);
-  
-  
-  
-  
-  
-  
+
   if(elLq){ const desc=parseFloat(document.getElementById('bal-desconto')?.value)||0; elLq.value=Math.max(peso-desc,0).toFixed(1); }
   if(elPb){ elPb.textContent=peso.toFixed(1); elPb.classList.add('live'); }
   clearTimeout(_balEstabilTimer);
@@ -25545,11 +24093,9 @@ async function balDesconectar(){
   const pb=el('bal-peso-big'); if(pb) pb.classList.remove('live');
 }
 
-
 function balFiltrarTickets(){
   const q = (document.getElementById('bal-forn-busca')?.value||'').toUpperCase().trim();
 
-  
   const sel = document.getElementById('bal-novo-forn');
   if(sel){
     let visiveis = 0;
@@ -25568,7 +24114,6 @@ function balFiltrarTickets(){
       : '— Selecione o Fornecedor —';
   }
 
-  
   const items = document.querySelectorAll('#bal-ticket-list .bal-ticket-item');
   items.forEach(el=>{
     const txt = el.textContent.toUpperCase();
@@ -25589,7 +24134,6 @@ function balIniciarNovaSessao(){
   const fornNome = (sel?.value||'').trim();
   if(!fornNome){ showToast('Selecione o fornecedor!','error'); return; }
 
-  
   const existente = Object.entries(TICKETS_DB).find(([k,t])=>
     t._balSessao && (t.fornecedor===fornNome||t.fornecedorNome===fornNome||t.forn===fornNome)
   );
@@ -25599,10 +24143,8 @@ function balIniciarNovaSessao(){
     return;
   }
 
-  
   const sessId = 'BAL-' + Date.now().toString().slice(-6);
 
-  
   TICKETS_DB[sessId] = {
     data: _hojeISO(),
     fornecedorNome: fornNome,
@@ -25613,18 +24155,13 @@ function balIniciarNovaSessao(){
     _balSessao: true  
   };
 
-  
   const elSel = document.getElementById('bal-novo-forn');
   if(elSel) elSel.value = '';
 
-  
   renderBalanceiro();
   balSelecionarTicket(sessId);
   showToast('Sessão iniciada para: '+fornNome,'success',3000);
 }
-
-
-
 
 let _rodSerialPort=null, _rodSerialReader=null, _rodAtivo=false, _rodPesoAtual=0;
 let _rodTicketSaida=null; 
@@ -25665,7 +24202,6 @@ function _rodAtualizarPeso(kg){
   _rodRecalcularLiquido();
 }
 
-
 function rodMatPreview(){
   if(!_rodTicketVendaAtivo) return;
   const t=TICKETS_DB[_rodTicketVendaAtivo];
@@ -25696,7 +24232,6 @@ function rodMatPreview(){
   const elAnt=document.getElementById('rod-mat-peso-ant');
   if(elAnt) elAnt.textContent=ant.toFixed(1)+' kg';
 }
-
 
 function rodMatUsarBalanca(){
   const inputEl=document.getElementById('rod-mat-peso-input');
@@ -25807,9 +24342,6 @@ function rodAutoPreencherVeiculo(){
 
 let _rodTipoAtual = 'compra'; 
 
-
-
-
 function rodPopularPessoaSelect(){
   const sel=document.getElementById('rod-forn-sel');
   if(!sel) return;
@@ -25827,11 +24359,6 @@ function rodPopularPessoaSelect(){
   }
   if(cur && [...sel.options].some(o=>o.value===cur)) sel.value=cur;
 }
-
-
-
-
-
 
 let _rodClientesLoadPromise=null;
 function rodGarantirClientesDisponiveis(){
@@ -25877,7 +24404,6 @@ function rodTipoChange(tipo){
   if(tipo==='venda') rodGarantirClientesDisponiveis();
 }
 
-
 function rodBotaoF3(){
   if(typeof _rodTicketVendaAtivo!=='undefined' && _rodTicketVendaAtivo){
     rodFinalizarVendaMateriais();
@@ -25887,11 +24413,6 @@ function rodBotaoF3(){
     rodFinalizarSaidaSelecionada();
   }
 }
-
-
-
-
-
 
 function _rodPersistirTicketCritico(tid){
   if(!tid || !TICKETS_DB[tid]) return Promise.resolve(false);
@@ -25941,7 +24462,6 @@ function rodRegistrarEntrada(){
     itens:[], bags:[]
   };
 
-  
   try{
     const fotos=rodCapturarAmbas();
     if(fotos&&fotos.cam1) TICKETS_DB[tid].fotoEntrada1=fotos.cam1;
@@ -25955,7 +24475,6 @@ function rodRegistrarEntrada(){
   saveDB();
   _rodPersistirTicketCritico(tid);
 
-  
   if(selNome){
     try{
       const _fvKey='mm_forn_veiculos';
@@ -25965,7 +24484,6 @@ function rodRegistrarEntrada(){
     }catch(e){}
   }
 
-  
   if(fornSel) fornSel.value='';
   _rodTipoAtual='compra'; rodTipoChange('compra');
   const mp=document.getElementById('rod-peso-manual'); if(mp) mp.value='';
@@ -25978,7 +24496,6 @@ function rodRegistrarEntrada(){
 
   renderRodBalanca();
 
-  
   if(_tipo==='venda'){
     rodEntrarModoMateriais(tid);
     showToast('✅ '+tid+' aberto! Tara: '+pesoEntrada.toFixed(1)+' kg — Agora registre cada material','success',6000);
@@ -26036,8 +24553,7 @@ function rodFinalizarSaidaSelecionada(){
   if(!tid){showToast('Selecione um caminhão na lista de espera','error');return;}
   const t=TICKETS_DB[tid];
   if(!t){showToast('Ticket não encontrado','error');return;}
-  
-  
+
   const manualInput=parseFloat(document.getElementById('rod-saida-manual')?.value||0);
   if(manualInput>0){
     _rodPesoAtual=manualInput;
@@ -26064,7 +24580,6 @@ function rodFinalizarSaidaSelecionada(){
       t.dataSaida=_hojeISO();
       t._rodSessao=false;
 
-      
       try{
         const fotosSai=rodCapturarAmbas();
         if(fotosSai&&fotosSai.cam1) t.fotoSaida1=fotosSai.cam1;
@@ -26076,15 +24591,12 @@ function rodFinalizarSaidaSelecionada(){
         }
       }catch(eCam){ console.warn('Câmera saída:', eCam); }
 
-      
       const _elDB=document.getElementById('rod-desc-bag');   if(_elDB)  _elDB.value='0';
       const _elDP=document.getElementById('rod-desc-palet'); if(_elDP)  _elDP.value='0';
-      
-      
+
       try{ _rodPersistirTicketCritico(tid); }catch(e){}
       if(t._rodEntrada){
-        
-        
+
         t.status = 'Aguard. Saída';
         saveDB();
         _rodTicketSaida=null;
@@ -26118,9 +24630,6 @@ function rodFinalizarSaidaSelecionada(){
     'Registrar Peso Vazio','btn-save'
   );
 }
-
-
-
 
 let _rodSubTabAtiva='pesagem';
 function rodSubTab(t){
@@ -26156,13 +24665,9 @@ function rodExcluirPesagem(tid){
 }
 
 function renderRodBalanca(){
-  
-  
+
   try{ rodPopularPessoaSelect(); }catch(e){}
 
-  
-  
-  
   const aguardando=Object.entries(TICKETS_DB).filter(([k,t])=>{
     const compraEmEdicao=(typeof _rodTicketCompraAtivo!=='undefined' && _rodTicketCompraAtivo===k);
     return t._rodEntrada && !(t.pesoTara>0) &&
@@ -26170,7 +24675,6 @@ function renderRodBalanca(){
       t.tipo!=='venda' && !compraEmEdicao;
   });
 
-  
   if(typeof _rodTicketVendaAtivo!=='undefined' && _rodTicketVendaAtivo){
     try{ rodRenderMateriais(); }catch(e){}
   }
@@ -26178,7 +24682,6 @@ function renderRodBalanca(){
     try{ rodRenderMateriaisCompra(); }catch(e){}
   }
 
-  
   const selSaida=document.getElementById('rod-sel-saida');
   if(selSaida){
     const curSaida=selSaida.value;
@@ -26187,7 +24690,6 @@ function renderRodBalanca(){
     if(curSaida) selSaida.value=curSaida;
   }
 
-  
   const listEl=document.getElementById('rod-aguard-saida-list');
   if(listEl){
     if(!aguardando.length){
@@ -26203,12 +24705,8 @@ function renderRodBalanca(){
     }
   }
 
-  
   try{ rodRenderHistorico(); }catch(e){}
 }
-
-
-
 
 function balFinalizarPesagem(){
   if(!_balTicketAtivo){ showToast('Nenhuma sessão ativa!','error'); return; }
@@ -26240,8 +24738,7 @@ function balFinalizarPesagem(){
     if(isRod){
       
       t._balBagsFinalizado = true;
-      
-      
+
       t._rodSessao = false;
       t.status = 'Aguard. Saída';
       saveDB();
@@ -26260,7 +24757,6 @@ function balFinalizarPesagem(){
     }
   }, 'Confirmar bags','btn-save');
 }
-
 
 function balLiberarParaSecretaria(tid){
   const t = TICKETS_DB[tid];
@@ -26289,7 +24785,6 @@ function balLiberarParaSecretaria(tid){
     '✅ Liberar para Secretaria','btn-save'
   );
 }
-
 
 function balRemoverDaFila(tid){
   const t = TICKETS_DB[tid];
@@ -26323,18 +24818,6 @@ function balRemoverDaFila(tid){
     showToast('Ticket '+tid+' removido da fila do Balanceiro.','success',4000);
   }, label, temBags||temPesos ? 'btn-save' : 'btn-edit-danger');
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 let _csSubTabAtiva='pesagens';
 function csTab(t){
@@ -26468,7 +24951,6 @@ function csCarregarForn(forceName){
   const saldoDev=_sdRaw?(typeof _sdRaw==='object'?(_sdRaw.valor||0):Number(_sdRaw||0)):0;
   const fmt=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
 
-  
   const byMat={};
   tickets.forEach(([k,t])=>{
     (t.itens||[]).forEach(it=>{
@@ -26669,7 +25151,6 @@ async function csConfirmarEntrada(fornNome){
   const vencBR=vencISO.split('-').reverse().join('/');
   const hoje=_hojeISO().split('-').reverse().join('/');
 
-  // O fluxo moderno já verificou o número na nuvem. Não gere outro aqui.
   const reserved=__integratedPurchase?String(window.__ERP_PURCHASE_SELECTED_NUMBER__||''):'';
   if(__integratedPurchase && !/^T[0-9]{3,}$/.test(reserved))
     throw new Error('Identificador da compra não reservado. Nenhuma alteração foi aplicada.');
@@ -26741,18 +25222,12 @@ async function csConfirmarEntrada(fornNome){
   showToast('✅ Entrada '+ticketNum+' confirmada no Firebase!'+(saldoPagar>0?' Conta a Pagar: R$ '+fmt(saldoPagar):''),'success',7000);
 }
 
-
-
-
-
-
 function _balGetHistorico(){
   const filtForn=(document.getElementById('balhist-forn')?.value||'').trim().toUpperCase();
   const filtDe=document.getElementById('balhist-de')?.value||'';
   const filtAte=document.getElementById('balhist-ate')?.value||'';
   const toIso=d=>{ if(!d) return ''; if(d.includes('-')) return d; const p=d.split('/'); return p[2]+'-'+p[1]+'-'+p[0]; };
 
-  
   const rows=[];
   Object.entries(TICKETS_DB).forEach(([tid,t])=>{
     if(!t._balFinalizado && !t.bags?.length) return;
@@ -26877,10 +25352,6 @@ function balSalvarPDF(){
   setTimeout(()=>showToast('Na janela que abriu: use Ctrl+P → "Salvar como PDF"','info',6000),800);
 }
 
-
-
-
-
 function _rodGetHistorico(){
   const q=(document.getElementById('rodhist-forn')?.value||'').trim().toUpperCase();
   const qMat=(document.getElementById('rodhist-mat')?.value||'').trim().toUpperCase();
@@ -26912,7 +25383,6 @@ function _rodGetHistorico(){
     })
     .sort(([ka,a],[kb,b])=>(b.data||'').localeCompare(a.data||'')||(b.ticket||kb).localeCompare(a.ticket||ka));
 }
-
 
 function rodRenderHistorico(){
   const hist=document.getElementById('rod-historico-list');
@@ -26972,19 +25442,6 @@ function rodLimparFiltrosHist(){
   rodRenderHistorico();
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 let _rodTicketVendaAtivo=null;
 
 function rodEntrarModoMateriais(tid){
@@ -27006,8 +25463,6 @@ function rodCancelarModoMateriais(){
   if(modo) modo.style.display='none';
 }
 
-
-
 function _rodUltimoPeso(t){
   if(!t) return 0;
   if(t._ultimoPesoBalanca!=null) return t._ultimoPesoBalanca;
@@ -27023,7 +25478,6 @@ function rodRenderMateriais(){
   const taraBase=parseFloat(t.pesoEntrada||0);
   const ultimoPeso=_rodUltimoPeso(t);
 
-  
   const infoEl=document.getElementById('rod-mat-ticket-info');
   if(infoEl) infoEl.innerHTML=
     `<b style="color:#fff;font-size:.85rem">${tid}</b> — <span style="color:#a5d6a7">${t.cliente||t.fornecedor||'—'}</span>`+
@@ -27031,7 +25485,6 @@ function rodRenderMateriais(){
     `<span style="color:#888;font-size:.72rem">Tara base:</span> <b style="color:#ff9800">${taraBase.toFixed(1)} kg</b>`+
     (ultimoPeso!==taraBase?` &nbsp;·&nbsp; <span style="color:#888;font-size:.72rem">Último peso:</span> <b style="color:#ff9800">${ultimoPeso.toFixed(1)} kg</b>`:'');
 
-  
   const elAnt=document.getElementById('rod-mat-peso-ant');
   if(elAnt) elAnt.textContent=ultimoPeso.toFixed(1)+' kg';
   const elAtual=document.getElementById('rod-mat-peso-atual');
@@ -27045,7 +25498,6 @@ function rodRenderMateriais(){
   const elLiq=document.getElementById('rod-mat-liquido-prev');
   if(elLiq){ elLiq.textContent=liqPrev.toFixed(1)+' kg'; elLiq.style.color=liqPrev>0?'#29b6f6':'#f44336'; }
 
-  
   const lista=t.pesagens||[];
   const listaEl=document.getElementById('rod-mat-lista');
   if(listaEl){
@@ -27067,7 +25519,6 @@ function rodRenderMateriais(){
     }
   }
 
-  
   const totalEl=document.getElementById('rod-mat-total');
   if(totalEl){
     const total=lista.reduce((s,p)=>s+p.pesoLiquido,0);
@@ -27086,7 +25537,6 @@ function rodAdicionarMaterial(){
   const nomeMat=(document.getElementById('rod-mat-nome')?.value||'').trim();
   if(!nomeMat){ showToast('Informe o nome do material!','error'); return; }
 
-  
   const matInputEl=document.getElementById('rod-mat-peso-input');
   let pesoValMatInput=parseFloat(matInputEl?.value||0);
   
@@ -27098,7 +25548,6 @@ function rodAdicionarMaterial(){
   const pesoBrutoAcum=_rodPesoAtual; 
   if(!pesoBrutoAcum||pesoBrutoAcum<=0){ showToast('Informe o peso atual na balança!','error'); return; }
 
-  
   const pesoAnt=_rodUltimoPeso(t);
   const pesoLiquido=pesoBrutoAcum-pesoAnt;
 
@@ -27130,10 +25579,8 @@ function rodAdicionarMaterial(){
   }catch(e){}
   t.pesagens.push(reg);
 
-  
   t._ultimoPesoBalanca=pesoBrutoAcum;
 
-  
   const nmEl=document.getElementById('rod-mat-nome');
   if(nmEl) nmEl.value='';
   
@@ -27179,7 +25626,6 @@ function rodFinalizarVendaMateriais(){
 
   if(!t.pesagens) t.pesagens=[];
 
-  
   if(!t.pesagens.length){
     const matInputEl=document.getElementById('rod-mat-peso-input');
     const pesoAtualField=parseFloat(matInputEl?.value||0)||_rodPesoAtual||0;
@@ -27239,7 +25685,6 @@ function rodFinalizarVendaMateriais(){
   setTimeout(()=>{ try{ rodImprimirRomaneio(tid); }catch(e){} },400);
 }
 
-
 function rodExcluirTicketVenda(){
   const tid=_rodTicketVendaAtivo;
   if(!tid) return;
@@ -27257,15 +25702,7 @@ function rodExcluirTicketVenda(){
   showToast('🗑️ Pesagem '+tid+' excluída. Registre novamente com os valores corretos.','info',5000);
 }
 
-
-
-
-
-
-
-
 let _rodTicketCompraAtivo=null;
-
 
 function _rodUltimoPesoCompra(t){
   if(!t) return 0;
@@ -27291,11 +25728,9 @@ function rodCancelarModoMateriaisCompra(){
   const modoC=document.getElementById('rod-modo-materiais-compra');
   if(fila) fila.style.display='';
   if(modoC) modoC.style.display='none';
-  
-  
+
   try{ renderRodBalanca(); }catch(e){}
 }
-
 
 function rodMatPreviewCompra(){
   if(!_rodTicketCompraAtivo) return;
@@ -27431,7 +25866,6 @@ function rodAdicionarMaterialCompra(){
   t.pesagensCompra.push(reg);
   t._ultimoPesoBalancaCompra=pesoBrutoAcum; 
 
-  
   const nmEl=document.getElementById('rod-matc-nome'); if(nmEl) nmEl.value='';
   if(matInputEl){ matInputEl.value=''; matInputEl._manualOverride=false; }
   const mpManEl=document.getElementById('rod-peso-manual'); if(mpManEl) mpManEl.value='';
@@ -27465,7 +25899,6 @@ function rodFinalizarCompraMateriais(){
   if(!t){ showToast('Ticket não encontrado!','error'); return; }
   if(!t.pesagensCompra) t.pesagensCompra=[];
 
-  
   if(!t.pesagensCompra.length){
     const matInputEl=document.getElementById('rod-matc-peso-input');
     const pesoAtualField=parseFloat(matInputEl?.value||0)||_rodPesoAtual||0;
@@ -27521,12 +25954,6 @@ function rodExcluirTicketCompra(){
   showToast('🗑️ Pesagem '+tid+' excluída.','info',4000);
 }
 
-
-
-
-
-
-
 let _rodStream1=null, _rodStream2=null;
 
 async function rodIniciarCameras(){
@@ -27554,8 +25981,7 @@ async function rodIniciarCameras(){
       const stream=await navigator.mediaDevices.getUserMedia(constraints);
       return await atribuirStream(stream,videoId,wrapId);
     }catch(e){
-      
-      
+
       if(deviceId && (e.name==='OverconstrainedError'||e.name==='NotFoundError'||e.name==='DevicesNotFoundError')){
         try{
           const fallback=await navigator.mediaDevices.getUserMedia({video:true});
@@ -27578,8 +26004,7 @@ async function rodIniciarCameras(){
   if(cam1Id) _rodStream1=await startCam(cam1Id,'rod-video-cam1','rod-cam1-wrap');
   if(cam2Id){
     if(cam1Id && cam2Id===cam1Id && _rodStream1){
-      
-      
+
       try{ _rodStream2=_rodStream1.clone(); await atribuirStream(_rodStream2,'rod-video-cam2','rod-cam2-wrap'); }
       catch(e){ _rodStream2=null; }
     } else {
@@ -27601,7 +26026,6 @@ function rodCapturarFoto(videoId,canvasId){
   canvas.getContext('2d').drawImage(video,0,0);
   return canvas.toDataURL('image/jpeg',0.72);
 }
-
 
 function rodCapturarAmbas(){
   return {
@@ -27665,17 +26089,8 @@ async function rodAbrirConfigCameras(){
   }
 }
 
-
-
-
-
-
-
 function alxSeedReservatorio2026(){
-  
-  
-  
-  
+
   return;
 }
 
@@ -27687,7 +26102,6 @@ function loadAlmoxa(){
   _alxPopMovSel();
   _alxPopFuncSel();
 }
-
 
 let _alxSubTabAtiva='itens';
 function alxTab(name){
@@ -27715,7 +26129,6 @@ function alxRenderItens(){
   const count=document.getElementById('alx-count');
   if(!grid) return;
 
-  
   const catFiltEl=document.getElementById('alx-cat-fil');
   if(catFiltEl && catFiltEl.options.length<=1){
     const cats=[...new Set(ALX_ITENS.map(i=>i.cat||'').filter(Boolean))].sort();
@@ -27724,7 +26137,6 @@ function alxRenderItens(){
     if(catFil) catFiltEl.value=catFil;
   }
 
-  
   const dl=document.getElementById('alx-cat-list');
   if(dl){
     const cats=[...new Set(ALX_ITENS.map(i=>i.cat||'').filter(Boolean))].sort();
@@ -27745,7 +26157,6 @@ function alxRenderItens(){
 
   if(count) count.textContent=lista.length+' item(s)';
 
-  
   grid.style.display='block';
   if(!lista.length){
     grid.innerHTML='<div style="color:#aaa;font-style:italic;padding:20px;text-align:center">Nenhum item encontrado.</div>';
@@ -27792,7 +26203,6 @@ function alxRenderItens(){
     +'</table></div>';
 }
 
-
 function alxExcluirItem(idx){
   const it=ALX_ITENS[idx];
   if(!it){ showToast('Item não encontrado.','error'); return; }
@@ -27805,7 +26215,6 @@ function alxExcluirItem(idx){
   showToast('Item excluído.','success');
 }
 window['alxExcluirItem']=alxExcluirItem;
-
 
 function alxRenderMovRecentes(){
   const rec=document.getElementById('alx-mov-recentes');
@@ -27826,7 +26235,6 @@ function alxRenderMovRecentes(){
     }).join('');
 }
 
-
 function alxExcluirMov(i){
   const m=ALX_MOV[i];
   if(!m){ showToast('Movimentação não encontrada.','error'); return; }
@@ -27846,8 +26254,6 @@ function alxExcluirMov(i){
 }
 window['alxExcluirMov']=alxExcluirMov;
 window['alxRenderMovRecentes']=alxRenderMovRecentes;
-
-
 
 function alxLimparDuplicados(){
   const vistos={}, remover=[];
@@ -27900,10 +26306,7 @@ function alxRenderFaltas(){
 function _alxPopMovSel(){
   const sel=document.getElementById('alx-mov-item');
   if(!sel) return;
-  
-  
-  
-  
+
   const _linhas=ALX_ITENS.map((it,i)=>{
     const tam=(it.tam||'').trim();
     const cat=(it.cat||'').trim();
@@ -27927,11 +26330,10 @@ function _alxPopFuncSel(){
   const opcsFilter='<option value="">— Todos —</option>'+
     funcs.map(f=>`<option value="${esc(f.mat||'')}">${esc(f.nome||'?')}${f.mat?' — '+esc(f.mat):''}</option>`).join('');
   const sel3=document.getElementById('alx-func-sel');
-  
-  
+
   if(sel3){ const _cur=sel3.value; sel3.innerHTML=opcsFilter; if(_cur && [...sel3.options].some(o=>o.value===_cur)) sel3.value=_cur; }
   const sel2b=document.getElementById('alx-mov-resp');
-  if(sel2b){ const _c2=sel2b.value; /* opcs já setado acima */ if(_c2 && [...sel2b.options].some(o=>o.value===_c2)) sel2b.value=_c2; }
+  if(sel2b){ const _c2=sel2b.value;  if(_c2 && [...sel2b.options].some(o=>o.value===_c2)) sel2b.value=_c2; }
 }
 
 function alxRenderPorFunc(){
@@ -28110,10 +26512,6 @@ function alxFecharModal(){
   const modal=document.getElementById('alx-modal-item');
   if(modal) modal.style.display='none';
 }
-
-
-
-
 
 let _coordSigCtx = null;
 let _coordSigMode = null; 
@@ -28297,8 +26695,6 @@ function _coordPopAdvFuncs(){
 
 function advAtualizarNome(){} 
 
-
-
 function reuSalvar(){
   const titulo=(document.getElementById('reu-titulo')?.value||'').trim();
   if(!titulo){ showToast('Informe o título/assunto.','error'); return; }
@@ -28406,8 +26802,6 @@ function reuAbrirSig(reuId, mat){
   canvas.style.display='block';
   _coordInitCanvas();
 }
-
-
 
 function advSalvar(){
   const mat=document.getElementById('adv-mat')?.value||'';
@@ -28604,16 +26998,6 @@ function reuImprimir(id){
   w.document.close(); w.focus(); setTimeout(()=>w.print(),500);
 }
 
-
-
-
-
-
-
-
-
-
-
 function _bagsMovCronologicos(){
   return (BAGS_DB.mov||[]).map(function(m,i){ return {m,i}; }).filter(x=>x.m).sort(function(a,b){
     const ta=Date.parse(a.m.ts||a.m.data||'')||0;
@@ -28639,7 +27023,6 @@ function _bagsRecalcularTotais(){
   BAGS_DB.novos=novos;
   BAGS_DB.usados=usados;
 }
-
 
 function bagsRegistrarEntradaForn(fornNome, qtd, ticket){
   if(!fornNome || !(qtd>0)) return;
@@ -28807,8 +27190,6 @@ function bagsImprimirRelatorio(){
   w.document.close(); w.focus(); setTimeout(()=>w.print(),500);
 }
 
-
-
 function _coordInitCanvas(){
   const canvas=document.getElementById('coord-sig-canvas');
   if(!canvas) return;
@@ -28876,17 +27257,13 @@ function coordSigFechar(){
   _coordSigMode=null; _coordSigReuId=null; _coordSigMat=null; _coordSigAdvId=null;
 }
 
-
-
 function coordFuncRender(){
   const funcs=(typeof FUNCIONARIOS!=='undefined'?FUNCIONARIOS:[]).filter(f=>f.status!=='inativo');
   const busca=(document.getElementById('coord-func-busca')?.value||'').toLowerCase().trim();
 
-  
   const advCount={};
   (ADVERTENCIAS_DB||[]).forEach(a=>{ advCount[a.mat]=(advCount[a.mat]||0)+1; });
 
-  
   const grafDiv=document.getElementById('coord-func-grafico');
   if(grafDiv){
     
@@ -28920,7 +27297,6 @@ function coordFuncRender(){
     }
   }
 
-  
   const cardsDiv=document.getElementById('coord-func-cards');
   if(!cardsDiv) return;
 
@@ -29033,7 +27409,6 @@ function coordExecutarImpressao(){
   const incAdv=document.getElementById('cimp-adv')?.checked;
   const incEpi=document.getElementById('cimp-epi')?.checked;
 
-  
   const esc2=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const hoje=new Date().toLocaleDateString('pt-BR');
   
@@ -29049,11 +27424,9 @@ function coordExecutarImpressao(){
   const avLabel={bom:'🟢 Bom desempenho',atencao:'🟡 Requer atenção',critico:'🔴 Situação crítica'};
   const av=avLabel[obs.avaliacao]||'🟢 Bom desempenho';
 
-  
   const advsAll=(ADVERTENCIAS_DB||[]).filter(a=>a.mat===mat);
   const advsFilt=advsAll.filter(a=>inRange(a.data||'')).sort((a,b)=>(b.data||'')>(a.data||'')?1:-1);
 
-  
   const alxAll=(typeof ALX_MOV!=='undefined'?ALX_MOV:[]).filter(m=>m.mat===mat);
   const alxFilt=alxAll.filter(m=>inRange(brToISO(m.data||''))).slice(0,200);
 
@@ -29061,7 +27434,6 @@ function coordExecutarImpressao(){
     ?`Período: ${dtDe?dtDe.split('-').reverse().join('/'):'início'} até ${dtAte?dtAte.split('-').reverse().join('/'):'hoje'}`
     :'Período: todos os registros';
 
-  
   let secoes='';
 
   if(incObs){
@@ -29186,8 +27558,7 @@ function alxSalvarItem(){
     ALX_ITENS[idx]={...ALX_ITENS[idx], nome, cat, un, tam, qtd, min, preco, obs};
     showToast('✅ Item atualizado!','success');
   } else {
-    
-    
+
     const _k=nome+'|'+String(tam).toUpperCase();
     const _ja=ALX_ITENS.findIndex(x=>x && (String(x.nome||'').trim().toUpperCase()+'|'+String(x.tam||'').trim().toUpperCase())===_k);
     if(_ja>=0){
@@ -29231,9 +27602,6 @@ function alxSalvarMov(){
     before, after, ts:new Date().toISOString()
   });
 
-  
-  
-  
   let _epiAuto=false;
   try{
     if(tipo!=='entrada' && mat && typeof EPI_DB!=='undefined'){
@@ -29312,16 +27680,10 @@ function alxSalvarObs(){
   showToast('✅ Observação salva!','success');
 }
 
-
-
-
-
 let _chatConvAtiva = null;
 
 function hdrAtualizarBadge(){
-  
-  
-  
+
   try{
     const badge=document.getElementById('hdr-chat-badge');
     if(badge) badge.style.display='none';
@@ -29329,8 +27691,7 @@ function hdrAtualizarBadge(){
 }
 
 function hdrAbrirChat(){
-  
-  
+
   switchTab('chat');
   setTimeout(()=>{ try{ _chatAjustarAltura(); chatRenderConvs(); }catch(e){} },100);
 }
@@ -29697,13 +28058,7 @@ function _chatMsgsFromRemote(dChat){
   });
 }
 
-
-
-
 let _impDbKey = null;
-
-
-
 
 function _atualizarDicaScroll(tbodyId, dicaId){
   const tbody=document.getElementById(tbodyId);
@@ -29721,13 +28076,7 @@ function csAbrirImpureza(dbKey){
   const modal=document.getElementById('modal-impureza');
   if(!modal) return;
   const titulo=document.getElementById('imp-titulo');
-  
-  
-  
-  
-  
-  
-  
+
   const info=document.getElementById('imp-info');
   if(titulo) titulo.textContent='✏️ Editar Preço/kg e Impureza — Ticket '+(t.ticket||dbKey);
   if(info) info.innerHTML=`<b>Fornecedor:</b> ${esc(t.fornecedor||'—')} &nbsp;|&nbsp; <b>Data:</b> ${(t.criadoEm||'').slice(0,10)}`;
@@ -29737,11 +28086,7 @@ function csAbrirImpureza(dbKey){
   tbody.innerHTML=itens.length===0
     ?'<tr><td colspan="7" style="text-align:center;color:#aaa">Nenhum item no ticket</td></tr>'
     :itens.map((it,i)=>{
-      
-      
-      
-      
-      
+
       const bruto=Number(it.pesoBruto!=null?it.pesoBruto:(it.br||0));
       const liqOrig=Number(it.pesoLiq!=null?it.pesoLiq:(it.lq!=null?it.lq:bruto));
       const imp=Number(it.impureza||0);
@@ -29772,12 +28117,9 @@ function csRecalcRow(i,liqOrig,preco){
   const precoEl=document.getElementById('imp-preco-'+i);
   if(!impEl) return;
   const imp=parseFloat(impEl.value)||0;
-  
-  
+
   if(precoEl){ const _p=parseFloat(precoEl.value); if(!isNaN(_p)) preco=_p; }
-  
-  
-  
+
   const liqAjust=Math.max(liqOrig-imp,0);
   if(liqEl) liqEl.textContent=liqAjust.toFixed(3);
   if(totEl) totEl.textContent='R$ '+(liqAjust*preco).toLocaleString('pt-BR',{minimumFractionDigits:2});
@@ -29825,10 +28167,7 @@ function csSalvarImpureza(){
     totalKg+=liqAjust;
   });
   t.totalKgAjust=totalKg;
-  
-  
-  
-  
+
   t.totalGeral=t.itens.reduce(function(s,it){
     const liq=Number(it.pesoLiqAjust!=null?it.pesoLiqAjust:(it.pesoLiq!=null?it.pesoLiq:(it.pesoBruto||0)));
     const preco=Number(it.preco||0);
@@ -29837,10 +28176,7 @@ function csSalvarImpureza(){
     return s+tot;
   },0) + Number(t.acrescimo||0);
   t.totalGeral=_r2(t.totalGeral);
-  
-  
-  
-  
+
   var _cpTk=CONTAS_PAGAR.find(function(cp){ return cp.ticket===t.ticket && cp.status!=='Pago'; });
   var _jaPagoCP=_cpTk?Number(_cpTk.valorPago||0):0;
   t.saldoPagar=_r2(Number(t.totalGeral||0) - Number(t.adiantamento||0) + Number(t.saldoAnterior||0) - _jaPagoCP);
@@ -29854,13 +28190,7 @@ function csSalvarImpureza(){
       try{ renderContasPagar(); }catch(e){}
     }
   }catch(e){}
-  
-  
-  
-  
-  
-  
-  
+
   saveDB();
   csFecharImpureza();
   showToast('Desconto salvo! Valor e saldo recalculados.','success');
@@ -29868,14 +28198,8 @@ function csSalvarImpureza(){
   try{ renderTickets(); }catch(e){}
 }
 
-
-
-
 function _rodGetHistoricoExport(){
-  
-  
-  
-  
+
   try{
     const atual=_rodGetHistorico();
     if(Array.isArray(atual)&&atual.length){
@@ -30000,14 +28324,9 @@ function rodDownloadHistorico(){
 
 function rodSalvarPDF(){ rodImprimirHistorico(); }
 function rodAbrirCadastroRapido(){
-  
-  
-  
+
   om((_rodTipoAtual||'compra')==='venda' ? 'cliente' : 'fornecedor');
 }
-
-
-
 
 const _MESES_NOME=['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 function _anoAtual(){ return String(new Date().getFullYear()); }
@@ -30030,12 +28349,6 @@ function fiscalChave(){
   const a=document.getElementById('fiscal-sel-ano')?.value||_anoAtual();
   return _fPfx()+a+'-'+m;
 }
-
-
-
-
-
-
 
 function _fiscalPeriodoInfo(){
   const mes=document.getElementById('fiscal-sel-mes')?.value||'01';
@@ -30112,7 +28425,6 @@ function fiscalSubTab(tab){
   if(tab==='apuracao')fiscalRenderApuracao();
 }
 
-
 var _APUR_MESES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 function _apurAno(){ return (document.getElementById('apur-ano')||{}).value||_anoAtual(); }
 
@@ -30152,8 +28464,7 @@ function fiscalApurPuxar(mm){
   const _mesJaExistia=!!(FISCAL_APUR[_ak] && FISCAL_APUR[_ak].m && FISCAL_APUR[_ak].m[mm]);
   const m=_apurGetMes(ano,mm);
   m.fat=fat; m.compras=compras;
-  
-  
+
   if(!_mesJaExistia){
     const regime=_fiscalRegimeAtual();
     const rt=_REGIME_RATES[regime];
@@ -30178,7 +28489,6 @@ function fiscalRenderApuracao(){
   const numTd=(v,bold,cor)=>'<td style="text-align:right;padding:4px 6px;white-space:nowrap'+(bold?';font-weight:800':'')+(cor?';color:'+cor:'')+'">'+fmt(v)+'</td>';
   const numTdA=(x,v,bold,cor)=> x.ativo ? numTd(v,bold,cor) : '<td style="text-align:right;padding:4px 6px;color:#ccc">—</td>';
 
-  
   const meses=[]; let estIni=Number(FISCAL_APUR[_ak].estIni0||0); const lucroArr=[];
   for(let i=1;i<=12;i++){
     const mm=('0'+i).slice(-2); const d=_apurGetMes(ano,mm);
@@ -30217,7 +28527,6 @@ function fiscalRenderApuracao(){
   body+='<tr><td colspan="13" style="padding:6px 8px;font-size:.76rem;color:#888">Estoque Inicial de Janeiro (ponto de partida do ano): <input value="'+fmt(FISCAL_APUR[_ak].estIni0)+'" onchange="apurEdit(\'01\',\'estIni0\',this)" style="width:110px;text-align:right;border:1.5px solid #9ec5f0;background:#f2f8ff;color:#1565c0;font-weight:700;border-radius:5px;padding:3px 5px;font-size:.76rem"></td></tr>';
   tbl.innerHTML='<thead><tr>'+th+'</tr></thead><tbody>'+body+'</tbody>';
 
-  
   const tri=(L)=>{ if(L<=0) return {irpj:0,csll:0,tot:0}; const irpj=0.15*L+0.10*Math.max(0,L-60000); const csll=0.09*L; return {irpj:irpj,csll:csll,tot:irpj+csll}; };
   const tris=[[0,1,2],[3,4,5],[6,7,8],[9,10,11]];
   const nomes=['1º Tri (jan-mar)','2º Tri (abr-jun)','3º Tri (jul-set)','4º Tri (out-dez)'];
@@ -30267,8 +28576,6 @@ function fiscalSetEmpresa(emp){
   if(_pAnual && _pAnual.style.display!=='none' && typeof fiscalRenderAnual==='function') fiscalRenderAnual();
 }
 
-
-
 function _normProd(s){
   s=(s||'').trim();
   if(!s) return 'SEM PRODUTO';
@@ -30276,15 +28583,10 @@ function _normProd(s){
   return s.toUpperCase().replace(/\s+/g,' ').trim();
 }
 
-
-
-
-
 function _categoriaProduto(raw){
   const s=_normProd(raw);
   if(!s || s==='SEM PRODUTO') return 'SEM PRODUTO';
-  
-  
+
   if(/PAO FRANCES|SACO PLASTICO|^SPRAY( LIMPO)?$|FLUIDO (LIMPEZA|REFRIGERANTE)|GRAXA/.test(s)) return 'USO E CONSUMO';
   if(/INOX/.test(s)) return 'SUCATA DE INOX';
   if(/ALUMIN|LATINHA/.test(s)) return 'SUCATA DE ALUMINIO';
@@ -30302,24 +28604,14 @@ function _categoriaProduto(raw){
   if(/FERRAGEM/.test(s)) return 'SUCATA DE FERRO'; 
   if(/\bACO\b/.test(s)) return 'SUCATA DE FERRO'; 
   if(/FERRO/.test(s)) return 'SUCATA DE FERRO';
-  
-  
+
   if(/^(SUCATA\s*(DE\s*)?)?METAL(\s*SUCATA)?$/.test(s)) return 'SUCATA DE METAL';
-  
-  
-  
+
   if(/\bPERFIL\b|\bPANELA\b|\bESTAMPA(RIA)?\b|\bRODA\b|\bRADIADOR\b|\bCAVACO\b|\bCHAPA(S)?\b/.test(s)) return 'SUCATA DE ALUMINIO';
   return s; 
 }
 
-
-
 const _CATEGORIAS_METAL_CANONICAS = new Set(['SUCATA DE INOX','SUCATA DE ALUMINIO','SUCATA DE COBRE','SUCATA DE BATERIA','SUCATA DE LATAO','SUCATA DE BRONZE','SUCATA DE METAL DURO','SUCATA DE CHUMBO','ANTIMONIO','MAGNESIO','ZINCO','SUCATA DE FERRO']);
-
-
-
-
-
 
 function _kgDoItem(it){
   const kg=Number(it.kg||0);
@@ -30332,40 +28624,11 @@ function _kgDoItem(it){
   return 0;
 }
 
-
-
-
-
-
-
 let FISCAL_SALDO_INICIAL_2026 = [];
 let FISCAL_SALDO_INICIAL_DATA = '';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 let FISCAL_AJUSTE_ESTOQUE_2026 = [];
 let FISCAL_AJUSTE_ESTOQUE_DATA = '';
-
-
-
-
-
-
-
-
-
 
 let FISCAL_NCM_OVERRIDE_2026 = {};
 
@@ -30423,8 +28686,7 @@ function fiscalRenderEstoque(){
         estoque[prod].ent+=_kgDoItem(it);
       });
     });
-    
-    
+
     (db.saidas||[]).forEach(s=>{
       if(s.tipo==='Despesa'||s.tipo==='Imposto'||s.tipo==='Folha'||s.tipo==='Outros') return;
       const itens=Array.isArray(s.itens)?s.itens:[{produto:s.produto||'Sem produto',kg:Number(s.kg)||0}];
@@ -30462,7 +28724,6 @@ function fiscalRenderEstoque(){
   try{ fiscalRenderEstoqueFaixa(); }catch(_){ }
 }
 
-
 function fiscalRenderEstoqueFaixa(){
   const tb=document.getElementById('tb-fiscal-estoque-faixa');
   if(!tb) return;
@@ -30472,16 +28733,13 @@ function fiscalRenderEstoqueFaixa(){
   const _dIso=d=>{ if(!d)return''; d=String(d); if(d.indexOf('/')>=0){var p=d.split('/');return (p[2]||'')+'-'+(p[1]||'')+'-'+(p[0]||'');} return d; };
 
   const porProduto={};
-  
-  
+
   if(_fPfx()===''){
     FISCAL_SALDO_INICIAL_2026.forEach(si=>{
       if(!porProduto[si.produto]) porProduto[si.produto]={entradas:[],saida:0};
       porProduto[si.produto].entradas.push({data:FISCAL_SALDO_INICIAL_DATA, kg:si.kg, preco:si.preco, saldoInicial:true});
     });
-    
-    
-    
+
     FISCAL_AJUSTE_ESTOQUE_2026.forEach(aj=>{
       if(!porProduto[aj.produto]) porProduto[aj.produto]={entradas:[],saida:0};
       if(aj.kg>=0){
@@ -30571,10 +28829,6 @@ function fiscalRenderEstoqueFaixa(){
   tb.innerHTML=rows;
 }
 
-
-
-
-
 let _vrCtx=null;
 function fiscalAbrirVendaRapida(prod, precoCompra, precoSugerido, disponivel){
   if(!_fiscalGateLock('registrar venda')) return;
@@ -30643,10 +28897,8 @@ function fiscalSalvarVendaRapida(){
   _vrCtx=null;
 }
 
-
 const _TIPOS_DESPESA=['Despesa','Remessa','Folha / Salário','Imposto / Tributo'];
 function _isDespesa(tipo){ return _TIPOS_DESPESA.includes(tipo); }
-
 
 function _dateBrToISO(br){ if(!br)return''; const p=br.split('/'); return p.length===3?p[2]+'-'+p[1]+'-'+p[0]:br; }
 function _dateISOtoBr(iso){ if(!iso)return''; const p=iso.split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:iso; }
@@ -30795,8 +29047,6 @@ function fiscalSalvar(){
   try{ localStorage.setItem('mm_fiscal',JSON.stringify(FISCAL_DB)); }catch(e){}
   try{
     if(window._fbDB){
-      // Atualiza SOMENTE os meses/empresas alterados. Um set() do nó inteiro
-      // substituía documentos e devoluções gravados por outras telas/usuários.
       const base=(typeof _fbEnviadoOk!=='undefined'&&_fbEnviadoOk)?_fbEnviadoOk:{};
       const patch={};
       Object.keys(FISCAL_DB||{}).forEach(function(k){
@@ -30812,15 +29062,10 @@ function fiscalSalvar(){
   }catch(e){}
 }
 
-
-
 function _fiscalNorm(e, tipoDefault){
   if(Array.isArray(e.itens)) return e;
   return {...e, itens:[{produto:e.produto||'', kg:Number(e.kg)||0, valor:Number(e.valor)||0}], valorTotal:Number(e.valor)||0, tipo:e.tipo||tipoDefault, obs:e.obs||''};
 }
-
-
-
 
 function _fiscalRenderTabela(lista, tbId, totalElId, tipoDefault, corValor, fnExcluir, filtroFn=null, tipoArr='saidas', showPagamento=false){
   const tb=document.getElementById(tbId);
@@ -31571,7 +29816,6 @@ function fiscalLimparMes(){
   showToast(`Mês ${nomeMes} limpo!`,'success');
 }
 
-
 function _fiscalMesFechado(){
   const chave=fiscalChave();
   return !!(FISCAL_DB[chave]?.resumo?.fechado);
@@ -31638,7 +29882,6 @@ function _fiscalGateLock(acao){
   return _fiscalVerificarSenha(acao);
 }
 
-
 function fiscalAdicionarUsuario(){
 
   const existentes=Object.entries(USERS)
@@ -31688,7 +29931,6 @@ function fiscalSalvarUsuario(){
   showToast('Usuário "'+nome+'" criado e salvo no Firebase! ✅','success');
 }
 
-
 function fiscalDrop(e){
   e.preventDefault();
   document.getElementById('fiscal-drop-zone').style.background='#f8fff8';
@@ -31701,7 +29943,6 @@ function fiscalImportarArquivo(inp){
   _fiscalImportarLista(files);
   inp.value='';
 }
-
 
 function _garantirJSZip(cb){
   if(window.JSZip){ cb(); return; }
@@ -31845,7 +30086,6 @@ function _fiscalClassificar(desc, tipo, valor){
   const dl=(desc||'').toLowerCase();
   const tl=(tipo||'').toLowerCase();
 
-
   if(_KW_REMESSA.some(k=>dl.includes(k)||tl.includes(k)))
     return { isEntrada:false, tipoFinal:'Remessa' };
 
@@ -31855,21 +30095,17 @@ function _fiscalClassificar(desc, tipo, valor){
   if(_KW_IMPOSTO.some(k=>dl.includes(k)||tl.includes(k)))
     return { isEntrada:false, tipoFinal:'Imposto / Tributo' };
 
-
   if(_KW_DESPESA_FIXA.some(k=>dl.includes(k)))
     return { isEntrada:false, tipoFinal:'Despesa Fixa' };
 
-
   if(_KW_COMPRA.some(k=>dl.includes(k)))
     return { isEntrada:true, tipoFinal:'Compra Sucata' };
-
 
   if(tl.includes('receit')||tl.includes('venda')||dl.includes('venda '))
     return { isEntrada:false, tipoFinal:'Venda' };
 
   if(_RE_CPF.test(desc))
     return { isEntrada:true, tipoFinal:'Compra / CPF' };
-
 
   const isEntrada = valor < 0;
   return { isEntrada, tipoFinal: isEntrada ? 'Compra' : 'Receita / Venda' };
@@ -31911,7 +30147,6 @@ function _origemIsEntrada(origem){
   return null;
 }
 
-
 function _matchCadastro(_nome){ return null; }
 
 function fiscalParsearCSV(text){
@@ -31945,7 +30180,6 @@ function fiscalParsearCSV(text){
     if(iNum<0) iNum=_iCol(headers,'numero','nº','n°');
     const iCpfCnpj=_iCol(headers,'cpf','cnpj');
 
-
     const colInfo=`📋 Colunas do CSV: ${rawHeaders.join(' | ')}\n`
       +`✅ Mapeado → Data:${iData>=0?rawHeaders[iData]:'❌'} | Fornecedor:${iForn>=0?rawHeaders[iForn]:'❌'} | Material:${iDesc>=0?rawHeaders[iDesc]:'❌'} | Nº NF:${iNum>=0?rawHeaders[iNum]:'❌'} | Valor:${iValor>=0?rawHeaders[iValor]:'❌'} | Kg:${iQtd>=0?rawHeaders[iQtd]:'❌'}`;
     statusEl.style.whiteSpace='pre-line';
@@ -31976,9 +30210,7 @@ function fiscalParsearCSV(text){
       let isEntrada=null;
       let tipoForcado=null;
 
-
       if(iVendedor>=0){ isEntrada=false; tipoForcado='Venda'; }
-
 
       const descL=(descProd||'').toLowerCase();
       const pessoaL=pessoa.toLowerCase();
@@ -32008,7 +30240,6 @@ function fiscalParsearCSV(text){
       if(isEntrada===null) isEntrada=_origemIsEntrada(origem);
 
       if(isEntrada===null) isEntrada=_fiscalClassificar(pessoa+'|'+descProd, origem, valor).isEntrada;
-
 
       const tipoGrupo = tipoForcado || (isEntrada?'Compra Sucata':'Saída');
       const grpKey = num ? `NF:${num}:${tipoGrupo}` : `SEM-NF:${i}`;
@@ -32154,7 +30385,6 @@ function fiscalRenderAnual(){
     }).join('')+`<div style="background:#e8f5e9;border:2px solid #27ae60;border-radius:8px;padding:10px;text-align:center"><div style="font-size:.8rem;color:#27ae60;font-weight:700">TOTAL ANO</div><div style="font-weight:800;font-size:.95rem;color:#27ae60">R$ ${Number(totalFolha).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>`;
   }
 }
-
 
 const _REGIME_HINTS={
   simples:'Simples Nacional: pagamento unificado via DAS + ICMS separado conforme estado.',

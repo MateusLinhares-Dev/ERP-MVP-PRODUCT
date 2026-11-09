@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {listAdvanceBankOptions,createAdvance,changeAdvance} from '../server/application/finance-advances.js';
+import {listAdvanceBankOptions,createAdvance,changeAdvance} from '../server/modules/advances/application/advances.js';
 
 const finance={uid:'erp:thais',erpUser:'thais',erpAccess:true,canFinance:false,canAdvances:true,canBanking:false};
 const banking={uid:'erp:elaine',erpUser:'elaine',erpAccess:true,canFinance:false,canBanking:true};
@@ -94,7 +94,6 @@ test('aplicação não amplia regra de bancos nem publica extrato para perfil fi
   assert.match(frontend,/if\(!_ehCheque&&!bancoCod\)/);
   assert.match(frontend,/cheques:_chqLista/);
 });
-
 
 test('edição atualiza valor, banco e adiantamento de uma só vez',async()=>{
   const db=fakeDb(),advance=await createAdvance(finance,input,{db});
@@ -253,7 +252,6 @@ test('baixa ou alteração posterior do cheque impede exclusão destrutiva',asyn
     fornCod:'F-001',adtCod:made.advance.cod,expected:made.advance},{db}),{code:'CHEQUE_ALREADY_CLEARED',message:/reabra o cheque/});
   assert.equal(db.updates,1);
   assert.equal(db.state.erp.chequesControle[made.cheques[0].id].s,'C');
-  // Reaberto em "Cheques a compensar" (s:'A', cd:''), a exclusão volta a ser possível.
   Object.assign(db.state.erp.chequesControle[made.cheques[0].id],{s:'A',cd:''});
   const removed=await changeAdvance(finance,{action:'delete',operationId:'c1ecf4ba-cc27-4b1b-b1b1-47a3cb57fb95',
     fornCod:'F-001',adtCod:made.advance.cod,expected:made.advance},{db});

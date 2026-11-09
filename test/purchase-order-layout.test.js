@@ -51,7 +51,6 @@ test('estilo preserva tema do ERP em vez de copiar tema escuro do Bling',()=>{
   assert.doesNotMatch(css,/background:\s*#1[0-2]1[0-2]1[0-2]/i);
 });
 
-
 test('descrição detalhada usa ícone e modal em vez de input aberto na grade',()=>{
   assert.match(js,/phase4-po-detail-button/);
   assert.match(js,/phase4PurchaseOpenDescription/);

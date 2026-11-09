@@ -8,8 +8,6 @@ if(!match)throw new Error('Sincronizador sem lista explícita de nós');
 const nodes=[...match[1].matchAll(/'([^']+)'/g)].map((item)=>item[1]);
 const current=JSON.parse(fs.readFileSync(path.join(root,'docs/database.rules.baseline.json'),'utf8')); 
 
-// Apenas permissões por domínio. Mapeie novos nós antes de gerar regras novas.
-// Um módulo pode precisar de várias áreas de acesso para executar fluxos integrados.
 const groups={
   canInventory:`metais estoque estoqueDeleted bags bagsMov bagsMovDeleted`,
   canPurchasing:`tickets ticketsDeleted adtPorFornDeleted chequesPorFornDeleted saldoDevedor saldoDevedorDeleted adtItensDeleted chequeItensDeleted historico historicoDeleted`,
@@ -40,7 +38,6 @@ for(const [claim,list] of Object.entries(groups)){
 }
 const explicit=new Set(Object.keys(current.rules.erp).filter((key)=>!key.startsWith('$')));
 const metadata=new Set(['_ts','_user','_untomb']);
-// Acessos diretos do legado que não passam pelo sincronizador global.
 const directNodes={
   listaCompras:{read:'canShoppingList',write:'canShoppingList'},
   chequesControle:{read:'canFinance',write:'canFinance'},
@@ -69,8 +66,6 @@ const partyBankFields={
 };
 for(const [field,rule] of Object.entries(partyBankFields))partyBankRule.$partyKey.$index[field]={'.validate':rule};
 partyBankRule.$partyKey.$index.$other={'.validate':false};
-// Matrícula de cursos e documentos é gerenciada somente por API autenticada.
-// O Firebase Admin SDK escreve em erpTraining; clientes não acessam os dados diretamente.
 candidate.rules.erpTraining={'.read':false,'.write':false};
 for(const node of ['fornecedorRepasses','fornecedorRepassesCaixa','fornecedorRepasseOperations']){
   candidate.rules.erp[node]={'.read':false,'.write':false};
@@ -100,9 +95,6 @@ for(const [node,access] of Object.entries(directNodes)){
   const grant=(perm)=>perm==='admin'?`${auth} && auth.token.admin == true`:`${auth} && auth.token.${perm} == true`;
   candidate.rules.erp[node]={'.read':grant(access.read),'.write':grant(access.write)};
 }
-// Categorias de documentos são acessadas diretamente pelo Phase1Store.
-// Restringir esta coleção ao domínio de documentos e validar cada cadastro;
-// não habilitar o acesso genérico do nó pai.
 candidate.rules.erp.documentCategories={
   '.read':`${auth} && auth.token.canBusinessDocs == true`,
   '$categoryId':{
@@ -110,8 +102,6 @@ candidate.rules.erp.documentCategories={
     '.validate':"newData.hasChildren(['id','name']) && newData.child('id').isString() && newData.child('id').val() == $categoryId && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 120 && (!newData.child('createdAt').exists() || (newData.child('createdAt').isString() && newData.child('createdAt').val().length <= 60))"
   }
 };
-// Conciliação bancária: importações e eventos imutáveis e vinculados ao ator.
-// Nenhuma permissão de escrita no nó pai: a criação só ocorre sob $entryId/$eventId.
 const banking=`${auth} && auth.token.canBanking == true`;
 const actor=`newData.child('uid').val() == auth.uid && newData.child('importedBy').val() == auth.token.erpUser`;
 const eventActor=`newData.child('uid').val() == auth.uid && newData.child('actor').val() == auth.token.erpUser`;
@@ -135,15 +125,11 @@ candidate.rules.erp.bankReconciliationEvents={
   }
 };
 
-// Ledger de decisões avançadas. Apenas a API com credencial de serviço pode escrever.
-// Frontend possui leitura específica à área bancária, não escrita.
 candidate.rules.erp.bankReconciliationState={
   '.read':banking,
   '.write':false
 };
 
-// Tombstones de exclusão de compras são confirmados apenas pela API;
-// os sincronizadores legados continuam com acesso de leitura.
 const legacyCore=fs.readFileSync(path.join(root,'public/legacy/app-core.js'),'utf8');
 const legacyNames=[...new Set([...legacyCore.matchAll(/_criarSincroniaPorChave\(\s*['"]([^'"]+)/g)].map(m=>m[1]))];
 for(const name of legacyNames){
@@ -164,11 +150,9 @@ for(const name of legacyNames){
 }
 candidate.rules.erp.adiantamentos={
   '.read':`${auth} && (auth.token.canFinance == true || auth.token.canAdvances == true)`,
-  '.write':false // Apenas o Firebase Admin pode gravar adiantamentos.
+  '.write':false
 };
-// Protege também o marcador de versão usado pelo frontend, não coberto pelo array.
 candidate.rules.erp._appBuild={'.read':auth,'.write':`${auth} && auth.token.admin == true`};
-// Engenharia: recursos server-only e histórico restrito à identidade assinada.
 candidate.rules.erpHelp={'.read':false,'.write':false};
 candidate.rules.erpAgendaServices={'.read':false,'.write':false};
 candidate.rules.erpTelemetryRate={'.read':false,'.write':false};
@@ -180,8 +164,6 @@ for(const key of ['actorUid','actorLogin','action','module','entityType','entity
 const backupRule="auth != null && auth.token.erpAccess == true && auth.token.admin == true && (auth.token.erpUser == 'elaine' || (auth.token.engineer == true && auth.token.erpUser == 'engadministrator'))";
 candidate.rules.erp_snapshots['.read']=backupRule;
 candidate.rules.erp_snapshots['.write']=backupRule;
-// Compras consolidadas somente são excluídas pela API de manutenção financeira.
-// Pesagens não consolidadas continuam usando a exclusão local legada.
 const purchaseRule=candidate.rules.erp.tickets;
 const purchaseWrite=purchaseRule['.write'];
 delete purchaseRule['.write'];
@@ -192,7 +174,6 @@ candidate.rules.erp.purchaseDeleteOperations={'.read':false,'.write':false};
 const out=path.join(root,'database.rules.json');
 fs.writeFileSync(out,JSON.stringify(candidate,null,2)+'\n');
 fs.writeFileSync(path.join(root,'docs','database.rules.candidate.json'),JSON.stringify(candidate,null,2)+'\n');
-// A mesma fonte define os acessos do sincronizador e as rules implantáveis.
 const policy={version:1,nodes:{}};
 const special=(value)=>value===false?{mode:'none',claims:[]}:
   value===undefined?{mode:'none',claims:[]}:

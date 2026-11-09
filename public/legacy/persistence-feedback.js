@@ -1,7 +1,3 @@
-/* ERP — receipt-aware UI for legacy saves.
- * Does not grant permissions, hide failures, or write to Firebase.
- * A request to save is pending until the central sync reports an acknowledged batch.
- */
 (function (global) {
   'use strict';
   const original = typeof global.showToast === 'function' ? global.showToast.bind(global) : null;
@@ -67,7 +63,6 @@
   }
   global.showToast = function (message, type = 'success', duration = 4000) {
     const state = global.__ERP_CLOUD_SAVE_STATE__;
-    // Keep existing API/transaction successes untouched when the generic queue is idle.
     if (type === 'success' && state && state.pending && saveWords.test(String(message || ''))) {
       waiting.push({version: Math.max(0, Number(state.requested) || 0), message, type, duration});
       if (Date.now() - lastWaitingNotice > 4000) {

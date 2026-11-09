@@ -1,4 +1,3 @@
-/* Componentes operacionais unificados: não altera dados, eventos nem permissões. */
 :root{--erp-line:#dce5df;--erp-ink:#243a2c;--erp-muted:#64756b;--erp-green:#1c4c34;--erp-soft:#f5f8f6;--erp-focus:#27784e}
 #app-screen .content{background:#f3f6f4}
 #app-screen .tab-panel.active{max-width:100%;min-width:0}
@@ -44,7 +43,6 @@
 .erp-command-option:hover,.erp-command-option[aria-selected="true"]{background:#e8f3eb;color:#17452b}
 .erp-command-empty{padding:20px;color:#667569;text-align:center}
 .erp-command-help{border-top:1px solid var(--erp-line);font-size:.76rem;color:#637669;padding:12px 16px}
-/* Extrato bancário em largura útil, com tabela e filtros sem cortes. */
 #modal-body.erp-bank-statement{width:min(1080px,calc(100vw - 32px));max-height:min(90dvh,950px);overflow-y:auto;padding:20px 22px}
 .erp-statement-header{margin-bottom:16px}.erp-statement-header h3{font-size:1.18rem;color:#233f2c;margin:0 0 5px}.erp-statement-header p{color:#738176;margin:0}
 .erp-statement-totals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:18px}
@@ -72,7 +70,6 @@
 @media(max-width:1000px){.erp-statement-entry-fields{grid-template-columns:repeat(3,minmax(0,1fr))}.erp-statement-entry-fields .erp-statement-wide{grid-column:span 2}}
 @media(max-width:640px){.erp-statement-totals{grid-template-columns:repeat(2,minmax(0,1fr))}.erp-statement-entry-fields{grid-template-columns:1fr 1fr}.erp-statement-entry-fields .erp-statement-wide{grid-column:span 2}.erp-statement-filters>label{width:calc(50% - 6px)}.erp-statement-filters>input{max-width:100%;flex:1 1 100%}#modal-body.erp-bank-statement{padding:14px}}
 
-/* Saldos de legado fora da escala: não sobrepor valores ou controles. */
 .erp-bank-statement .erp-statement-totals strong{font-size:clamp(.78rem,1vw,1.06rem);line-height:1.4;overflow-wrap:anywhere;word-break:break-word}
 .erp-bank-statement .erp-ledger-precision-warning{padding:10px 13px;margin:0 0 14px;border:1px solid #e1c57a;border-radius:7px;background:#fff9e9;color:#725312;font-size:.78rem;line-height:1.45}
 .erp-bank-statement .erp-statement-table td.erp-money{max-width:260px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.45;text-align:right}

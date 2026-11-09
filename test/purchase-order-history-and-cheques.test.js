@@ -94,7 +94,6 @@ test('editar pedido altera materiais sem reaplicar adiantamentos e atualiza apen
     saveDB(){saved++;},saveContasPagar(){savedCp++;},
     fbSalvarImediato(){},registrarHistorico(){},itemNet(x){return Number(x.quantidade??x.pesoLiq??0);}
   };
-  // Pass a closure that works as it does in the browser, without `this` dependencies.
   ctx.tickets=()=>ctx.TICKETS_DB;
   const state={editKey:'k1',ticketSnapshot:JSON.stringify(ticket),supplierName:'JOAO ELIAS',supplierCode:'F3',originalTotal:1000,originalBalance:700,
     items:[{mat:'ALUMINIO',originalIndex:0,ident:'LIMPO',quantidade:100,pesoBruto:100,preco:10},

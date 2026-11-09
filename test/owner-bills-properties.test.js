@@ -7,7 +7,7 @@ import vm from 'node:vm';
 const root=path.resolve(import.meta.dirname,'..');
 const src=fs.readFileSync(path.join(root,'public/modules/phase3/phase3-homologation.js'),'utf8');
 const css=fs.readFileSync(path.join(root,'public/modules/phase3/phase3-homologation.css'),'utf8');
-const chunk=src.split('/* Contas pessoais da Dona — separadas por imóvel, sem alterar pagamentos anteriores */')[1]?.split('/* Adiantamentos: ticket selecionável')[0];
+const chunk=(src.includes('let ownerBills={};')?('let ownerBills={};'+src.split('let ownerBills={};')[1]).split("function supplierTicketOptions(fornCod,current=''){")[0]:undefined);
 
 function harness(records){
   assert.ok(chunk,'Seção Contas da Dona deve existir');

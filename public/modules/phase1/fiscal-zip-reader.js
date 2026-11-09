@@ -1,9 +1,3 @@
-/**
- * Leitor local de arquivos ZIP que contêm XML de NF-e.
- * Sem CDN e sem persistência: extrai somente entradas .xml e limita tamanho,
- * quantidade e expansão para reduzir riscos de arquivos corrompidos / zip bombs.
- * Suporta ZIP padrão (store / deflate), não ZIP64, criptografia nem ZIP multipart.
- */
 const ZIP_LIMIT = 32 * 1024 * 1024;
 const XML_LIMIT = 2_500_000;
 const XML_COUNT_LIMIT = 300;
@@ -49,7 +43,6 @@ export async function extractXmlsFromZip(file) {
   if (!file || file.size < 22 || file.size > ZIP_LIMIT) throw Error('O ZIP deve ter até 32 MB e não pode estar vazio.');
   const bytes = new Uint8Array(await file.arrayBuffer());
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  // End of Central Directory fica nos 65.535 bytes finais (comentário ZIP opcional).
   let eocd = -1;
   for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 22 - 65535); i--) {
     if (u32(dv, i) === 0x06054b50 && i + 22 + u16(dv, i+20) === bytes.length) { eocd=i; break; }

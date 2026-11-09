@@ -1,7 +1,3 @@
-// Transações do NAVEGADOR exercitadas com o SDK compat real (@firebase/database-compat,
-// o mesmo código do firebase-database-compat.js carregado no browser) contra o
-// servidor RTDB simulado. Reproduz o "editar vale sempre falha" causado pelo
-// cache frio e prova a correção (window.__erpRunTransaction).
 import test,{before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';

@@ -50,7 +50,6 @@ function normalizeCityUf(entity){
 }
 function bankButton(kind,key,name){
   if(!key)return '<span class="phase4-master-bank-hint">Salve o cadastro para liberar múltiplas contas bancárias.</span>';
-  // Parâmetros em JSON escapado: nomes com apóstrofos não quebram handlers JS.
   const jsArg=value=>esc(JSON.stringify(String(value||'')));
   return '<button type="button" class="phase4-master-secondary" onclick="phase3OpenPartyBanks('+jsArg(kind)+','+jsArg(key)+','+jsArg(name)+')">🏦 Gerenciar contas bancárias</button>';
 }
@@ -120,8 +119,6 @@ function employeeForm(entity,index){
   return top(editing?'Editar funcionário':'Novo funcionário','Cadastro de RH utilizado em folha, ponto, EPI, viagens e coordenação.',save)+section('Dados cadastrais','Identificação e vínculo do funcionário.',identification)+section('Contato','Canais de contato do colaborador.',contact)+section('Endereço','Dados opcionais para cadastro completo.',address)+section('Remuneração e pagamento','Valores usados pelos módulos financeiros de RH.',payroll)+section('Contrato e alertas','Datas de experiência e lembretes.',alerts)+'<div class="phase4-master-bottom"><button type="button" class="phase4-master-outline" onclick="cm()">Cancelar</button><button type="button" class="phase4-master-save" onclick="'+save+'">Salvar</button></div>';
 }
 
-// Clientes e fornecedores compartilham a navegação visual. Os módulos/coleções e
-// respectivos controles de acesso permanecem separados para não afetar integrações.
 const PARTY_TABS={cliente:'clientes',fornecedor:'fornecedores'};
 let editingParty='';
 function partyAccess(kind){
@@ -134,7 +131,6 @@ function ensurePartyShell(kind){
   if(!panel)return null;
   let shell=document.getElementById('phase4-party-'+id);
   if(shell)return shell;
-  // Move only DOM nodes; no table is recreated or detached from its legacy handlers.
   const listing=document.createElement('div');
   listing.className='phase4-master-listing';
   while(panel.firstChild)listing.appendChild(panel.firstChild);
@@ -167,8 +163,6 @@ function updatePartyShell(kind,mode){
     const target=button.dataset.partyTarget;
     button.classList.toggle('active',target===PARTY_TABS[kind]);
     button.setAttribute('aria-current',target===PARTY_TABS[kind]?'page':'false');
-    // A permissão é validada no clique pelo switchTab protegido,
-    // não congelada no bootstrap antes de a sessão ser carregada.
   });
   shell.querySelectorAll('[data-party-view]').forEach(function(button){
     const isActive=button.dataset.partyView===mode;
@@ -198,8 +192,6 @@ function inlinePartyForm(kind,entity,index){
   if(!body)return;
   editingParty=kind;
   const markup=kind==='fornecedor'?supplierForm(entity):clientForm(entity,index);
-  // Só os formulários de clientes/fornecedores usam navegação inline.
-  // O modal de funcionários e de documentos mantém o comportamento original.
   body.innerHTML=markup.replaceAll('onclick="cm()"','onclick="phase4MasterCancel()"');
   updatePartyShell(kind,'form');
   global.phase4MasterTogglePerson(kind==='fornecedor'?(entity?'ef':'nf'):(entity?'ec':'nc'));
@@ -219,7 +211,6 @@ global.phase4MasterShowList=function(kind){
   if(!PARTY_TABS[kind])return;
   editingParty='';
   updatePartyShell(kind,'list');
-  // Atualização apenas da listagem existente; persistência continua nos repositórios legados.
   try{if(kind==='cliente'&&typeof renderClientes==='function')renderClientes();
     if(kind==='fornecedor'&&typeof renderTabelaFornecedores==='function')renderTabelaFornecedores();}catch(e){console.warn('[master-data] lista',e);}
 };
@@ -236,8 +227,6 @@ function initPartyShells(){
 }
 document.addEventListener('erp:ready',initPartyShells);
 
-// Campo visualmente apagado não impede edição nem o salvamento legado: é necessário disabled.
-// O valor é mantido durante a alternância; uma remoção só ocorre após confirmação no Salvar.
 global.phase4MasterTogglePerson=function(prefix){
   const type=val(prefix+'-pessoa');
   const cpfInput=document.getElementById(prefix+'-cpf');
@@ -251,8 +240,6 @@ global.phase4MasterTogglePerson=function(prefix){
   }
 };
 
-// A Receita Federal passou a emitir também CNPJs alfanuméricos em julho de 2026.
-// A máscara deste formulário aceita letras nas primeiras 12 posições e dois DVs numéricos.
 global.phase4MasterFormatCnpj=function(element){
   if(!element)return;
   const raw=String(element.value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,14);
@@ -290,7 +277,7 @@ function validCnpj(value){
 }
 function preparePersonDocument(prefix){
   const person=document.getElementById(prefix+'-pessoa');
-  if(!person)return true; // Outras telas legadas não usam o seletor novo.
+  if(!person)return true;
   const type=person.value;
   if(type!=='PF'&&type!=='PJ')return false;
   const active=document.getElementById(prefix+(type==='PF'?'-cpf':'-cnpj'));
@@ -298,7 +285,6 @@ function preparePersonDocument(prefix){
   const docType=type==='PF'?'CPF':'CNPJ';
   if(!active||!inactive)return false;
   const data=String(active.value||'').trim();
-  // Documentos não eram obrigatórios no legado: só validamos quando informados.
   if(data&&!(type==='PF'?validCpf(data):validCnpj(data))){
     alert(docType+' inválido. Confira os dígitos antes de salvar.');
     active.focus();
@@ -358,7 +344,6 @@ if(typeof legacy.saveEmployee==='function')global.salvarEditFuncionario=function
   const idx=Number(document.getElementById('efn-idx')?.value),extras=employeeExtras('efn');const result=legacy.saveEmployee.apply(this,arguments);const entity=FUNCIONARIOS?.[idx];if(entity){Object.assign(entity,extras);persistEmployees();}return result;
 };
 
-// Hidden bank fields keep legacy client save compatible while the visible action uses multibank.
 function clientBankHidden(entity,prefix){return entity;}
 
 if(typeof legacy.openModal==='function')global.om=function(type){

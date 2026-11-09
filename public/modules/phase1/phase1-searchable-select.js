@@ -1,5 +1,3 @@
-/* Seletor pesquisável para cadastros extensos. Mantém o <select> original como fonte
-   de verdade e preserva todos os onchange, valores e regras dos módulos legados. */
 (function (global) {
   'use strict';
 
@@ -48,7 +46,6 @@
     list.hidden = true;
     host.append(input, arrow, list);
     select.insertAdjacentElement('afterend', host);
-    // Não retirar ou substituir o select: o código legado consulta seu ID e valor.
     select.classList.add('erp-search-select-native');
 
     let opened = false, page = 0, activeIndex = -1, matches = [];
@@ -132,7 +129,6 @@
       select.value = value;
       close();
       input.value = labelFor(select);
-      // Dispara handlers existentes, inclusive os inline onchange da Rodoviária.
       select.dispatchEvent(new Event('input', { bubbles: true }));
       select.dispatchEvent(new Event('change', { bubbles: true }));
     }
@@ -160,7 +156,6 @@
       }
     });
     input.addEventListener('blur', () => {
-      // O clique em opção é processado antes da perda de foco.
       setTimeout(() => { if (!host.contains(document.activeElement)) close(); }, 0);
     });
     select.addEventListener('change', () => { if (opened) close(); syncLabel(); });
@@ -189,7 +184,6 @@
       if (select) enhance(select, { placeholder, label });
     });
   }
-  // Os modais de adiantamento e cheques são reconstruídos pelo código legado.
   const modalBody = document.getElementById('modal-body');
   if (modalBody) new MutationObserver(enhanceDefaults).observe(modalBody, { childList: true, subtree: false });
   enhanceDefaults();
