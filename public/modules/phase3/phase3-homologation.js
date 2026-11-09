@@ -789,10 +789,11 @@ function advanceSumForTicket(ticket){
   const base=ticketAdvanceBase(t);
   return Math.round(((base==null?Number(t.adiantamento||0):base)+externalAdvanceSum(ticket,t))*100)/100;
 }
+const serverConfirmedPurchase=t=>Boolean(t&&t._purchaseOperationId);
 function updateTicketAdvance(ticket,totalAdvance){
   if(!ticket)return false;
   const key=resolveTicketKey(ticket);if(!key)return false;
-  let t;try{t=TICKETS_DB[key];}catch(e){}if(!t)return false;
+  let t;try{t=TICKETS_DB[key];}catch(e){}if(!t||serverConfirmedPurchase(t))return false;
   const total=Number(t.totalGeral||0),saldoAnterior=Number(t.saldoAnterior||0),adt=Math.max(0,Math.round(Number(totalAdvance||0)*100)/100),saldo=Math.round((total-adt+saldoAnterior)*100)/100;
   const changed=Math.abs(Number(t.adiantamento||0)-adt)>0.005||Math.abs(Number(t.saldoPagar||0)-saldo)>0.005;
   t.adiantamento=adt;t.saldoPagar=saldo;
@@ -816,7 +817,7 @@ function reconcileKnownLinkedAdvances(){
   let changed=false;
   Object.values(ticketDb()).forEach(t=>{
     const ticket=String(t?.ticket||'').trim();
-    if(!ticket||ticketAdvanceBase(t)==null)return;
+    if(!ticket||serverConfirmedPurchase(t)||ticketAdvanceBase(t)==null)return;
     if(reconcileAdvanceTicket(ticket))changed=true;
   });
   return changed;
@@ -858,6 +859,7 @@ if(typeof legacyCorrectPurchaseAdvance==='function')global.salvarAdiantamentoCom
   let key=resolveTicketKey(currentPurchaseTicketKey)||resolveTicketKey(String($('#dc-titulo')?.textContent||'').match(/T\d+/i)?.[0]||'');
   const t=key?ticketDb()[key]:null;
   if(!t){notify('Ticket não encontrado para corrigir o adiantamento.','error');return;}
+  if(serverConfirmedPurchase(t)){notify('Esta compra foi confirmada pelo servidor. Para mudar o adiantamento, use Editar no Histórico de compras.','info');return;}
   const ticket=String(t.ticket||key),antigo=Number(t.adiantamento||0);
   if(Math.abs(novo-antigo)<0.005){$('#dc-adt-editor')?.replaceChildren();return;}
   if(!confirm(`Trocar o adiantamento desta compra de R$ ${money(antigo)} para R$ ${money(novo)}?\n\nIsso recalcula o Saldo a Pagar e a Conta a Pagar desta compra.`))return;

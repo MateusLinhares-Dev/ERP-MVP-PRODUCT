@@ -380,7 +380,8 @@ function _cpIdDeterministico(c){
   return 'CPX'+Math.abs(h).toString(36);
 }
 
-function _cpDeletedParaObjeto(){ const obj={}; CONTAS_PAGAR_DELETED.forEach(function(id){ obj[id]=true; }); return obj; }
+function _cpTombstoneDoCliente(id){ return Boolean(id) && !String(id).startsWith('CPPO_'); }
+function _cpDeletedParaObjeto(){ const obj={}; CONTAS_PAGAR_DELETED.forEach(function(id){ if(_cpTombstoneDoCliente(id)) obj[id]=true; }); return obj; }
 let _cpDeletedMigrando=false;
 function _cpDeletedMigrar(){
   if(_cpDeletedMigrando || !window._fbDB) return;
@@ -395,14 +396,14 @@ function _cpDeletedMigrar(){
 function _cpDeletedCarregarDeRemoto(remotoBruto){
   if(Array.isArray(remotoBruto)){
     if(!remotoBruto.length) return;
-    remotoBruto.forEach(function(id){ CONTAS_PAGAR_DELETED.add(id); });
+    remotoBruto.forEach(function(id){ if(_cpTombstoneDoCliente(id)) CONTAS_PAGAR_DELETED.add(id); });
     try{ localStorage.setItem('mm_cp_deletados', JSON.stringify([...CONTAS_PAGAR_DELETED])); }catch(e){}
     _cpDeletedMigrar();
     return;
   }
   if(remotoBruto && typeof remotoBruto==='object'){
     let mudou=false;
-    Object.keys(remotoBruto).forEach(function(id){ if(remotoBruto[id] && !CONTAS_PAGAR_DELETED.has(id)){ CONTAS_PAGAR_DELETED.add(id); mudou=true; } });
+    Object.keys(remotoBruto).forEach(function(id){ if(remotoBruto[id] && _cpTombstoneDoCliente(id) && !CONTAS_PAGAR_DELETED.has(id)){ CONTAS_PAGAR_DELETED.add(id); mudou=true; } });
     if(mudou){ try{ localStorage.setItem('mm_cp_deletados', JSON.stringify([...CONTAS_PAGAR_DELETED])); }catch(e){} }
   }
 }
@@ -561,17 +562,27 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
 function _cpIdxPorId(id){ return id ? CONTAS_PAGAR.findIndex(c=>c && c.id===id) : -1; }
 function _removerCPporIndice(idx){
   const c = CONTAS_PAGAR[idx];
-  if(c && c.id){
+  if(c && _cpTombstoneDoCliente(c.id)){
     CONTAS_PAGAR_DELETED.add(c.id);
     try{ localStorage.setItem('mm_cp_deletados', JSON.stringify([...CONTAS_PAGAR_DELETED])); }catch(e){}
   }
   CONTAS_PAGAR.splice(idx,1);
 }
 
+function _cpGeridaPeloServidor(c){
+  return Boolean(c) && (String(c.id||'').startsWith('CPPO_') || Number(c.parcelas||0)>1);
+}
+function _compraConfirmadaNoServidor(t){
+  return Boolean(t && t._purchaseOperationId);
+}
+function _avisarCompraDoServidor(){
+  showToast('Esta compra foi confirmada pelo servidor. Para mudar valores, adiantamentos ou parcelas, use Editar no Histórico de compras.','info',7000);
+}
+
 function _cpAutoLimparDuplicatas(){
   const porChave={};
   CONTAS_PAGAR.forEach(function(c,i){
-    if(!c || !c.ticket || c.status==='Pago') return;
+    if(!c || !c.ticket || c.status==='Pago' || _cpGeridaPeloServidor(c)) return;
     const chave=c.ticket+'|'+c.status+'|'+Number(c.valor||0).toFixed(2);
     (porChave[chave]=porChave[chave]||[]).push(i);
   });
@@ -589,7 +600,7 @@ function _cpLimparDuplicatasExatas(){
   const vistos={};
   const remover=[];
   CONTAS_PAGAR.forEach(function(c,i){
-    if(!c) return;
+    if(!c || _cpGeridaPeloServidor(c)) return;
     const chave=[c.ticket||'', c.desc||'', c.cred||'', Number(c.valor||0).toFixed(2), c.venc||'', c.status||'', c.dataPgto||''].join('|');
     if(Object.prototype.hasOwnProperty.call(vistos,chave)){
       remover.push(i);
@@ -5417,7 +5428,7 @@ function loadDB(){
       }
     }catch(e){}
     const _cpd = localStorage.getItem('mm_cp_deletados');
-    if(_cpd){ try{ JSON.parse(_cpd).forEach(id=>CONTAS_PAGAR_DELETED.add(id)); }catch(e){} }
+    if(_cpd){ try{ JSON.parse(_cpd).forEach(id=>{ if(_cpTombstoneDoCliente(id)) CONTAS_PAGAR_DELETED.add(id); }); }catch(e){} }
     loadUsers();
     const fne=localStorage.getItem('mm_funcionarios_edit');
     if(fne){ const arr=JSON.parse(fne); arr.forEach(e=>{ const f=FUNCIONARIOS.find(x=>x.mat===e.mat); if(f) Object.assign(f,e); }); }
@@ -9558,6 +9569,7 @@ function editarAdiantamentoCompra(){
 function salvarAdiantamentoCompra(){
   const t=TICKETS_DB[_dcDbKey];
   if(!t){ showToast('Ticket não encontrado.','error'); return; }
+  if(_compraConfirmadaNoServidor(t)){ _avisarCompraDoServidor(); return; }
   const raw=(document.getElementById('dc-adt-novo')?.value||'').trim();
   
   let s=raw.replace(/[^0-9.,]/g,'');
@@ -9589,6 +9601,7 @@ function salvarAdiantamentoCompra(){
 function adicionarItemTicket(){
   const t=TICKETS_DB[_dcDbKey];
   if(!t){ showToast('Ticket não encontrado.','error'); return; }
+  if(_compraConfirmadaNoServidor(t)){ _avisarCompraDoServidor(); return; }
   const matEl=document.getElementById('dc-add-mat');
   const brEl=document.getElementById('dc-add-br');
   const lqEl=document.getElementById('dc-add-lq');
@@ -9643,6 +9656,7 @@ function _recalcTotaisCompra(t){
 function lancarValorCompra(sinal){
   const t=TICKETS_DB[_dcDbKey];
   if(!t){ showToast('Ticket não encontrado.','error'); return; }
+  if(_compraConfirmadaNoServidor(t)){ _avisarCompraDoServidor(); return; }
   const vEl=document.getElementById('dc-add-valor');
   const oEl=document.getElementById('dc-add-valor-obs');
   let raw=(vEl&&vEl.value||'').trim().replace(/[^0-9.,]/g,'');
@@ -9682,6 +9696,7 @@ function adicionarValorCompra(){ lancarValorCompra(1); }
 function removerAcrescimoCompra(idx){
   const t=TICKETS_DB[_dcDbKey];
   if(!t||!Array.isArray(t.acrescimos)||!t.acrescimos[idx]) return;
+  if(_compraConfirmadaNoServidor(t)){ _avisarCompraDoServidor(); return; }
   const a=t.acrescimos[idx];
   if(!confirm('Remover o valor extra de R$ '+Number(a.v||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+(a.obs?(' ('+a.obs+')'):'')+' desta compra?')) return;
   t.acrescimos.splice(idx,1);
@@ -18458,6 +18473,10 @@ function excluirContaPagar(idx, id){
   if(id){ const fresh=_cpIdxPorId(id); if(fresh>=0) idx=fresh; }
   const conta = CONTAS_PAGAR[idx];
   if(!conta) return;
+  if(_cpGeridaPeloServidor(conta)){
+    showToast('Esta conta pertence a um pedido de compra. Para mudar ou excluir, edite as parcelas ou exclua o pedido no Histórico de compras.','info',8000);
+    return;
+  }
   const idAlvo = id || conta.id || '';
   const grupoId = conta.grupoId;
   
