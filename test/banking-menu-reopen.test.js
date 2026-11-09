@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {executeReconciliation} from '../server/application/reconciliation-service.js';
+import {executeReconciliation} from '../server/modules/banking/application/reconciliation.js';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const user={uid:'test',erpUser:'elaine',erpAccess:true,canBanking:true,canFinance:true};
 function fakeDatabase(){

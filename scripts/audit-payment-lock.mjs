@@ -1,4 +1,3 @@
-// Diagnóstico somente leitura. NÃO remove locks nem altera registros financeiros.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -43,7 +42,7 @@ async function main(){
     data=JSON.parse(await fs.readFile(snapArg.slice(11),'utf8'));
     if(data?.rules)throw new Error('Arquivo de regras não é um snapshot do banco.');
   }else{
-    const {getFirebaseAdmin}=await import('../server/infrastructure/firebase-admin.js');
+    const {getFirebaseAdmin}=await import('../server/shared/firebase/firebase-admin.js');
     const {db}=getFirebaseAdmin();
     const payables=(await db.ref('erp/contasPagar').get()).val()||{};
     const matching=rows(payables).filter(([p,r])=>payableId?(p===payableId||clean(r.id)===payableId):clean(r.ticket)===ticketNo);

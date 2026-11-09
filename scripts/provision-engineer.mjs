@@ -1,11 +1,9 @@
-/** Provisionamento restrito: execute localmente com FIREBASE_* e ENGINEER_BOOTSTRAP_PASSWORD. Nunca inclua senha em código/CLI. */
-// Não carregue .env.erp.local: poderia sobrescrever o projeto HML explicitamente selecionado.
-import { getFirebaseAdmin } from '../server/infrastructure/firebase-admin.js';
-import { FirebaseUserRepository } from '../server/infrastructure/user-repository.js';
-import { hashPassword,verifyPassword } from '../server/infrastructure/password-hasher.js';
-import { sanitizeProfile } from '../server/domain/user.js';
-import { AuditRepository } from '../server/infrastructure/audit-repository.js';
-import { runtimeEnvironment } from '../server/config/runtime-security.js';
+import { getFirebaseAdmin } from '../server/shared/firebase/firebase-admin.js';
+import { FirebaseUserRepository } from '../server/modules/access/infrastructure/user-repository.js';
+import { hashPassword,verifyPassword } from '../server/modules/access/infrastructure/password-hasher.js';
+import { sanitizeProfile } from '../server/modules/access/domain/user.js';
+import { AuditRepository } from '../server/modules/audit/infrastructure/audit-repository.js';
+import { runtimeEnvironment } from '../server/shared/config/runtime-security.js';
 
 const password = String(process.env.ENGINEER_BOOTSTRAP_PASSWORD || '');
 const project = String(process.env.FIREBASE_PROJECT_ID || '');

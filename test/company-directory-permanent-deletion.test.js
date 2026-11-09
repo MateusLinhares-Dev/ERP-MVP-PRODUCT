@@ -6,7 +6,7 @@ import {runInNewContext} from 'node:vm';
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const api=read('api/admin/employee-companies.js');
 const core=read('public/legacy/app-core.js');
-const brand=read('server/application/get-public-branding.js');
+const brand=read('server/modules/company/application/get-public-branding.js');
 const sync=read('public/legacy/firebase-sync.js');
 
 function apiFunctions(){

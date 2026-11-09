@@ -8,7 +8,7 @@ const hml = fs.readFileSync('.env.hml.example','utf8');
 const prod = fs.readFileSync('.env.production.example','utf8');
 const ignore = fs.readFileSync('.vercelignore','utf8');
 const configApi = fs.readFileSync('api/config.js','utf8');
-const runtime = fs.readFileSync('server/config/runtime-security.js','utf8');
+const runtime = fs.readFileSync('server/shared/config/runtime-security.ts','utf8');
 const guide = fs.readFileSync('docs/DEPLOY_LOCAL_HML_PROD_V30.md','utf8');
 const verifier = fs.readFileSync('scripts/verify-deployment-artifacts.mjs','utf8');
 
@@ -146,7 +146,6 @@ test('v30 successful save only clears pending state when no newer change arrived
   assert.match(firebaseSyncV30,/const _semMudancaNova=_fbChangeVersion===_versaoSalvar/);
 });
 
-
 test('v30 inventory keeps every material condition as its own stock key',()=>{
   assert.match(appCoreV30,/const IDENT_SEPARA_ESTOQUE = new Set\(IDENT\)/);
   assert.match(appCoreV30,/function _materialEfetivoDoItem\(item\)/);
@@ -200,7 +199,6 @@ test('v30 supplier price editor clearly marks the row being edited by keyboard o
   assert.match(legacyStylesV30,/\.price-edit-input:focus/);
   assert.match(legacyStylesV30,/box-shadow\s*:\s*inset\s+5px\s+0\s+0\s+var\(\s*--accent\s*\)/);
 });
-
 
 test('v30 purchase receipt snapshots and renders every advance and cheque that composes the deduction',()=>{
   const saveStart=appCoreV30.indexOf('function salvarCompra(');

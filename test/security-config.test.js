@@ -4,7 +4,7 @@ import test from 'node:test';
 
 import {
   buildSecurityClaims,
-} from '../server/domain/access.js';
+} from '../server/modules/access/domain/access-claims.js';
 
 test('claims da dona/admin incluem novos módulos protegidos', () => {
   const claims = buildSecurityClaims(

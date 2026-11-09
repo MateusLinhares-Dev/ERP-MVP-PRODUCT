@@ -5,8 +5,8 @@ import vm from 'node:vm';
 
 const supplierSource = fs.readFileSync(new URL('../public/legacy/supplier-compat.js', import.meta.url), 'utf8');
 const phase3Full = fs.readFileSync(new URL('../public/modules/phase3/phase3-homologation.js', import.meta.url), 'utf8');
-const start = phase3Full.indexOf('/* Bancos múltiplos em cliente e fornecedor + compatibilidade com legado */');
-const end = phase3Full.indexOf('/* Preços: uma única pesquisa integrada à própria lista da entidade */', start);
+const start = phase3Full.indexOf('let partyBanks={};');
+const end = phase3Full.indexOf('function priceComboOptions(select,kind){', start);
 assert.ok(start >= 0 && end > start, 'bloco real de contas bancárias localizado');
 const bankSource = phase3Full.slice(start, end);
 

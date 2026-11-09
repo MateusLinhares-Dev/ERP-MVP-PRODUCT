@@ -17,19 +17,16 @@
 <link rel="stylesheet" href="/legacy/styles.css">
 <link rel="stylesheet" href="/legacy/professional-ui.css?v=20261104-credit-ledger-fix-v2">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <!-- Firebase SDK -->
-  
+    
 </head>
 <body>
 
-<!-- Firebase loading overlay -->
 <div id="fb-loading" style="display:none;position:fixed;inset:0;background:rgba(10,25,18,.85);z-index:9999;flex-direction:column;align-items:center;justify-content:center;color:#fff">
   <div style="font-size:2.5rem;margin-bottom:16px">☁️</div>
   <div style="font-size:1.1rem;font-weight:700">Carregando dados da nuvem...</div>
   <div style="font-size:.85rem;color:#a5d6a7;margin-top:8px">Sincronizando com Firebase</div>
 </div>
 
-<!-- ══════ LOGIN ══════ -->
 <div id="login-screen">
   <div class="login-box">
     <div class="login-logo" data-brand-logo></div>
@@ -48,7 +45,6 @@
   </div>
 </div>
 
-<!-- ══════ APP ══════ -->
 <div id="app-screen">
 
   <div class="header">
@@ -76,34 +72,29 @@
 
   <div class="app-body">
   <div class="sidebar" id="sidebar">
-    <!-- Toggle -->
-    <div class="sidebar-toggle" onclick="toggleSidebar()" title="Recolher menu">
+        <div class="sidebar-toggle" onclick="toggleSidebar()" title="Recolher menu">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </div>
-    <!-- User info -->
-    <div class="sb-user">
+        <div class="sb-user">
       <div class="sb-av" id="wbav">E</div>
       <div class="sb-info">
         <div class="sb-name" id="wbname">—</div>
         <div class="sb-role" id="wbdesc">—</div>
       </div>
     </div>
-    <!-- Nav items built by renderNav() -->
-    <div id="nav-bar" style="display:flex;flex-direction:column;flex:1;overflow-y:auto;padding-bottom:12px"></div>
+        <div id="nav-bar" style="display:flex;flex-direction:column;flex:1;overflow-y:auto;padding-bottom:12px"></div>
   </div>
 
   <div class="content">
 
-    <!-- DASHBOARD -->
-    <div class="tab-panel" id="tab-dashboard">
+        <div class="tab-panel" id="tab-dashboard">
       <div class="sec-title">📊 Dashboard – Painel de Controle</div>
       <div id="dash-forn-inativo" style="display:none;background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:12px 16px;margin-bottom:14px">
         ⚠️ <b id="dash-forn-inativo-count">0</b> fornecedor(es) sem entrega há mais de 30 dias.
         <a href="#" id="dash-forn-inativo-toggle" onclick="toggleFornInativoLista(event)" style="color:#8a6d00;font-weight:700;text-decoration:underline;margin-left:6px">ver lista</a>
         <div id="dash-forn-inativo-nomes" style="display:none;margin-top:8px;line-height:1.9"></div>
       </div>
-      <!-- Charts row -->
-      <div class="dash-charts">
+            <div class="dash-charts">
         <div class="chart-card">
           <h4>📊 Faturamento — Últimos 6 Meses</h4>
           <div class="chart-canvas-wrap"><canvas id="chart-faturamento"></canvas></div>
@@ -161,19 +152,16 @@
       </div>
     </div>
 
-    <!-- COMPRA SUCATA -->
-    <div class="tab-panel" id="tab-compra_sucata">
+        <div class="tab-panel" id="tab-compra_sucata">
       <div class="sec-title">🛒 Compra de Sucata</div>
-      <!-- KPIs -->
-      <div class="kpi-grid" style="margin-bottom:14px">
+            <div class="kpi-grid" style="margin-bottom:14px">
         <div class="kpi g"><div class="kpi-lbl">Tickets (mês)</div><div class="kpi-val" id="kpi-tickets-mes">0</div><div class="kpi-sub">Entradas registradas</div></div>
         <div class="kpi g"><div class="kpi-lbl">Total Comprado (mês)</div><div class="kpi-val" id="kpi-total-compras">R$ 0</div><div class="kpi-sub">Valor bruto</div></div>
         <div class="kpi r"><div class="kpi-lbl">Total Adiantado</div><div class="kpi-val" id="kpi-total-adt">R$ 0</div><div class="kpi-sub">Já pago</div></div>
         <div class="kpi o"><div class="kpi-lbl">Saldo a Pagar</div><div class="kpi-val" id="kpi-saldo-pagar">R$ 0</div><div class="kpi-sub">Pendente</div></div>
       </div>
       <div id="cheq-secretaria-banner" style="display:none"></div>
-      <!-- Sub-tabs nav -->
-      <div style="display:flex;gap:0;border-bottom:2px solid #ddd;margin-bottom:16px">
+            <div style="display:flex;gap:0;border-bottom:2px solid #ddd;margin-bottom:16px">
         <button id="cst-btn-pesagens" onclick="csTab('pesagens')"
           style="padding:9px 22px;border:none;border-bottom:3px solid #1a3a2a;background:#fff;font-weight:700;color:#1a3a2a;font-size:.88rem;cursor:pointer">📦 Pesagens a fechar</button>
         <button id="cst-btn-lancamento" onclick="csTab('lancamento')"
@@ -183,13 +171,11 @@
         <button class="btn-add" onclick="om('compra')" style="margin-left:auto;margin-bottom:4px">+ Nova Entrada</button>
       </div>
 
-      <!-- SUB-TAB: Pesagens a fechar -->
-      <div id="cst-pesagens">
+            <div id="cst-pesagens">
         <div id="cs-pesagens-list"><p style="color:#999;font-style:italic">Carregando...</p></div>
       </div>
 
-      <!-- SUB-TAB: Lançamento (estilo canhoto) -->
-      <div id="cst-lancamento" style="display:none">
+            <div id="cst-lancamento" style="display:none">
         <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
           <div style="flex:1;min-width:220px">
             <label style="font-size:.78rem;font-weight:700;color:#555;text-transform:uppercase">Fornecedor</label>
@@ -204,8 +190,7 @@
         </div>
       </div>
 
-      <!-- SUB-TAB: Histórico -->
-      <div id="cst-historico" style="display:none">
+            <div id="cst-historico" style="display:none">
         <div style="display:flex;flex-wrap:wrap;gap:10px;padding:0 0 10px;align-items:center">
           <div style="display:flex;align-items:center;gap:6px">
             <label style="font-size:.78rem;font-weight:700;color:var(--gray);text-transform:uppercase">Status:</label>
@@ -233,39 +218,25 @@
         </div>
         <div style="overflow-x:auto">
           <table>
-            <!-- Elaine (03/08): "se ao clicar no nome abre os pesos, eles
-                 nao precisam ficar ali descrito" — a coluna Materiais listava
-                 todos os materiais por extenso em cada linha, o que agora é
-                 redundante: clicar no Fornecedor ou no Total abre "Detalhes
-                 da Compra" com material/peso/preço de cada item. Removida
-                 pra deixar a lista mais limpa (só o essencial: Ticket, Data,
-                 Fornecedor, Peso Total, Valor, Adiantamento, Saldo, Status).
-                 Corrigido também: cabeçalho tinha "Data"/"Ticket" trocados
-                 de posição em relação ao conteúdo real das linhas (o Ticket
-                 sempre apareceu na 1ª coluna e a Data na 2ª). -->
-            <thead><tr><th>Ticket</th><th>Data</th><th>Fornecedor</th><th>Peso Liq. (kg)</th><th>Total R$</th><th>Adiantamento R$</th><th>Saldo</th><th>Status</th><th></th></tr></thead>
+                        <thead><tr><th>Ticket</th><th>Data</th><th>Fornecedor</th><th>Peso Liq. (kg)</th><th>Total R$</th><th>Adiantamento R$</th><th>Saldo</th><th>Status</th><th></th></tr></thead>
             <tbody id="tb-compras"></tbody>
           </table>
         </div>
       </div>
     </div>
 
-
     <div class="tab-panel" id="tab-rod_balanca">
 
-      <!-- Sub-tab nav -->
-      <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #1a3a2a">
+            <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid #1a3a2a">
         <button id="rod-stab-btn-pesagem" onclick="rodSubTab('pesagem')"
           style="padding:9px 22px;border-radius:8px 8px 0 0;font-weight:700;font-size:.88rem;cursor:pointer;border:2px solid #1a3a2a;border-bottom:none;background:#1a3a2a;color:#fff;margin-bottom:-2px">⚖️ Pesagem</button>
         <button id="rod-stab-btn-historico" onclick="rodSubTab('historico')"
           style="padding:9px 22px;border-radius:8px 8px 0 0;font-weight:700;font-size:.88rem;cursor:pointer;border:2px solid #ccc;border-bottom:2px solid #1a3a2a;background:#f5f5f5;color:#555;margin-bottom:-2px">📋 Histórico</button>
       </div>
 
-      <!-- ══ SUB-TAB PESAGEM ══ -->
-      <div id="rod-subtab-pesagem">
+            <div id="rod-subtab-pesagem">
 
-        <!-- Barra conexão -->
-        <div id="rod-connect-bar" style="display:flex;align-items:center;gap:8px;background:#0d1f12;color:#fff;border-radius:8px;padding:8px 14px;margin-bottom:6px;flex-wrap:wrap">
+                <div id="rod-connect-bar" style="display:flex;align-items:center;gap:8px;background:#0d1f12;color:#fff;border-radius:8px;padding:8px 14px;margin-bottom:6px;flex-wrap:wrap">
           <span style="font-weight:800;font-size:.82rem;color:#4caf50;letter-spacing:1px">⚖️ BALANÇA RODOVIÁRIA</span>
           <span id="rod-connect-status" style="flex:1;font-size:.8rem;color:#81c784">Desconectado</span>
           <button id="rod-btn-ip"     onclick="rodToggleIPConfig()"  class="mb-btn-connect ip"     style="padding:5px 12px;font-size:.78rem;margin:0">🌐 Via IP</button>
@@ -281,21 +252,17 @@
           <span style="font-size:.75rem;color:#555">ws://IP:Porta</span>
         </div>
 
-        <!-- ══ LAYOUT PRINCIPAL 3 COLUNAS ══ -->
-        <div style="display:grid;grid-template-columns:210px 1fr 270px;gap:10px;margin-top:10px">
+                <div style="display:grid;grid-template-columns:210px 1fr 270px;gap:10px;margin-top:10px">
 
-          <!-- ── COL 1: Display Digital (estilo METRN) ── -->
-          <div style="background:#0a1628;border:2px solid #1a5c35;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px">
+                    <div style="background:#0a1628;border:2px solid #1a5c35;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px">
 
-            <!-- Display principal -->
-            <div style="background:#060e1a;border:1px solid #1a5c35;border-radius:8px;padding:12px;text-align:center">
+                        <div style="background:#060e1a;border:1px solid #1a5c35;border-radius:8px;padding:12px;text-align:center">
               <div style="font-size:.6rem;color:#4caf50;font-weight:700;letter-spacing:3px;margin-bottom:2px">PESO ATUAL</div>
               <div id="rod-peso-big" style="font-size:2.6rem;font-weight:900;color:#00e676;font-family:'Courier New',monospace;letter-spacing:2px;text-shadow:0 0 12px #00e676aa;line-height:1">0.0</div>
               <div style="font-size:.75rem;color:#4caf50;margin-top:2px;font-weight:700">kg</div>
             </div>
 
-            <!-- Displays secundários -->
-            <div style="background:#060e1a;border:1px solid #2e7d32;border-radius:7px;padding:8px;text-align:center">
+                        <div style="background:#060e1a;border:1px solid #2e7d32;border-radius:7px;padding:8px;text-align:center">
               <div style="font-size:.58rem;color:#888;font-weight:700;letter-spacing:2px">BRUTO (entrada)</div>
               <div id="rod-display-bruto" style="font-size:1.25rem;color:#69f0ae;font-family:monospace;font-weight:800;margin-top:2px">— kg</div>
             </div>
@@ -308,8 +275,7 @@
               <div id="rod-display-liquido" style="font-size:1.4rem;color:#29b6f6;font-family:monospace;font-weight:900;margin-top:2px;text-shadow:0 0 8px #29b6f6aa">— kg</div>
             </div>
 
-            <!-- Peso manual entrada -->
-            <div>
+                        <div>
               <div style="font-size:.6rem;color:#4caf50;font-weight:700;margin-bottom:3px">▸ PESO MANUAL ENTRADA</div>
               <div style="display:flex;gap:4px">
                 <input type="number" id="rod-peso-manual" placeholder="kg" min="0" step="0.1"
@@ -318,8 +284,7 @@
               </div>
             </div>
 
-            <!-- Peso manual saída -->
-            <div>
+                        <div>
               <div style="font-size:.6rem;color:#ff9800;font-weight:700;margin-bottom:3px">▸ TARA MANUAL SAÍDA</div>
               <div style="display:flex;gap:4px">
                 <input type="number" id="rod-saida-manual" placeholder="kg" min="0" step="0.1"
@@ -328,8 +293,7 @@
               </div>
             </div>
 
-            <!-- Desconto Bags/Paletes saída -->
-            <div>
+                        <div>
               <div style="font-size:.6rem;color:#ce93d8;font-weight:700;margin-bottom:3px">▸ DESCONTO BAGS (kg)</div>
               <input type="number" id="rod-desc-bag" placeholder="0" min="0" step="0.1" value="0"
                 oninput="_rodRecalcularLiquido()"
@@ -343,11 +307,9 @@
             </div>
           </div>
 
-          <!-- ── COL 2: Formulário de Operação ── -->
-          <div style="background:#fff;border:2px solid #ddd;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px">
+                    <div style="background:#fff;border:2px solid #ddd;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px">
 
-            <!-- Compra / Venda -->
-            <div style="display:flex;gap:0;border-radius:8px;overflow:hidden;border:2px solid #1a3a2a">
+                        <div style="display:flex;gap:0;border-radius:8px;overflow:hidden;border:2px solid #1a3a2a">
               <button id="rod-tipo-compra-btn" onclick="rodTipoChange('compra')"
                 style="flex:1;padding:11px;font-size:.88rem;font-weight:800;background:#1a3a2a;color:#fff;border:none;cursor:pointer;letter-spacing:.5px">
                 ⬇️ COMPRA — Recebimento
@@ -358,10 +320,8 @@
               </button>
             </div>
 
-            <!-- Placa + Motorista -->
-            <div style="display:flex;gap:12px;align-items:flex-start">
-              <!-- Placa visual BR -->
-              <div style="flex-shrink:0">
+                        <div style="display:flex;gap:12px;align-items:flex-start">
+                            <div style="flex-shrink:0">
                 <div style="font-size:.68rem;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:4px">Placa</div>
                 <div style="border:3px solid #003399;border-radius:8px;overflow:hidden;width:148px;box-shadow:0 2px 6px rgba(0,0,51,.2)">
                   <div style="background:#003399;color:#fff;font-size:.52rem;font-weight:700;letter-spacing:4px;padding:3px 4px;text-align:center">🇧🇷 BRASIL</div>
@@ -372,8 +332,7 @@
                 </div>
                 <div id="rod-placa-hint" style="font-size:.65rem;color:#2e7d32;margin-top:3px;min-height:13px"></div>
               </div>
-              <!-- Motorista -->
-              <div style="flex:1">
+                            <div style="flex:1">
                 <div style="font-size:.68rem;font-weight:700;color:#555;text-transform:uppercase;margin-bottom:4px">Motorista</div>
                 <input id="rod-motorista" placeholder="Nome do motorista"
                   style="width:100%;padding:9px 10px;border:2px solid #e0e0e0;border-radius:7px;font-size:.9rem;box-sizing:border-box">
@@ -381,8 +340,7 @@
               </div>
             </div>
 
-            <!-- Fornecedor / Cliente -->
-            <div>
+                        <div>
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
                 <label id="rod-forn-label" style="font-size:.68rem;font-weight:700;color:#555;text-transform:uppercase">Fornecedor</label>
                 <button onclick="rodAbrirCadastroRapido()" title="Cadastrar novo fornecedor/cliente"
@@ -396,26 +354,22 @@
               </select>
             </div>
 
-            <!-- Observações -->
-            <div>
+                        <div>
               <label style="font-size:.68rem;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:4px">Observações</label>
               <input id="rod-obs" placeholder="Observações opcionais"
                 style="width:100%;padding:8px 10px;border:1px solid #e0e0e0;border-radius:7px;font-size:.88rem;box-sizing:border-box">
             </div>
 
-            <!-- Material -->
-            <div>
+                        <div>
               <label style="font-size:.68rem;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:4px">Material / Descrição</label>
               <input id="rod-material" placeholder="Ex: Ferro velho, Cobre, Alumínio, Cana..."
                 style="width:100%;padding:9px 10px;border:2px solid #e0e0e0;border-radius:7px;font-size:.9rem;box-sizing:border-box">
             </div>
           </div>
 
-          <!-- ── COL 3: Fila / Pesagem Multi-Material ── -->
-          <div style="background:#1a1a1a;border:2px solid #333;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;max-height:540px;overflow-y:auto">
+                    <div style="background:#1a1a1a;border:2px solid #333;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;max-height:540px;overflow-y:auto">
 
-            <!-- MODO A: Fila aguardando saída (compra / padrão) -->
-            <div id="rod-modo-fila">
+                        <div id="rod-modo-fila">
               <div style="font-size:.75rem;font-weight:800;color:#ff9800;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">⏳ Aguardando Saída</div>
               <div style="font-size:.62rem;color:#888;font-weight:700;margin-bottom:4px">Selecionar para saída:</div>
               <select id="rod-sel-saida" onchange="rodSelecionarParaSaida(this.value)"
@@ -427,21 +381,17 @@
               </div>
             </div>
 
-            <!-- MODO B: Pesagem de materiais (venda — multi-material) -->
-            <div id="rod-modo-materiais" style="display:none;flex-direction:column;gap:8px">
+                        <div id="rod-modo-materiais" style="display:none;flex-direction:column;gap:8px">
               <div style="font-size:.75rem;font-weight:800;color:#4caf50;text-transform:uppercase;letter-spacing:1px">⚖️ Pesagem Acumulativa — Venda</div>
 
-              <!-- Info do ticket -->
-              <div id="rod-mat-ticket-info"
+                            <div id="rod-mat-ticket-info"
                 style="background:#0d1a0d;border:1px solid #1a5c35;border-radius:7px;padding:7px 9px;font-size:.75rem;color:#aaa;line-height:1.6">
               </div>
 
-              <!-- Painel de pesagem integrado -->
-              <div style="background:#060e1a;border:1px solid #2e7d32;border-radius:8px;padding:9px;display:flex;flex-direction:column;gap:6px">
+                            <div style="background:#060e1a;border:1px solid #2e7d32;border-radius:8px;padding:9px;display:flex;flex-direction:column;gap:6px">
                 <div style="font-size:.58rem;color:#4caf50;font-weight:700;letter-spacing:2px">NOVA PESAGEM</div>
 
-                <!-- Linha: peso anterior (tara de desconto) -->
-                <div style="background:#0a1628;border-radius:5px;padding:5px 8px">
+                                <div style="background:#0a1628;border-radius:5px;padding:5px 8px">
                   <div style="display:flex;justify-content:space-between;align-items:center">
                     <span style="font-size:.65rem;color:#888">− Desconto (tara acum.)</span>
                     <span id="rod-mat-peso-ant" style="font-size:.85rem;color:#ff9800;font-family:monospace;font-weight:700">0.0 kg</span>
@@ -449,8 +399,7 @@
                   <div style="font-size:.58rem;color:#444;margin-top:1px">peso já registrado que será subtraído</div>
                 </div>
 
-                <!-- Linha: peso TOTAL na balança — campo principal -->
-                <div>
+                                <div>
                   <div style="font-size:.65rem;color:#a5d6a7;font-weight:700;margin-bottom:3px">
                     ⬆ PESO TOTAL NA BALANÇA agora (caminhão + material):
                   </div>
@@ -466,14 +415,12 @@
                   <div style="font-size:.58rem;color:#555;margin-top:3px;line-height:1.4">
                     ⚠️ Digite o que a balança mostrar no display — o sistema desconta automaticamente.
                   </div>
-                  <!-- Leitura ao vivo da balança (informativo) -->
-                  <div style="text-align:right;margin-top:2px;font-size:.62rem;color:#555">
+                                    <div style="text-align:right;margin-top:2px;font-size:.62rem;color:#555">
                     balança ao vivo: <span id="rod-mat-peso-atual" style="color:#2e7d32;font-family:monospace">0.0</span> kg
                   </div>
                 </div>
 
-                <!-- Resultado do cálculo -->
-                <div style="border-top:1px dashed #1a5c35;padding-top:5px">
+                                <div style="border-top:1px dashed #1a5c35;padding-top:5px">
                   <div style="display:flex;justify-content:space-between;align-items:center">
                     <span style="font-size:.65rem;color:#888">= Líquido deste material</span>
                     <span id="rod-mat-liquido-prev" style="font-size:1.3rem;color:#29b6f6;font-family:monospace;font-weight:900">0.0 kg</span>
@@ -481,8 +428,7 @@
                   <div id="rod-mat-formula-hint" style="font-size:.58rem;color:#444;text-align:right;margin-top:1px"></div>
                 </div>
 
-                <!-- Material -->
-                <input id="rod-mat-nome" placeholder="Material: ferro, cobre, alumínio..."
+                                <input id="rod-mat-nome" placeholder="Material: ferro, cobre, alumínio..."
                   style="padding:8px 9px;border:1px solid #1a5c35;border-radius:5px;font-size:.85rem;background:#0a1628;color:#c8e6c9;width:100%;box-sizing:border-box">
 
                 <button onclick="rodAdicionarMaterial()"
@@ -491,15 +437,13 @@
                 </button>
               </div>
 
-              <!-- Lista de materiais registrados -->
-              <div>
+                            <div>
                 <div style="font-size:.58rem;color:#888;font-weight:700;letter-spacing:1px;margin-bottom:4px">MATERIAIS REGISTRADOS:</div>
                 <div id="rod-mat-lista" style="display:flex;flex-direction:column;gap:4px"></div>
                 <div id="rod-mat-total" style="margin-top:6px;font-size:.8rem;color:#29b6f6;font-weight:800;text-align:right;padding:4px 0;border-top:1px solid #222"></div>
               </div>
 
-              <!-- Finalizar / Cancelar -->
-              <button onclick="rodFinalizarVendaMateriais()"
+                            <button onclick="rodFinalizarVendaMateriais()"
                 style="width:100%;padding:11px;background:#bf360c;color:#fff;border:none;border-radius:7px;font-weight:800;cursor:pointer;font-size:.88rem;margin-top:4px">
                 [F3] ✅ FINALIZAR VENDA
               </button>
@@ -513,19 +457,15 @@
               </button>
             </div>
 
-            <!-- MODO C: Pesagem de materiais (compra — multi-material) -->
-            <div id="rod-modo-materiais-compra" style="display:none;flex-direction:column;gap:8px">
+                        <div id="rod-modo-materiais-compra" style="display:none;flex-direction:column;gap:8px">
               <div style="font-size:.75rem;font-weight:800;color:#ff9800;text-transform:uppercase;letter-spacing:1px">⚖️ Pesagem por Material — Compra</div>
 
-              <!-- Info do ticket ativo -->
-              <div id="rod-matc-ticket-info" style="font-size:.8rem;background:#0a1628;border-radius:6px;padding:7px 9px;border:1px solid #1a3a5c;line-height:1.5">—</div>
+                            <div id="rod-matc-ticket-info" style="font-size:.8rem;background:#0a1628;border-radius:6px;padding:7px 9px;border:1px solid #1a3a5c;line-height:1.5">—</div>
 
-              <!-- Painel de pesagem integrado (compra) -->
-              <div style="background:#060e1a;border:1px solid #e65100;border-radius:8px;padding:9px;display:flex;flex-direction:column;gap:6px">
+                            <div style="background:#060e1a;border:1px solid #e65100;border-radius:8px;padding:9px;display:flex;flex-direction:column;gap:6px">
                 <div style="font-size:.58rem;color:#ff9800;font-weight:700;letter-spacing:2px">DESCARREGAMENTO</div>
 
-                <!-- Peso anterior (caminhão ainda carregado) -->
-                <div style="background:#0a1628;border-radius:5px;padding:5px 8px">
+                                <div style="background:#0a1628;border-radius:5px;padding:5px 8px">
                   <div style="display:flex;justify-content:space-between;align-items:center">
                     <span style="font-size:.65rem;color:#888">Peso anterior (ainda carregado)</span>
                     <span id="rod-matc-peso-ant" style="font-size:.85rem;color:#ff9800;font-family:monospace;font-weight:700">0.0 kg</span>
@@ -533,8 +473,7 @@
                   <div style="font-size:.58rem;color:#444;margin-top:1px">após descarregar este material, o caminhão ficará mais leve</div>
                 </div>
 
-                <!-- Peso atual após descarregar -->
-                <div>
+                                <div>
                   <div style="font-size:.65rem;color:#ffcc80;font-weight:700;margin-bottom:3px">
                     ⬇ PESO NA BALANÇA após descarregar este material:
                   </div>
@@ -555,8 +494,7 @@
                   </div>
                 </div>
 
-                <!-- Resultado -->
-                <div style="border-top:1px dashed #e65100;padding-top:5px">
+                                <div style="border-top:1px dashed #e65100;padding-top:5px">
                   <div style="display:flex;justify-content:space-between;align-items:center">
                     <span style="font-size:.65rem;color:#888">= Líquido deste material</span>
                     <span id="rod-matc-liquido-prev" style="font-size:1.3rem;color:#ffcc80;font-family:monospace;font-weight:900">0.0 kg</span>
@@ -564,8 +502,7 @@
                   <div id="rod-matc-formula-hint" style="font-size:.58rem;color:#444;text-align:right;margin-top:1px"></div>
                 </div>
 
-                <!-- Nome do material -->
-                <input id="rod-matc-nome" placeholder="Material: ferro, cobre, alumínio..."
+                                <input id="rod-matc-nome" placeholder="Material: ferro, cobre, alumínio..."
                   style="padding:8px 9px;border:1px solid #e65100;border-radius:5px;font-size:.85rem;background:#0a1628;color:#ffe0b2;width:100%;box-sizing:border-box">
 
                 <button onclick="rodAdicionarMaterialCompra()"
@@ -574,12 +511,10 @@
                 </button>
               </div>
 
-              <!-- Lista de materiais registrados -->
-              <div id="rod-matc-lista" style="display:flex;flex-direction:column;gap:4px"></div>
+                            <div id="rod-matc-lista" style="display:flex;flex-direction:column;gap:4px"></div>
               <div id="rod-matc-total" style="margin-top:6px;font-size:.8rem;color:#ffcc80;font-weight:800;text-align:right;padding:4px 0;border-top:1px solid #222"></div>
 
-              <!-- Finalizar / Cancelar -->
-              <button onclick="rodFinalizarCompraMateriais()"
+                            <button onclick="rodFinalizarCompraMateriais()"
                 style="width:100%;padding:11px;background:#1b5e20;color:#fff;border:none;border-radius:7px;font-weight:800;cursor:pointer;font-size:.88rem;margin-top:4px">
                 [F3] ✅ FINALIZAR COMPRA
               </button>
@@ -595,30 +530,24 @@
 
           </div>
 
-        </div><!-- fim grid 3 colunas -->
-
-        <!-- ══ CÂMERAS AO VIVO ══ -->
-        <div style="background:#0a0a0a;border:2px solid #1a1a1a;border-radius:10px;padding:10px;margin-top:10px;display:flex;gap:10px;align-items:stretch;min-height:60px;position:relative">
-          <!-- Aviso sem câmera (escondido quando câmera ativa) -->
-          <div id="rod-no-cam-hint" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;color:#333;font-size:.8rem;text-align:center">
+        </div>
+                <div style="background:#0a0a0a;border:2px solid #1a1a1a;border-radius:10px;padding:10px;margin-top:10px;display:flex;gap:10px;align-items:stretch;min-height:60px;position:relative">
+                    <div id="rod-no-cam-hint" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;color:#333;font-size:.8rem;text-align:center">
             📷 Nenhuma câmera configurada — clique em <strong style="color:#455a64">Câmeras</strong> na barra acima para configurar
           </div>
-          <!-- Câmera 1 -->
-          <div id="rod-cam1-wrap" style="flex:1;display:none;flex-direction:column;gap:4px">
+                    <div id="rod-cam1-wrap" style="flex:1;display:none;flex-direction:column;gap:4px">
             <div style="font-size:.6rem;color:#4caf50;font-weight:700;letter-spacing:2px">📷 CAM 1 — ENTRADA / FRENTE</div>
             <video id="rod-video-cam1" autoplay muted playsinline
               style="width:100%;border-radius:7px;border:2px solid #1a5c35;max-height:200px;object-fit:cover;background:#111;display:block"></video>
             <canvas id="rod-canvas-cam1" style="display:none"></canvas>
           </div>
-          <!-- Câmera 2 -->
-          <div id="rod-cam2-wrap" style="flex:1;display:none;flex-direction:column;gap:4px">
+                    <div id="rod-cam2-wrap" style="flex:1;display:none;flex-direction:column;gap:4px">
             <div style="font-size:.6rem;color:#4caf50;font-weight:700;letter-spacing:2px">📷 CAM 2 — SAÍDA / TRASEIRA</div>
             <video id="rod-video-cam2" autoplay muted playsinline
               style="width:100%;border-radius:7px;border:2px solid #1a5c35;max-height:200px;object-fit:cover;background:#111;display:block"></video>
             <canvas id="rod-canvas-cam2" style="display:none"></canvas>
           </div>
-          <!-- Últimas fotos capturadas -->
-          <div style="display:flex;flex-direction:column;gap:6px;min-width:160px;max-width:200px">
+                    <div style="display:flex;flex-direction:column;gap:6px;min-width:160px;max-width:200px">
             <div style="font-size:.58rem;color:#555;font-weight:700;letter-spacing:2px">📸 ÚLTIMA CAPTURA</div>
             <div id="rod-fotos-entrada-prev" style="display:flex;gap:3px;flex-wrap:wrap"></div>
             <div style="font-size:.55rem;color:#444;margin-top:2px">Entrada ↑ / Saída ↓</div>
@@ -626,8 +555,7 @@
           </div>
         </div>
 
-        <!-- ══ BOTÕES DE AÇÃO (estilo F-key METRN) ══ -->
-        <div style="display:flex;gap:8px;margin-top:12px">
+                <div style="display:flex;gap:8px;margin-top:12px">
           <button id="rod-btn-f2" onclick="rodRegistrarEntrada()"
             style="flex:2;padding:14px 10px;background:#1b5e20;color:#fff;border:none;border-radius:8px;font-size:.92rem;font-weight:800;cursor:pointer;letter-spacing:.5px;box-shadow:0 3px 0 #0a3a0a">
             [F2] ⬇️ ENTRADA — 1ª Pesagem
@@ -646,10 +574,8 @@
           </button>
         </div>
 
-      </div><!-- fim subtab pesagem -->
-
-      <!-- Sub-tab Histórico -->
-      <div id="rod-subtab-historico" style="display:none">
+      </div>
+            <div id="rod-subtab-historico" style="display:none">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
           <div style="font-size:1rem;font-weight:800;color:#1a3a2a">📋 Histórico de Pesagens Rodoviárias</div>
           <div style="display:flex;align-items:center;gap:6px">
@@ -712,17 +638,14 @@
         <span style="font-size:.75rem;color:#555">WebSocket ws://IP:Porta</span>
       </div>
       <div class="bal-layout" style="margin-top:14px">
-        <!-- Painel esquerdo: lista de compras ativas -->
-        <div class="bal-panel">
+                <div class="bal-panel">
           <div class="bal-panel-hdr">📋 Compras em Andamento</div>
-          <!-- Busca por fornecedor -->
-          <div style="padding:8px 8px 4px">
+                    <div style="padding:8px 8px 4px">
             <input id="bal-forn-busca" placeholder="🔍 Buscar fornecedor..." 
               oninput="balFiltrarTickets()"
               style="width:100%;padding:9px 10px;border:2px solid #ccc;border-radius:8px;font-size:.83rem;box-sizing:border-box">
           </div>
-          <!-- Iniciar nova pesagem -->
-          <div style="padding:4px 8px 8px">
+                    <div style="padding:4px 8px 8px">
             <div style="font-size:.72rem;font-weight:700;color:#1565c0;margin-bottom:5px">▶ Iniciar nova pesagem:</div>
             <select id="bal-novo-forn" 
               style="width:100%;padding:10px 8px;border:2px solid #1565c0;border-radius:8px;font-size:.85rem;font-weight:600;color:#1a237e;background:#f0f4ff;box-sizing:border-box;margin-bottom:6px">
@@ -738,8 +661,7 @@
             <div class="bal-none">Nenhuma compra ativa</div>
           </div>
         </div>
-        <!-- Painel direito: pesagem -->
-        <div class="bal-right">
+                <div class="bal-right">
           <div class="bal-progress-card" id="bal-progress-card">
             <div style="font-size:.8rem;font-weight:800;color:#888;margin-bottom:8px" id="bal-compra-titulo">Selecione uma compra</div>
             <div class="bal-progress-nums">
@@ -795,8 +717,7 @@
         </div>
       </div>
 
-      <!-- ── HISTÓRICO DE PESAGENS ── -->
-      <div style="margin-top:28px;border-top:2px solid #e8f5e9;padding-top:20px">
+            <div style="margin-top:28px;border-top:2px solid #e8f5e9;padding-top:20px">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
           <div style="font-size:1rem;font-weight:800;color:#1a3a2a">📋 Histórico de Pesagens</div>
           <div style="display:flex;align-items:center;gap:6px">
@@ -836,17 +757,14 @@
       </div>
     </div>
 
-    <!-- FORNECEDORES -->
-    <div class="tab-panel" id="tab-fornecedores">
+        <div class="tab-panel" id="tab-fornecedores">
       <div class="sec-title">🤝 Fornecedores</div>
-      <!-- Sub-abas -->
-      <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border)">
+            <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border)">
         <button id="sforn-compra-btn" onclick="switchSubForn('compra')" style="padding:8px 22px;font-weight:700;font-size:.88rem;border:none;border-bottom:3px solid var(--primary);background:transparent;color:var(--primary);cursor:pointer">🏭 Fornecedores de Compra</button>
         <button id="sforn-despesa-btn" onclick="switchSubForn('despesa')" style="padding:8px 22px;font-weight:700;font-size:.88rem;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--gray);cursor:pointer">🧾 Fornecedores de Despesa</button>
       </div>
 
-      <!-- Painel Compra -->
-      <div id="sforn-compra">
+            <div id="sforn-compra">
         <div class="tcard">
           <div class="tcard-hdr">
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div class="tcard-title">Fornecedores de Compra (Sucata)</div><button onclick="_ffCodAtual=null;var dl=document.getElementById('ff-forn-list');if(dl)dl.innerHTML=(getFornAtivos()||[]).map(function(f){return '<option value=\''+f.nome+'\'>';}).join('');var busca=document.getElementById('ff-busca');if(busca)busca.value='';var info=document.getElementById('ff-forn-info');if(info)info.style.display='none';var kpis=document.getElementById('ff-kpis');if(kpis)kpis.innerHTML='';var tb=document.getElementById('ff-tbody');if(tb)tb.innerHTML='';document.getElementById('modal-ficha-forn').style.display='flex'" style="padding:5px 12px;background:#2980b9;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.8rem;font-weight:700">&#x1F4CB; Ficha por Nome</button></div>
@@ -871,8 +789,7 @@
         </div>
       </div>
 
-      <!-- Painel Despesa -->
-      <div id="sforn-despesa" style="display:none">
+            <div id="sforn-despesa" style="display:none">
         <div class="tcard">
           <div class="tcard-hdr">
             <div class="tcard-title">Fornecedores de Despesa</div>
@@ -886,8 +803,7 @@
       </div>
     </div>
 
-    <!-- CLIENTES -->
-    <div class="tab-panel" id="tab-clientes">
+        <div class="tab-panel" id="tab-clientes">
       <div class="sec-title">👥 Clientes</div>
       <div class="tcard">
         <div class="tcard-hdr">
@@ -905,8 +821,7 @@
       </div>
     </div>
 
-    <!-- VENDAS -->
-    <div class="tab-panel" id="tab-vendas">
+        <div class="tab-panel" id="tab-vendas">
       <div class="sec-title">💵 Registro de Vendas</div>
       <div class="kpi-grid">
         <div class="kpi g"><div class="kpi-lbl">Total de Vendas</div><div class="kpi-val" id="kpi-v-mes-val">R$ 0</div><div class="kpi-sub" id="kpi-v-mes-sub">0 vendas cadastradas</div></div>
@@ -914,13 +829,11 @@
         <div class="kpi o"><div class="kpi-lbl">A Receber</div><div class="kpi-val" id="kpi-v-pend-val">R$ 0</div><div class="kpi-sub" id="kpi-v-pend-sub">Pendentes</div></div>
         <div class="kpi" style="border-left:3px solid #e74c3c"><div class="kpi-lbl" style="color:#e74c3c">Atrasados</div><div class="kpi-val" id="kpi-v-atras-val" style="color:#e74c3c">R$ 0</div><div class="kpi-sub">Vencidos</div></div>
       </div>
-      <!-- Sub-tabs Vendas -->
-      <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid var(--border)">
+            <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid var(--border)">
         <button id="vstab-lancar" onclick="vSubTab('lancar')" style="padding:8px 20px;background:#1a5e2a;color:#fff;border:none;border-radius:7px 7px 0 0;cursor:pointer;font-weight:700;font-size:.88rem;margin-right:4px">📝 Lançar Venda</button>
         <button id="vstab-hist" onclick="vSubTab('hist')" style="padding:8px 20px;background:#eee;color:#555;border:none;border-radius:7px 7px 0 0;cursor:pointer;font-weight:600;font-size:.88rem">📊 Histórico Completo</button>
       </div>
-      <!-- Sub-panel: Lançar -->
-      <div id="v-panel-lancar">
+            <div id="v-panel-lancar">
         <div class="tcard">
           <div class="tcard-hdr">
             <div class="tcard-title">Vendas</div>
@@ -932,8 +845,7 @@
           </table>
         </div>
       </div>
-      <!-- Sub-panel: Histórico -->
-      <div id="v-panel-hist" style="display:none">
+            <div id="v-panel-hist" style="display:none">
         <div class="tcard" style="margin-bottom:12px">
           <div class="tcard-hdr"><div class="tcard-title">🔎 Filtros</div></div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;padding:6px 0 4px">
@@ -973,8 +885,7 @@
       </div>
     </div>
 
-    <!-- CAMINHOES -->
-    <div class="tab-panel" id="tab-caminhoes">
+        <div class="tab-panel" id="tab-caminhoes">
       <div class="sec-title">Frota e equipamentos</div>
       <div class="kpi-grid">
         <div class="kpi g"><div class="kpi-lbl">Caminhões</div><div class="kpi-val" id="frota-kpi-caminhoes">0</div><div class="kpi-sub" id="frota-sub-caminhoes">—</div></div>
@@ -995,8 +906,7 @@
         </table>
       </div>
 
-      <!-- MANUTENÇÕES (escondido — o histórico agora fica na ficha do veículo) -->
-      <div class="tcard" style="margin-top:16px;display:none">
+            <div class="tcard" style="margin-top:16px;display:none">
         <div class="tcard-hdr">
           <div class="tcard-title" id="manut-titulo">🔧 Manutenções — Selecione um equipamento acima</div>
           <button class="btn-add" id="manut-btn-add" style="display:none" onclick="abrirNovaManutencao()">+ Nova Manutenção</button>
@@ -1013,11 +923,9 @@
       </div>
     </div>
 
-    <!-- ADIANTAMENTOS -->
-    <div class="tab-panel" id="tab-adiantamentos">
+        <div class="tab-panel" id="tab-adiantamentos">
       <div class="sec-title">💰 Adiantamentos</div>
-      <!-- Seletor Fornecedor / Cliente -->
-      <div style="display:flex;gap:0;border-bottom:3px solid #e0e0e0;margin-bottom:16px">
+            <div style="display:flex;gap:0;border-bottom:3px solid #e0e0e0;margin-bottom:16px">
         <button id="adt-tipo-forn-btn" onclick="adtTipoTab('forn')"
           style="background:none;border:none;padding:9px 22px;font-size:.93rem;font-weight:700;color:#1a3a2a;border-bottom:3px solid #1a3a2a;cursor:pointer;margin-bottom:-3px">
           🏭 Fornecedores
@@ -1028,8 +936,7 @@
         </button>
       </div>
 
-      <!-- ── PAINEL FORNECEDORES ── -->
-      <div id="adt-painel-forn">
+            <div id="adt-painel-forn">
         <div class="kpi-grid">
           <div class="kpi r"><div class="kpi-lbl">Total em Aberto</div><div class="kpi-val" id="adt-kpi-total">R$ 0</div><div class="kpi-sub">Ainda não descontado</div></div>
           <div class="kpi o"><div class="kpi-lbl">Pendentes</div><div class="kpi-val" id="adt-kpi-pend">0</div><div class="kpi-sub">A descontar</div></div>
@@ -1076,8 +983,7 @@
         </div>
       </div>
 
-      <!-- ── PAINEL CLIENTES ── -->
-      <div id="adt-painel-cli" style="display:none">
+            <div id="adt-painel-cli" style="display:none">
         <div class="kpi-grid">
           <div class="kpi g"><div class="kpi-lbl">Total Recebido</div><div class="kpi-val" id="adtcli-kpi-total">R$ 0</div><div class="kpi-sub">Antecipações de clientes</div></div>
           <div class="kpi o"><div class="kpi-lbl">Pendentes</div><div class="kpi-val" id="adtcli-kpi-pend">0</div><div class="kpi-sub">A aplicar em venda</div></div>
@@ -1093,8 +999,7 @@
             <tbody id="tb-adtcli-list"></tbody>
           </table>
         </div>
-        <!-- Cheques de clientes -->
-        <div class="tcard" style="margin-top:18px">
+                <div class="tcard" style="margin-top:18px">
           <div class="tcard-hdr">
             <div class="tcard-title">Cheques de Clientes</div>
             <button class="btn-add" onclick="om('cheque_cli')">+ Lançar Cheque</button>
@@ -1107,20 +1012,17 @@
       </div>
     </div>
 
-    <!-- CLIENTES: ADIANTAMENTOS & CHEQUES (financeiro — acesso da Elaine) -->
-    <div class="tab-panel" id="tab-fin_clientes">
+        <div class="tab-panel" id="tab-fin_clientes">
       <div class="sec-title">👤 Ficha Financeira do Cliente</div>
       <div style="font-size:.82rem;color:#888;margin:-6px 0 14px">Tudo do cliente num lugar só: vendas, adiantamentos, cheques e pagamentos — com saldo automático.</div>
 
-      <!-- Sub-abas da ficha -->
-      <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;border-bottom:2px solid #e0e0e0">
+            <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;border-bottom:2px solid #e0e0e0">
         <button id="fc-aba-extrato" onclick="fcSetAba('extrato')" style="padding:8px 18px;border:none;border-bottom:3px solid #1a5e2a;background:transparent;font-weight:700;font-size:.88rem;color:#1a5e2a;cursor:pointer">📄 Ficha / Extrato</button>
         <button id="fc-aba-resumo" onclick="fcSetAba('resumo')" style="padding:8px 18px;border:none;border-bottom:3px solid transparent;background:transparent;font-weight:700;font-size:.88rem;color:#999;cursor:pointer">📊 Histórico / Resumo</button>
         <button id="fc-aba-antigo" onclick="fcSetAba('antigo')" style="padding:8px 18px;border:none;border-bottom:3px solid transparent;background:transparent;font-weight:700;font-size:.88rem;color:#999;cursor:pointer;margin-left:auto">💳 Adiant/Cheques (detalhe)</button>
       </div>
 
-      <!-- SUB-ABA: EXTRATO (visual igual à simulação) -->
-      <div id="fc-view-extrato">
+            <div id="fc-view-extrato">
         <div style="background:#fff;border:1.5px solid #cfe3d6;border-left:5px solid #1a5e2a;border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:.86rem">
           Cada cliente é uma <b style="color:#1a5e2a">conta corrente</b>:
           <span style="display:inline-flex;align-items:center;gap:5px;margin:0 6px"><span style="width:11px;height:11px;border-radius:50%;background:#c0392b;display:inline-block"></span><b>Débito</b> = venda</span>
@@ -1161,8 +1063,7 @@
         <div id="fc-vazio" style="color:#999;text-align:center;padding:24px">Escolha um cliente acima para ver a ficha.</div>
       </div>
 
-      <!-- SUB-ABA: RESUMO -->
-      <div id="fc-view-resumo" style="display:none">
+            <div id="fc-view-resumo" style="display:none">
         <div class="tcard">
           <div class="tcard-hdr"><div class="tcard-title">📊 Resumo por cliente</div></div>
           <div style="overflow-x:auto">
@@ -1175,14 +1076,12 @@
         </div>
       </div>
 
-      <!-- SUB-ABA: ANTIGO (adiantamentos/cheques detalhe) -->
-      <div id="fc-view-antigo" style="display:none">
+            <div id="fc-view-antigo" style="display:none">
         <div id="fincli-host"></div>
       </div>
     </div>
 
-    <!-- PONTO -->
-    <div class="tab-panel" id="tab-ponto">
+        <div class="tab-panel" id="tab-ponto">
       <div class="sec-title">🕐 Controle de Ponto</div>
       <div class="kpi-grid">
         <div class="kpi"><div class="kpi-lbl">Dias Úteis</div><div class="kpi-val" id="kpi-ponto-dias-uteis">0</div><div class="kpi-sub">Mês selecionado</div></div>
@@ -1203,8 +1102,7 @@
         </table>
       </div>
 
-      <!-- Cartão de Ponto importado do RH iD -->
-      <div class="tcard" style="margin-top:18px">
+            <div class="tcard" style="margin-top:18px">
         <div class="tcard-hdr"><div class="tcard-title">📇 Cartão de Ponto (importado do RH iD)</div></div>
         <div style="margin-bottom:14px">
           <label class="btn-import-pdf" for="ponto-rhid-input" title="Importar Cartão de Ponto exportado do RH iD (PDF)" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:#1565c0;color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:.82rem;font-weight:700">
@@ -1231,12 +1129,10 @@
       </div>
     </div>
 
-    <!-- CANHOTO -->
-    <div class="tab-panel" id="tab-canhoto_compra">
+        <div class="tab-panel" id="tab-canhoto_compra">
       <div class="sec-title">📄 Canhoto / Recibo de Compra</div>
 
-      <!-- Seletor de Fornecedor/Cliente -->
-      <div class="tcard" style="margin-bottom:16px">
+            <div class="tcard" style="margin-bottom:16px">
         <div class="tcard-hdr"><div class="tcard-title">Selecione o Fornecedor ou Cliente</div></div>
         <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
           <div style="flex:1;min-width:240px">
@@ -1253,11 +1149,9 @@
         </div>
       </div>
 
-      <!-- Painel do fornecedor: tickets + adiantamentos + cheques -->
-      <div id="canhoto-forn-painel" style="display:none">
+            <div id="canhoto-forn-painel" style="display:none">
 
-        <!-- FILTRO POR PERÍODO -->
-        <div class="tcard" style="margin-bottom:14px">
+                <div class="tcard" style="margin-bottom:14px">
           <div class="tcard-hdr"><div class="tcard-title">📅 Filtro por Período</div></div>
           <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;padding:4px 0">
             <div>
@@ -1271,8 +1165,7 @@
             <button class="btn-add" onclick="filtrarPeriodo()" style="padding:8px 16px">🔍 Filtrar</button>
             <button class="btn-cancel" onclick="limparFiltro()" style="padding:8px 16px">✕ Limpar</button>
           </div>
-          <!-- Totais do período selecionado -->
-          <div id="filtro-totais" style="display:none;margin-top:12px;display:none">
+                    <div id="filtro-totais" style="display:none;margin-top:12px;display:none">
             <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;font-size:.82rem">
               <div style="background:#e8f5e9;border-radius:7px;padding:9px 12px">
                 <div style="font-size:.7rem;font-weight:700;color:var(--gray);text-transform:uppercase;margin-bottom:3px">Adiant. no Período</div>
@@ -1296,8 +1189,7 @@
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
 
-          <!-- Adiantamentos -->
-          <div class="tcard">
+                    <div class="tcard">
             <div class="tcard-hdr">
               <div class="tcard-title">💵 Adiantamentos</div>
               <button class="btn-add" id="btn-ficha-adt" style="display:none;padding:5px 12px;font-size:.78rem" onclick="gerarFichaAdiantamentos()">📄 Ficha Adiant.</button>
@@ -1306,8 +1198,7 @@
             <table><thead><tr><th>Cód.</th><th>Data</th><th>Valor</th><th>Forma Pgto</th><th>Banco</th><th>Status</th><th>Ticket</th><th></th></tr></thead>
             <tbody id="canhoto-adt-list"></tbody></table>
             </div>
-            <!-- Totais de adiantamentos -->
-            <div id="adt-totais-bar" style="display:none;margin-top:10px">
+                        <div id="adt-totais-bar" style="display:none;margin-top:10px">
               <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:.8rem">
                 <div style="background:#fff3cd;border-radius:6px;padding:8px 10px;text-align:center">
                   <div style="font-size:.68rem;font-weight:700;color:var(--gray);text-transform:uppercase">Total Adiantado</div>
@@ -1325,8 +1216,7 @@
             </div>
           </div>
 
-          <!-- Cheques -->
-          <div class="tcard">
+                    <div class="tcard">
             <div class="tcard-hdr"><div class="tcard-title">📝 Cheques</div></div>
             <div style="overflow-x:auto">
             <table><thead><tr><th>Nº Cheque</th><th>Data</th><th>Valor</th><th>Banco</th><th>Status</th><th>Ticket</th></tr></thead>
@@ -1335,8 +1225,7 @@
           </div>
         </div>
 
-        <!-- Tickets do fornecedor -->
-        <div class="tcard" style="margin-bottom:16px">
+                <div class="tcard" style="margin-bottom:16px">
           <div class="tcard-hdr"><div class="tcard-title">🎫 Tickets de Entrada</div></div>
           <table>
             <thead><tr><th>Ticket</th><th>Data</th><th>Itens</th><th>Total R$</th><th>Adiant.</th><th>Saldo</th><th>Status</th><th></th></tr></thead>
@@ -1345,8 +1234,7 @@
         </div>
       </div>
 
-      <!-- EXTRATO COMPLETO: botão + share bar + box -->
-      <div id="extrato-btn-bar" style="display:none;margin-bottom:12px">
+            <div id="extrato-btn-bar" style="display:none;margin-bottom:12px">
         <button class="btn-add" style="padding:9px 20px;font-size:.88rem;font-weight:800" onclick="gerarExtrato()">
           📊 Gerar Extrato Completo (Adiantamentos + Compras + Saldo)
         </button>
@@ -1373,8 +1261,7 @@
         <div id="extrato-content"></div>
       </div>
 
-      <!-- Ficha de Adiantamentos: share bar e box -->
-      <div class="share-bar" id="adt-share-bar" style="display:none;margin-bottom:8px">
+            <div class="share-bar" id="adt-share-bar" style="display:none;margin-bottom:8px">
         <button class="btn-wpp" onclick="compartilharWppAdiantamentos()">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
           WhatsApp
@@ -1395,12 +1282,10 @@
         <div id="adt-ficha-content"></div>
       </div>
 
-      <!-- Campo oculto para funções de compartilhamento saberem qual ticket está ativo -->
-      <input type="hidden" id="ticket-input" value="">
+            <input type="hidden" id="ticket-input" value="">
       <input type="hidden" id="adt-forn-ativo" value="">
 
-      <!-- Botões de compartilhamento (canhoto ticket) -->
-      <div class="share-bar" id="share-bar" style="display:none">
+            <div class="share-bar" id="share-bar" style="display:none">
         <button class="btn-wpp" onclick="compartilharWpp()">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
           Compartilhar no WhatsApp
@@ -1413,8 +1298,7 @@
         <button class="btn-print" onclick="imprimirCanhoto()">🖨️ Imprimir / Salvar PDF</button>
       </div>
 
-      <!-- Canhoto do ticket selecionado -->
-      <div id="canhoto-box" style="display:none;border:2px solid var(--border);border-radius:10px;padding:24px;background:#fafafa;font-size:.85rem">
+            <div id="canhoto-box" style="display:none;border:2px solid var(--border);border-radius:10px;padding:24px;background:#fafafa;font-size:.85rem">
         <div style="text-align:center;font-size:1.3rem;font-weight:900;color:var(--primary);margin-bottom:3px">MANUELA METAIS</div>
         <div style="text-align:center;font-size:.78rem;color:var(--gray)"><span data-brand-legal-name></span> · CNPJ: <span data-brand-cnpj></span></div>
         <div style="text-align:center;font-size:.72rem;color:var(--gray);margin-bottom:16px"><span data-brand-address-contacts></span></div>
@@ -1423,12 +1307,10 @@
       </div>
     </div>
 
-    <!-- CONTAS PAGAR -->
-    <div class="tab-panel" id="tab-contas_pagar">
+        <div class="tab-panel" id="tab-contas_pagar">
       <div class="sec-title">📑 Contas a Pagar</div>
 
-      <!-- PAINEL FIXO: Contas do dia atual -->
-      <div id="cp-hoje-panel" style="background:#fff3e0;border:2px solid #ff9800;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:none">
+            <div id="cp-hoje-panel" style="background:#fff3e0;border:2px solid #ff9800;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:none">
         <div style="font-weight:800;font-size:.88rem;color:#e65100;margin-bottom:6px">📅 VENCE HOJE</div>
         <div id="cp-hoje-lista" style="display:flex;flex-direction:column;gap:4px"></div>
       </div>
@@ -1440,8 +1322,7 @@
         <div class="kpi g"><div class="kpi-lbl">Pagos (mês)</div><div class="kpi-val">R$ 0</div><div class="kpi-sub">—</div></div>
       </div>
 
-      <!-- CALENDÁRIO DE VENCIMENTOS -->
-      <div class="tcard" style="margin-bottom:12px">
+            <div class="tcard" style="margin-bottom:12px">
         <div class="tcard-hdr" style="cursor:pointer" onclick="cpToggleCalendario()">
           <div class="tcard-title">📆 Calendário de Vencimentos <span id="cp-cal-seta" style="font-size:.8rem;color:#888">▼ mostrar</span></div>
           <div style="display:flex;gap:8px;align-items:center" onclick="event.stopPropagation()">
@@ -1454,8 +1335,7 @@
       </div>
 
       <div style="display:flex;gap:16px;align-items:flex-start">
-        <!-- ═══ FILTRAR (sidebar, estilo Bling) ═══ -->
-        <div id="cp-filtro-sidebar" class="tcard" style="width:220px;flex-shrink:0;padding:14px">
+                <div id="cp-filtro-sidebar" class="tcard" style="width:220px;flex-shrink:0;padding:14px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
             <div style="font-weight:800;font-size:.88rem;color:#1a3a2a">🔽 Filtrar</div>
             <span onclick="cpLimparFiltros()" title="Limpar filtros" style="cursor:pointer;color:#999;font-size:.95rem">✕</span>
@@ -1495,8 +1375,7 @@
           <button onclick="cpLimparFiltros()" style="width:100%;background:none;color:#1b5e20;border:none;font-weight:700;cursor:pointer;font-size:.82rem;padding:4px">Limpar filtros</button>
         </div>
 
-        <!-- ═══ CONTEÚDO PRINCIPAL ═══ -->
-        <div style="flex:1;min-width:0">
+                <div style="flex:1;min-width:0">
           <div class="tcard">
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid #eee">
               <div style="position:relative;flex:1;min-width:200px">
@@ -1509,21 +1388,18 @@
               <button title="Excluir selecionadas" onclick="cpExcluirSelecionadas()" style="background:#fdecea;color:#c0392b;border:none;border-radius:7px;padding:8px 10px;cursor:pointer;font-size:.9rem">🗑️</button>
               <button class="btn-add" onclick="om('conta_pagar')">+ Nova Conta</button>
             </div>
-            <!-- Separa Fornecedores (compra de sucata) das Despesas (contas fixas) -->
-            <div style="display:flex;gap:6px;padding:10px 14px 4px;flex-wrap:wrap">
+                        <div style="display:flex;gap:6px;padding:10px 14px 4px;flex-wrap:wrap">
               <button id="cp-tipo-todos" onclick="cpSetTipo('todos')" class="cp-tipo-btn" style="border:1.5px solid #1a3a2a;background:#1a3a2a;color:#fff;border-radius:20px;padding:6px 16px;font-weight:700;font-size:.82rem;cursor:pointer">📋 Todos</button>
               <button id="cp-tipo-compra" onclick="cpSetTipo('compra')" class="cp-tipo-btn" style="border:1.5px solid #1a3a2a;background:#fff;color:#1a3a2a;border-radius:20px;padding:6px 16px;font-weight:700;font-size:.82rem;cursor:pointer">🏭 Fornecedores (sucata)</button>
               <button id="cp-tipo-despesa" onclick="cpSetTipo('despesa')" class="cp-tipo-btn" style="border:1.5px solid #1a3a2a;background:#fff;color:#1a3a2a;border-radius:20px;padding:6px 16px;font-weight:700;font-size:.82rem;cursor:pointer">🧾 Despesas (contas fixas)</button>
             </div>
-            <!-- Navegação por MÊS (estilo Bling): mostra um mês de cada vez -->
-            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px 2px;flex-wrap:wrap">
+                        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px 2px;flex-wrap:wrap">
               <button onclick="cpMesNav(-1)" title="Mês anterior" style="background:#eef2f0;border:none;border-radius:8px;padding:6px 14px;font-weight:800;cursor:pointer;font-size:1rem;color:#1a3a2a">‹</button>
               <span id="cp-mes-label" style="font-weight:800;font-size:.95rem;color:#1a3a2a;min-width:150px;text-align:center">—</span>
               <button onclick="cpMesNav(1)" title="Próximo mês" style="background:#eef2f0;border:none;border-radius:8px;padding:6px 14px;font-weight:800;cursor:pointer;font-size:1rem;color:#1a3a2a">›</button>
               <button id="cp-mes-todos-btn" onclick="cpMesTodos()" title="Ver todos os meses de uma vez" style="background:#fff;border:1.5px solid #bbb;border-radius:20px;padding:5px 14px;font-weight:700;cursor:pointer;font-size:.8rem;color:#666">📅 Ver todos os meses</button>
             </div>
-            <!-- Filtro por EMPRESA -->
-            <div style="display:flex;align-items:center;gap:6px;padding:4px 14px 2px;flex-wrap:wrap">
+                        <div style="display:flex;align-items:center;gap:6px;padding:4px 14px 2px;flex-wrap:wrap">
               <span style="font-size:.74rem;font-weight:700;color:#888;margin-right:2px">Empresa:</span>
               <button id="cp-emp-todas" onclick="cpSetEmpresa('')" style="border:1.5px solid #1a3a2a;background:#1a3a2a;color:#fff;border-radius:20px;padding:4px 12px;font-weight:700;font-size:.78rem;cursor:pointer">Todas</button>
               <button id="cp-emp-manuela" data-company-slot="0" onclick="cpSetEmpresa(this.dataset.empresa||'')" style="border:1.5px solid #1a3a2a;background:#fff;color:#1a3a2a;border-radius:20px;padding:4px 12px;font-weight:700;font-size:.78rem;cursor:pointer"></button>
@@ -1552,8 +1428,7 @@
       </div>
     </div>
 
-    <!-- CONTAS RECEBER -->
-    <div class="tab-panel" id="tab-estoque">
+        <div class="tab-panel" id="tab-estoque">
       <div class="sec-title">📦 Estoque</div>
       <div class="kpi-grid" style="margin-bottom:16px">
         <div class="kpi"><div class="kpi-lbl">Tipos de Material</div><div class="kpi-val" id="kpi-est-total-mat">0</div><div class="kpi-sub">Metais cadastrados</div></div>
@@ -1592,8 +1467,7 @@
         <div class="kpi g"><div class="kpi-lbl">Feitos</div><div class="kpi-val" id="af-kpi-feito">0</div><div class="kpi-sub">Concluídos</div></div>
         <div class="kpi b"><div class="kpi-lbl">Total</div><div class="kpi-val" id="af-kpi-total">0</div><div class="kpi-sub">No histórico</div></div>
       </div>
-      <!-- CALENDÁRIO -->
-      <div class="tcard" style="padding:14px;margin-bottom:14px">
+            <div class="tcard" style="padding:14px;margin-bottom:14px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <button onclick="afMes(-1)" title="Mês anterior" style="border:1px solid #dfe4ea;background:#fff;border-radius:8px;padding:6px 13px;cursor:pointer;font-size:1rem;font-weight:700;color:#1a3a2a">‹</button>
           <div id="af-cal-titulo" style="font-weight:800;font-size:1.02rem;color:#1a3a2a"></div>
@@ -1605,8 +1479,7 @@
           <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#27ae60;vertical-align:middle;margin-right:4px"></span>Tudo feito no dia</span>
         </div>
       </div>
-      <!-- SERVIÇOS DO DIA SELECIONADO -->
-      <div class="tcard" style="padding:14px;margin-bottom:14px">
+            <div class="tcard" style="padding:14px;margin-bottom:14px">
         <div id="af-dia-titulo" style="font-weight:800;font-size:1rem;color:#1a3a2a;margin-bottom:12px">Serviços do dia</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
           <div style="min-width:150px">
@@ -1657,8 +1530,7 @@
       </div>
     </div>
 
-    <!-- CONTAS BANCO -->
-    <div class="tab-panel" id="tab-contas_banco">
+        <div class="tab-panel" id="tab-contas_banco">
       <div class="sec-title">🏦 Contas Bancárias</div>
       <div class="kpi-grid">
         <div class="kpi"><div class="kpi-lbl">Total de Contas</div><div class="kpi-val">—</div><div class="kpi-sub">Aguardando cadastro</div></div>
@@ -1682,8 +1554,7 @@
       </div>
     </div>
 
-    <!-- CHEQUES -->
-    <div class="tab-panel" id="tab-cheques">
+        <div class="tab-panel" id="tab-cheques">
       <div class="sec-title">Controle de cheques</div>
       <div id="cheq-secretaria-banner" style="display:none"></div>
       <div class="erp-checks-toolbar">
@@ -1704,16 +1575,14 @@
           <button type="button" class="btn-add" onclick="om('cheque')">Novo cheque</button>
         </div>
       </div>
-      <!-- SUB-TAB: Lista -->
-      <div id="cheqtab-lista">
+            <div id="cheqtab-lista">
       <div class="kpi-grid">
         <div class="kpi r"><div class="kpi-lbl">Emitidos Pendentes</div><div class="kpi-val">R$ 0</div><div class="kpi-sub">A pagar</div></div>
         <div class="kpi g"><div class="kpi-lbl">A Receber Pendentes</div><div class="kpi-val">R$ 0</div><div class="kpi-sub">A compensar</div></div>
         <div class="kpi o"><div class="kpi-lbl">Total a Compensar</div><div class="kpi-val">R$ 0</div><div class="kpi-sub">Pendentes no banco</div></div>
         <div class="kpi"><div class="kpi-lbl">Total Compensado</div><div class="kpi-val">R$ 0</div><div class="kpi-sub">Já compensados</div></div>
       </div>
-      <!-- inputs de filtro (hidden) -->
-      <input type="date" id="cheq-filt-de" onchange="renderCheques()" style="display:none">
+            <input type="date" id="cheq-filt-de" onchange="renderCheques()" style="display:none">
       <input type="date" id="cheq-filt-ate" onchange="renderCheques()" style="display:none">
       <div id="tb-cheq-banco-resumo" style="display:none"></div>
       <div id="cheq-banco-cards" style="display:none"></div>
@@ -1721,8 +1590,7 @@
       <div id="cheq-grand-pend" style="display:none"></div>
       <div id="cheq-grand-total" style="display:none"></div>
       <div id="cheq-grand-pend-sub" style="display:none"></div>
-      <!-- Barra de busca -->
-      <div class="erp-checks-filters">
+            <div class="erp-checks-filters">
         <input type="text" id="cheq-busca-num" placeholder="Buscar por número ou fornecedor..." oninput="renderCheques()"
           style="flex:1;min-width:160px;max-width:240px;padding:7px 12px;border:1.5px solid #1a3a2a;border-radius:8px;font-size:.88rem">
         <div style="display:flex;align-items:center;gap:6px">
@@ -1745,24 +1613,20 @@
           <tbody id="tb-cheques-list"></tbody>
         </table>
       </div>
-      </div><!-- /cheqtab-lista -->
-
-      <!-- SUB-TAB: Desconto Fornecedor -->
-      <div id="cheqtab-desconto" style="display:none">
+      </div>
+            <div id="cheqtab-desconto" style="display:none">
         <div style="background:#fff8e1;border:1px solid #f9a825;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:.82rem;color:#795548">
           📉 <b>Desconto no fornecedor</b> — controle separado do banco. O cheque pode já ter compensado no banco e ainda estar "a descontar" aqui, até você abater na carga do fornecedor.
         </div>
         <div id="desconto-forn-body"><p style="color:#999;font-style:italic;padding:20px">Carregando...</p></div>
       </div>
 
-      <!-- SUB-TAB: Histórico por Banco -->
-      <div id="cheqtab-historico" style="display:none">
+            <div id="cheqtab-historico" style="display:none">
         <div id="cheq-hist-body"><p style="color:#999;font-style:italic;padding:20px">Carregando...</p></div>
       </div>
     </div>
 
-    <!-- FLUXO CAIXA -->
-    <div class="tab-panel" id="tab-fluxo_caixa">
+        <div class="tab-panel" id="tab-fluxo_caixa">
       <div class="sec-title">📈 Fluxo de Caixa</div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
         <label style="font-weight:600;color:var(--primary)">Ano:</label>
@@ -1781,8 +1645,7 @@
       </div>
     </div>
 
-    <!-- FUNCIONÁRIOS -->
-    <div class="tab-panel" id="tab-avisos"></div>
+        <div class="tab-panel" id="tab-avisos"></div>
     <div class="tab-panel" id="tab-funcionarios">
       <div class="sec-title">👷 Funcionários</div>
       <div class="kpi-grid">
@@ -1792,8 +1655,7 @@
         <div class="kpi r"><div class="kpi-lbl">Folha Total</div><div class="kpi-val" id="kpi-func-folha">R$ —</div><div class="kpi-sub">Soma salários base ativos</div></div>
       </div>
 
-      <!-- Sub-abas Ativos / Inativos -->
-      <div style="display:flex;align-items:flex-end;gap:4px;margin-bottom:-2px">
+            <div style="display:flex;align-items:flex-end;gap:4px;margin-bottom:-2px">
         <button id="func-stab-btn-ativos" onclick="funcSubTab('ativos')"
           style="padding:9px 24px;border-radius:8px 8px 0 0;font-weight:700;font-size:.88rem;cursor:pointer;border:2px solid #1a3a2a;border-bottom:none;background:#1a3a2a;color:#fff;margin-bottom:-2px">
           👷 Ativos <span id="func-badge-ativos" style="background:rgba(255,255,255,.25);border-radius:10px;padding:1px 8px;font-size:.78rem;margin-left:4px">—</span>
@@ -1811,8 +1673,7 @@
       </div>
 
       <div class="func-toolbar"><label for="func-ordenacao">Ordenar funcionários</label><select id="func-ordenacao" onchange="funcSelecionarOrdenacao(this.value)"><option value="nome:1">Nome (A–Z)</option><option value="nome:-1">Nome (Z–A)</option><option value="status:1">Status (A–Z)</option><option value="status:-1">Status (Z–A)</option><option value="mat:1">Matrícula (crescente)</option><option value="mat:-1">Matrícula (decrescente)</option><option value="cargo:1">Cargo (A–Z)</option></select></div>
-      <!-- Sub-aba Ativos -->
-      <div id="func-subtab-ativos">
+            <div id="func-subtab-ativos">
         <div class="tcard" style="border-radius:0 8px 8px 8px">
           <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
           <table style="min-width:720px">
@@ -1823,8 +1684,7 @@
         </div>
       </div>
 
-      <!-- Sub-aba Inativos -->
-      <div id="func-subtab-inativos" style="display:none">
+            <div id="func-subtab-inativos" style="display:none">
         <div class="tcard" style="border-radius:0 8px 8px 8px">
           <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
           <table style="min-width:720px">
@@ -1836,8 +1696,7 @@
       </div>
     </div>
 
-    <!-- AGENDA DE ENTREGAS -->
-    <div class="tab-panel" id="tab-agenda_entregas">
+        <div class="tab-panel" id="tab-agenda_entregas">
       <div class="sec-title">📅 Agenda de Entregas de Material</div>
       <div class="kpi-grid">
         <div class="kpi g"><div class="kpi-lbl">Agendadas Hoje</div><div class="kpi-val" id="agd-kpi-hoje">0</div><div class="kpi-sub">entregas</div></div>
@@ -1893,8 +1752,7 @@
       </div>
     </div>
 
-    <!-- VALES -->
-    <div class="tab-panel" id="tab-vales">
+        <div class="tab-panel" id="tab-vales">
       <div class="sec-title" id="vales-titulo">💳 Controle de Vales – Pagamento Dia 20</div>
       <div class="kpi-grid">
         <div class="kpi o"><div class="kpi-lbl">Vales do Mês</div><div class="kpi-val" id="kpi-vales-mes">R$ 0</div><div class="kpi-sub" id="kpi-vales-mes-sub">Mês atual</div></div>
@@ -1923,8 +1781,7 @@
       </div>
     </div>
 
-    <!-- EPI / NR-06 -->
-    <div class="tab-panel" id="tab-epi">
+        <div class="tab-panel" id="tab-epi">
       <div class="sec-title">🦺 Controle de EPI – NR-06</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px">
         <div>
@@ -1945,10 +1802,7 @@
         </div>
         <button onclick="novoEpiModal()" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-weight:700;cursor:pointer;font-size:.88rem">🦺 Registrar Entrega de EPI</button>
         <button onclick="epiImprimirFicha()" style="background:#1565c0;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-weight:700;cursor:pointer;font-size:.88rem">🖨️ Imprimir Ficha por Funcionário</button>
-        <!-- Elaine (04/08): "preciso desse relatorio completo no final de
-             mes pra imprimir" — relatório único com todos os colaboradores
-             juntos, igual a planilha física que ela usa hoje. -->
-        <button onclick="epiImprimirRelatorioMensal()" style="background:#2e7d32;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-weight:700;cursor:pointer;font-size:.88rem">🖨️ Relatório Mensal Completo</button>
+                <button onclick="epiImprimirRelatorioMensal()" style="background:#2e7d32;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-weight:700;cursor:pointer;font-size:.88rem">🖨️ Relatório Mensal Completo</button>
       </div>
       <div class="tcard">
         <div class="tcard-hdr"><div class="tcard-title">Entregas Registradas</div><span id="epi-count" style="font-size:.8rem;color:#888"></span></div>
@@ -1964,8 +1818,7 @@
       </div>
     </div>
 
-    <!-- FOLHA PAGAMENTO -->
-    <div class="tab-panel" id="tab-folha_pagamento">
+        <div class="tab-panel" id="tab-folha_pagamento">
       <div class="sec-title">💰 Folha de Pagamento</div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
         <label style="font-weight:600;color:var(--primary)">Mês de referência:</label>
@@ -1987,8 +1840,7 @@
       </div>
     </div>
 
-    <!-- PREÇOS FORNECEDORES -->
-    <div class="tab-panel" id="tab-precos_fornecedores">
+        <div class="tab-panel" id="tab-precos_fornecedores">
       <div class="sec-title">🏷️ Tabela de Preços de Compra por Fornecedor (R$/kg)</div>
       <div class="tcard" style="margin-bottom:16px">
         <div class="tcard-hdr"><div class="tcard-title">Selecione o fornecedor para editar seus preços</div></div>
@@ -2012,12 +1864,10 @@
           <p style="color:var(--gray);text-align:center;padding:30px">Selecione um fornecedor acima para ver e editar seus preços.</p>
         </div>
       </div>
-      <!-- Render area para imagem de preços -->
-      <div id="pf-img-box" style="display:none;position:fixed;left:-9999px;top:0;width:520px;background:#fff;padding:28px;font-family:Arial,sans-serif;color:#222"></div>
+            <div id="pf-img-box" style="display:none;position:fixed;left:-9999px;top:0;width:520px;background:#fff;padding:28px;font-family:Arial,sans-serif;color:#222"></div>
     </div>
 
-    <!-- PREÇOS CLIENTES -->
-    <div class="tab-panel" id="tab-precos_clientes">
+        <div class="tab-panel" id="tab-precos_clientes">
       <div class="sec-title">🏷️ Tabela de Preços de Venda por Cliente (R$/kg)</div>
       <div class="tcard" style="margin-bottom:16px">
         <div class="tcard-hdr"><div class="tcard-title">Selecione o cliente para editar seus preços</div></div>
@@ -2044,8 +1894,7 @@
       <div id="pc-img-box" style="display:none;position:fixed;left:-9999px;top:0;width:520px;background:#fff;padding:28px;font-family:Arial,sans-serif;color:#222"></div>
     </div>
 
-    <!-- CONTRATOS -->
-    <div class="tab-panel" id="tab-contratos">
+        <div class="tab-panel" id="tab-contratos">
       <div class="sec-title">Contratos</div>
       <div class="kpi-grid">
         <div class="kpi g"><div class="kpi-lbl">Contratos vencidos</div><div class="kpi-val" id="kpi-cont-status">0</div><div class="kpi-sub" id="kpi-cont-sub">Nenhum contrato vencido</div></div>
@@ -2063,11 +1912,9 @@
       </div>
     </div>
 
-    <!-- DOCUMENTOS DE EMPRESAS -->
-    <div class="tab-panel" id="tab-documentos_empresas">
+        <div class="tab-panel" id="tab-documentos_empresas">
       <div class="sec-title">Documentos</div>
-      <!-- Filtros -->
-      <div class="erp-docs-filters">
+            <div class="erp-docs-filters">
         <div>
           <label style="font-size:.75rem;font-weight:700;color:#555;display:block;margin-bottom:3px">Tipo</label>
           <select id="de-filtro-tipo" onchange="renderDocsEmpresas()" style="padding:7px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:.88rem;background:#fff">
@@ -2090,15 +1937,13 @@
         </div>
         <button class="btn-add" onclick="deNovoDoc()" style="margin-bottom:0">Adicionar documento</button>
       </div>
-      <!-- Lista -->
-      <div class="tcard">
+            <div class="tcard">
         <div class="tcard-hdr"><div class="tcard-title" id="de-titulo">Documentos</div></div>
         <div id="de-lista" style="padding:0 8px 12px"></div>
       </div>
     </div>
 
-    <!-- CONFIG -->
-    <div class="tab-panel" id="tab-config">
+        <div class="tab-panel" id="tab-config">
       <div class="sec-title">⚙️ Configurações do Sistema</div>
       <div class="tcard" style="margin-bottom:18px">
         <div class="tcard-hdr"><div class="tcard-title">🏢 Dados da Empresa</div>
@@ -2126,8 +1971,7 @@
       </div>
     </div>
 
-    <!-- CUSTO CASA -->
-    <div class="tab-panel" id="tab-lista_compras">
+        <div class="tab-panel" id="tab-lista_compras">
       <div class="sec-title">Lista de compras</div>
       <div class="tcard" style="margin-bottom:14px;padding:14px">
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
@@ -2164,8 +2008,7 @@
 
     <div class="tab-panel" id="tab-custo_casa">
       <div class="sec-title">🏠 Custos Pessoais</div>
-      <!-- Sub-abas: cada área tem sua própria lista, mês e totais -->
-      <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;border-bottom:2px solid #e0e0e0;padding-bottom:2px">
+            <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;border-bottom:2px solid #e0e0e0;padding-bottom:2px">
         <button id="cc-aba-Casa" onclick="ccSetArea('Casa')" style="padding:8px 18px;border:none;border-bottom:3px solid #1a5e2a;background:transparent;font-weight:700;font-size:.88rem;color:#1a5e2a;cursor:pointer">🏠 Casa</button>
         <button id="cc-aba-Sítio" onclick="ccSetArea('Sítio')" style="padding:8px 18px;border:none;border-bottom:3px solid transparent;background:transparent;font-weight:700;font-size:.88rem;color:#999;cursor:pointer">🌳 Sítio</button>
         <button id="cc-aba-Casa Glória" onclick="ccSetArea('Casa Glória')" style="padding:8px 18px;border:none;border-bottom:3px solid transparent;background:transparent;font-weight:700;font-size:.88rem;color:#999;cursor:pointer">🏡 Casa Glória</button>
@@ -2178,8 +2021,7 @@
         <div class="kpi g"><div class="kpi-lbl">Total Pago</div><div class="kpi-val">R$ 0</div><div class="kpi-sub">—</div></div>
         <div class="kpi o"><div class="kpi-lbl">A Pagar</div><div class="kpi-val">R$ 0</div><div class="kpi-sub">—</div></div>
       </div>
-      <!-- Seção de Veículos Pessoais (só aparece na aba Veículos Pessoais) -->
-      <div id="cc-veiculos-wrap" style="display:none">
+            <div id="cc-veiculos-wrap" style="display:none">
         <div class="tcard" style="margin-bottom:14px">
           <div class="tcard-hdr">
             <div class="tcard-title">🚗 Meus Veículos</div>
@@ -2225,14 +2067,12 @@
       </div>
     </div>
 
-    <!-- SENHAS (só Elaine) -->
-    <div class="tab-panel" id="tab-senhas">
+        <div class="tab-panel" id="tab-senhas">
       <div class="sec-title">🔒 Senhas</div>
       <div id="senhas-conteudo"></div>
     </div>
 
-    <!-- VIAGEM MOTORISTA -->
-    <div class="tab-panel" id="tab-viagem_motorista">
+        <div class="tab-panel" id="tab-viagem_motorista">
       <div class="sec-title">Viagens de motoristas</div>
       <div class="kpi-grid" id="viagem-kpis">
         <div class="kpi r"><div class="kpi-lbl">Total Diárias Pagas</div><div class="kpi-val" id="vkpi-total">R$ 0,00</div><div class="kpi-sub">A pagar aos motoristas</div></div>
@@ -2337,8 +2177,7 @@
       </div>
     </div>
 
-    <!-- COMBUSTIVEL RUDNICK -->
-    <div class="tab-panel" id="tab-combustivel_rudnick">
+        <div class="tab-panel" id="tab-combustivel_rudnick">
       <style>
         #tab-combustivel_rudnick .cbx-h{font-size:1.15rem;font-weight:700;color:#1f2933;margin:0 0 2px}
         #tab-combustivel_rudnick .cbx-sub{color:#6b7885;font-size:.85rem;margin-bottom:16px}
@@ -2388,8 +2227,7 @@
         <button class="cbx-tab" id="cru-tab-btn-historico" onclick="cruSwitchTab('historico')">Histórico</button>
       </div>
 
-      <!-- ABA: ABASTECER VEÍCULO -->
-      <div id="cru-panel-abastecer">
+            <div id="cru-panel-abastecer">
         <div class="cbx-card">
           <h3>Registrar abastecimento</h3>
           <div class="hint">Preencha os dados do abastecimento do veículo.</div>
@@ -2436,8 +2274,7 @@
         </div>
       </div>
 
-      <!-- ABA: TANQUE RUDNICK -->
-      <div id="cru-panel-tanque" style="display:none">
+            <div id="cru-panel-tanque" style="display:none">
         <div class="cbx-card">
           <h3>Tanque Rudnick — saldo atual</h3>
           <div class="cbx-saldo"><span id="tanque-saldo">— L</span></div>
@@ -2488,8 +2325,7 @@
         </div>
       </div>
 
-      <!-- ABA: HISTÓRICO -->
-      <div id="cru-panel-historico" style="display:none">
+            <div id="cru-panel-historico" style="display:none">
         <div class="cbx-card">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
             <h3 style="margin:0">Histórico de abastecimentos <span id="cru-hist-count" style="font-size:.75rem;font-weight:400;color:#888"></span></h3>
@@ -2525,8 +2361,7 @@
 
     </div>
 
-    <!-- MODAL EDITAR COMBUSTÍVEL — IDs exclusivos para não colidir com Editar Cheque -->
-    <div id="modal-edit-comb" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center">
+        <div id="modal-edit-comb" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center">
       <div style="background:#fff;border-radius:14px;padding:24px 28px;width:min(760px,96vw);max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25)">
         <div style="font-size:1.1rem;font-weight:800;color:var(--primary);margin-bottom:16px">✏️ Editar Abastecimento</div>
         <input type="hidden" id="comb-edit-id">
@@ -2554,7 +2389,6 @@
         </div>
       </div>
     </div>
-<!-- DESPESAS GRUPO -->
     <div class="tab-panel" id="tab-despesas_grupo">
       <div class="sec-title erp-expense-company-header"><span>Despesas por grupo</span><button type="button" class="btn-edit" onclick="gerenciarEmpresasFuncionarios()">Gerenciar empresas</button></div>
       <div class="erp-expenses-filters">
@@ -2563,19 +2397,16 @@
           <option value="">Todas as empresas</option>
         </select>
       </div>
-      <!-- TABS -->
-  <div class="tabs">
+        <div class="tabs">
     <button class="desp-tab-btn desp-active" onclick="switchDespTab('lancar')">Lançar despesa</button>
     <button class="desp-tab-btn" onclick="switchDespTab('extrato')">Extrato do mês</button>
     <button class="desp-tab-btn" onclick="switchDespTab('historico')">Histórico completo</button>
     <button class="desp-tab-btn" onclick="switchDespTab('resumo')">Resumo por fornecedor</button>
   </div>
 
-  <!-- KPIs -->
-  <div class="kpi-row" id="kpi-row"></div>
+    <div class="kpi-row" id="kpi-row"></div>
 
-  <!-- TAB: LANÇAR -->
-  <div class="desp-panel desp-active" id="desp-lancar">
+    <div class="desp-panel desp-active" id="desp-lancar">
     <div class="form-card">
       <h3>Nova despesa</h3>
       <div class="form-grid">
@@ -2650,8 +2481,7 @@
     </div>
   </div>
 
-  <!-- TAB: EXTRATO -->
-  <div class="desp-panel" id="desp-extrato">
+    <div class="desp-panel" id="desp-extrato">
     <div class="tcard">
       <div class="tcard-hdr">
         <div class="tcard-title" id="extrato-titulo">Extrato de Despesas</div>
@@ -2688,8 +2518,7 @@
     </div>
   </div>
 
-  <!-- TAB: RESUMO POR FORNECEDOR -->
-  <div class="desp-panel" id="desp-historico">
+    <div class="desp-panel" id="desp-historico">
     <div class="tcard">
       <div class="tcard-hdr">
         <div class="tcard-title">Histórico completo de Despesas</div>
@@ -2710,8 +2539,7 @@
 
   <div class="desp-panel" id="desp-resumo">
     <div class="resumo-grid-d" id="resumo-grid"></div>
-    <!-- Resumo por banco -->
-    <div class="tcard" id="banco-resumo-card" style="margin-top:4px">
+        <div class="tcard" id="banco-resumo-card" style="margin-top:4px">
       <div class="tcard-hdr"><div class="tcard-title">🏦 Resumo por Banco</div></div>
       <div style="overflow-x:auto">
         <table><thead><tr><th>Banco / Conta</th><th style="text-align:right">Total Saído R$</th><th>Qtd. Lançamentos</th></tr></thead>
@@ -2721,24 +2549,20 @@
   </div>
     </div>
 
-    <!-- USUÁRIOS -->
-    <div class="tab-panel" id="tab-usuarios">
+        <div class="tab-panel" id="tab-usuarios">
       <div class="sec-title">⚙️ Gestão de Usuários</div>
       <div class="ugrid" id="users-grid"></div>
     </div>
 
-    <!-- CHEQUES A COMPENSAR (CONTROLE) -->
-    <div class="tab-panel" id="tab-cheques_compensar">
+        <div class="tab-panel" id="tab-cheques_compensar">
       <div class="sec-title">Cheques a compensar</div>
       <div id="chq-ctrl-root"></div>
     </div>
 
-    <!-- ALMOXARIFADO / COORDENADOR -->
-    <div class="tab-panel" id="tab-almoxarifado">
+        <div class="tab-panel" id="tab-almoxarifado">
       <div class="sec-title">🏭 Almoxarifado — Controle de Estoque</div>
 
-      <!-- Sub-tabs -->
-      <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid #1a3a2a">
+            <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid #1a3a2a">
         <button id="alx-stab-btn-itens"     onclick="alxTab('itens')"     style="padding:9px 18px;border:none;background:#1a3a2a;color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;border-radius:8px 8px 0 0;margin-right:2px">📦 Itens</button>
         <button id="alx-stab-btn-mov"       onclick="alxTab('mov')"       style="padding:9px 18px;border:none;background:#f5f5f5;color:#555;font-weight:600;font-size:.85rem;cursor:pointer;border-radius:8px 8px 0 0;margin-right:2px">↕️ Movimentação</button>
         <button id="alx-stab-btn-faltas"    onclick="alxTab('faltas')"    style="padding:9px 18px;border:none;background:#f5f5f5;color:#555;font-weight:600;font-size:.85rem;cursor:pointer;border-radius:8px 8px 0 0;margin-right:2px">⚠️ Faltas</button>
@@ -2746,8 +2570,7 @@
         <button id="alx-stab-btn-func"      onclick="alxTab('func')"      style="padding:9px 18px;border:none;background:#f5f5f5;color:#555;font-weight:600;font-size:.85rem;cursor:pointer;border-radius:8px 8px 0 0">👤 Por Funcionário</button>
       </div>
 
-      <!-- SUB-TAB: ITENS -->
-      <div id="alx-subtab-itens">
+            <div id="alx-subtab-itens">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
           <button class="btn-save" onclick="alxAbrirModalItem()" style="padding:9px 18px">+ Novo Item</button>
           <input id="alx-busca" placeholder="🔍 Buscar item..." oninput="alxRenderItens()"
@@ -2762,11 +2585,9 @@
         <div id="alx-itens-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px"></div>
       </div>
 
-      <!-- SUB-TAB: MOVIMENTAÇÃO -->
-      <div id="alx-subtab-mov" style="display:none">
+            <div id="alx-subtab-mov" style="display:none">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
-          <!-- Formulário -->
-          <div style="background:#f9f9f9;border:2px solid #ddd;border-radius:12px;padding:18px">
+                    <div style="background:#f9f9f9;border:2px solid #ddd;border-radius:12px;padding:18px">
             <div style="font-weight:800;font-size:.9rem;color:#1a3a2a;margin-bottom:14px">↕️ Registrar Movimentação</div>
             <div style="margin-bottom:10px">
               <label style="font-size:.75rem;font-weight:700;color:#555;text-transform:uppercase">Tipo</label>
@@ -2806,22 +2627,19 @@
             </div>
             <button class="btn-save" onclick="alxSalvarMov()" style="width:100%;padding:11px;font-size:.95rem">✅ Registrar</button>
           </div>
-          <!-- Últimas movimentações do dia -->
-          <div style="background:#fff;border:2px solid #ddd;border-radius:12px;padding:18px">
+                    <div style="background:#fff;border:2px solid #ddd;border-radius:12px;padding:18px">
             <div style="font-weight:800;font-size:.9rem;color:#1a3a2a;margin-bottom:10px">📋 Últimas movimentações</div>
             <div id="alx-mov-recentes" style="max-height:380px;overflow-y:auto"></div>
           </div>
         </div>
       </div>
 
-      <!-- SUB-TAB: FALTAS -->
-      <div id="alx-subtab-faltas" style="display:none">
+            <div id="alx-subtab-faltas" style="display:none">
         <div style="margin-bottom:14px;font-size:.88rem;color:#555">Itens com estoque igual ou abaixo do mínimo configurado.</div>
         <div id="alx-faltas-list"></div>
       </div>
 
-      <!-- SUB-TAB: OBSERVAÇÕES -->
-      <div id="alx-subtab-obs" style="display:none">
+            <div id="alx-subtab-obs" style="display:none">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
           <div>
             <div style="font-weight:800;font-size:.9rem;color:#1a3a2a;margin-bottom:10px">📝 Nova Observação</div>
@@ -2843,8 +2661,7 @@
         </div>
       </div>
 
-      <!-- SUB-TAB: POR FUNCIONÁRIO -->
-      <div id="alx-subtab-func" style="display:none">
+            <div id="alx-subtab-func" style="display:none">
         <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px">
           <div>
             <label style="font-size:.75rem;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:4px">Funcionário</label>
@@ -2861,8 +2678,7 @@
         <div id="alx-func-tabela"></div>
       </div>
 
-      <!-- MODAL ITEM -->
-      <div id="alx-modal-item" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;align-items:center;justify-content:center">
+            <div id="alx-modal-item" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;align-items:center;justify-content:center">
         <div style="background:#fff;border-radius:14px;box-shadow:0 8px 40px #0004;width:94%;max-width:460px;padding:0 0 18px">
           <div style="background:#1a3a2a;color:#fff;padding:13px 18px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center">
             <b id="alx-modal-titulo" style="font-size:.95rem">Novo Item</b>
@@ -2926,33 +2742,27 @@
           </div>
         </div>
       </div>
-    </div><!-- /tab-almoxarifado -->
+    </div>
 
-
-    <!-- ══════ FISCAL ══════ -->
-    <div class="tab-panel" id="tab-fiscal">
+        <div class="tab-panel" id="tab-fiscal">
       <div class="sec-title">Fiscal</div>
 
-      <!-- Seletor de Empresa -->
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;padding:10px 16px;background:#f0f4ff;border-radius:10px;border:1.5px solid #c5d3f0;flex-wrap:wrap">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;padding:10px 16px;background:#f0f4ff;border-radius:10px;border:1.5px solid #c5d3f0;flex-wrap:wrap">
         <span style="font-size:.78rem;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px">Empresa:</span>
         <button id="fiscal-emp-manuela" data-fiscal-company="manuela" onclick="fiscalSetEmpresa('manuela')" style="background:#1565c0;color:#fff;border:none;border-radius:7px;padding:6px 18px;cursor:pointer;font-weight:700;font-size:.85rem"></button>
         <button id="fiscal-emp-gratus" data-fiscal-company="gratus" onclick="fiscalSetEmpresa('gratus')" style="background:#f5f5f5;color:#555;border:1.5px solid #ccc;border-radius:7px;padding:6px 18px;cursor:pointer;font-weight:700;font-size:.85rem"></button>
         <span id="fiscal-emp-badge" style="margin-left:auto;font-size:.8rem;font-weight:700;color:#1565c0"></span>
       </div>
 
-      <!-- Sub-abas -->
-      <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+            <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
         <button id="fiscal-btn-mensal"  onclick="fiscalSubTab('mensal')"  class="btn-fiscal-tab active-fiscal-tab">Lançamento mensal</button>
         <button id="fiscal-btn-anual"   onclick="fiscalSubTab('anual')"   class="btn-fiscal-tab">Resumo anual</button>
         <button id="fiscal-btn-impostos"onclick="fiscalSubTab('impostos')"class="btn-fiscal-tab">Impostos</button>
         <button id="fiscal-btn-apuracao"onclick="fiscalSubTab('apuracao')"class="btn-fiscal-tab">Apuração / Lucro</button>
       </div>
 
-      <!-- ── PAINEL MENSAL ── -->
-      <div id="fiscal-panel-mensal">
-        <!-- Seletor Mês/Ano + sub-abas -->
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+            <div id="fiscal-panel-mensal">
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
           <select id="fiscal-sel-mes" onchange="fiscalCarregarMes()" style="padding:7px 12px;border-radius:7px;border:1.5px solid #ccc;font-size:.9rem">
             <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option>
             <option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option>
@@ -2971,8 +2781,7 @@
           <button onclick="fiscalExportarXML()" title="Baixar um arquivo XML com os dados das notas deste mês" style="background:#2980b9;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:700;font-size:.82rem">📄 Exportar XML</button>
         </div>
 
-        <!-- Sub-abas internas do Mensal -->
-        <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;border-bottom:2px solid #e0e0e0;padding-bottom:10px">
+                <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;border-bottom:2px solid #e0e0e0;padding-bottom:10px">
           <button class="btn-fiscal-tab active-fiscal-tab" id="fmtab-btn-entradas" onclick="fiscalMenSubTab('entradas')">📥 Entradas</button>
           <button class="btn-fiscal-tab" id="fmtab-btn-saidas"   onclick="fiscalMenSubTab('saidas')">📤 Saídas</button>
           <button class="btn-fiscal-tab" id="fmtab-btn-despesas" onclick="fiscalMenSubTab('despesas')">💸 Despesas</button>
@@ -2982,10 +2791,8 @@
           <button onclick="fiscalAdicionarUsuario()" style="margin-left:auto;background:#1565c0;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:700;font-size:.82rem">👤 Usuário Fiscal</button>
         </div>
 
-        <!-- ── SUB: Entradas ── -->
-        <div id="fmtab-entradas">
-          <!-- KPIs compactos -->
-          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+                <div id="fmtab-entradas">
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
             <div style="background:#e8f5e9;border-radius:8px;padding:10px 16px;flex:1;min-width:130px;text-align:center">
               <div style="font-size:.75rem;color:#27ae60;font-weight:700">TOTAL ENTRADAS</div>
               <div style="font-size:1.1rem;font-weight:800;color:#27ae60" id="fkpi-ent-total">R$ 0,00</div>
@@ -3022,10 +2829,8 @@
           </div>
         </div>
 
-        <!-- ── SUB: Saídas ── -->
-        <div id="fmtab-saidas" style="display:none">
-          <!-- KPIs compactos -->
-          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+                <div id="fmtab-saidas" style="display:none">
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
             <div style="background:#fde8e8;border-radius:8px;padding:10px 16px;flex:1;min-width:130px;text-align:center">
               <div style="font-size:.75rem;color:#e74c3c;font-weight:700">TOTAL SAÍDAS</div>
               <div style="font-size:1.1rem;font-weight:800;color:#e74c3c" id="fkpi-sai-total">R$ 0,00</div>
@@ -3062,8 +2867,7 @@
           </div>
         </div>
 
-        <!-- ── SUB: Despesas ── -->
-        <div id="fmtab-despesas" style="display:none">
+                <div id="fmtab-despesas" style="display:none">
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
             <div style="background:#fff3e0;border-radius:8px;padding:10px 16px;flex:1;min-width:130px;text-align:center">
               <div style="font-size:.75rem;color:#e67e22;font-weight:700">TOTAL DESPESAS</div>
@@ -3100,8 +2904,7 @@
           </div>
         </div>
 
-        <!-- ── SUB: Resumo ── -->
-        <div id="fmtab-resumo" style="display:none">
+                <div id="fmtab-resumo" style="display:none">
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px" id="fiscal-kpis">
             <div class="kpi-card" style="border-top:4px solid #27ae60"><div class="kpi-label">FATURAMENTO</div><div class="kpi-val" id="fkpi-fat">R$ 0,00</div></div>
             <div class="kpi-card" style="border-top:4px solid #e74c3c"><div class="kpi-label">COMPRAS</div><div class="kpi-val" id="fkpi-comp">R$ 0,00</div></div>
@@ -3125,8 +2928,7 @@
             </div>
             <div style="margin-top:12px"><button class="btn-save" onclick="fiscalSalvarMes()">💾 Salvar Resumo</button></div>
           </div>
-          <!-- DAS estimado -->
-          <div style="background:#fff8e1;border:1.5px solid #f0ad4e;border-radius:12px;padding:16px;margin-top:14px">
+                    <div style="background:#fff8e1;border:1.5px solid #f0ad4e;border-radius:12px;padding:16px;margin-top:14px">
             <div style="font-weight:700;font-size:.93rem;margin-bottom:10px;color:#7a5000">🧾 DAS — Simples Nacional (Anexo I Comércio)</div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
               <div style="background:#fff;border-radius:8px;padding:9px 14px;flex:1;min-width:120px">
@@ -3148,8 +2950,7 @@
           </div>
         </div>
 
-        <!-- ── SUB: Importar ── -->
-        <div id="fmtab-importar" style="display:none">
+                <div id="fmtab-importar" style="display:none">
           <div style="background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 6px rgba(0,0,0,.08)">
             <div style="font-weight:700;font-size:.95rem;margin-bottom:8px;color:var(--primary)">☁️ Importar Extrato do Conta Azul</div>
             <p style="font-size:.85rem;color:#666;margin-bottom:14px">
@@ -3177,8 +2978,7 @@
             </div>
           </div>
         </div>
-        <!-- ── SUB: Estoque ── -->
-        <div id="fmtab-estoque" style="display:none">
+                <div id="fmtab-estoque" style="display:none">
           <div style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 6px rgba(0,0,0,.08)">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
               <div style="font-weight:700;font-size:.95rem;color:#1565c0">📦 Estoque Consolidado — <span id="est-emp-label"></span></div>
@@ -3194,8 +2994,7 @@
             <div id="fiscal-est-total" style="text-align:right;padding:8px 4px;font-weight:700;font-size:.9rem;color:#1565c0"></div>
           </div>
 
-          <!-- ── Estoque por FAIXA DE PREÇO DE COMPRA ── -->
-          <div style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 6px rgba(0,0,0,.08);margin-top:16px">
+                    <div style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 6px rgba(0,0,0,.08);margin-top:16px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
               <div style="font-weight:700;font-size:.95rem;color:#b26a00">🏷️ Estoque por Faixa de Preço de Compra</div>
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -3227,8 +3026,7 @@
         </div>
       </div>
 
-      <!-- ── PAINEL ANUAL ── -->
-      <div id="fiscal-panel-anual" style="display:none">
+            <div id="fiscal-panel-anual" style="display:none">
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px">
           <label style="font-weight:700">Ano:</label>
           <select id="fiscal-sel-ano-anual" onchange="fiscalRenderAnual()" style="padding:7px 12px;border-radius:7px;border:1.5px solid #ccc">
@@ -3236,8 +3034,7 @@
           </select>
         </div>
 
-        <!-- Resumo por trimestre -->
-        <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 6px rgba(0,0,0,.08);overflow-x:auto">
+                <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 6px rgba(0,0,0,.08);overflow-x:auto">
           <div style="font-weight:700;font-size:.95rem;margin-bottom:12px;color:var(--primary)">📊 Resumo do Ano</div>
           <table class="tbl" style="font-size:.85rem">
             <thead><tr><th>Trimestre</th><th style="text-align:right">Faturamento Líquido</th><th style="text-align:right">Resultado Bruto</th><th style="text-align:right">IRPJ + CSLL</th><th style="text-align:right">COFINS + PIS</th><th style="text-align:right">Total Impostos</th></tr></thead>
@@ -3245,15 +3042,13 @@
           </table>
         </div>
 
-        <!-- Folha por mês -->
-        <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 6px rgba(0,0,0,.08)">
+                <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 6px rgba(0,0,0,.08)">
           <div style="font-weight:700;font-size:.95rem;margin-bottom:12px;color:var(--primary)">👷 Folha de Pagamento por Mês</div>
           <div id="fiscal-folha-anual" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px"></div>
         </div>
       </div>
 
-      <!-- ── PAINEL IMPOSTOS ── -->
-      <div id="fiscal-panel-impostos" style="display:none">
+            <div id="fiscal-panel-impostos" style="display:none">
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
           <select id="fiscal-imp-mes" onchange="fiscalRenderImpostos()" style="padding:7px 12px;border-radius:7px;border:1.5px solid #ccc;font-size:.9rem">
             <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option>
@@ -3266,8 +3061,7 @@
           </select>
         </div>
 
-        <!-- Regime tributário -->
-        <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 6px rgba(0,0,0,.08);max-width:600px;margin-bottom:14px">
+                <div style="background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 6px rgba(0,0,0,.08);max-width:600px;margin-bottom:14px">
           <div style="font-weight:700;font-size:.9rem;margin-bottom:10px;color:var(--primary)">🏢 Regime Tributário da Empresa</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 14px;border:2px solid #ddd;border-radius:8px;font-size:.85rem;font-weight:600" id="rg-btn-simples">
@@ -3285,13 +3079,11 @@
 
         <div style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 6px rgba(0,0,0,.08);max-width:600px">
           <div style="font-weight:700;font-size:.95rem;margin-bottom:16px;color:var(--primary)">Impostos e Encargos</div>
-          <!-- Simples Nacional: só DAS -->
-          <div id="imp-bloco-simples" style="display:none">
+                    <div id="imp-bloco-simples" style="display:none">
             <div class="fg"><label>DAS – Guia Simples (R$)</label><input type="text" id="imp-das" placeholder="0,00" oninput="fiscalCalcImpostos()"></div>
             <div class="fg"><label>ICMS (R$)</label><input type="text" id="imp-icms-s" placeholder="0,00" oninput="fiscalCalcImpostos()"></div>
           </div>
-          <!-- Lucro Presumido / Real: campos separados -->
-          <div id="imp-bloco-outros">
+                    <div id="imp-bloco-outros">
             <div style="margin-bottom:12px;padding:10px 12px;background:#eef5ff;border:1.5px dashed #9ec5f0;border-radius:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
               <button type="button" class="btn-save" style="font-size:.78rem;padding:6px 12px" onclick="fiscalAutoPisCofins()">🔄 Calcular PIS/COFINS automático</button>
               <span style="font-size:.74rem;color:#666">Calcula sobre o Faturamento do mês (aba Resumo), conforme o regime marcado acima. Preenche os campos abaixo — você ainda pode ajustar antes de salvar.</span>
@@ -3318,8 +3110,7 @@
         </div>
       </div>
 
-      <!-- ── PAINEL APURAÇÃO / LUCRO ── -->
-      <div id="fiscal-panel-apuracao" style="display:none">
+            <div id="fiscal-panel-apuracao" style="display:none">
         <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
           <div style="font-weight:800;font-size:1rem;color:#1565c0">📈 Apuração de Lucro e Imposto <span style="font-weight:600;color:#888;font-size:.82rem">(formato do contador)</span></div>
           <select id="apur-ano" onchange="fiscalRenderApuracao()" style="padding:6px 12px;border-radius:7px;border:1.5px solid #ccc;font-size:.88rem">
@@ -3336,12 +3127,10 @@
       </div>
     </div>
 
-    <!-- COORDENAÇÃO: REUNIÕES / ADVERTÊNCIAS / BAGS -->
-    <div class="tab-panel" id="tab-coordenacao">
+        <div class="tab-panel" id="tab-coordenacao">
       <div class="sec-title">Coordenação</div>
 
-      <!-- Sub-tabs -->
-      <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid #1565c0;align-items:flex-end">
+            <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid #1565c0;align-items:flex-end">
         <button id="coord-stab-btn-reunioes"    onclick="coordTab('reunioes')"    style="padding:9px 18px;border:none;background:#1565c0;color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;border-radius:8px 8px 0 0;margin-right:2px">Reuniões / DDS</button>
         <button id="coord-stab-btn-advertencias" onclick="coordTab('advertencias')" style="padding:9px 18px;border:none;background:#f5f5f5;color:#555;font-weight:600;font-size:.85rem;cursor:pointer;border-radius:8px 8px 0 0;margin-right:2px">Advertências</button>
         <button id="coord-stab-btn-bags"        onclick="coordTab('bags')"        style="padding:9px 18px;border:none;background:#f5f5f5;color:#555;font-weight:600;font-size:.85rem;cursor:pointer;border-radius:8px 8px 0 0;margin-right:2px">Bags</button>
@@ -3349,11 +3138,9 @@
         <button onclick="coordImprimirTudo()" style="margin-left:auto;padding:7px 16px;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.83rem;margin-bottom:4px">Imprimir</button>
       </div>
 
-      <!-- ──────────── REUNIÕES ──────────── -->
-      <div id="coord-subtab-reunioes">
+            <div id="coord-subtab-reunioes">
         <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:20px">
-          <!-- Form -->
-          <div style="background:#f0f4ff;border:2px solid #1565c0;border-radius:12px;padding:18px">
+                    <div style="background:#f0f4ff;border:2px solid #1565c0;border-radius:12px;padding:18px">
             <div style="font-weight:800;font-size:.9rem;color:#1565c0;margin-bottom:14px">Nova reunião / DDS</div>
             <input type="hidden" id="reu-edit-id">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
@@ -3389,8 +3176,7 @@
             </div>
             <button onclick="reuSalvar()" style="width:100%;padding:10px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:.92rem">Salvar registro</button>
           </div>
-          <!-- List -->
-          <div>
+                    <div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
               <div style="font-weight:800;font-size:.9rem;color:#1565c0">📋 Registros</div>
               <input id="reu-busca" placeholder="🔍 Buscar..." oninput="reuRender()" style="padding:7px 12px;border:1.5px solid #ccc;border-radius:8px;font-size:.82rem;width:160px">
@@ -3400,11 +3186,9 @@
         </div>
       </div>
 
-      <!-- ──────────── ADVERTÊNCIAS ──────────── -->
-      <div id="coord-subtab-advertencias" style="display:none">
+            <div id="coord-subtab-advertencias" style="display:none">
         <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:20px">
-          <!-- Form -->
-          <div style="background:#fff5f5;border:2px solid #c62828;border-radius:12px;padding:18px">
+                    <div style="background:#fff5f5;border:2px solid #c62828;border-radius:12px;padding:18px">
             <div style="font-weight:800;font-size:.9rem;color:#c62828;margin-bottom:14px">⚠️ Nova Advertência</div>
             <input type="hidden" id="adv-edit-id">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
@@ -3441,8 +3225,7 @@
             </div>
             <button onclick="advSalvar()" style="width:100%;padding:10px;background:#c62828;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:.92rem">💾 Registrar Advertência</button>
           </div>
-          <!-- List -->
-          <div>
+                    <div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
               <div style="font-weight:800;font-size:.9rem;color:#c62828">📋 Advertências Registradas</div>
               <input id="adv-busca" placeholder="🔍 Buscar..." oninput="advRender()" style="padding:7px 12px;border:1.5px solid #ccc;border-radius:8px;font-size:.82rem;width:160px">
@@ -3452,10 +3235,8 @@
         </div>
       </div>
 
-      <!-- ──────────── BAGS ──────────── -->
-      <div id="coord-subtab-bags" style="display:none">
-        <!-- Counters -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px">
+            <div id="coord-subtab-bags" style="display:none">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px">
           <div style="background:#e8f5e9;border:2px solid #2e7d32;border-radius:12px;padding:20px;text-align:center">
             <div style="font-size:2.2rem;font-weight:800;color:#2e7d32" id="bags-cnt-novos">0</div>
             <div style="font-size:.85rem;font-weight:700;color:#555;margin-top:4px">🛍️ Bags Novos/Limpos</div>
@@ -3465,8 +3246,7 @@
             <div style="font-size:.85rem;font-weight:700;color:#555;margin-top:4px">♻️ Bags Usados/Sujos</div>
           </div>
         </div>
-        <!-- Movement form -->
-        <div style="background:#f9f9f9;border:2px solid #ddd;border-radius:12px;padding:18px;margin-bottom:20px">
+                <div style="background:#f9f9f9;border:2px solid #ddd;border-radius:12px;padding:18px;margin-bottom:20px">
           <div style="font-weight:800;font-size:.9rem;color:#333;margin-bottom:14px">↕️ Registrar Movimentação de Bags</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;align-items:flex-end">
             <div>
@@ -3494,8 +3274,7 @@
           </div>
           <button onclick="bagsSalvarMov()" style="margin-top:12px;padding:9px 24px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:.88rem">✅ Registrar</button>
         </div>
-        <!-- History -->
-        <div>
+                <div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
             <div style="font-weight:800;font-size:.9rem;color:#333">📋 Histórico de Movimentações</div>
             <button onclick="bagsImprimirRelatorio()" style="background:#1565c0;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-weight:700;cursor:pointer;font-size:.82rem">Imprimir</button>
@@ -3504,11 +3283,9 @@
         </div>
       </div>
 
-      <!-- ──────────── PAINEL FUNCIONÁRIOS ──────────── -->
-      <div id="coord-subtab-funcpanel" style="display:none">
+            <div id="coord-subtab-funcpanel" style="display:none">
 
-        <!-- Gráfico de advertências -->
-        <div style="background:#f8faff;border:2px solid #bbdefb;border-radius:12px;padding:18px;margin-bottom:20px">
+                <div style="background:#f8faff;border:2px solid #bbdefb;border-radius:12px;padding:18px;margin-bottom:20px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
             <div style="font-weight:800;font-size:.92rem;color:#1565c0">📊 Advertências por Funcionário</div>
             <button onclick="coordFuncRender()" style="background:none;border:1px solid #ccc;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.78rem;color:#555">🔄</button>
@@ -3516,8 +3293,7 @@
           <div id="coord-func-grafico"></div>
         </div>
 
-        <!-- Cards de funcionários -->
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
           <div style="font-weight:800;font-size:.92rem;color:#333">👥 Observações por Funcionário</div>
           <input id="coord-func-busca" placeholder="🔍 Buscar funcionário..." oninput="coordFuncRender()"
             style="padding:7px 12px;border:1.5px solid #ccc;border-radius:8px;font-size:.82rem;width:200px">
@@ -3525,8 +3301,7 @@
         <div id="coord-func-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px"></div>
       </div>
 
-      <!-- MODAL ASSINATURA (reutilizado para reuniões e advertências) -->
-      <div id="coord-sig-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9800;align-items:center;justify-content:center">
+            <div id="coord-sig-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9800;align-items:center;justify-content:center">
         <div style="background:#fff;border-radius:14px;box-shadow:0 8px 40px #0004;width:95%;max-width:520px;padding:0 0 18px">
           <div style="background:#1565c0;color:#fff;padding:13px 18px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center">
             <b id="coord-sig-titulo" style="font-size:.95rem">✍️ Assinatura Digital</b>
@@ -3543,35 +3318,28 @@
         </div>
       </div>
 
-    </div><!-- /tab-coordenacao -->
-
+    </div>
     <div class="tab-panel" id="tab-chat">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
         <button onclick="switchTab(cu&&cu.tabs?cu.tabs[0]:'dashboard')" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 16px;cursor:pointer;font-size:.85rem;font-weight:700">← Voltar</button>
         <div class="sec-title" style="margin:0">💬 Chat Interno</div>
       </div>
-      <!-- Chat container: altura fixa, apenas a área de mensagens rola -->
-      <div style="display:grid;grid-template-columns:220px 1fr;border:2px solid #ddd;border-radius:12px;overflow:hidden;background:#fff;position:relative" id="chat-container">
+            <div style="display:grid;grid-template-columns:220px 1fr;border:2px solid #ddd;border-radius:12px;overflow:hidden;background:#fff;position:relative" id="chat-container">
 
-        <!-- Coluna esquerda: lista de conversas -->
-        <div style="border-right:2px solid #eee;background:#fafafa;display:flex;flex-direction:column;overflow:hidden">
+                <div style="border-right:2px solid #eee;background:#fafafa;display:flex;flex-direction:column;overflow:hidden">
           <div style="padding:10px 14px;font-weight:800;font-size:.82rem;color:#1a3a2a;border-bottom:1px solid #eee;background:#fff;flex-shrink:0">
             💬 Conversas
           </div>
           <div id="chat-conv-list" style="flex:1;overflow-y:auto;min-height:0"></div>
         </div>
 
-        <!-- Coluna direita: header + mensagens + input -->
-        <div style="display:flex;flex-direction:column;overflow:hidden;min-height:0">
+                <div style="display:flex;flex-direction:column;overflow:hidden;min-height:0">
           <div id="chat-header" style="padding:10px 16px;border-bottom:2px solid #eee;font-weight:800;font-size:.88rem;color:#1a3a2a;background:#f9f9f9;flex-shrink:0">
             Selecione uma conversa
           </div>
-          <!-- Área de mensagens: flex:1 + overflow-y:auto = só ela rola -->
-          <div id="chat-msgs-area" style="flex:1;overflow-y:auto;padding:14px 16px;background:#fff;min-height:0"></div>
-          <!-- Prévia da foto escolhida (aparece antes de enviar) -->
-          <div id="chat-foto-preview" style="display:none;padding:8px 12px 0;background:#fafafa;flex-shrink:0"></div>
-          <!-- Input fixo no rodapé -->
-          <div style="border-top:2px solid #eee;padding:10px 12px;display:flex;gap:8px;background:#fafafa;align-items:flex-end;flex-shrink:0;position:relative">
+                    <div id="chat-msgs-area" style="flex:1;overflow-y:auto;padding:14px 16px;background:#fff;min-height:0"></div>
+                    <div id="chat-foto-preview" style="display:none;padding:8px 12px 0;background:#fafafa;flex-shrink:0"></div>
+                    <div style="border-top:2px solid #eee;padding:10px 12px;display:flex;gap:8px;background:#fafafa;align-items:flex-end;flex-shrink:0;position:relative">
             <div id="chat-emoji-panel" style="display:none;position:absolute;bottom:58px;left:12px;background:#fff;border:1.5px solid #ccc;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.18);padding:8px;width:300px;max-height:190px;overflow-y:auto;z-index:30;font-size:1.35rem;line-height:1.7"></div>
             <button type="button" onclick="chatToggleEmojis()" title="Emojis" style="background:#fff;border:2px solid #1a3a2a;border-radius:10px;height:40px;width:46px;font-size:1.2rem;cursor:pointer;flex-shrink:0">😊</button>
             <input type="file" id="chat-img-input" accept="image/*" style="display:none" onchange="chatCarregarFoto(this)">
@@ -3586,11 +3354,9 @@
           </div>
         </div>
       </div>
-    </div><!-- /tab-chat -->
+    </div>
 
-
-  <!-- MODAL: Desconto de Impureza (Compra Sucata) -->
-  <div id="modal-impureza" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:center;justify-content:center">
+    <div id="modal-impureza" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:14px;box-shadow:0 8px 40px #0004;width:94%;max-width:720px;max-height:90vh;overflow-y:auto">
       <div style="background:#1a3a2a;color:#fff;padding:14px 20px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:1">
         <b id="imp-titulo" style="font-size:.95rem">✏️ Editar Ticket — Desconto de Impureza</b>
@@ -3605,16 +3371,7 @@
           <span style="font-size:.82rem;color:#888">kg de impureza</span>
           <button onclick="csAplicarGlobal()" style="background:#f9a825;color:#333;border:none;border-radius:7px;padding:7px 16px;cursor:pointer;font-weight:700;font-size:.82rem">Aplicar a Todos</button>
         </div>
-        <!-- Elaine (03/08): "ele nao deixa eu rolar a nota pra baixo e
-             conferir o restante de pesos" — o scroll do modal como um todo
-             já funcionava (confirmado por teste), mas sem nenhuma pista
-             visual de que a tabela continuava abaixo, ela não percebia. Esta
-             div agora é sua PRÓPRIA área de rolagem (altura limitada,
-             cabeçalho fixo, borda visível e barra de rolagem sempre
-             aparente) — assim fica óbvio que dá pra rolar, e os botões
-             Cancelar/Salvar ficam sempre visíveis logo abaixo, sem precisar
-             rolar o modal inteiro. -->
-        <div style="overflow:auto;max-height:38vh;border:1.5px solid #ddd;border-radius:8px;scrollbar-width:auto">
+                <div style="overflow:auto;max-height:38vh;border:1.5px solid #ddd;border-radius:8px;scrollbar-width:auto">
           <table style="width:100%;border-collapse:collapse;font-size:.83rem">
             <thead>
               <tr style="background:#1a3a2a;color:#fff">
@@ -3640,10 +3397,7 @@
     </div>
   </div>
 
-  <!-- MODAL: Detalhes da Compra (Elaine, 03/08: clicar no fornecedor ou no
-       valor na lista de Compras abre a entrada com todos os itens — igual
-       o Bling faz na tela de Pedidos de Compra) -->
-  <div id="modal-detalhe-compra" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:center;justify-content:center">
+    <div id="modal-detalhe-compra" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:14px;box-shadow:0 8px 40px #0004;width:94%;max-width:720px;max-height:90vh;overflow-y:auto">
       <div style="background:#1a3a2a;color:#fff;padding:14px 20px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:1">
         <b id="dc-titulo" style="font-size:.95rem">🧾 Detalhes da Compra</b>
@@ -3651,10 +3405,7 @@
       </div>
       <div style="padding:18px 20px">
         <div id="dc-info" style="background:#f5f5f5;border-radius:8px;padding:10px 14px;font-size:.83rem;color:#555;margin-bottom:16px"></div>
-        <!-- Mesma correção de rolagem aplicada no modal de Impureza: área
-             própria de rolagem com cabeçalho fixo, pra ficar visualmente
-             óbvio que dá pra rolar quando o ticket tem muitos itens. -->
-        <div style="overflow:auto;max-height:32vh;border:1.5px solid #ddd;border-radius:8px;scrollbar-width:auto">
+                <div style="overflow:auto;max-height:32vh;border:1.5px solid #ddd;border-radius:8px;scrollbar-width:auto">
           <table style="width:100%;border-collapse:collapse;font-size:.83rem">
             <thead>
               <tr style="background:#1a3a2a;color:#fff">
@@ -3670,13 +3421,8 @@
           </table>
         </div>
         <div id="dc-scroll-dica" style="display:none;text-align:center;font-size:.76rem;color:#f9a825;font-weight:700;margin-top:6px">⬇ role a lista acima pra ver todos os itens ⬇</div>
-        <!-- Editor do ADIANTAMENTO desta compra (Elaine 18/09): corrigir/tirar o
-             valor de adiantamento que foi digitado errado na compra. -->
-        <div id="dc-adt-editor"></div>
-        <!-- Elaine (03/08): "se precisar colocar mais algum item depois de
-             fechar a compra ainda consigo, e não só ajustar impureza" —
-             adicionar item novo numa compra já lançada, direto por aqui. -->
-        <div style="background:#f0f7ff;border:1.5px solid #90caf9;border-radius:10px;padding:12px 16px;margin-top:14px;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+                <div id="dc-adt-editor"></div>
+                <div style="background:#f0f7ff;border:1.5px solid #90caf9;border-radius:10px;padding:12px 16px;margin-top:14px;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
           <div>
             <label style="font-size:.72rem;font-weight:700;color:#555;display:block">Material</label>
             <input list="metais-list" id="dc-add-mat" placeholder="Material..." style="width:160px;padding:7px;border:1px solid #90caf9;border-radius:6px;font-size:.85rem;box-sizing:border-box">
@@ -3695,11 +3441,7 @@
           </div>
           <button onclick="adicionarItemTicket()" style="background:#1565c0;color:#fff;border:none;border-radius:7px;padding:8px 16px;cursor:pointer;font-weight:700;font-size:.82rem">+ Adicionar Item</button>
         </div>
-        <!-- Elaine (27/08): adicionar um VALOR extra (ex: R$165 que ficou
-             devendo) a uma compra já fechada, só pra somar no total — sem
-             precisar de material/peso. Soma no Total Geral e no Saldo a Pagar
-             (Conta a Pagar do fornecedor). -->
-        <div style="background:#f1f8e9;border:1.5px solid #a5d6a7;border-radius:10px;padding:12px 16px;margin-top:10px;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+                <div style="background:#f1f8e9;border:1.5px solid #a5d6a7;border-radius:10px;padding:12px 16px;margin-top:10px;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
           <div>
             <label style="font-size:.72rem;font-weight:700;color:#555;display:block">Valor (R$)</label>
             <input type="text" id="dc-add-valor" placeholder="165,00" style="width:120px;padding:7px;border:1px solid #a5d6a7;border-radius:6px;font-size:.85rem;box-sizing:border-box">
@@ -3719,8 +3461,7 @@
     </div>
   </div>
 
-  <!-- MODAL DAR BAIXA CHEQUE -->
-  <div id="modal-baixa-cheque" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9600;align-items:center;justify-content:center">
+    <div id="modal-baixa-cheque" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9600;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:14px;box-shadow:0 8px 40px #0004;width:94%;max-width:400px">
       <div style="background:#27ae60;color:#fff;padding:14px 20px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center">
         <b style="font-size:.95rem">💵 Dar Baixa — Compensado no Banco</b>
@@ -3739,8 +3480,7 @@
       </div>
     </div>
   </div>
-  <!-- MODAL EDITAR CHEQUE -->
-  <div id="modal-editar-cheque" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9500;align-items:center;justify-content:center">
+    <div id="modal-editar-cheque" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9500;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:14px;box-shadow:0 8px 40px #0004;width:94%;max-width:560px;max-height:90vh;overflow-y:auto">
       <div style="background:#1a3a2a;color:#fff;padding:14px 20px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:1">
         <b style="font-size:.95rem">✏️ Editar Cheque</b>
@@ -3782,12 +3522,7 @@
       </div>
     </div>
   </div>
-</div><!-- /content -->
-  </div><!-- /app-body -->
-</div><!-- /app -->
-
-<!-- MODAL FICHA FINANCEIRA FORNECEDOR -->
-<!-- MODAL EDITAR LANCAMENTO FICHA -->
+</div>  </div></div>
 <div id="modal-ff-edit" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:12px;box-shadow:0 6px 32px #0005;width:94%;max-width:420px;padding:0 0 18px">
     <div style="background:#1a5e2a;color:#fff;padding:12px 18px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center">
@@ -3803,7 +3538,6 @@
     </div>
   </div>
 </div>
-<!-- MODAL FICHA FINANCEIRA CLIENTE -->
 <div id="modal-ficha-cli" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:flex-start;justify-content:center;overflow:auto;padding-top:12px">
   <div style="background:#fff;border-radius:14px;box-shadow:0 8px 40px #0004;width:98%;max-width:1400px;max-height:96vh;overflow-y:auto">
     <div style="background:#6a1b9a;color:#fff;padding:14px 20px;border-radius:14px 14px 0 0;display:flex;align-items:center;justify-content:space-between">
@@ -3863,7 +3597,6 @@
   </div>
 </div>
 
-<!-- Modal: novo/editar lançamento manual da ficha -->
 <div id="modal-fc-lanc" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10001;align-items:flex-start;justify-content:center;overflow:auto;padding-top:34px">
   <div style="background:#fff;border-radius:14px;box-shadow:0 8px 40px #0005;width:96%;max-width:560px">
     <div style="background:linear-gradient(135deg,#6a1b9a,#4a148c);color:#fff;padding:14px 20px;border-radius:14px 14px 0 0;display:flex;align-items:center;justify-content:space-between">
@@ -3910,7 +3643,6 @@
   </div>
 </div>
 
-<!-- Modal: juntar cliente -->
 <div id="modal-fc-juntar" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10001;align-items:flex-start;justify-content:center;overflow:auto;padding-top:60px">
   <div style="background:#fff;border-radius:14px;box-shadow:0 8px 40px #0005;width:96%;max-width:480px">
     <div style="background:#8e44ad;color:#fff;padding:14px 20px;border-radius:14px 14px 0 0;display:flex;align-items:center;justify-content:space-between">
@@ -3930,7 +3662,6 @@
   </div>
 </div>
 
-<!-- Modal: saldo anterior -->
 <div id="modal-fc-saldoini" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10001;align-items:flex-start;justify-content:center;overflow:auto;padding-top:60px">
   <div style="background:#fff;border-radius:14px;box-shadow:0 8px 40px #0005;width:96%;max-width:460px">
     <div style="background:#1f3864;color:#fff;padding:14px 20px;border-radius:14px 14px 0 0;display:flex;align-items:center;justify-content:space-between">
@@ -4015,7 +3746,6 @@
   </div>
 </div>
 
-<!-- MODO BALANÇA TABLET -->
 <div id="modo-balanca-overlay">
   <div class="mb-header">
     <h2>⚖️ Modo Balança – Pesagem de Bags</h2>
@@ -4072,13 +3802,8 @@
 
 <div class="modal-ov" id="modal-ov"><div class="modal" id="modal-body"></div></div>
 
-<!-- ── Painel Compartilhar Dados Bancários (usado por compartilharBanco) ── -->
 <datalist id="dlist-empresas"></datalist>
 <datalist id="fiscal-pessoas-list"></datalist>
-<!-- Lista de fornecedores pra busca por nome (ver _fornBuscaResolverCod) —
-     populada/atualizada em populateFornSelects(). Usada pelos campos de
-     fornecedor de "Novo Adiantamento" e "Lançar Cheques", que antes eram
-     um <select> gigante e difícil de achar alguém digitando. -->
 <datalist id="dlist-forn-ativos"></datalist>
 <div id="banco-share-ov" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9200;align-items:center;justify-content:center;padding:24px 12px">
   <div style="background:#fff;max-width:520px;width:100%;border-radius:16px;padding:24px;box-shadow:0 12px 40px rgba(0,0,0,.25)">
@@ -4093,7 +3818,6 @@
   </div>
 </div>
 
-<!-- ── Modal Editar NF ── -->
 <div id="fiscal-edit-ov" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9100;overflow-y:auto;padding:24px 12px">
   <div style="background:#fff;max-width:680px;margin:0 auto;border-radius:16px;padding:24px;box-shadow:0 12px 40px rgba(0,0,0,.25)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
@@ -4139,11 +3863,6 @@
 </div>
 
 <div id="toast"></div>
-
-
-
-
-
 
 <script type="module" src="/app/bootstrap.js?v=20261109-rapido-cheques-datas-v5&amp;crud=20261108-crud-sync-per-record-v2"></script>
 </body>

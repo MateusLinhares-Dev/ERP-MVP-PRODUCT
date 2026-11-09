@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {fiscalStaffPublicView} from '../server/domain/fiscal-staff.js';
+import {fiscalStaffPublicView} from '../server/modules/fiscal/domain/fiscal-staff.js';
 
 const code=fs.readFileSync(new URL('../public/modules/phase1/phase1-fiscal-admin.js', import.meta.url),'utf8');
 const css=fs.readFileSync(new URL('../public/modules/phase1/phase1-fiscal-admin.css', import.meta.url),'utf8');

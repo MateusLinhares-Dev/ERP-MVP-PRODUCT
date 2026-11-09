@@ -85,7 +85,6 @@ function enhanceModal(){
   setTimeout(()=>document.querySelector('#agd-novo-ov .erp-search-select-input')?.focus(),35);
 }
 if(typeof original.open==='function')global.agendaAbrirNovo=function(){const result=original.open.apply(this,arguments);enhanceModal();return result;};
-// Open always uses the latest in-memory registry, not a frozen list from page load.
 document.addEventListener('erp:catalog-updated',()=>{
   const select=document.getElementById('agd-novo-nome');if(!select)return;
   const old=select.value;
@@ -130,7 +129,6 @@ function setServiceOptions(preferred){
   if(serviceCatalog.some(item=>item.name===previous))select.value=previous;
 }
 function servicesFromResponse(data){
-  // Never overwrite the valid catalog with an undefined or malformed payload.
   const services=Array.isArray(data?.services)?data.services:Array.isArray(data?.items)?data.items:null;
   if(!services||!services.every(item=>item&&typeof item.id==='string'&&typeof item.name==='string')){
     throw new Error('A API retornou uma lista de serviços inválida. Atualize a tela e tente novamente.');

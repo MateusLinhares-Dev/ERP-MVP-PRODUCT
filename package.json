@@ -9,14 +9,14 @@
     "seed:emulator": "node scripts/prepare-local-env.mjs && node --env-file=.env.erp.local scripts/seed-emulator.mjs",
     "dev:vercel": "node scripts/prepare-local-env.mjs && node scripts/vercel-dev.mjs",
     "dev": "node scripts/prepare-local-env.mjs && concurrently -k -n FIREBASE,APP \"npm:emulators\" \"wait-on http://127.0.0.1:4000 && npm run seed:emulator && npm run dev:vercel\"",
-    "test": "node --test test/*.test.js",
+    "test": "node --import tsx --test test/*.test.js",
     "migrate:auth": "node scripts/migrate-legacy-auth.mjs",
     "migrate:storage": "node scripts/migrate-storage.mjs",
     "smoke:local": "node scripts/prepare-local-env.mjs && node --env-file=.env.erp.local scripts/smoke-local.mjs",
     "dev:static": "node scripts/static-dev.mjs",
     "check:demo": "npm test && npm run build",
     "prepare:env": "node scripts/prepare-local-env.mjs",
-    "check:release": "npm test && npm run build && node scripts/release-security-check.mjs && node scripts/verify-deployment-artifacts.mjs",
+    "check:release": "npm run check && node scripts/release-security-check.mjs && node scripts/verify-deployment-artifacts.mjs",
     "preflight:hml": "node scripts/preflight-env.mjs hml .env.hml",
     "preflight:prod": "node scripts/preflight-env.mjs prod .env.production",
     "deploy:rules:hml": "node scripts/deploy-rules.mjs hml",
@@ -32,7 +32,12 @@
     "provision:engineer": "node scripts/provision-engineer.mjs",
     "generate:rules:candidate": "node scripts/generate-granular-database-rules.mjs",
     "audit:security:strict": "ERP_SECURITY_STRICT=1 node scripts/release-security-check.mjs",
-    "audit:payment-lock": "node scripts/audit-payment-lock.mjs"
+    "audit:payment-lock": "node scripts/audit-payment-lock.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint --no-error-on-unmatched-pattern server api",
+    "format": "prettier --write \"server/**/*.ts\" \"api/**/*.ts\"",
+    "format:check": "prettier --check \"server/**/*.ts\" \"api/**/*.ts\"",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm test && npm run build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0",
@@ -41,8 +46,16 @@
     "firebase-admin": "^13.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@types/node": "^22.10.7",
     "concurrently": "^9.0.0",
+    "eslint": "^9.18.0",
     "firebase-tools": "^14.0.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0",
     "vercel": "^48.0.0",
     "wait-on": "^8.0.0"
   },

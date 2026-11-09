@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {executeReconciliation} from '../server/application/reconciliation-service.js';
+import {executeReconciliation} from '../server/modules/banking/application/reconciliation.js';
 
 const identity={uid:'UID',erpUser:'elaine',erpAccess:true,canBanking:true,canFinance:true};
 const imported={I1:{id:'I1',date:'2026-10-22',amountCents:'-150000',description:'Fornecedor ABC'}};

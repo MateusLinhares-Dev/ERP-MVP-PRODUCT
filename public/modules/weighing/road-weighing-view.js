@@ -68,7 +68,6 @@ function routeActions(ticketId,ticket){
   return '';
 }
 
-
 function queueActions(ticketId,ticket){
   const stage=global.RoadWeighingDomain.stage(ticket);
   if(stage==='aguardando_rota'){

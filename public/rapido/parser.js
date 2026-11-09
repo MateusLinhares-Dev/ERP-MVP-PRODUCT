@@ -1,6 +1,3 @@
-// Interpretador local da fala (funciona sem internet de IA e sem custo).
-// Regra de ouro: nunca inventar. O que não foi dito fica vazio, e o que ficou
-// ambíguo vira uma "dúvida" para a pessoa conferir na tela.
 
 export function normalizar(texto){
   return String(texto??'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
@@ -20,7 +17,6 @@ function valorPalavra(p){
   return null;
 }
 
-// "dois mil e quinhentos" -> "2500"; "quarenta e dois e cinquenta" -> "42 e 50".
 export function palavrasParaNumeros(texto){
   const tokens=normalizar(texto).replace(/(\d)\s*kg\b/g,'$1 kg').split(/\s+/).filter(Boolean);
   const saida=[];
@@ -60,7 +56,6 @@ function numeroBR(token){
 const PALAVRAS_VAZIAS=new Set(['DE','DA','DO','DAS','DOS','E','A','O','AS','OS','EM','NO','NA','PARA','PRA','PRO','COM',
   'LTDA','ME','EPP','EIRELI','SA','S','COMERCIO','COMERCIAL','INDUSTRIA','METAIS','METAL','SUCATA','SUCATAS','RECICLAGEM','RECICLAVEIS']);
 
-// Erro comum do reconhecimento de voz: uma letra trocada ("Gerdal" x "Gerdau").
 export function parecido(a,b){
   if(a===b)return true;
   if(a.length<5||b.length<5||Math.abs(a.length-b.length)>1)return false;
@@ -92,8 +87,6 @@ function indiceMateriais(materiais){
   return materiais.map(nome=>({nome,tokens:chave(nome).split(' ').filter(Boolean)})).filter(m=>m.tokens.length);
 }
 
-// Procura menções de material no texto: frase completa primeiro; depois
-// a palavra principal ("cobre"), que pode ser ambígua (COBRE MEL / COBRE MISTO).
 function mencoesMaterial(tokens,indice,ignorar=new Set()){
   const T=tokens.map(t=>t.toUpperCase());
   const mencoes=[];
@@ -131,11 +124,9 @@ function lerFatos(tokens,ignorar=new Set()){
     if(n==null)continue;
     let fim=i+1;
     const antes=tokens[i-1]||'',depois=tokens[i+1]||'';
-    // "42 reais e 50 (centavos)" / "a 42 e 50"
     const centavosApos=(k)=>tokens[k]==='e'&&/^\d{1,2}$/.test(tokens[k+1]||'')&&!UNIDADE_KG.test(tokens[k+2]||'')&&!UNIDADE_T.test(tokens[k+2]||'');
     if(UNIDADE_KG.test(depois)){fatos.push({pos:i,fim:i+2,tipo:'qtd',valor:n});i++;continue;}
     if(UNIDADE_T.test(depois)){fatos.push({pos:i,fim:i+2,tipo:'qtd',valor:n*1000});i++;continue;}
-    // Palavra que vem antes do valor, pulando "r$" e "de" ("no valor de r$ 225").
     let m=i-1;
     while(m>=0&&/^(r\$|de)$/.test(tokens[m]))m--;
     const marca=tokens[m]||'';
@@ -144,15 +135,12 @@ function lerFatos(tokens,ignorar=new Set()){
     if(MOEDA.test(depois)){preco=true;fim=i+2;}
     if(preco){
       if(centavosApos(fim)){n=n+Number(tokens[fim+1])/(tokens[fim+1].length===1?10:100);fim+=2;if(tokens[fim]==='centavos')fim++;}
-      // "42 reais o quilo", "7200 a tonelada", "3 por kg": só atravessa palavras de ligação,
-      // nunca um número ("42 reais e 80 quilos de latão" = preço 42 e peso 80 do próximo item).
       let unidade='';
       for(let k=fim;k<Math.min(tokens.length,fim+3);k++){
         if(UNIDADE_T.test(tokens[k])){unidade='t';fim=k+1;break;}
         if(UNIDADE_KG.test(tokens[k])){unidade='kg';fim=k+1;break;}
         if(!/^(o|a|por|cada|de|do|da)$/.test(tokens[k]))break;
       }
-      // "por R$ 4000" sem "o quilo" é o valor TOTAL do item, nunca o preço por kg.
       const total=marcaTotal&&!unidade;
       fatos.push({pos:i,fim,tipo:'preco',valor:unidade==='t'?n/1000:n,porTonelada:unidade==='t',total});
       i=fim-1;continue;
@@ -162,8 +150,6 @@ function lerFatos(tokens,ignorar=new Set()){
   return fatos;
 }
 
-
-// Posições que NÃO são material/peso/preço: datas, prazos, nota fiscal, placa e o nome da parte.
 function posicoesIgnoradas(tokens,parte){
   const ignorar=new Set();
   for(let i=0;i<tokens.length;i++){

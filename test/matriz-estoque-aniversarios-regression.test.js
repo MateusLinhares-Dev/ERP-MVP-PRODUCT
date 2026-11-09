@@ -103,8 +103,8 @@ test('matriz apresenta pesquisa, edição de curso e exclusão de vínculo audit
 });
 
 async function trainingApiHarness(){
-  const domain=await import('../server/domain/training.js');
-  const {runTransaction}=await import('../server/infrastructure/rtdb-transaction.js');
+  const domain=await import('../server/modules/training/domain/training.js');
+  const {runTransaction}=await import('../server/shared/firebase/rtdb-transaction.js');
   const {randomUUID}=await import('node:crypto');
   const state={erpTraining:{courses:{COURSE001:{id:'COURSE001',title:'Operador de empilhadeira',active:true,renewalMonths:12,noticeDays:30}},enrollments:{},documents:{},audit:{}},erp:{funcEdit:[{mat:'F007',nome:'JOS CEMAR',status:'Ativo'}]},erpAuth:{users:{elaine:{login:'elaine',name:'Elaine'}}}};
   let sequence=0;

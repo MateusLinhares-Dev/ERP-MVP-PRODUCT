@@ -7,7 +7,7 @@ function read(p){ return fs.readFileSync(path.resolve(p),'utf8'); }
 const db=JSON.parse(read('database.rules.json'));
 const storage=read('storage.rules');
 const vercel=JSON.parse(read('vercel.json'));
-const auth=read('server/application/authenticate-user.js');
+const auth=read('server/modules/access/application/authenticate-user.js');
 const core=read('public/legacy/app-core.js');
 
 if(db.rules?.['.read']!==false || db.rules?.['.write']!==false) errors.push('RTDB root precisa continuar deny-by-default');

@@ -25,7 +25,6 @@
     }catch(e){ console.warn('saveUsers local:',e); }
   }
 
-  
   window.saveUsers = function(){
     _salvarPerfisLocal();
     try{ fbSalvar(); }catch(e){}
@@ -43,7 +42,6 @@
       _aplicarPerfil(result.username,result.profile);
       _salvarPerfisLocal();
       if(err) err.style.display='none';
-      // Perfil "Lançamento rápido": vai direto para a tela simplificada (sem carregar o ERP).
       if(window.erpDestinoRapido && window.erpDestinoRapido(result.username,{...(result.profile||{})})) return;
       fbCarregar(function(){
         try{ loadUsers(); }catch(e){}
@@ -64,10 +62,8 @@
     }finally{ if(btn) btn.disabled=false; }
   };
 
-  
   window.togglePwd = function(){ showToast('Por segurança, a senha não é recuperável. Use “🔑 Senha” para definir uma nova.','info',4500); };
 
-  // Dados de perfis vêm da nuvem: nunca interpolar texto de usuário em HTML/handlers.
   function _safeText(value){
     return String(value==null?'':value).replace(/[&<>"']/g,function(ch){
       return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
@@ -136,7 +132,6 @@
     setTimeout(()=>document.getElementById('_ms-nova')?.focus(),80);
   };
 
-  
   const _editUsuarioOriginal=window.editUsuario;
   window.editUsuario = function(un){
     _editUsuarioOriginal(un);
@@ -220,8 +215,7 @@
   };
  
   window.chatInit = function(){
-    
-    
+
     try{ if(typeof hdrAtualizarBadge === 'function') hdrAtualizarBadge(); }catch(e){}
     try{ if(typeof _chatAjustarAltura === 'function') _chatAjustarAltura(); }catch(e){}
     try{ if(typeof chatRenderConvs === 'function') chatRenderConvs(); }catch(e){}
@@ -229,8 +223,7 @@
   };
 
   window.chatDestroy = function(){
-    
-    
+
   };
   
   if (typeof window.rodCancelarPesagem !== 'function') {
@@ -296,6 +289,5 @@
  
   try{ _salvarPerfisLocal(); }catch(e){}
 
-  
   try{ const unlock=document.getElementById('lerr-unlock'); if(unlock) unlock.remove(); }catch(e){}
 })();

@@ -1,16 +1,15 @@
-import '../../server/config/load-local-env.js';
-import {getFirebaseAdmin} from '../../server/infrastructure/firebase-admin.js';
-import {runTransaction} from '../../server/infrastructure/rtdb-transaction.js';
-import {loginFromStorageKey} from '../../server/domain/user.js';
-import {requireIdentity} from '../../server/http/auth.js';
-import {applyApiSecurityHeaders,assertSameOrigin,assertJsonBody,sendError} from '../../server/http/http.js';
-import {safeId,coursePayload,enrollmentPayload,courseState,visibleNotice,textField,yearMonthDelta} from '../../server/domain/training.js';
+import '../../server/shared/config/load-local-env.js';
+import {getFirebaseAdmin} from '../../server/shared/firebase/firebase-admin.js';
+import {runTransaction} from '../../server/shared/firebase/rtdb-transaction.js';
+import {loginFromStorageKey} from '../../server/modules/access/domain/user.js';
+import {requireIdentity} from '../../server/shared/http/auth.js';
+import {applyApiSecurityHeaders,assertSameOrigin,assertJsonBody,sendError} from '../../server/shared/http/http.js';
+import {safeId,coursePayload,enrollmentPayload,courseState,visibleNotice,textField,yearMonthDelta} from '../../server/modules/training/domain/training.js';
 
 const err=(message,status=400)=>Object.assign(new Error(message),{status,code:status===403?'TRAINING_FORBIDDEN':'TRAINING_ERROR'});
 const manager=i=>i.admin===true&&(String(i.erpUser||'').toLowerCase()==='elaine'||(i.engineer===true&&i.erpUser==='engadministrator'));
 const now=()=>new Date().toISOString();
 const records=value=>value&&typeof value==='object'&&!Array.isArray(value)?value:{};
-// Matrículas curtas (ex.: '1' ou 'F1') devem continuar válidas como chaves do ERP.
 const employeeKey=mat=>{const v=String(mat??'').trim().replace(/[^A-Za-z0-9_-]/g,'');return v.length>=4?v:'EMP_'+v;};
 const employeeRecords=value=>(Array.isArray(value)?value:Object.values(records(value))).filter(f=>f&&f.mat!=null&&String(f.mat).trim()&&f.nome);
 const userRecords=value=>Object.entries(records(value)).map(([key,user])=>{
@@ -46,7 +45,6 @@ export default async function handler(req,res){
     const commit=async changes=>root.update({...changes,['audit/'+auditKey]:{action,recordId:result.id,actor:who,uid:identity.uid,createdAt:now()}});
     if(action==='course'){
       const v=coursePayload(b),key=b.id?safeId(b.id):id();
-      // Editar um curso inativo não deve reativá-lo implicitamente.
       const original=b.id?(await root.child('courses/'+key).get()).val():null;
       if(b.id&&!original)throw err('Curso não encontrado para edição.',404);
       const duplicate=Object.values(records((await root.child('courses').get()).val())).some(c=>c&&c.id!==key&&String(c.title||'').trim().toLowerCase()===v.title.toLowerCase());
@@ -65,7 +63,6 @@ export default async function handler(req,res){
       if(entry.status==='concluido'&&course.renewalMonths&&entry.completedAt&&!entry.expiresAt)entry.expiresAt=yearMonthDelta(entry.completedAt,course.renewalMonths);
       const duplicate=recordsNow.find(e=>e&&e.id!==key&&e.employeeId===entry.employeeId&&e.courseId===entry.courseId&&e.status!=='dispensado');
       if(duplicate&&!previous)throw err('Esse funcionário já possui vínculo ativo com este curso. Edite o vínculo existente ou exclua o duplicado.',409);
-      // Transação de reserva protege duas sessões criando o mesmo par simultaneamente.
       const pairKey=entry.employeeId+'_'+entry.courseId;
       const lock=root.child('enrollmentLocks/'+pairKey);
       let reserved=false;
@@ -73,8 +70,6 @@ export default async function handler(req,res){
         const enrollmentsNow=records(enrollSnap.val());
         const tx=await runTransaction(lock,current=>{
           if(current===null||current===key)return key;
-          // Índice órfão (vínculo excluído, dispensado ou movido para outro par)
-          // não pode bloquear um novo cadastro do mesmo funcionário/curso.
           const holder=enrollmentsNow[String(current)];
           if(!holder||holder.status==='dispensado'||(String(holder.employeeId||'')+'_'+String(holder.courseId||''))!==pairKey)return key;
           return undefined;
@@ -93,8 +88,6 @@ export default async function handler(req,res){
       if(!item)throw err('Vínculo não encontrado.',404);
       const documentSnap=await root.child('documents').get();
       if(Object.values(records(documentSnap.val())).some(d=>d&&d.enrollmentId===key))throw err('Esse vínculo possui certificado. Exclua o certificado primeiro ou mantenha o vínculo no histórico.',409);
-      // Exclusão e limpeza do índice do par na MESMA gravação (antes a limpeza
-      // abortava com cache frio e impedia recadastrar o mesmo curso).
       const pairPath='enrollmentLocks/'+item.employeeId+'_'+item.courseId;
       const indexed=(await root.child(pairPath).get()).val();
       result={id:key};await commit({['enrollments/'+key]:null,...(indexed===key?{[pairPath]:null}:{})});
@@ -112,7 +105,6 @@ export default async function handler(req,res){
       if(!['pdf','png','jpg','webp'].includes(extension))throw err('Formato inválido.');
       const path=`erp-files/training/${enrollmentId}/${docId}.${extension}`;
       const documentRef=root.child('documents/'+docId);
-      // Idempotência: requisições repetidas retornam o registro já salvo.
       const previous=await documentRef.get();
       if(previous.exists()){
         const saved=previous.val();
@@ -127,7 +119,6 @@ export default async function handler(req,res){
       const allowedMime={pdf:'application/pdf',png:'image/png',jpg:'image/jpeg',webp:'image/webp'};
       if(meta.contentType!==allowedMime[extension])throw err('O tipo do arquivo não corresponde à extensão.',400);
       const document={id:docId,enrollmentId,name:textField(b.name,140),path,createdAt:now(),createdBy:who};
-      // A transação create-only impede a duplicação inclusive entre abas/dispositivos.
       const transaction=await runTransaction(documentRef,current=>current===null?document:undefined);
       const saved=transaction.snapshot.val();
       if(saved?.enrollmentId!==enrollmentId||saved?.path!==path)throw err('Identificador já utilizado em outro documento.',409);
@@ -135,7 +126,6 @@ export default async function handler(req,res){
         try{
           await root.child('audit').child('document_'+docId).set({action,recordId:docId,actor:who,uid:identity.uid,createdAt:now()});
         }catch(auditError){
-          // Não informar falha de salvamento após a transação já ter sido confirmada.
           console.error('[Matriz] Documento salvo, mas o registro de auditoria falhou.',auditError);
         }
       }

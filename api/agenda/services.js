@@ -1,9 +1,9 @@
-import '../../server/config/load-local-env.js';
-import { getFirebaseAdmin } from '../../server/infrastructure/firebase-admin.js';
-import { requireIdentity } from '../../server/http/auth.js';
-import { applyApiSecurityHeaders, assertJsonBody, assertSameOrigin, sendError } from '../../server/http/http.js';
-import { agendaServiceCatalog, normalizeAgendaServiceName, validateAgendaServiceId, mutateAgendaServiceCatalog } from '../../server/domain/agenda-service-catalog.js';
-import { AuditRepository } from '../../server/infrastructure/audit-repository.js';
+import '../../server/shared/config/load-local-env.js';
+import { getFirebaseAdmin } from '../../server/shared/firebase/firebase-admin.js';
+import { requireIdentity } from '../../server/shared/http/auth.js';
+import { applyApiSecurityHeaders, assertJsonBody, assertSameOrigin, sendError } from '../../server/shared/http/http.js';
+import { agendaServiceCatalog, normalizeAgendaServiceName, validateAgendaServiceId, mutateAgendaServiceCatalog } from '../../server/modules/agenda/domain/service-catalog.js';
+import { AuditRepository } from '../../server/modules/audit/infrastructure/audit-repository.js';
 export default async function handler(req,res){
   applyApiSecurityHeaders(res,req);
   try{

@@ -1,4 +1,3 @@
-// Auditoria local somente leitura: comprovantes x título x banco x compra.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';

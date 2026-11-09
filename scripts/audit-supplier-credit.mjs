@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// Auditoria SOMENTE LEITURA de um credito legado de compra. Nunca grava no Firebase.
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 function arg(name){return process.argv.find(x=>x.startsWith('--'+name+'='))?.split('=').slice(1).join('')||'';}

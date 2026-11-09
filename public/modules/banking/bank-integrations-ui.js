@@ -1,4 +1,3 @@
-/* Configuração bancária de uma conta do ERP; credenciais sempre processadas no backend. */
 (function(root){
 'use strict';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

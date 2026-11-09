@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {payPayable,inspectPayablePayment} from '../server/application/finance-payment.js';
+import {payPayable,inspectPayablePayment} from '../server/modules/payables/application/payables.js';
 import {inspectPayableIntegrity} from '../scripts/audit-payable-integrity.mjs';
 const account='CPPO_T309',ticket='T309';
 const user={uid:'elaine',erpUser:'elaine',erpAccess:true,canPayables:true};

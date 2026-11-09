@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {buildSecurityClaims} from '../server/domain/access.js';
-import {listPaymentBanks,payPayable} from '../server/application/finance-payment.js';
+import {buildSecurityClaims} from '../server/modules/access/domain/access-claims.js';
+import {listPaymentBanks,payPayable} from '../server/modules/payables/application/payables.js';
 
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const rules=JSON.parse(read('database.rules.json')).rules.erp;

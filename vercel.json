@@ -48,13 +48,13 @@
     }
   ],
   "functions": {
-    "api/quick/interpret.js": {
+    "api/quick/interpret.ts": {
       "maxDuration": 30
     },
-    "api/quick/purchase.js": {
+    "api/quick/purchase.ts": {
       "maxDuration": 30
     },
-    "api/quick/attachment.js": {
+    "api/quick/attachment.ts": {
       "maxDuration": 30
     }
   },

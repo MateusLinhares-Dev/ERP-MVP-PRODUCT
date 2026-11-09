@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {createAdvance,getAdvanceOperationStatus} from '../server/application/finance-advances.js';
-import {runTransaction,releaseLease} from '../server/infrastructure/rtdb-transaction.js';
+import {createAdvance,getAdvanceOperationStatus} from '../server/modules/advances/application/advances.js';
+import {runTransaction,releaseLease} from '../server/shared/firebase/rtdb-transaction.js';
 
 const operationId1='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 const operationId2='bbbbbbbb-cccc-4ddd-8eee-ffffffffffff';
@@ -68,8 +68,7 @@ test('trava abandonada de operação COM recibo confirmado é recuperada sem esp
   assert.equal(previousStatus.advance.cod,previous.advance.cod);
 });
 
-// Executa apenas a máquina de trava para testar recusas legítimas sem 5 s de espera real.
-const source=readFileSync(new URL('../server/application/finance-advances.js',import.meta.url),'utf8');
+const source=readFileSync(new URL('../server/modules/advances/application/advances.js',import.meta.url),'utf8');
 const lockSource=source.slice(source.indexOf('async function acquireAdvanceLock('),source.indexOf('export async function createAdvance('));
 function lockAcquirer(){const ctx={setTimeout,runTransaction,releaseLease};runInNewContext(lockSource+';this.take=acquireAdvanceLock;',ctx);return ctx.take;}
 
@@ -102,11 +101,8 @@ test('falha transitória ao liberar a trava é recuperada, sem bloquear o próxi
   assert.equal(Object.keys(db.state.erp.lancBanco).length,2);
 });
 
-
 test('regressao: backend confirma um adiantamento e remove a trava NO MESMO update atomico',async()=>{
   const db=memoryDb();
-  // Reproduz o problema de serverless: liberar a trava em uma segunda transacao
-  // nunca funcionaria, apesar de o recibo e o debito ja terem sido gravados.
   db.failEveryRelease();
   const first=await createAdvance(actor,base,{db,now:()=>100000});
   const batch=db.updateCalls[0];

@@ -1,4 +1,4 @@
-import { getFirebaseAdmin } from '../server/infrastructure/firebase-admin.js';
+import { getFirebaseAdmin } from '../server/shared/firebase/firebase-admin.js';
 const {db,storage}=getFirebaseAdmin(); const bucket=storage.bucket();
 const roots=['erp/funcDocs','erp/empresaDocs','erp/frotaDocs'];
 function joinChunks(v){if(!v||typeof v!=='object'||!v._partes)return v;let s='';for(let i=0;i<Number(v._partes);i++)s+=v['p'+i]||'';return s;}

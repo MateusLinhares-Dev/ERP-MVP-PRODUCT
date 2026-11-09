@@ -15,7 +15,7 @@ const extract=(source,begin,end)=>{
   return source.slice(start,stop);
 };
 const purchaseHelpers=extract(purchase,'const purchasePendingKeys=','function sourceSignature(keys){');
-const syncProtector=extract(sync,'  function _fbPreservarComprasConfirmadas(','  // Protect a locally edited ticket');
+const syncProtector=extract(sync,'  function _fbPreservarComprasConfirmadas(','  function _fbTicketSnapshotConfirmado(remotos,confiavel){');
 function setup(){
   const saved={};
   const db={ref:path=>({
@@ -43,7 +43,6 @@ test('ACK confirmado permanece visível se uma leitura geral anterior ainda não
   await x.commit('T317',ticket(),{create:true});
   assert.equal(x.ctx.TICKETS_DB.T317.totalGeral,23);
   assert.ok(x.ctx.global.__ERP_PURCHASE_RECENT_CONFIRMED__?.has('T317'));
-  // Simula uma leitura geral iniciada antes do commit: o merge substitui a lista.
   const before=structuredClone(x.ctx.TICKETS_DB);
   Object.keys(x.ctx.TICKETS_DB).forEach(k=>delete x.ctx.TICKETS_DB[k]);
   x.ctx.protect({},before);

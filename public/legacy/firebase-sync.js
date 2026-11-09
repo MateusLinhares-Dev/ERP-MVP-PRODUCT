@@ -1,10 +1,4 @@
 const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || {};
-  // Transação RTDB confiável no navegador.
-  // O SDK chama a função primeiro com o CACHE LOCAL; sem listener ativo ele vale
-  // null e um "return undefined" aborta SEM consultar o servidor (ex.: editar
-  // vale -> "modificado em outra sessão"). Mantemos um listener 'value' durante
-  // a transação para que a função parta do dado real, e repetimos em quedas
-  // de conexão ('disconnect') ou gravação concorrente local ('set').
   window.__erpServerNow = function(){
     const offset = Number(window.__ERP_SERVER_TIME_OFFSET__);
     return Math.round(Date.now() + (Number.isFinite(offset) ? offset : 0));
@@ -126,8 +120,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(_FB_CONFIG);
       window._fbRawDB = firebase.database();
        window._fbDB = window.__legacyDbAdapter ? window.__legacyDbAdapter(window._fbRawDB) : window._fbRawDB;
-      // Relógio do servidor: as regras exigem _ts a no máximo 10 min do horário
-      // do Firebase. Um PC com relógio errado tinha TODOS os salvamentos recusados.
       try{
         if(!window.__ERP_SERVER_OFFSET_LISTENER__){
           window.__ERP_SERVER_OFFSET_LISTENER__=true;
@@ -178,10 +170,8 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   }
   _fbEnsureLoaded(0);
 
-   
   const _FB_AUTH_MAP = {}; 
 
-  
   function _fbAuthLogin(erpUser, onSuccess, onError){
     try{
       if(!window.secureAuth || typeof window.secureAuth.restore !== 'function'){
@@ -202,7 +192,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }catch(err){ onError && onError(err); }
   }
 
-  
   function _fbAuthLogout(){
     try{ firebase.auth().signOut(); }catch(e){}
   }
@@ -222,15 +211,13 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     return false;
   }
 
-  
   function _estoqueAplicarDaNuvem(remoto, confiavel, shallowKeys){
     try{
       if(typeof ESTOQUE_DB==='undefined') return false;
       const cloudTinha=Array.isArray(shallowKeys) && shallowKeys.indexOf('estoque')>=0;
       const leituraOk=remoto && typeof remoto==='object' && !Array.isArray(remoto);
       if(confiavel){
-        
-        
+
         if(cloudTinha && !leituraOk) return false;
         Object.keys(ESTOQUE_DB).forEach(function(k){ delete ESTOQUE_DB[k]; });
         if(leituraOk) Object.assign(ESTOQUE_DB, remoto);
@@ -299,8 +286,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       Object.assign(target,d[key]||{});
     }
     window.__ERP_FINANCE_CLOUD_READY__=true;
-    
-    
+
     return true;
   }
 
@@ -415,7 +401,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }catch(e){ console.warn('_verificarReset erro:', e); return false; }
   }
 
-  
   function _aplicarUntomb(u){
     try{
       if(u && u.tickets && typeof TICKETS_DELETED!=='undefined'){
@@ -442,7 +427,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       document.body.appendChild(b);
     }catch(e){}
   }
-  
 
   let _fbSyncPendente = false;
   let _fbAtualizando = false;
@@ -459,7 +443,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   let _fbUltimoErroNotificadoEm=0;
   let _fbChangeVersion = 0;
   let _fbAtualizandoTimer = null;
-  // Receipts for the shared legacy queue. A local save request is NOT a cloud confirmation.
   const _fbSaveReceipt = {
     requested:0, confirmed:0, pending:false, error:null
   };
@@ -503,9 +486,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   }
   let _fbSalvamentoEmAndamento=null;
   let _fbSalvarOutraVez=false;
-  // A confirmação individual do RTDB é mais recente que qualquer leitura geral
-  // iniciada antes do commit. Protege só compras recém-criadas e só por 30 s;
-  // não grava no banco nem interfere em exclusões ou edições posteriores.
   function _fbPreservarComprasConfirmadas(remotos, locaisAntes){
     const recent=window.__ERP_PURCHASE_RECENT_CONFIRMED__;
     if(!(recent instanceof Map))return;
@@ -517,8 +497,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(typeof TICKETS_DELETED!=='undefined' && TICKETS_DELETED.has(id)){
         recent.delete(id);continue;
       }
-      // Se a leitura já contém o ticket, ela é autoritativa. Nunca substituir
-      // uma nova revisão financeira por uma cópia antiga mantida em memória.
       if(remotos && Object.prototype.hasOwnProperty.call(remotos,id)
           && remotos[id]!=null){recent.delete(id);continue;}
       const local=locaisAntes?.[id];
@@ -527,10 +505,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       TICKETS_DB[id]=JSON.parse(JSON.stringify(restored));
     }
   }
-  // Protect a locally edited ticket when a partial/remote snapshot arrives.
   function _fbTicketSnapshotConfirmado(remotos,confiavel){
-    // A remote update invalidates the 'already sent' cache for its keys.
-    // Otherwise a later intentional write of a previous value can be skipped.
     if(remotos && typeof remotos==='object')Object.keys(remotos).forEach(function(k){
       delete _fbEnviadoOk['tickets/'+k];
     });
@@ -544,7 +519,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     });
   }
   function _fbTicketConfirmarLote(enviados,removidos){
-    // Never snapshot tickets created or edited AFTER this write began.
     Object.entries(enviados||{}).forEach(function(par){
       const [key,json]=par;
       if(Object.prototype.hasOwnProperty.call(TICKETS_DB,key) && JSON.stringify(TICKETS_DB[key])===json){
@@ -570,38 +544,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     });
   }
 
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   function _expandirEntradaGrande(chave, valor, limiteBytes){
     let tamanho;
     try{ tamanho=JSON.stringify(valor).length+chave.length+4; }catch(e){ tamanho=0; }
@@ -616,37 +558,12 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         return resultado;
       }
     }
-    
-    
-    
+
     return [[chave, valor]];
   }
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+
   const MAX_ITENS_POR_LOTE = 3000;
-  
-  
-  
-  
-  
+
   function _prioridadeChave(k){
     const raiz = String(k).split('/')[0];
     const alta = ['tickets','contasPagar','contasPagarDeleted','contasReceber','vendas','vales','adiantamentos','cheques','saldos','estoque','lancBanco','fcLanc','fcSaldoIni','adtCli','chequesCli','clientes','fornecedores','fornDeleted','bancos','metais','custosCasa','tanque','tanqueDeleted','tanqueDeletedV2','precosForn','precosCli','saldoDevedor','bags','bagsMov','users','agendaEntregas','viagem','combustivel','fornDespesa','ponto','folha','frota','manutencao','frotaDeleted','manutencaoDeleted','afazeres','afazeresDeleted'];
@@ -655,11 +572,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     if(baixa.indexOf(raiz)>=0) return 2;
     return 1;
   }
-  
-  
-  
-  
-  
+
   const _fbEnviadoOk = {};
   function _fbFiltrarJaEnviado(dados){
     const filtrado={};
@@ -682,8 +595,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   }
   function _fbRegistrarBaseConfirmada(d){
     if(!d||typeof d!=='object')return;
-    // O retorno e uma fotografia confirmada do servidor, nao do cache local.
-    // Se uma entidade foi modificada localmente, a diferenca continua detectavel.
     Object.entries(d).forEach(function([no,registros]){
       if(no.startsWith('_') || !registros || typeof registros!=='object' || Array.isArray(registros))return;
       Object.entries(registros).forEach(function([id,valor]){
@@ -719,11 +630,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     if(itensAtual>0) lotes.push(loteAtual);
     return lotes;
   }
-  
-  
-  
-  
-  
+
   function _fbLimparUndefined(o){
     if(Array.isArray(o)) return o.map(_fbLimparUndefined);
     if(o && typeof o==='object'){
@@ -753,8 +660,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   }
 
   async function _enviarMapaErp(dados){
-    // Um lote e uma unica operacao multi-caminho: ou todas as colecoes passam
-    // nas regras do RTDB, ou nenhuma delas e alterada.
     const grupos=_agruparAtualizacoesErp(dados);
     const patch={};
     Object.entries(grupos).forEach(function([raiz,grupo]){
@@ -762,8 +667,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         const value=grupo.valor;
         const filhos=Object.entries(grupo.patch);
         if(!filhos.length){ patch[raiz]=value; return; }
-        // Uma atualizacao que misture o pai e o filho nao pode ter caminhos sobrepostos.
-        // Falhar em vez de produzir uma gravação parcial/ambigua.
         throw new Error('Lote com caminhos sobrepostos em erp/'+raiz);
       }
       Object.entries(grupo.patch).forEach(function([sub,val]){patch[raiz+'/'+sub]=val;});
@@ -824,7 +727,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   }
   function fbSalvarImediato(){ clearTimeout(_fbTimer); _fbSalvarAgora(); }
 
-  // Serialization prevents an older batch from completing after a newer one.
   async function _fbSalvarAgora(){
     if(_fbSalvamentoEmAndamento){
       _fbSalvarOutraVez=true;
@@ -844,7 +746,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   }
 
   async function _fbSalvarAgoraInterno() {
-    // A compra é confirmada por transação individual, não pelo sincronizador genérico.
     if(window.__ERP_PURCHASE_IN_PROGRESS__===true){
       window.__ERP_PURCHASE_DEFERRED_SAVE__=true;
       return;
@@ -852,19 +753,14 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     const _versaoSalvar=_fbChangeVersion;
     if(window.__ERP_RESTORING__){console.warn('Salvamento suspenso durante restauração.');return;}
 
-    
     if(_fbAtualizando){
       if(!_fbAtualizandoTimer) _fbAtualizandoTimer=setTimeout(()=>{ _fbAtualizando=false; _fbAtualizandoTimer=null; },8000);
-      
-      
-      
+
       clearTimeout(_fbTimer);
       _fbTimer = setTimeout(_fbSalvarAgora, 300);
       return;
     }
     if(!_fbPronto) return;
-    // Never replay a browser's cached snapshot before a successful cloud read.
-    // A previous session's local data is NOT an authoritative database restore.
     if(!_fbDadosCarregados){
       _fbSetStatus('saving','Aguardando leitura confirmada do Firebase');
       return;
@@ -875,26 +771,12 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       _fbRestaurarAuthEExecutar(_fbSalvarAgora,1500);
       return;
     }
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
     const _agoraPre=Date.now();
     const _pularChecagens = window._fbUltimaChecagemRemota && (_agoraPre - window._fbUltimaChecagemRemota) < 20000;
     if(!_pularChecagens) window._fbUltimaChecagemRemota=_agoraPre;
     if(!_pularChecagens) try{ await _mesclarContasPagarComNuvem(); }catch(e){}
-    
-    
-    
-    
+
     if(!_pularChecagens) try{
       await Promise.all([
         _syncContasReceber.buscarTombstonesRemotosEAplicar(),
@@ -930,49 +812,22 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     _fbSetStatus('saving');
     try {
       const dados = {
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+
         metais: METAIS||[],
-        
-        
-        
-        
-        
-        
+
         custosCasa: CUSTO_CASA||{},
         veicPess: VEICPESS_DB||[],
         manutPess: MANUTPESS_DB||[],
-        
-        
-        
-        
-        
+
         precosForn: PRECOS_FORN_DATA||{},
         precosCli: PRECOS_CLI_DATA||{},
         saldoDevedor: SALDO_DEVEDOR_FORN||{},
-        
-        
-        
-        
+
         users: JSON.parse(localStorage.getItem('mm_users')||'{}'),
         usersDeleted: _USERS_DEL||[],
         funcEdit: JSON.parse(localStorage.getItem('mm_funcionarios_edit')||'[]'),
         fornVeiculos: JSON.parse(localStorage.getItem('mm_forn_veiculos')||'{}'),
-        
-        
-        
-        
-        
+
         viagemLimite: localStorage.getItem('mm_viagem_limite')||'',
         fiscal: (typeof FISCAL_DB !== 'undefined' ? FISCAL_DB : {}),
         fiscalApur: (typeof FISCAL_APUR !== 'undefined' ? FISCAL_APUR : {}),
@@ -985,10 +840,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         fcSaldoIniDeleted: [..._DEL_SETS.fcSaldoIni],
         adtItensDeleted: [..._DEL_SETS.adtItens],
         chequeItensDeleted: [..._DEL_SETS.chequeItens],
-        
-        
-        
-        
+
         contasReceberDeleted: [..._syncContasReceber.deletedSet],
         afazeresDeleted: [..._syncAfazeres.deletedSet],
         vendasDeleted: [..._syncVendas.deletedSet],
@@ -1020,53 +872,28 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         _ts: (typeof window.__erpServerNow === 'function' ? window.__erpServerNow() : Date.now()),
         _user: (typeof cu !== 'undefined' && cu) ? cu.name : '?'
       };
-      
-      
-      
-      
-      
-      
-      
-      
+
       try{
-        
-        
-        
+
         if(Array.isArray(dados.funcEdit) && dados.funcEdit.length===0){ delete dados.funcEdit; }
         else {
           const _funcEditAtual = JSON.stringify(dados.funcEdit);
           if(_funcEditAtual === _funcEditSnapJSON){ delete dados.funcEdit; }
         }
-        
-        
-        
+
         if(dados.users && Object.keys(dados.users).length===0){ delete dados.users; }
-        
-        
-        
-        
-        
+
         if(dados.custosCasa && Object.keys(dados.custosCasa).length===0){ delete dados.custosCasa; }
         if(Array.isArray(dados.veicPess) && dados.veicPess.length===0){ delete dados.veicPess; }
         if(Array.isArray(dados.manutPess) && dados.manutPess.length===0){ delete dados.manutPess; }
       }catch(e){}
-      
-      
-      
-      
-      
-      
+
       delete dados.users;
       delete dados.usersDeleted;
-      
-      
+
       if(!window.__ERP_BANKS_CLOUD_READY__) delete dados.bancosDeleted;
       if(!window.__ERP_FINANCE_CLOUD_READY__) delete dados.fcSaldoIniDeleted;
       const _valoresDelArrAtual = _deletedArrPularSeIgual(dados);
-      // Mapas por chave são enviados POR REGISTRO (precosForn/F1, fiscal/2026-11...).
-      // Antes, o 1º salvamento após abrir a tela regravava o NÓ INTEIRO com a cópia
-      // local e apagava preços, saldos e dados fiscais salvos por outro usuário.
-      // _fbFiltrarJaEnviado descarta os registros que não mudaram localmente.
       [['precosForn',PRECOS_FORN_DATA,null],['precosCli',PRECOS_CLI_DATA,null],
        ['saldoDevedor',SALDO_DEVEDOR_FORN,_DEL_SETS.saldoDevedor],['custosCasa',CUSTO_CASA,null],
        ['fiscal',(typeof FISCAL_DB!=='undefined'?FISCAL_DB:null),null],
@@ -1080,28 +907,11 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         Object.keys(mapa).forEach(function(k){ if(k && !/[.#$\/\[\]]/.test(k)) valido[k]=mapa[k]; });
         _patchIncremental(dados, no, valido, removidos);
       });
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
+
       const _ticketsParaSalvar = {};
       Object.keys(TICKETS_DB).forEach(function(k){
         if(window.__ERP_PURCHASE_PENDING_KEYS__?.has(String(k)))return;
-        // Compra criada pela API: status, saldo e baixa pertencem ao servidor.
-        // Nunca voltar a escrever o snapshot local de outra sessão.
         if(TICKETS_DB[k]?._purchaseOperationId)return;
-        // Não criar pedidos novos pela sincronização genérica: exigem transação
-        // create-only e confirmação explícita da tela de compra.
         if(!Object.prototype.hasOwnProperty.call(_ticketsSnapJSON,k)
            && TICKETS_DB[k]?._consolidado===true)return;
         if(JSON.stringify(TICKETS_DB[k]) !== _ticketsSnapJSON[k]) _ticketsParaSalvar[k] = TICKETS_DB[k];
@@ -1115,9 +925,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       _patchIncremental(dados, 'pontoBatidas', _syncPontoBatidas.paraObjeto(), _syncPontoBatidas.deletedSet);
       _patchIncremental(dados, 'folha', FOLHA_DB, null);
       _patchIncremental(dados, 'fornDespesa', _syncFornDespesa.paraObjeto(), _syncFornDespesa.deletedSet);
-      // Títulos CPPO_ são criados e pagos somente pelas APIs financeiras.
-      // A fotografia local não pode reverter status Pago para Pendente ou
-      // ressuscitar uma baixa após o servidor confirmar a operação.
       const _contasLegadas=_cpParaObjeto();
       Object.keys(_contasLegadas).forEach(id=>{
         const tk=String(_contasLegadas[id]?.ticket||'').trim();
@@ -1130,9 +937,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       _patchIncremental(dados, 'afazeres', _syncAfazeres.paraObjeto(), _syncAfazeres.deletedSet);
       _patchIncremental(dados, 'vendas', _syncVendas.paraObjeto(), _syncVendas.deletedSet);
       delete dados.valesDeleted;
-      // Não reenviar lançamentos de adiantamentos administrados pela API.
-      // Uma gravação legada atrasada poderia reconstituir um débito já excluído
-      // ou sobrescrever a versão confirmada na operação financeira atômica.
       const _lancamentosLegados=_syncLancBanco.paraObjeto();
       const _idsDeAdiantamentosAPI=new Set();
       try{ Object.values(ADT_POR_FORN||{}).forEach(list=>{
@@ -1169,25 +973,10 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       _patchIncremental(dados, 'reunioes', _syncReunioes.paraObjeto(), _syncReunioes.deletedSet);
       _patchIncremental(dados, 'agendaEntregas', _syncAgenda.paraObjeto(), _syncAgenda.deletedSet);
       _patchIncremental(dados, 'advertencias', _syncAdvertencias.paraObjeto(), _syncAdvertencias.deletedSet);
-      
-      
-      
-      
-      
-      
-      
+
       _patchIncremental(dados, 'bagsMov', _syncBagsMov.paraObjeto(), _syncBagsMov.deletedSet);
       _patchIncremental(dados, 'coordFuncObs', COORD_FUNC_OBS, null);
-      
-      
-      
-      
-      
-      
-      
-      // Adiantamentos são controlados EXCLUSIVAMENTE pelas APIs transacionais.
-      // Nunca transmitir snapshots locais inteiros; eles podem ressuscitar um
-      // registro já excluído atomicamente pela API em outra sessão.
+
       const _adtAlteradosNoLote={};
       _patchIncremental(dados, 'cheques', CHEQUES_POR_FORN, _DEL_SETS.chequesPorForn);
       _patchIncremental(dados, 'saldos', SALDO_DEVEDOR_FORN, _DEL_SETS.saldoDevedor);
@@ -1201,12 +990,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         _patchIncremental(dados, 'chequesCli', CHEQUES_CLI, null);
         _patchIncremental(dados, 'fcLanc', FC_LANC, null);
       }
-      
-      
-      
-      
-      
-      
+
       window._fbUltimoTs = dados._ts;
       if(!window._fbTsPendentesProprios) window._fbTsPendentesProprios = new Set();
       window._fbTsPendentesProprios.add(dados._ts);
@@ -1231,10 +1015,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           const _msgErro=(e&&e.message)?e.message:'Erro desconhecido (sem mensagem)';
           _fbPublicarRecibo({pending:true,error:_msgErro});
           if(window._fbTsPendentesProprios) window._fbTsPendentesProprios.delete(dados._ts);
-          
-          
-          
-          
+
           try{
             const _ehPerm = (String((e&&e.code)||'')+' '+String(_msgErro)).toUpperCase().indexOf('PERMISSION')>=0;
             if(_ehPerm && _fbSaveRetries<3){
@@ -1268,15 +1049,9 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
   }
 
-  
   function fbCarregar(callback) {
     if(!window._fbDB) { if(callback) callback(); return; }
-    
-    
-    
-    
-    
-    
+
     let _seguiu=false;
     const _seguir=()=>{ if(_seguiu) return; _seguiu=true; _fbCarregarComProtecoes(callback); };
     try{
@@ -1292,14 +1067,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   function _fbCarregarComProtecoes(callback) {
     if(!window._fbDB) { if(callback) callback(); return; }
     try{if(localStorage.getItem('mm_fb_pendente')!=='1')_fbPendenteAvisado=false;}catch(error){}
-    
-    
-    
-    
-    
-    
-    
-    
+
     try{
       if(localStorage.getItem('mm_fb_pendente')==='1'){
         if(!_fbPendenteAvisado){console.warn('fbCarregar: alterações locais pendentes — mesclando a nuvem antes de salvar.');_fbPendenteAvisado=true;}
@@ -1319,13 +1087,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }catch(e){}
     _fbCarregarDaNuvem(callback);
   }
-  
-  
-  
-  
-  
-  
-  
+
   const _ERP_NOS_PESADOS = { frotaDocs:1, funcDocs:1, empresaDocs:1 };
   const _ERP_NOS_SINCRONIZADOS = [
     '_ts',
@@ -1496,23 +1258,16 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         const _fbConfiavel = Boolean(d._ts) && !preservarLocalPendente;
         _fbAtualizando = true;
         try {
-          
-          
-          
-          
-          
+
           _normalizarDeletedV2EmD(d);
           _aplicarConfigNegocio(d);
           
           function _fbArr(arr){ return Array.isArray(arr) && (_fbConfiavel || arr.length > 0); }
 
-          
           const _adtLocal   = JSON.parse(JSON.stringify(ADT_POR_FORN));
           const _cheqLocal  = JSON.parse(JSON.stringify(CHEQUES_POR_FORN));
           const _saldLocal  = JSON.parse(JSON.stringify(SALDO_DEVEDOR_FORN));
 
-          
-          
           function _safeMerge(local, remote, target){
             if(_fbConfiavel){
               Object.keys(target).forEach(k=>delete target[k]);
@@ -1525,81 +1280,48 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
             }
           }
 
-          
-          
-          
-          
-          
-          
           { const _tkLocal=JSON.parse(JSON.stringify(TICKETS_DB)); _safeMerge(_tkLocal, d.tickets||{}, TICKETS_DB); _fbPreservarComprasConfirmadas(d.tickets,_tkLocal); }
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
+
           if(d.ticketsDeleted && Array.isArray(d.ticketsDeleted) && typeof TICKETS_DELETED!=='undefined'){
             d.ticketsDeleted.forEach(function(tid){ TICKETS_DELETED.add(tid); });
             try{ localStorage.setItem('mm_tickets_deletados', JSON.stringify([...TICKETS_DELETED])); }catch(e){}
           }
           if(d._untomb){ _aplicarUntomb(d._untomb); }
-          
-          
-          
-          
+
           try{
             let _tkRemovidos=false;
             TICKETS_DELETED.forEach(function(tid){ if(TICKETS_DB[tid]!==undefined){ delete TICKETS_DB[tid]; _tkRemovidos=true; } });
           }catch(e){}
           if(typeof TICKETS_DELETED!=='undefined'){ TICKETS_DELETED.forEach(function(tid){ delete TICKETS_DB[tid]; }); }
           _fbTicketSnapshotConfirmado(d.tickets||{},_fbConfiavel);
-          
-          
+
           window.__ERP_ADVANCES_CLOUD_AUTHORITATIVE__=!!_fbConfiavel;
           _fbAdiantamentosRecebidos(d.adiantamentos);
           _mergeAdtCloudManda(_adtLocal, d.adiantamentos, ADT_POR_FORN, _fbConfiavel, (d._shallowKeys && d._shallowKeys.indexOf('adiantamentos')>=0));
           _filtrarAdiantamentosExcluidos(ADT_POR_FORN,d.financeAdvanceDeleted);
           _mergeObjDeArraysPorId(_cheqLocal, d.cheques||{},       CHEQUES_POR_FORN, 'id', _fbConfiavel);
           _safeMerge(_saldLocal, d.saldos||{},        SALDO_DEVEDOR_FORN);
-          
-          
-          
-          
-          
+
           _syncHistorico.carregarDeRemoto(d.historico, _fbConfiavel);
           HISTORICO_DB.sort((a,b)=>(a&&a.ts||0)-(b&&b.ts||0));
           if(HISTORICO_DB.length>1000) HISTORICO_DB.splice(0,HISTORICO_DB.length-1000);
           _fcAplicarNuvem(d);
           _estoqueAplicarDaNuvem(d.estoque, _fbConfiavel, d._shallowKeys);
-          
-          
-          
+
           _aplicarTombstonesRemotos('adtPorForn', ADT_POR_FORN, d.adtPorFornDeleted);
           _aplicarTombstonesRemotos('chequesPorForn', CHEQUES_POR_FORN, d.chequesPorFornDeleted);
           _aplicarTombstonesRemotos('saldoDevedor', SALDO_DEVEDOR_FORN, d.saldoDevedorDeleted);
           _aplicarTombstonesRemotos('estoque', ESTOQUE_DB, d.estoqueDeleted);
           _aplicarTombstonesRemotos('fcSaldoIni', FC_SALDO_INI, d.fcSaldoIniDeleted);
-          
-          
-          
+
           _aplicarTombstonesItensPorForn('adtItens', ADT_POR_FORN, 'cod', d.adtItensDeleted);
           _aplicarTombstonesItensPorForn('chequeItens', CHEQUES_POR_FORN, 'id', d.chequeItensDeleted);
           _mergeMetaisRemoto(d.metais, d.estoqueDeleted);
           try{ _recuperarMateriaisComMovimento(true); }catch(e){}
-          
-          
-          
+
           _cpCarregarDeRemoto(d.contasPagar, _fbConfiavel);
           _cpDeletedCarregarDeRemoto(d.contasPagarDeleted);
-          
-          
+
           _syncContasReceber.carregarDeRemoto(d.contasReceber, _fbConfiavel);
           _syncContasReceber.aplicarTombstonesRemotos(d.contasReceberDeleted);
           _syncAfazeres.carregarDeRemoto(d.afazeres, _fbConfiavel);
@@ -1607,8 +1329,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _syncVendas.carregarDeRemoto(d.vendas, _fbConfiavel);
           _syncVendas.aplicarTombstonesRemotos(d.vendasDeleted);
           if(d.custosCasa){
-            
-            
+
             try{ Object.keys(d.custosCasa).forEach(function(m){
               if(!CUSTO_CASA[m] || (Array.isArray(d.custosCasa[m]) && d.custosCasa[m].length>=((CUSTO_CASA[m]||[]).length))) CUSTO_CASA[m]=d.custosCasa[m];
             }); }catch(e){ CUSTO_CASA=d.custosCasa; }
@@ -1621,12 +1342,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _syncPonto.aplicarTombstonesRemotos(d.pontoDeleted);
           _syncPontoBatidas.carregarDeRemoto(d.pontoBatidas, _fbConfiavel);
           _syncPontoBatidas.aplicarTombstonesRemotos(d.pontoBatidasDeleted);
-          
-          
-          
-          
-          
-          
+
           if(d.folha && typeof d.folha==='object' && !Array.isArray(d.folha)){ Object.assign(FOLHA_DB, d.folha); }
           _syncViagem.carregarDeRemoto(d.viagem, _fbConfiavel);
           _syncViagem.aplicarTombstonesRemotos(d.viagemDeleted);
@@ -1661,9 +1377,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
             localStorage.setItem('mm_users', JSON.stringify(_uu));
           }
           try{ loadUsers(); }catch(e){}
-          
-          
-          
+
           {
             var _mrgFE = _mesclarFuncEdit(d.funcEdit, d.funcEditDel);
             if(_mrgFE && _mrgFE.length && typeof FUNCIONARIOS!=='undefined'){
@@ -1673,8 +1387,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
               try{ if(typeof renderTbFuncionarios==='function')renderTbFuncionarios(); }catch(e){console.warn('Falha ao atualizar RH',e);}
               var _remLen = Array.isArray(d.funcEdit)?d.funcEdit.length:0;
               if(_mrgFE.length > _remLen){
-                
-                
+
                 try{ _funcEditSnapJSON=null; }catch(e){}
                 try{ if(typeof fbSalvar==='function') fbSalvar(); }catch(e){}
               } else {
@@ -1688,10 +1401,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _fornDeletedCarregarDeRemoto(d.fornDeleted);
           _syncFornDespesa.carregarDeRemoto(d.fornDespesa, _fbConfiavel);
           _syncFornDespesa.aplicarTombstonesRemotos(d.fornDespesaDeleted);
-          
-          
-          
-          
+
           _syncFrota.carregarDeRemoto(d.frota, _fbConfiavel);
           _syncFrota.aplicarTombstonesRemotos(d.frotaDeleted);
           _syncManutencao.carregarDeRemoto(d.manutencao, _fbConfiavel);
@@ -1733,38 +1443,25 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _syncAdvertencias.carregarDeRemoto(d.advertencias, _fbConfiavel);
           _syncAdvertencias.aplicarTombstonesRemotos(d.advertenciasDeleted);
           localStorage.setItem('mm_advertencias',JSON.stringify(ADVERTENCIAS_DB));
-          
-          
-          
-          
+
           _syncBagsMov.carregarDeRemoto(('bagsMov' in d) ? d.bagsMov : (d.bags && d.bags.mov), _fbConfiavel);
           _syncBagsMov.aplicarTombstonesRemotos(d.bagsMovDeleted);
           _bagsRecalcularTotais();
           localStorage.setItem('mm_bags',JSON.stringify(BAGS_DB));
-          
-          
-          
-          
+
           if(d.coordFuncObs && typeof d.coordFuncObs==='object'){ Object.assign(COORD_FUNC_OBS, d.coordFuncObs); localStorage.setItem('mm_coord_fobs',JSON.stringify(COORD_FUNC_OBS)); }
         } catch(err){
           console.warn('fbCarregar parse error:',err);
         }
         _fbAtualizando = false;
         _fcRedesenharSeAberta();
-        // A successful callback is not proof that every module was loaded.
-        // An empty/error snapshot must NOT authorize replaying all local CRUD.
         _fbDadosCarregados = Boolean(d._ts);
         window.__FB_DATA_READY__ = _fbDadosCarregados;
         if(_fbConfiavel && _fbDadosCarregados) _fbRegistrarBaseConfirmada(d);
         _fbSetStatus(_fbDadosCarregados?'ok':'error');
 
-        
         try{ if(typeof _supCarregarEExecutarPatches==='function') setTimeout(_supCarregarEExecutarPatches, 500); }catch(_){}
 
-        
-        
-        
-        
         try{
           localStorage.setItem('mm_adt',         JSON.stringify(ADT_POR_FORN));
           localStorage.setItem('mm_adt_cli',      JSON.stringify(ADT_CLI||{}));
@@ -1792,13 +1489,10 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         }catch(lsErr){ console.warn('fbCarregar localStorage sync error:', lsErr); }
         
       } else {
-        
-        
+
         console.log('Firebase vazio ou sem dados — saves automáticos mantidos bloqueados até ação do usuário.');
         _fbPronto = true;
         
-        // Null/failed remote snapshots must never authorize a bulk upload
-        // of localStorage data. Keep pending edits, but require a good read.
         _fbDadosCarregados = false;
         window.__FB_DATA_READY__ = false;
         _fbSetStatus('error');
@@ -1811,7 +1505,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       }
       if(!_chegouTarde){ if(callback) callback(true); }
       else {
-        
 
         [ 'renderTbFuncionarios','renderVendas','renderContasReceber','renderContasPagar',
           'renderTabelaFornecedores','renderEstoque','renderAdiantamentos','renderFrota',
@@ -1828,15 +1521,12 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     });
   }
 
-  
   function _fbAtualizarAbaAtivaSilenciosamente(){
     try{
       const painel=document.querySelector('.tab-panel.active');
       const tab=painel&&typeof painel.id==='string'&&painel.id.startsWith('tab-')
         ? painel.id.slice(4) : '';
       if(!tab) return false;
-      // Atualizacao remota nao e clique: switchTab dispararia guards, modais e
-      // notificacoes de acesso negado repetidamente em toda a empresa.
       if(typeof window.erpCanAccessTab==='function' && !window.erpCanAccessTab(tab)) return false;
       const renders={
         dashboard:'renderDashboard',
@@ -1852,8 +1542,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       };
       const fn=renders[tab];
       if(fn && typeof window[fn]==='function') window[fn]();
-      // Componentes com repositorio proprio (ex.: ownerBills) recarregam
-      // sua colecao via listener ou evento, sem reabrir a rota.
       if(typeof document.dispatchEvent==='function' && typeof CustomEvent==='function'){
         document.dispatchEvent(new CustomEvent('erp:remote-data-merged',{detail:{tab:tab}}));
       }
@@ -1946,21 +1634,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(_fbAtualizando) return;
       const ts = snap.val();
       if(!ts) return;
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
+
       if(window._fbTsPendentesProprios && window._fbTsPendentesProprios.has(ts)){
         window._fbTsPendentesProprios.delete(ts);
         window._fbUltimoTs = ts;
@@ -1981,15 +1655,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           return;
         }
       }catch(e){}
-      
-      
-      
-      
-      
-      
-      
-      
-      
+
       let _temPendenteLocal=false;
       try{ _temPendenteLocal=!!_fbTimer||_fbPendente||localStorage.getItem('mm_fb_pendente')==='1'; }catch(e){ _temPendenteLocal=!!_fbTimer||_fbPendente; }
       if(_fbTimer){ clearTimeout(_fbTimer); _fbTimer=null; }
@@ -1998,8 +1664,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         if(_verificarReset(d)) return;
         _fbAtualizando = true;
         try {
-          
-          
+
           _normalizarDeletedV2EmD(d);
           _aplicarConfigNegocio(d);
           
@@ -2011,37 +1676,15 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
               Object.entries(local).forEach(([k,v])=>{if(!(remote&&remote[k])&&v&&(Array.isArray(v)?v.length:true))target[k]=v;});
             }
           };
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
+
           { const _tkLocal=JSON.parse(JSON.stringify(TICKETS_DB)); _mergeObj(_tkLocal, d.tickets||{}, TICKETS_DB); _fbPreservarComprasConfirmadas(d.tickets,_tkLocal); }
-          
-          
-          
-          
-          
+
           if(d.ticketsDeleted && Array.isArray(d.ticketsDeleted) && typeof TICKETS_DELETED!=='undefined'){
             d.ticketsDeleted.forEach(function(tid){ TICKETS_DELETED.add(tid); });
             try{ localStorage.setItem('mm_tickets_deletados', JSON.stringify([...TICKETS_DELETED])); }catch(e){}
           }
           if(d._untomb){ _aplicarUntomb(d._untomb); }
-          
-          
-          
-          
+
           try{
             let _tkRemovidos=false;
             TICKETS_DELETED.forEach(function(tid){ if(TICKETS_DB[tid]!==undefined){ delete TICKETS_DB[tid]; _tkRemovidos=true; } });
@@ -2051,8 +1694,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _syncHistorico.carregarDeRemoto(d.historico, _fbConf2);
           HISTORICO_DB.sort((a,b)=>(a&&a.ts||0)-(b&&b.ts||0));
           if(HISTORICO_DB.length>1000) HISTORICO_DB.splice(0,HISTORICO_DB.length-1000);
-          
-          
+
           _fbAdiantamentosRecebidos(d.adiantamentos);
           { const loc=JSON.parse(JSON.stringify(ADT_POR_FORN));
             window.__ERP_ADVANCES_CLOUD_AUTHORITATIVE__=!!_fbConf2;
@@ -2118,12 +1760,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _syncCombustivel.carregarDeRemoto(d.combustivel, _fbConf2);
           _syncCombustivel.aplicarTombstonesRemotos(d.combustivelDeleted);
           _tanqueAplicarNuvem(d.tanque, !!d._ts, d.tanqueDeleted);
-          
-          
-          
-          
-          
-          
+
           {
             var _mrgFE2 = _mesclarFuncEdit(d.funcEdit, d.funcEditDel);
             if(_mrgFE2 && _mrgFE2.length && typeof FUNCIONARIOS!=='undefined'){
@@ -2153,9 +1790,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           if(d.metais && Array.isArray(d.metais) && d.metais.length){
             _mergeMetaisRemoto(d.metais, d.estoqueDeleted);
             try{ _recuperarMateriaisComMovimento(true); }catch(e){}
-            
-            
-            
+
             try{ refreshMetaisGlobals(); }catch(e){}
           }
           _syncFornecedores.carregarDeRemoto(d.fornecedores, _fbConf2);
@@ -2164,9 +1799,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _syncClientes.carregarDeRemoto(d.clientes, _fbConf2);
           _syncClientes.aplicarTombstonesRemotos(d.clientesDeleted);
           try{ if(typeof rodPopularPessoaSelect==='function') rodPopularPessoaSelect(); }catch(e){}
-          
-          
-          
+
           try{ populateFornSelects(); }catch(e){}
           _syncContratos.carregarDeRemoto(d.contratos, _fbConf2);
           _syncContratos.aplicarTombstonesRemotos(d.contratosDeleted);
@@ -2183,9 +1816,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
             Object.assign(FISCAL_APUR, d.fiscalApur);
             try{ localStorage.setItem('mm_fiscal_apur',JSON.stringify(FISCAL_APUR)); }catch(_){}
           }
-          // Preços: aplicar a versão do servidor nos registros SEM alteração local
-          // pendente (local igual ao último valor confirmado). Antes, a sessão aberta
-          // mantinha preços antigos e os regravava sobre os de outro usuário.
           [['precosForn',PRECOS_FORN_DATA],['precosCli',PRECOS_CLI_DATA]].forEach(function(par){
             const no=par[0],alvo=par[1],remoto=d[no];
             if(!alvo||!remoto||typeof remoto!=='object'||Array.isArray(remoto))return;
@@ -2197,47 +1827,10 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
             });
             try{ localStorage.setItem(no==='precosForn'?'mm_precos_forn':'mm_precos_cli', JSON.stringify(alvo)); }catch(e){}
           });
-          // Atualiza o baseline após um snapshot remoto confiável. Não trata edição
-          // local pendente como confirmada, nem envia dados da sessão ao servidor.
           if(_fbConf2) _fbRegistrarBaseConfirmada(d);
         } catch(e){}
         _fbAtualizando = false;
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+
         const _modalAbertoAgora = document.querySelector('.modal-ov.open');
         const _campoAtivo = document.activeElement;
         const _digitandoAgora = _campoAtivo && ['INPUT','SELECT','TEXTAREA'].includes(_campoAtivo.tagName) && _campoAtivo.offsetParent!==null;
@@ -2252,8 +1845,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(window.__ERP_LOGOUT_IN_PROGRESS__)return;
       console.warn('Listener erp/_ts cancelado:',errCancel&&errCancel.code);
       _fbSetStatus('error');
-      // Apenas este listener caiu; os listeners de tickets, fiscal, chat e empresas
-      // seguem ativos. Reiniciar fbIniciarListener() aqui duplicaria suas assinaturas.
       try{_fbTsRef.off('value',_fbTsOnValue);}catch(e){}
       clearTimeout(_fbTsRetryTimer);
       _fbTsRetryTimer=setTimeout(function(){
@@ -2265,8 +1856,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     _fbTsRef.on('value',_fbTsOnValue,_fbTsOnCancel);
 
-    
-    
     let _ticketsListenerAtivo = false;
     if(!_ticketsListenerAtivo && _rtdbPodeAcessar('tickets','read',window.__ERP_RTD_CLAIMS__)){
       _ticketsListenerAtivo = true;
@@ -2308,7 +1897,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         if(typeof TICKETS_DELETED!=='undefined'&&TICKETS_DELETED.has&&TICKETS_DELETED.has(tid)) return;
         const val=snap&&snap.val?snap.val():null;
         if(!val||typeof val!=='object') return;
-        // A remote child event must not overwrite an unconfirmed local edit.
         const currentLocal=TICKETS_DB[tid];
         if(currentLocal && Object.prototype.hasOwnProperty.call(_ticketsSnapJSON,tid)
           && JSON.stringify(currentLocal)!==_ticketsSnapJSON[tid]){
@@ -2552,8 +2140,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
   }
 
-  
-  
   window.addEventListener('beforeunload', function(e){
     try{ clearTimeout(_fbTimer); _fbSalvarAgora(); }catch(e2){}
     try{

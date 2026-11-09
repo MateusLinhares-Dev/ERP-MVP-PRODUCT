@@ -1,4 +1,3 @@
-/* Identidade visual consistente. Dados, funções e acesso continuam nos módulos existentes. */
 :root{
   --ui-bg:#f5f7f6;
   --ui-surface:#fff;
@@ -18,7 +17,6 @@
   --shadow:var(--ui-shadow);
 }
 
-/* Topo. Logo e identificação têm espaços independentes. */
 #app-screen .header{
   height:66px;min-height:66px;padding:0 22px;
   background:#183c2b;box-shadow:0 1px 4px rgba(0,0,0,.15);
@@ -39,7 +37,6 @@
 .login-logo .brand-logo-text{display:none;font-size:1.5rem;color:var(--primary)}
 .login-logo .brand-logo-accent{color:var(--accent)}
 
-/* Barra lateral: SVGs reais — nunca escondidos por CSS. */
 #app-screen .sidebar{background:#152b20;box-shadow:1px 0 2px rgba(0,0,0,.1)}
 #app-screen .sidebar .sb-group-hdr{display:flex;align-items:center;gap:10px;padding:10px 16px;color:#9aaea1;font-size:.69rem;letter-spacing:.06em}
 #app-screen .sidebar .sb-group-hdr .sb-gicon{
@@ -71,7 +68,6 @@
 #app-screen .sidebar.collapsed .sb-group-hdr{padding-left:17px}
 #app-screen .sidebar .sb-group-hdr:focus-visible,#app-screen .sidebar .nav-tab:focus-visible{outline:2px solid #f3d37b;outline-offset:-2px}
 
-/* Sistema de página, cards, filtros e tabelas. */
 #app-screen .content{background:var(--ui-bg);padding:22px 25px}
 #app-screen .sec-title{font-size:1.25rem;font-weight:750;letter-spacing:-.025em;color:#25382c;margin:0 0 20px}
 #app-screen .tcard{border:1px solid var(--ui-line);background:#fff;border-radius:8px;box-shadow:var(--ui-shadow)}
@@ -94,7 +90,6 @@
 #app-screen button:not(:disabled),#app-screen summary{cursor:pointer}
 #app-screen :is(input,select,textarea):focus-visible,#app-screen :is(button,summary):focus-visible{outline:2px solid #3a875e;outline-offset:2px}
 
-/* Formulários dos módulos administrativos. */
 #app-screen :is(#tab-cheques,#tab-cheques_compensar,#tab-despesas_grupo,#tab-contratos,#tab-documentos_empresas,#tab-lista_compras,#tab-coordenacao,#tab-fiscal,#tab-viagem_motorista,#tab-combustivel_rudnick,#tab-caminhoes) :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea){
   font-family:inherit;font-size:.84rem;min-width:0;max-width:100%;
   border:1px solid #cfdcd2;border-radius:6px;background-color:#fff;color:#24382b;
@@ -104,7 +99,6 @@
 #app-screen :is(#tab-cheques,#tab-cheques_compensar,#tab-contratos,#tab-documentos_empresas,#tab-lista_compras,#tab-caminhoes,#tab-viagem_motorista) .tcard{overflow-x:auto}
 #app-screen :is(#tab-cheques,#tab-cheques_compensar,#tab-contratos,#tab-lista_compras,#tab-caminhoes,#tab-viagem_motorista) .tcard table{min-width:780px}
 
-/* Cheques: navegação e ações separadas, filtros em barra própria. */
 #tab-cheques .erp-checks-toolbar{
   display:flex;align-items:center;justify-content:space-between;gap:12px;
   flex-wrap:wrap;margin-bottom:18px;background:#fff;
@@ -150,7 +144,6 @@
 #tab-cheques :is(#cheqtab-lista,#cheqtab-desconto,#cheqtab-historico){min-width:0}
 #tab-cheques #cheqtab-desconto>div:first-child{background:#f9faf9!important;border:1px solid #e0e6df!important;color:#506254!important;border-radius:8px!important}
 
-/* Cheques Controle, contratos e documentos: mesma linguagem de tabela. */
 #tab-cheques_compensar :is(.tcard,.kpi),#tab-contratos :is(.tcard,.kpi){border-radius:8px}
 #tab-contratos .kpi-grid{grid-template-columns:repeat(2,minmax(0,280px))}
 #tab-documentos_empresas .erp-docs-filters{
@@ -167,7 +160,6 @@
 #tab-lista_compras #lc-filtro{min-width:150px}
 #tab-lista_compras #lc-tbody td{padding:10px 12px}
 
-/* Despesas: filtros > navegação > indicadores > formulário > extratos. */
 #tab-despesas_grupo .erp-expenses-filters{
   display:flex;align-items:center;gap:10px;flex-wrap:wrap;
   border:1px solid var(--ui-line);border-radius:8px;background:#fff;
@@ -184,7 +176,6 @@
 #tab-despesas_grupo .fg{min-width:0}
 #tab-despesas_grupo .form-footer{border-top:1px solid #edf1ed;padding-top:15px;margin-top:17px}
 
-/* Fiscal: seletor de empresa e submódulos com hierarquia explícita. */
 #tab-fiscal [data-fiscal-company]{background:#fff!important;color:#4b6153!important;border:1px solid #cfdcd2!important;border-radius:6px!important;box-shadow:none}
 #tab-fiscal [data-fiscal-company][style*="background:#1565c0"]{background:#1d4933!important;color:#fff!important}
 #tab-fiscal :is(.btn-fiscal-tab){background:#fff!important;color:#51695a!important;border:1px solid #d9e2da!important;border-radius:6px!important;padding:8px 12px!important;font-size:.8rem!important}
@@ -195,7 +186,6 @@
 #tab-fiscal [style*="background:#fff3e0"]{background:#faf8f3!important;border:1px solid #eee5d7!important}
 #tab-fiscal [style*="font-size:1.1rem"][style*="font-weight:800"]{color:#224833}
 
-/* Frota, viagem e tanque: formulário legível, custos em segundo plano. */
 #tab-viagem_motorista .tcard,#tab-caminhoes .tcard{margin-bottom:16px!important}
 #tab-viagem_motorista .fg{min-width:0}
 #tab-viagem_motorista [style*="grid-template-columns:repeat(4,1fr)"],
@@ -219,7 +209,6 @@
 #tab-combustivel_rudnick .cbx-chip{background:#eef4ef;color:#315a3d}
 #tab-caminhoes .tcard{margin-top:12px}
 
-/* Coordenação: segmentação de abas e quadros menos saturados. */
 #tab-coordenacao [id^="coord-stab-btn-"]{background:#fff!important;color:#53665a!important;border-radius:0!important;border-bottom:2px solid transparent!important;font-size:.84rem!important;padding:12px 15px!important}
 #tab-coordenacao [id^="coord-stab-btn-"].is-active{color:#1d4933!important;background:#f3f7f3!important;border-bottom-color:#1d4933!important;font-weight:700!important}
 #tab-coordenacao [style*="background:#e8f5e9"],#tab-coordenacao [style*="background:#fff8e1"],
@@ -263,7 +252,6 @@
   #tab-cheques .erp-checks-toolbar,#tab-cheques .erp-checks-filters{display:none!important}
 }
 
-/* Grupos do menu: cabeçalho e opções devem ser percebidos como níveis diferentes. */
 #app-screen .sidebar .sb-group:not(.sb-standalone){
   margin:11px 8px 0;
   border:1px solid #355442;
@@ -320,7 +308,6 @@
 #app-screen .sidebar.collapsed .sb-group:not(.sb-standalone) .sb-items{display:none!important}
 #app-screen .sidebar.collapsed .sb-standalone{margin:4px 2px;padding:0}
 
-/* Subnavegação funcional: preserva inputs, eventos e IDs das telas originais. */
 #app-screen .erp-workspace-nav{
   display:flex;
   align-items:center;
@@ -355,7 +342,6 @@
 #app-screen .erp-workspace-panel>.tcard{margin:0 0 16px!important}
 #app-screen .erp-workspace-panel>.tcard:last-child{margin-bottom:0!important}
 
-/* Controle de ponto: totais objetivos, tabela de lançamentos e importação em páginas distintas. */
 #tab-ponto .kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}
 #tab-ponto .kpi{padding:12px 15px;border-radius:7px;min-height:85px}
 #tab-ponto .kpi-val{font-size:1.25rem;line-height:1.3}
@@ -372,7 +358,6 @@
 #tab-ponto #ponto-cartao-host{max-width:100%;overflow:auto}
 #tab-ponto #ponto-cartao-host:empty{min-height:48px}
 
-/* Viagem motorista: o registro deixa de competir com histórico e relatório anual. */
 #tab-viagem_motorista .erp-workspace-panel{min-width:0}
 #tab-viagem_motorista .erp-workspace-panel>.kpi-grid{
   grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px;

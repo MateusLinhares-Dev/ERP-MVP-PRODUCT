@@ -97,7 +97,7 @@ test('histórico financeiro não conta pesagem de origem junto de pedido consoli
  assert.equal(testVisibility(TICKETS_DB.T151),true);
  assert.equal(testVisibility(TICKETS_DB.T152),true);
  delete TICKETS_DB.T151;
- assert.equal(testVisibility(TICKETS_DB.T150),true); // não oculta a fonte sem pedido final
+ assert.equal(testVisibility(TICKETS_DB.T150),true);
 });
 
 test('paginador de compra aparece antes da tabela e nunca é escondido com <=25 compras',()=>{

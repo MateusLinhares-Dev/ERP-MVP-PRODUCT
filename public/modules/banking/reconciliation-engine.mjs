@@ -1,4 +1,3 @@
-// Domínio monetário compartilhado entre interface e API. Todos os valores são centavos exatos.
 export const MAX_BANK_CENTS = 9007199254740991n;
 export const ABS = value => { const n=BigInt(value); return n<0n?-n:n; };
 export const targetKey = (kind,id) => `${kind}:${id}`;

@@ -1,4 +1,3 @@
-// Auditoria somente leitura: nenhuma atualização, exclusão ou migração é realizada.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -56,15 +55,14 @@ async function main(){
     const json=JSON.parse(await fs.readFile(input.slice('--snapshot='.length),'utf8'));
     tickets=json.erp?.tickets||json.tickets||json;
   }else{
-    // Credenciais e project ID seguem a validação central do ERP.
-    const {getFirebaseAdmin}=await import('../server/infrastructure/firebase-admin.js');
+    const {getFirebaseAdmin}=await import('../server/shared/firebase/firebase-admin.js');
     const {db}=getFirebaseAdmin();
     tickets=(await db.ref('erp/tickets').get()).val()||{};
   }
   const report=auditPurchaseTickets(tickets);
   console.log(JSON.stringify(report,null,2));
   if(report.overlappingSources.length||report.possibleDuplicateContent.length||report.brokenIds.length)
-    process.exitCode=3; // Inconsistência para investigar. Nenhum dado foi alterado.
+    process.exitCode=3;
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   main().catch(error=>{console.error('[AUDITORIA] Falha:',error.message);process.exitCode=1;});

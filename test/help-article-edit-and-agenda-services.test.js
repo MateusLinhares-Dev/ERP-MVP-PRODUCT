@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { firebaseArticleTransport, mutateHelpArticle } from '../server/application/help-article-mutation.js';
-import { mutateAgendaServiceCatalog, defaultAgendaServices, normalizeAgendaServiceName, agendaServiceCatalog } from '../server/domain/agenda-service-catalog.js';
+import { firebaseArticleTransport, mutateHelpArticle } from '../server/modules/help/application/help-article-mutation.js';
+import { mutateAgendaServiceCatalog, defaultAgendaServices, normalizeAgendaServiceName, agendaServiceCatalog } from '../server/modules/agenda/domain/service-catalog.js';
 const source=(path)=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const copy=(v)=>v==null?v:structuredClone(v);
 function fakeRef(key,initial){
@@ -121,8 +121,6 @@ test('API de ajuda usa ETag; serviço exige permissão e regras privadas',()=>{
 test('resposta de mutação da API de serviços corresponde ao contrato consumido pela interface',()=>{
  const api=source('api/agenda/services.js');
  const front=source('public/modules/phase1/phase1-agenda.js');
- // Regression: previous POST returned {items}, while the UI read {services},
- // corrupting the service catalog and throwing on serviceCatalog.length.
  assert.match(api,/res\.status\(200\)\.json\(\{ok:true,changed:result\.changed,services:result\.items\}\)/);
  assert.match(api,/res\.status\(200\)\.json\(\{services:agendaServiceCatalog/);
  assert.match(front,/function servicesFromResponse\(data\)/);

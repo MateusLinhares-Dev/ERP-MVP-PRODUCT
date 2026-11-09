@@ -98,7 +98,6 @@
 .phase4-pending-empty b{color:#2e6f46}
 @media(max-width:900px){.phase4-pending-card{grid-template-columns:1fr 1fr}.phase4-pending-actions{grid-column:1/-1}.phase4-pending-weight{text-align:left}}
 
-/* O preço total é calculado, mas mantém aparência de campo como no pedido de compra. */
 .phase4-po-table .total{min-width:150px}
 .phase4-po-table .phase4-po-row-total{min-width:136px;text-align:right;font-weight:800;color:#17492f;background:#f3f8f4;border-color:#dce9df;font-variant-numeric:tabular-nums;cursor:default}
 .phase4-po-table .phase4-po-row-total:focus{box-shadow:none}
@@ -108,7 +107,6 @@
 .phase4-po-duplicate-warnings[hidden]{display:none!important}
 .phase4-po-table tr.phase4-po-duplicate-item td:nth-child(2) input{border-color:#dd9d2f!important;background:#fffaf0!important}
 
-/* Consulta somente leitura do histórico de compras no Firebase. */
 .phase4-ticket-lookup{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:8px 0 14px;padding:12px 14px;border:1px solid #dbe6dd;border-radius:10px;background:#f9fcfa;color:#1d4831}
 .phase4-ticket-lookup label{font-size:.78rem;font-weight:750}
 .phase4-ticket-lookup input{width:120px;min-height:37px;box-sizing:border-box;border:1px solid #cbdacf;border-radius:7px;padding:8px 11px;font-size:.84rem;background:#fff}

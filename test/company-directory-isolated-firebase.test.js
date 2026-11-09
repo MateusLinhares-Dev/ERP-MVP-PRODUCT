@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {getCompanyDirectory,changeCompanyDirectory,companyDirectoryResponse} from '../server/domain/company-directory.js';
+import {getCompanyDirectory,changeCompanyDirectory,companyDirectoryResponse} from '../server/modules/company/domain/company-directory.js';
 
 const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
 
@@ -63,7 +63,7 @@ test('o navegador não tem escrita direta no catálogo separado, mas usuários E
   assert.equal(rules.companyDirectory['.write'],false);
   assert.match(rules.companyDirectory['.read'],/erpAccess/);
   const sync=readFileSync(new URL('../public/legacy/firebase-sync.js',import.meta.url),'utf8');
-  const branding=readFileSync(new URL('../server/application/get-public-branding.js',import.meta.url),'utf8');
+  const branding=readFileSync(new URL('../server/modules/company/application/get-public-branding.js',import.meta.url),'utf8');
   assert.match(sync,/ref\('erp\/companyDirectory'\)\.on\('value'/);
   assert.match(sync,/const currentDirectory=window\.__ERP_COMPANY_DIRECTORY_STATE__/);
   assert.match(branding,/getCompanyDirectory\(getFirebaseAdmin\(\)\.db\)/);

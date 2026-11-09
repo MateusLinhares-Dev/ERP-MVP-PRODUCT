@@ -1,10 +1,10 @@
-import '../../server/config/load-local-env.js';
-import { getFirebaseAdmin } from '../../server/infrastructure/firebase-admin.js';
-import { requireIdentity } from '../../server/http/auth.js';
-import { applyApiSecurityHeaders, assertJsonBody, assertSameOrigin, sendError } from '../../server/http/http.js';
-import { validateArticle,validateArticleId,newArticleId } from '../../server/domain/help-article.js';
-import { firebaseArticleTransport, mutateHelpArticle } from '../../server/application/help-article-mutation.js';
-import { AuditRepository } from '../../server/infrastructure/audit-repository.js';
+import '../../server/shared/config/load-local-env.js';
+import { getFirebaseAdmin } from '../../server/shared/firebase/firebase-admin.js';
+import { requireIdentity } from '../../server/shared/http/auth.js';
+import { applyApiSecurityHeaders, assertJsonBody, assertSameOrigin, sendError } from '../../server/shared/http/http.js';
+import { validateArticle,validateArticleId,newArticleId } from '../../server/modules/help/domain/help-article.js';
+import { firebaseArticleTransport, mutateHelpArticle } from '../../server/modules/help/application/help-article-mutation.js';
+import { AuditRepository } from '../../server/modules/audit/infrastructure/audit-repository.js';
 const fail=(message,status=400,code='HELP_ERROR')=>Object.assign(new Error(message),{status,code});
 const list=v=>Object.entries(v&&typeof v==='object'&&!Array.isArray(v)?v:{}).map(([id,a])=>({...(a||{}),id}));
 export default async function handler(req,res){
@@ -16,7 +16,6 @@ export default async function handler(req,res){
     const root=getFirebaseAdmin().db.ref('erpHelp/articles');
     if(req.method==='GET'){
       const editor=actor.engineer===true&&actor.erpUser==='engadministrator';
-      // Retorno público somente de artigos publicados, sem dados de autor sensíveis.
       const all=list((await root.get()).val()).filter(a=>a&&typeof a==='object');
       return res.status(200).json({articles:all.filter(a=>editor||a.status==='published')
         .map(a=>({...a,createdBy:editor?a.createdBy:undefined,updatedBy:editor?a.updatedBy:undefined}))

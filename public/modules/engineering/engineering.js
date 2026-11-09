@@ -1,4 +1,3 @@
-/* A área de engenharia usa somente APIs autenticadas. Nenhum dado sensível no browser/localStorage. */
 (function(global){'use strict';
 const $=(selector,root=document)=>root.querySelector(selector);
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -103,7 +102,6 @@ async function deleteArticle(){if(saving||!selected)return;const a=articles.find
  try{await call('/api/help/articles',{method:'POST',body:JSON.stringify({action:'delete',id:selected,revision:a.revision})});selected='';await loadArticles();selectArticle('');}
  catch(e){$('#eng-help-message').textContent=e.message;}finally{saving=false;$('#eng-help-delete').disabled=false;}
 }
-// Falhas JS e promessas rejeitadas: envio de metadados apenas; sem stack/URL com query/tokens.
 let lastTelemetry=0;
 function report(kind,code){const now=Date.now();if(now-lastTelemetry<1500||!currentUser())return;lastTelemetry=now;
  const path=location.pathname.slice(0,100);

@@ -1,8 +1,8 @@
-import '../../server/config/load-local-env.js';
-import {getFirebaseAdmin} from '../../server/infrastructure/firebase-admin.js';
-import {getCompanyDirectory,transactCompanyDirectory,companyDirectoryResponse} from '../../server/domain/company-directory.js';
-import {requireIdentity} from '../../server/http/auth.js';
-import {applyApiSecurityHeaders,assertJsonBody,assertMethod,assertSameOrigin,sendError} from '../../server/http/http.js';
+import '../../server/shared/config/load-local-env.js';
+import {getFirebaseAdmin} from '../../server/shared/firebase/firebase-admin.js';
+import {getCompanyDirectory,transactCompanyDirectory,companyDirectoryResponse} from '../../server/modules/company/domain/company-directory.js';
+import {requireIdentity} from '../../server/shared/http/auth.js';
+import {applyApiSecurityHeaders,assertJsonBody,assertMethod,assertSameOrigin,sendError} from '../../server/shared/http/http.js';
 
 function companyKey(value){
   const key=String(value||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');

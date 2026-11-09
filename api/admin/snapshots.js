@@ -1,8 +1,8 @@
-import '../../server/config/load-local-env.js';
-import { getFirebaseAdmin } from '../../server/infrastructure/firebase-admin.js';
-import { requireIdentity } from '../../server/http/auth.js';
-import { applyApiSecurityHeaders, assertJsonBody, assertMethod, assertSameOrigin, sendError } from '../../server/http/http.js';
-import {createSnapshot,restoreSnapshot,isValidSnapshotKey,BUSINESS_SNAPSHOT_NODES} from '../../server/application/snapshot-service.js';
+import '../../server/shared/config/load-local-env.js';
+import { getFirebaseAdmin } from '../../server/shared/firebase/firebase-admin.js';
+import { requireIdentity } from '../../server/shared/http/auth.js';
+import { applyApiSecurityHeaders, assertJsonBody, assertMethod, assertSameOrigin, sendError } from '../../server/shared/http/http.js';
+import {createSnapshot,restoreSnapshot,isValidSnapshotKey,BUSINESS_SNAPSHOT_NODES} from '../../server/modules/snapshots/application/snapshot-service.js';
 export default async function handler(req,res){
   applyApiSecurityHeaders(res,req)
   try{

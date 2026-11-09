@@ -179,8 +179,6 @@ function onFicha(event){
   const actions=document.getElementById('ff-actions');if(!actions)return;
   let btn=document.getElementById('supplier-cash-repass-open');
   if(!btn){btn=document.createElement('button');btn.type='button';btn.id='supplier-cash-repass-open';btn.className='supplier-repass-open';btn.textContent='Dinheiro recebido / Valor a repassar';btn.onclick=()=>openForSupplier(supplier,name);actions.insertBefore(btn,actions.firstChild);}
-  // Do not add this liability to the supplier's historical purchase/advance KPIs:
-  // it represents cash received for a future PIX, not a purchase settlement.
   let indicator=document.getElementById('supplier-cash-repass-indicator');
   if(!indicator){indicator=document.createElement('small');indicator.id='supplier-cash-repass-indicator';indicator.className='supplier-repass-indicator';actions.insertBefore(indicator,btn.nextSibling);}
   indicator.dataset.fornCod=code;
@@ -192,7 +190,6 @@ function onFicha(event){
 function flowTotal(month,year,kind){return Number(summary?.months?.[`${year}-${String(month).padStart(2,'0')}`]?.[kind]||0);}
 global.SupplierCashRepasse={flowTotal,refreshSummary,openForSupplier};
 document.addEventListener('erp:supplier-ficha-rendered',onFicha);
-// Subscribe to login completion: erp:ready can fire before Firebase Auth restores a session.
 document.addEventListener('erp:ready',()=>{
   try{
     const auth=global.firebase?.auth?.();

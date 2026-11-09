@@ -1,10 +1,3 @@
-// Servidor Realtime Database mínimo, compatível com o protocolo WebSocket (v5)
-// usado pelo SDK oficial (firebase-admin / @firebase/database).
-//
-// Objetivo: exercitar o SDK REAL nos cenários que causaram as falhas de
-// produção — cache frio na primeira chamada da transação, rejeição por hash
-// ('datastale') e queda de conexão com transação em voo ('disconnect').
-// Não implementa regras de segurança, consultas ordenadas nem onDisconnect.
 import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
 
@@ -15,7 +8,6 @@ const clone=value=>value===undefined?undefined:JSON.parse(JSON.stringify(value))
 const parts=path=>String(path||'').split('/').filter(Boolean);
 const normalize=path=>parts(path).join('/');
 
-// ---- Hash idêntico ao do SDK (LeafNode/ChildrenNode.hash) -----------------
 const INTEGER=/^-?(0*)\d{1,10}$/;
 function tryParseInt(text){
   if(!INTEGER.test(text))return null;
@@ -54,7 +46,6 @@ export function nodeHash(value){
   return text===''?'':sha1(text);
 }
 
-// ---- Árvore de dados ---------------------------------------------------------
 function prune(value){
   if(value===null||value===undefined)return null;
   if(typeof value!=='object')return value;
@@ -69,7 +60,7 @@ function prune(value){
 
 export async function startFakeRtdb({namespace='demo-erp-test'}={}){
   let root=null;
-  const listens=new Map(); // socket -> Set(path)
+  const listens=new Map();
   const stats={connections:0,puts:0,hashedPuts:0,datastale:0,dropped:0,gets:0,merges:0};
   const dropRules=[];
   const sockets=new Set();
@@ -185,17 +176,17 @@ export async function startFakeRtdb({namespace='demo-erp-test'}={}){
     socket.on('message',raw=>{
       const text=String(raw);
       if(pending===null&&text.length<=6&&/^\d+$/.test(text)){
-        if(text==='0')return; // keepalive
+        if(text==='0')return;
         expected=Number(text);pending=[];return;
       }
       if(pending!==null){
         pending.push(text);
         if(pending.length<expected)return;
         const full=pending.join('');pending=null;
-        try{handle(socket,JSON.parse(full));}catch{/* mensagem inválida */}
+        try{handle(socket,JSON.parse(full));}catch{ }
         return;
       }
-      try{handle(socket,JSON.parse(text));}catch{/* mensagem inválida */}
+      try{handle(socket,JSON.parse(text));}catch{ }
     });
     socket.on('close',()=>{sockets.delete(socket);listens.delete(socket);});
     send(socket,{t:'c',d:{t:'h',d:{ts:Date.now(),v:'5',h:host,s:'session-'+stats.connections}}});
@@ -208,8 +199,6 @@ export async function startFakeRtdb({namespace='demo-erp-test'}={}){
     read,
     seed(path,value){write(path,value);notify([path]);},
     reset(value=null){root=prune(clone(value));},
-    /** Derruba a conexão ao receber a próxima transação (put com hash) no prefixo.
-     *  applyBeforeDrop=true grava antes de cair (resposta perdida). */
     dropNextTransaction(prefix,{times=1,applyBeforeDrop=false}={}){dropRules.push({action:'transaction',prefix,remaining:times,applyBeforeDrop});},
     dropAllConnections(){for(const socket of sockets){stats.dropped+=1;socket.terminate();}},
     async close(){

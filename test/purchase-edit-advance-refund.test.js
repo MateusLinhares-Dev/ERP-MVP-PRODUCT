@@ -1,5 +1,3 @@
-// Redução de compra quitada com adiantamento: a diferença volta ao próprio
-// adiantamento (recibo v2). SDK oficial contra o RTDB simulado.
 import test,{before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
@@ -45,13 +43,13 @@ before(async()=>{
   process.env.FIREBASE_DATABASE_EMULATOR_HOST=srv.host;
   process.env.FIREBASE_STORAGE_BUCKET='demo-refund-test.appspot.com';
   delete process.env.APP_ENV;delete process.env.VERCEL_ENV;
-  const firebase=await import('../server/infrastructure/firebase-admin.js');
+  const firebase=await import('../server/shared/firebase/firebase-admin.js');
   ({app,db}=firebase.getFirebaseAdmin());
-  mod={...(await import('../server/application/finance-advances.js')),
-    ...(await import('../server/application/purchase-order-create.js')),
-    ...(await import('../server/application/purchase-order-edit.js')),
-    ...(await import('../server/application/finance-payment.js')),
-    ...(await import('../server/application/purchase-order-delete.js'))};
+  mod={...(await import('../server/modules/advances/application/advances.js')),
+    ...(await import('../server/modules/purchases/application/create-purchase-order.js')),
+    ...(await import('../server/modules/purchases/application/edit-purchase-order.js')),
+    ...(await import('../server/modules/payables/application/payables.js')),
+    ...(await import('../server/modules/purchases/application/delete-purchase-order.js'))};
 });
 after(async()=>{try{await app?.delete();}catch{}await srv?.close();});
 
@@ -73,7 +71,6 @@ test('compra quitada 100% com adiantamento: reduzir devolve a diferença ao adia
   assert.equal(adt.ticket,'');assert.equal(adt.ticketOrigem,'T100');
   assert.equal(srv.read('erp/contasPagar'),null,'nenhuma conta a pagar criada');
   assert.deepEqual(locks(),[],'travas liberadas');
-  // O saldo devolvido é aceito por uma nova compra do mesmo fornecedor.
   const next=await purchase('T101',10,10,[code]);
   assert.equal(next.adiantamento,100);assert.equal(next.status,'Pago');
   const used=await advanceOf(code);
@@ -99,7 +96,6 @@ test('devolução total libera o adiantamento por completo (pode até ser editad
   seed();
   const code=await advance(300);
   await purchase('T300',30,10,[code]);
-  // Reduz para R$ 0,01: devolve 299,99.
   await edit('T300',1,0.01);
   const adt=await advanceOf(code);
   assert.equal(adt.valorCompensado,0.01);assert.equal(adt.valorDisponivel,299.99);
@@ -116,7 +112,6 @@ test('redução maior que o pago com adiantamento (parte paga no banco) continua
   assert.equal((await viaSdk('erp/tickets/T400')).totalGeral,800,'nada alterado');
   assert.equal((await advanceOf(code)).valorCompensado,500);
   assert.deepEqual(locks(),[]);
-  // Dentro do valor do adiantamento é permitido mesmo com pagamento bancário: 800 -> 700 devolve 100.
   const saved=await edit('T400',70,10);
   assert.equal(saved.advanceRefund.valor,100);
   assert.equal((await advanceOf(code)).valorDisponivel,100);
@@ -147,7 +142,6 @@ test('excluir compra paga com adiantamento devolve tudo e libera o adiantamento'
   assert.equal(adt.ticketOrigem,undefined,'nada mais consumido: adiantamento livre');
   assert.ok(await viaSdk('erp/lancBanco/'+adt.movBancoId),'PIX do adiantamento continua no extrato');
   assert.deepEqual(locks(),[]);
-  // Livre de verdade: pode ser excluído pelo módulo Adiantamentos.
   const change=await mod.changeAdvance(identity,{action:'delete',operationId:randomUUID(),fornCod:'F1',adtCod:code,expected:adt},{db});
   assert.equal(change.removedCode,code);
 });

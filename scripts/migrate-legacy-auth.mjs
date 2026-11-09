@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
-import { getFirebaseAdmin } from '../server/infrastructure/firebase-admin.js';
-import { hashPassword } from '../server/infrastructure/password-hasher.js';
-import { sanitizeProfile } from '../server/domain/user.js';
+import { getFirebaseAdmin } from '../server/shared/firebase/firebase-admin.js';
+import { hashPassword } from '../server/modules/access/infrastructure/password-hasher.js';
+import { sanitizeProfile } from '../server/modules/access/domain/user.js';
 
 const legacyPath=process.argv[2];
 if(!legacyPath){console.error('Uso: npm run migrate:auth -- /caminho/index-legado.html');process.exit(1);}

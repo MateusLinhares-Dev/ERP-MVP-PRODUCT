@@ -243,7 +243,6 @@ async function main() {
 
   initProfilePhoto({ auth, db, storage });
 
-  // A folha visual deve ser a última para prevalecer sobre estilos de módulos legados.
   const uiStylesheet = document.querySelector('link[href^="/legacy/professional-ui.css"]');
   if (uiStylesheet) document.head.appendChild(uiStylesheet);
   loadStyle('/legacy/operations-polish.css');

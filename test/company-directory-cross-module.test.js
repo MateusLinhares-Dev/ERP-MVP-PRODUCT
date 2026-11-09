@@ -7,7 +7,7 @@ const path=new URL('../public/legacy/app-core.js',import.meta.url);
 const source=readFileSync(path,'utf8');
 const html=readFileSync(new URL('../public/index.template.html',import.meta.url),'utf8');
 const api=readFileSync(new URL('../api/admin/employee-companies.js',import.meta.url),'utf8');
-const branding=readFileSync(new URL('../server/application/get-public-branding.js',import.meta.url),'utf8');
+const branding=readFileSync(new URL('../server/modules/company/application/get-public-branding.js',import.meta.url),'utf8');
 
 function companyApi(){
   const start=api.indexOf('function companyKey(value)');

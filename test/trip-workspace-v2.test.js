@@ -5,9 +5,9 @@ import fs from 'node:fs';
 
 const code=fs.readFileSync(new URL('../public/modules/phase2/phase2-feedback.js',import.meta.url),'utf8');
 const css=fs.readFileSync(new URL('../public/modules/phase2/phase2-feedback.css',import.meta.url),'utf8');
-const extract=(a,b)=>{const fragment=code.split(a)[1]?.split(b)[0];assert.ok(fragment,`Trecho ausente: ${a}`);return fragment;};
+const extract=(a,b)=>{const fragment=code.includes(a)?(a+code.split(a)[1]).split(b)[0]:undefined;assert.ok(fragment,`Trecho ausente: ${a}`);return fragment;};
 const context=vm.createContext({});
-const functions=extract('/* ---------- Viagens: acesso ao registro e análise mensal por motorista ---------- */','function phase2TripData()');
+const functions=extract('const phase2TripCostValue=v=>','function phase2TripData()');
 vm.runInContext(functions+ '\nthis.helpers={parts:phase2TripCostParts,monthly:phase2TripMonthlyReport};',context);
 const {parts,monthly}=context.helpers;
 
@@ -101,7 +101,6 @@ test('a ficha mantém custo e acerto separados e escapa campos de texto',()=>{
  assert.match(content,/esc\(detail\.motorista/);
  assert.match(content,/phase2TripCostParts\(detail\)/);
 });
-
 
 test('tabela legada fica fora da listagem e informações completas ficam em Visualizar',()=>{
  const history=extract('function phase2TripPrepareHistory(host,tb,card){','function phase2TripAdvance(v)');

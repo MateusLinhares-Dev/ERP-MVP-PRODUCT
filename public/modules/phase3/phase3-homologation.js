@@ -15,7 +15,6 @@ function getEmployees(){try{return (FUNCIONARIOS||[]).filter(activeEmployee).sli
 function getUsers(){try{return Object.entries(USERS||{}).map(([key,u])=>({key,name:u?.name||key,role:u?.role||''})).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));}catch(e){return [];}}
 function currentUserKey(){try{return String(cuKey||sessionStorage.getItem('mm_sessao')||'');}catch(e){return '';}}
 
-/* Ticket robusto: chave Firebase, número visível e recuperação da nuvem */
 const ticketRefIndex=new Map();
 let currentPurchaseTicketKey='';
 function ticketDb(){try{return TICKETS_DB||{};}catch(e){return {};}}
@@ -103,7 +102,6 @@ if(typeof legacyImp==='function')global.csAbrirImpureza=async function(ref){
 global.phase3ResolveTicketKey=resolveTicketKey;
 global.phase3EnsureTicketKey=ensureTicketKey;
 
-/* Bancos múltiplos em cliente e fornecedor + compatibilidade com legado */
 let partyBanks={};
 async function loadPartyBanks(){if(!store)return;try{partyBanks=await store.load('partyBanks',{});decoratePartyBanks();}catch(error){console.warn('Contas de fornecedores indisponíveis:',error.message);}}
 function partyEntity(kind,key){try{return kind==='fornecedor'?(FORNECEDORES||[]).find(x=>String(x.cod)===String(key)):(CLIENTES||[]).find((x,i)=>String(x.cod||('C'+String(i+1).padStart(3,'0')))===String(key));}catch(e){return null;}}
@@ -161,7 +159,6 @@ global.phase3BankRemove=function(button){
   const row=button?.closest('.phase3-bank-row');
   if(!row)return;
   row.remove();phase3BankRenumber();
-  // A exclusão só acontece no Firebase quando o usuário clicar em Salvar alterações.
 };
 global.phase3BankAdd=function(v={}){
   const box=$('#phase3-bank-rows');if(!box)return;
@@ -235,7 +232,6 @@ global.ERPPartyBanks=Object.freeze({
   primary:(kind,key)=>bankList(kind,key)[0]||null
 });
 
-/* Preços: uma única pesquisa integrada à própria lista da entidade */
 function priceComboOptions(select,kind){
   const map=new Map();
   const put=(value,label)=>{value=String(value||'').trim();label=String(label||'').trim();if(value&&label&&!map.has(value))map.set(value,{value,label});};
@@ -323,7 +319,6 @@ function fixPriceSearches(){
 }
 document.addEventListener('mousedown',e=>{if(!e.target.closest('.phase3-price-combo'))$$('.phase3-price-combo.open').forEach(x=>x.classList.remove('open'));});
 
-/* Calendário unificado: período por datas/meses, usuário e avisos 5/3/1 */
 let calendarEvents={},calendarMonth=today().slice(0,7),calendarSelected=today(),calendarRangeMode='date',
   calendarFrom='',calendarTo='',calendarMonthFrom='',calendarMonthTo='',calendarSearch='',calendarUser='',calendarMigrating=false;
 function hideLegacyCalendarUi(){
@@ -548,16 +543,12 @@ function injectCalendarAvisos(){
     card=document.createElement('div');card.id='phase3-calendar-alerts';card.className='p3-alert-card';
     (box.querySelector('div')||box).prepend(card);
   }
-  // Atualizar apenas quando o calendário mudou, sem destacar/repiscar
-  // a tela inteira a cada evento do Firebase/observador de DOM.
   if(card.innerHTML!==html)card.innerHTML=html;
 }
 function refreshAvisos(){try{global.avisosAtualizarBadge?.();if($('#tab-avisos')?.classList.contains('active'))global.renderAvisos?.();}catch(e){}}
 if(typeof legacyAvisos==='function')global.renderAvisos=function(){const r=legacyAvisos.apply(this,arguments);setTimeout(injectCalendarAvisos,0);return r;};
 if(typeof legacyBadge==='function')global.avisosAtualizarBadge=function(){const r=legacyBadge.apply(this,arguments);setTimeout(()=>{const el=$('.nav-tab[data-tab="avisos"] .nt-label');if(!el)return;const old=el.querySelector('.p3-aviso-count');const extra=myUpcoming().length;if(!extra){if(old)old.remove();return;}if(old){if(old.textContent!==String(extra))old.textContent=String(extra);return;}const s=document.createElement('span');s.className='p3-aviso-count';s.textContent=String(extra);el.appendChild(document.createTextNode(' '));el.appendChild(s);},0);return r;};
 
-/* Cheques: explicação, contagem consistente e limpeza do controle */
-// Usa apenas numeros efetivamente cadastrados (O(n log n)); nunca percorre todos os faltantes.
 function chequeSequence(){
   let list=[];try{list=Object.entries(CHQ_CTRL||{}).filter(([id,c])=>c&&!(global._chqDel||{})[id]).map(([,c])=>c);}catch(e){}
   const groups=new Map();
@@ -576,12 +567,11 @@ function chequeSequence(){
     return {bank,ranges,missing:ranges.slice(0,3)};
   });
 }
-function decorateCheque(){const root=$('#chq-ctrl-root');if(!root)return;try{const live=Object.entries(CHQ_CTRL||{}).filter(([id,c])=>c&&!(global._chqDel||{})[id]).map(([,c])=>c),tot={A:{q:0,v:0},C:{q:0,v:0},X:{q:0,v:0}};live.forEach(c=>{const st=c.s||'A';if(!tot[st])tot[st]={q:0,v:0};tot[st].q++;tot[st].v+=Number(c.v||0);});$$('.kpi',root).forEach(k=>{const lbl=norm($('.kpi-lbl',k)?.textContent||''),val=$('.kpi-val',k),sub=$('.kpi-sub',k);if(lbl==='a compensar'){if(val)val.textContent='R$ '+money(tot.A.v);if(sub)sub.textContent=tot.A.q+' cheque(s) pendente(s)';}else if(lbl==='compensados'){if(val)val.textContent=String(tot.C.q);if(sub)sub.textContent='R$ '+money(tot.C.v)+' já caíram';}else if(lbl==='cancelados'){if(val)val.textContent=String(tot.X.q);}else if(lbl==='total no controle'){if(val)val.textContent=String(live.length);}});}catch(e){}$$('th',root).forEach(th=>{if(/Desc\. Compra\?/i.test(th.textContent||'')){th.textContent='Abate compra?';th.title='Sim = este cheque representa um adiantamento e deve ser abatido do valor da compra. Não significa apenas que o cheque foi compensado.';}});$$('button',root).forEach(b=>{if((b.textContent||'').includes('🛒 Sim')){b.textContent='✓ Sim · adiantamento';b.title='Este cheque será considerado adiantamento e poderá abater o valor da compra. A compensação bancária é tratada separadamente.';}});let info=$('#phase3-cheque-help');if(!info){info=document.createElement('div');info.id='phase3-cheque-help';info.className='p3-cheque-help';info.innerHTML='<b>“Abate compra?”</b> Use <strong>Sim</strong> somente quando o cheque for um <strong>adiantamento ao fornecedor</strong>. Assim ele pode reduzir o saldo da compra. Compensar o cheque no banco é outra operação.';root.prepend(info);}// A conferência de lacunas fica no painel sob demanda do Phase2.
+function decorateCheque(){const root=$('#chq-ctrl-root');if(!root)return;try{const live=Object.entries(CHQ_CTRL||{}).filter(([id,c])=>c&&!(global._chqDel||{})[id]).map(([,c])=>c),tot={A:{q:0,v:0},C:{q:0,v:0},X:{q:0,v:0}};live.forEach(c=>{const st=c.s||'A';if(!tot[st])tot[st]={q:0,v:0};tot[st].q++;tot[st].v+=Number(c.v||0);});$$('.kpi',root).forEach(k=>{const lbl=norm($('.kpi-lbl',k)?.textContent||''),val=$('.kpi-val',k),sub=$('.kpi-sub',k);if(lbl==='a compensar'){if(val)val.textContent='R$ '+money(tot.A.v);if(sub)sub.textContent=tot.A.q+' cheque(s) pendente(s)';}else if(lbl==='compensados'){if(val)val.textContent=String(tot.C.q);if(sub)sub.textContent='R$ '+money(tot.C.v)+' já caíram';}else if(lbl==='cancelados'){if(val)val.textContent=String(tot.X.q);}else if(lbl==='total no controle'){if(val)val.textContent=String(live.length);}});}catch(e){}$$('th',root).forEach(th=>{if(/Desc\. Compra\?/i.test(th.textContent||'')){th.textContent='Abate compra?';th.title='Sim = este cheque representa um adiantamento e deve ser abatido do valor da compra. Não significa apenas que o cheque foi compensado.';}});$$('button',root).forEach(b=>{if((b.textContent||'').includes('🛒 Sim')){b.textContent='✓ Sim · adiantamento';b.title='Este cheque será considerado adiantamento e poderá abater o valor da compra. A compensação bancária é tratada separadamente.';}});let info=$('#phase3-cheque-help');if(!info){info=document.createElement('div');info.id='phase3-cheque-help';info.className='p3-cheque-help';info.innerHTML='<b>“Abate compra?”</b> Use <strong>Sim</strong> somente quando o cheque for um <strong>adiantamento ao fornecedor</strong>. Assim ele pode reduzir o saldo da compra. Compensar o cheque no banco é outra operação.';root.prepend(info);}
 const oldGap=$('#phase3-cheque-gaps');if(oldGap)oldGap.remove();}
 const legacyChequeRender=global.renderChequesCompensar;if(typeof legacyChequeRender==='function')global.renderChequesCompensar=function(){const r=legacyChequeRender.apply(this,arguments);setTimeout(decorateCheque,0);return r;};
 const legacyChequeDelete=global.chqExcluir;if(typeof legacyChequeDelete==='function')global.chqExcluir=function(id){const r=legacyChequeDelete.apply(this,arguments);setTimeout(()=>{try{renderChequesCompensar();}catch(e){}},350);return r;};
 
-/* Contas pessoais da Dona — separadas por imóvel, sem alterar pagamentos anteriores */
 let ownerBills={};
 let ownerBillsLoaded=false;
 let ownerBillsError='';
@@ -596,20 +586,18 @@ function ownerPropertyId(b){
   const raw=norm(b?.propertyId||b?.imovel||'');
   if(raw==='sitio')return 'sitio';
   if(raw==='casa-gloria'||raw==='casa gloria')return 'casa-gloria';
-  return 'sem-imovel'; // Não atribuir imóvel por suposição a contas antigas.
+  return 'sem-imovel';
 }
-// Uma conta recorrente é um único registro com calendário calculado por competência.
-// Contas legadas (sem recurrenceMode) continuam mensais e ilimitadas.
 function ownerMonthNumber(value){
   const m=String(value||'').match(/^(\d{4})-(0[1-9]|1[0-2])$/);
   return m?Number(m[1])*12+Number(m[2])-1:null;
 }
 function ownerOccurs(b,month){
-  if(b?.payments?.[month]?.paid)return true; // nunca ocultar um pagamento histórico
+  if(b?.payments?.[month]?.paid)return true;
   const mode=b?.recurrenceMode||'monthly';
   const target=ownerMonthNumber(month),start=ownerMonthNumber(b?.startMonth);
   if(target===null)return false;
-  if(start===null)return mode==='monthly'; // compatibilidade com contas anteriores
+  if(start===null)return mode==='monthly';
   const difference=target-start;
   if(difference<0)return false;
   if(mode==='once')return difference===0;
@@ -634,8 +622,6 @@ async function loadOwnerBills(){
   if(!store && !global.__businessRepository)return;
   const request=++ownerReloadRequest;
   try{
-    // O cache Phase1Store transforma falhas de permissão em {} e mascara
-    // despesas existentes como R$ 0,00. Preferir leitura real confirmada.
     const remote=global.__businessRepository;
     const value=remote && typeof remote.read==='function'
       ? await remote.read('ownerBills')
@@ -652,7 +638,6 @@ async function loadOwnerBills(){
     ownerBillsError=/permission.denied|permission_denied/i.test(code)
       ? 'O Firebase recusou a leitura de Contas da Dona. Confira canOwnerBills e a sessao da administradora; os totais NAO foram zerados.'
       : 'Falha de conexao ao consultar Contas da Dona. Os totais nao podem ser confirmados agora.';
-    // Nao zerar os dados existentes e nao bombardear a usuaria com toast.
     renderOwnerBillsV3();
     console.warn('[Contas da Dona] Falha de leitura:',code);
   }
@@ -701,7 +686,6 @@ global.phase2OpenOwnerBills=function(){
   }catch(e){}
   loadOwnerBills();
 };
-// O sincronizador sinaliza dados recebidos, sem chamar switchTab().
 let ownerRefreshTimer=null;
 if(typeof document!=='undefined' && typeof document.addEventListener==='function'){
   document.addEventListener('erp:remote-data-merged',event=>{
@@ -742,7 +726,6 @@ global.phase3OwnerSave=async function(){
   if(recurrenceMode==='fixed'&&(!Number.isInteger(monthsRaw)||monthsRaw<1||monthsRaw>120)){
     notify('Informe de 1 a 120 meses para o parcelamento.','error');return;
   }
-  // Edições das contas antigas mensais não alteram seu período anterior.
   const startMonth=recurrenceMode==='monthly' && id && !old.startMonth && !old.recurrenceMode
     ? '' : due.slice(0,7);
   const b={...old,id,propertyId,desc,category:$('#p3ob-cat')?.value.trim()||'',value,
@@ -766,7 +749,6 @@ global.phase3OwnerPay=id=>ownerSaveChange(id,b=>{b.payments[ownerMonth]={paid:tr
 global.phase3OwnerReopen=id=>ownerSaveChange(id,b=>{delete b.payments[ownerMonth];return b;});
 global.phase3OwnerToggle=id=>ownerSaveChange(id,b=>{b.active=false;return b;});
 
-/* Adiantamentos: ticket selecionável + recalcular compra */
 function supplierTicketOptions(fornCod,current=''){let arr=[];try{arr=Object.entries(TICKETS_DB||{}).filter(([k,t])=>!fornCod||t?.fornecedorCod===fornCod||(FORNECEDORES||[]).find(f=>f.cod===fornCod)?.nome===t?.fornecedor).map(([k,t])=>({key:k,ticket:t.ticket||k,total:t.totalGeral||0}));}catch(e){}const seen=new Set();return arr.filter(x=>!seen.has(x.ticket)&&seen.add(x.ticket)).sort((a,b)=>String(b.ticket).localeCompare(String(a.ticket))).map(x=>`<option value="${esc(x.ticket)}" ${String(current)===String(x.ticket)?'selected':''}>${esc(x.ticket)} · R$ ${money(x.total)}</option>`).join('');}
 function replaceTicketInput(id,fornCod,current){const old=$(id);if(!old||old.tagName==='SELECT')return;const sel=document.createElement('select');sel.id=old.id;sel.innerHTML=`<option value="">— Crédito geral, sem compra específica —</option>${supplierTicketOptions(fornCod,current||old.value)}`;old.replaceWith(sel);const label=sel.closest('.fg')?.querySelector('label');if(label)label.textContent='Compra relacionada (opcional)';}
 function enhanceAdvanceTickets(){[['#adt-ticket','#adt-forn'],['#ea-ticket','#ea-forn']].forEach(([tid,fid])=>{const el=$(tid),forn=$(fid)?.value||'',cur=el?.value||'';if(!el)return;if(el.tagName!=='SELECT'){replaceTicketInput(tid,forn,cur);return;}const html=`<option value="">— Crédito geral, sem compra específica —</option>${supplierTicketOptions(forn,cur)}`;if(el.dataset.p3forn!==forn){el.innerHTML=html;el.dataset.p3forn=forn;if(cur&&Array.from(el.options).some(o=>o.value===cur))el.value=cur;}});[['#adt-forn-busca'],['#ea-forn-busca']].forEach(([s])=>{const x=$(s);if(x&&!x.dataset.p3ticket){x.dataset.p3ticket='1';x.addEventListener('change',()=>setTimeout(enhanceAdvanceTickets,30));x.addEventListener('input',()=>setTimeout(enhanceAdvanceTickets,80));}});}
@@ -897,7 +879,6 @@ if(typeof legacyCorrectPurchaseAdvance==='function')global.salvarAdiantamentoCom
   setTimeout(()=>global.abrirDetalheCompra?.(key),40);
 };
 
-/* Contas a Pagar: calendário e vencimentos coerentes com a lista */
 function payableISO(v){return toISO(v);}
 function resetPayableCalendarFilters(iso){
   try{_cpFiltroTipo='todos';_cpMesFiltro='';_cpFiltroEmpresa='';_cpFiltroDia=iso||'';}catch(e){}
@@ -935,13 +916,10 @@ const legacyRenderPayables=global.renderContasPagar;
 if(typeof legacyRenderPayables==='function')global.renderContasPagar=function(){
   const r=legacyRenderPayables.apply(this,arguments);setTimeout(()=>{bindPayableRange();fixPayableToday();},0);return r;
 };
-/* Funcionários ativos consistentes em EPI/Almox/Viagem/Coordenação */
 function rebuildSelect(sel,allLabel=false,valueMode='mat'){if(!sel)return;const cur=sel.value,items=getEmployees(),sig=items.map(f=>`${f.mat}|${f.nome}|${f.status}`).join('~')+'|'+allLabel+'|'+valueMode;const actual=Array.from(sel.options).slice(allLabel||sel.options[0]?.value===''?1:0).map(o=>o.value).join('~'),expected=items.map(f=>valueMode==='nome'?(f.nome||f.mat):(f.mat||f.nome)).join('~');if(sel.dataset.p3sig===sig&&actual===expected)return;sel.innerHTML=(allLabel?'<option value="">— Todos —</option>':'<option value="">— Selecione —</option>')+items.map(f=>{const val=valueMode==='nome'?(f.nome||f.mat):(f.mat||f.nome);return `<option value="${esc(val||'')}">${esc(f.nome||'')} ${f.mat?'('+esc(f.mat)+')':''}</option>`;}).join('');sel.dataset.p3sig=sig;if(cur&&Array.from(sel.options).some(o=>o.value===cur))sel.value=cur;}
 function fixOperationalEmployees(){rebuildSelect($('#p2epi-func'));rebuildSelect($('#alx-func-sel'),true);rebuildSelect($('#vg-motorista'),false,'nome');rebuildSelect($('#vg-fil-mot'),true,'nome');rebuildSelect($('#adv-mat'));const part=$('#reu-partic-list');if(part){const checked=new Set($$('input:checked',part).map(x=>x.value));part.innerHTML=getEmployees().map(f=>`<label><input type="checkbox" value="${esc(f.mat)}" ${checked.has(f.mat)?'checked':''}> ${esc(f.nome)}${f.cargo?` — <small>${esc(f.cargo)}</small>`:''}</label>`).join('');}}
-/* Corrige ReferenceError data */
 global.phase2EpiDeliver=function(){const mat=$('#p2epi-func')?.value||'',idx=Number($('#p2epi-item')?.value),qty=Number($('#p2epi-qtd')?.value)||0,deliveryDate=$('#p2epi-date')?.value||today(),ca=String($('#p2epi-ca')?.value||'').trim(),reason=$('#p2epi-reason')?.value||'Primeira entrega',obs=String($('#p2epi-obs')?.value||'').trim();let item=null,emp=null;try{item=ALX_ITENS?.[idx];emp=(FUNCIONARIOS||[]).find(f=>f.mat===mat);}catch(e){}if(!mat||!item){notify('Selecione funcionário e EPI.','error');return;}if(!(qty>0)||!Number.isInteger(qty)){notify('A quantidade deve ser inteira.','error');return;}const before=Number(item.qtd||0);if(qty>before){notify(`Estoque insuficiente. Disponível: ${before} ${item.un||'un'}.`,'error');return;}const movId='EPI-MOV-'+Date.now(),epiId='epi_'+Date.now();item.qtd=before-qty;try{ALX_MOV.unshift({id:movId,item:item.nome,itemId:item.id||'',tipo:'saida',qtd:qty,data:deliveryDate,mat:mat,resp:emp?.nome||mat,obs:'Entrega de EPI'+(obs?' — '+obs:''),origem:'EPI',epiId:epiId,before:before,after:item.qtd,ts:new Date().toISOString()});EPI_DB.push({id:epiId,mat:mat,data:toBR(deliveryDate),epi:item.nome,qtd:qty,atividade:'',risco:'',ca:ca,motivo:reason+(obs?' — '+obs:''),_almoxMovId:movId});saveAlmoxa?.();saveEpi?.();alxRenderItens?.();renderEpi?.();notify('Entrega registrada. O estoque foi baixado uma única vez.','success');phase2AlxEpiOpen?.(mat);}catch(e){console.error(e);notify('Não foi possível registrar a entrega: '+e.message,'error',7000);}};
 
-/* Frota: revisão como data e filtro confiável */
 function dateValue(v){const s=toISO(v);return s||'';}
 function patchMaintenanceModal(){[['#nm-rev','#nm-status'],['#em-rev','#em-status']].forEach(([rev])=>{const el=$(rev);if(el&&el.type!=='date'){const val=dateValue(el.value);el.type='date';el.placeholder='';if(val)el.value=val;const label=el.closest('.fg')?.querySelector('label');if(label)label.textContent='Próxima revisão (data)';}});}
 const legacyNewMaint=global.abrirNovaManutencao;if(typeof legacyNewMaint==='function')global.abrirNovaManutencao=function(){const r=legacyNewMaint.apply(this,arguments);setTimeout(patchMaintenanceModal,0);return r;};
@@ -949,7 +927,6 @@ const legacyEditMaint=global.editManutencao;if(typeof legacyEditMaint==='functio
 global.phase2FrotaFilter=function(){const q=norm($('#p2-frota-search')?.value||''),st=norm($('#p2-frota-status')?.value||'');$$('.phase2-maint-card').forEach(c=>{const text=norm(c.dataset.search||c.textContent),cs=norm(c.dataset.status||'');c.style.display=((q&&!text.includes(q))||(st&&cs!==st))?'none':'';});};
 function bindMaintFilter(){const q=$('#p2-frota-search'),s=$('#p2-frota-status');[q,s].forEach(el=>{if(el&&!el.dataset.p3){el.dataset.p3='1';el.addEventListener(el===q?'input':'change',()=>global.phase2FrotaFilter());}});}
 
-/* Viagem: só ativos + gastos extras realmente editáveis */
 function patchTripEdit(){
   const modal=$('#modal-edit-viagem');if(!modal||!$('#vg-edit-motorista'))return;
   rebuildSelect($('#vg-edit-motorista'),false,'nome');
@@ -983,7 +960,6 @@ if(typeof legacySaveEditTrip==='function')global.salvarEditViagem=function(){
   return r;
 };
 
-/* Fiscal + Vendas + Contas a Receber: vínculo explícito */
 let fiscalLinks={};async function loadFiscalLinks(){if(!store)return;try{fiscalLinks=await store.load('fiscalLinks',{});decorateReceivables();}catch(error){console.warn('Vínculos fiscais indisponíveis:',error.message);}}
 function parseCurrencyText(v){return parseBR(String(v||'').replace('R$',''));}
 function findReceivableForRow(row){const cells=row.cells;if(!cells||cells.length<10)return null;const date=String(cells[0]?.textContent||'').trim(),nf=String(cells[1]?.textContent||'').trim(),cli=String(cells[2]?.textContent||'').trim(),val=parseCurrencyText(cells[3]?.textContent),venc=String(cells[6]?.textContent||'').trim();try{return (CONTAS_RECEBER||[]).find(c=>String(fmtDate?fmtDate(c.data):toBR(c.data)).trim()===date&&String(c.cli||'').trim()===cli&&Math.abs(Number(c.valor||0)-val)<0.01&&String(fmtDate?fmtDate(c.venc):toBR(c.venc)).trim()===venc&&(nf==='—'||String(c.nf||'—').trim()===nf));}catch(e){return null;}}
@@ -991,10 +967,8 @@ function decorateReceivables(){const tab=$('#tab-contas_receber');if(!tab)return
 global.phase3ReceivableFiscal=async function(id){let cr;try{cr=(CONTAS_RECEBER||[]).find((x,i)=>String(x.id||i)===String(id));}catch(e){}if(!cr||!store)return;const raw=await store.load('fiscalParties',{}),parties=Object.values(raw||{});const current=fiscalLinks[String(id)]||{};const body=$('#modal-body');if(!body)return;body.className='modal';body.innerHTML=`<h3>🧾 Vínculo fiscal da Conta a Receber</h3><p class="p3-help">Comercial e Fiscal continuam independentes. Aqui você relaciona este lançamento ao cadastro fiscal correto.</p><div class="fg"><label>Cliente comercial</label><input disabled value="${esc(cr.cli||cr.cliente||'')}"></div><div class="fg"><label>Cliente Fiscal</label><select id="p3-cr-fiscal-party"><option value="">— Selecione —</option>${parties.filter(x=>norm(x.kind||x.type||'').includes('cliente')).map(x=>`<option value="${esc(x.id)}" ${current.fiscalPartyId===x.id?'selected':''}>${esc(x.legalName||x.name)} · ${esc(x.cnpj||x.cpf||'')}</option>`).join('')}</select></div><div class="fg"><label>Nº NF / Pedido</label><input id="p3-cr-fiscal-nf" value="${esc(current.nf||cr.nf||'')}"></div><div class="modal-ft"><button onclick="cm()">Cancelar</button><button class="btn-save" onclick="phase3ReceivableFiscalSave('${esc(cr.id||id)}')">Salvar vínculo</button></div>`;$('#modal-ov')?.classList.add('open');};
 global.phase3ReceivableFiscalSave=async function(id){if(!store)return;const partyId=$('#p3-cr-fiscal-party')?.value;if(!partyId){notify('Selecione o Cliente Fiscal.','error');return;}const link={id:String(id),fiscalPartyId:partyId,nf:$('#p3-cr-fiscal-nf')?.value.trim()||'',updatedAt:new Date().toISOString()};await store.save('fiscalLinks',String(id),link);fiscalLinks[String(id)]=link;try{const cr=(CONTAS_RECEBER||[]).find((x,i)=>String(x.id||i)===String(id));if(cr){cr.fiscalPartyId=partyId;if(link.nf)cr.nf=link.nf;saveContasReceber?.();}}catch(e){}cm();decorateReceivables();notify('Vínculo fiscal salvo.','success');};
 
-/* Casa Glória: remover de verdade */
 function removeCasaGloria(){let changed=false;try{Object.keys(CUSTO_CASA||{}).forEach(m=>(CUSTO_CASA[m]||[]).forEach(x=>{if(norm(x.area)==='casa gloria'){x.area='Casa';changed=true;}}));}catch(e){}const tab=$('#tab-custo_casa');if(tab){$$('button,[role="tab"],.cc-area-tab',tab).forEach(el=>{const txt=norm(el.textContent),id=norm(el.id),data=norm(el.dataset?.ccArea||'');if(txt==='casa gloria'||id.includes('casa gloria')||data==='casa gloria')el.remove();});}if(changed){try{saveCustoCasa?.();}catch(e){}}const note=$('#phase1-house-history-note');if(note&&note.textContent!=='Histórico preservado por período. Casa, Sítio e Veículos Pessoais permanecem separados.')note.textContent='Histórico preservado por período. Casa, Sítio e Veículos Pessoais permanecem separados.';}
 
-/* Coordenação: reconstruir participantes/advertência com todos ativos */
 function fixCoordination(){
   const employees=getEmployees(),desired=employees.map(f=>String(f.mat)).join('|');
   const part=$('#reu-partic-list');
@@ -1021,7 +995,6 @@ function fixCoordination(){
   if(type&&type.options.length<5)type.innerHTML='<option value="reuniao">Reunião</option><option value="dds">DDS — Diálogo Diário de Segurança</option><option value="treinamento">Treinamento</option><option value="inspecao">Inspeção / Segurança</option><option value="outro">Outro</option>';
 }
 
-/* Aplicação recorrente */
 function apply(){captureTicketMappings();decoratePartyBanks();fixPriceSearches();decorateCheque();enhanceAdvanceTickets();reconcileKnownLinkedAdvances();bindPayableRange();fixPayableToday();fixOperationalEmployees();patchMaintenanceModal();bindMaintFilter();removeCasaGloria();fixCoordination();decorateReceivables();hideLegacyCalendarUi();const owner=$('#phase2-owner-bills');if(owner&&owner.offsetParent!==null&&owner.dataset.p3owner!=='1')renderOwnerBillsV3();if($('#tab-afazeres')&&!$('#phase3-calendar'))renderCalendar();}
 if(global.Phase1Dom)global.Phase1Dom.register(apply);else setInterval(apply,1200);
 const legacySwitchTabPhase3=global.switchTab;

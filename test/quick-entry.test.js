@@ -1,4 +1,3 @@
-// Lançamento rápido (celular/voz): SDK oficial do Firebase contra o RTDB simulado.
 import test,{before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -6,6 +5,7 @@ import {runInNewContext} from 'node:vm';
 import {startFakeRtdb} from './support/fake-rtdb-server.mjs';
 
 let srv,db,app,mod={};
+const quick=(options={})=>mod.createQuickEntryModule({db,bucket:fakeBucket(),clock:{now},childKeys:keysFromDb,interpreter:null,...options});
 const owner={uid:'erp:mauro',erpUser:'mauro',erpAccess:true,canQuickEntry:true};
 const admin={uid:'erp:elaine',erpUser:'elaine',erpAccess:true,admin:true,canPurchasing:true,canPayables:true,canFinance:true};
 const stranger={uid:'erp:ana',erpUser:'ana',erpAccess:true,canPurchasing:true};
@@ -48,26 +48,25 @@ before(async()=>{
   process.env.FIREBASE_DATABASE_EMULATOR_HOST=srv.host;
   process.env.FIREBASE_STORAGE_BUCKET='demo-quick-test.appspot.com';
   delete process.env.APP_ENV;delete process.env.VERCEL_ENV;delete process.env.ANTHROPIC_API_KEY;
-  const firebase=await import('../server/infrastructure/firebase-admin.js');
+  const firebase=await import('../server/shared/firebase/firebase-admin.js');
   ({app,db}=firebase.getFirebaseAdmin());
-  mod={...(await import('../server/application/quick-entry.js')),
-    ...(await import('../server/application/quick-interpret.js')),
-    ...(await import('../server/application/purchase-order-delete.js')),
-    ...(await import('../server/application/finance-payment.js'))};
+  mod={...(await import('../server/modules/quick-entry/index.js')),
+    ...(await import('../server/modules/purchases/application/delete-purchase-order.js')),
+    ...(await import('../server/modules/payables/application/payables.js'))};
 });
 after(async()=>{try{await app?.delete();}catch{}await srv?.close();});
 
 test('permissão: claim canQuickEntry vem da aba "lancamento_rapido" (admin sempre tem)',async()=>{
-  const {buildSecurityClaims}=await import('../server/domain/access.js');
+  const {buildSecurityClaims}=await import('../server/modules/access/domain/access-claims.js');
   assert.equal(buildSecurityClaims({tabs:['lancamento_rapido']}).canQuickEntry,true);
   assert.equal(buildSecurityClaims({tabs:['vendas']}).canQuickEntry,false);
   assert.equal(buildSecurityClaims({tabs:[]},{admin:true}).canQuickEntry,true);
-  await assert.rejects(()=>mod.quickEntryOptions(stranger,{db}),{code:'QUICK_ENTRY_FORBIDDEN'});
+  await assert.rejects(()=>quick().options(stranger),{code:'QUICK_ENTRY_FORBIDDEN'});
 });
 
 test('opções: só fornecedores/clientes ativos, materiais e tabelas de preço',async()=>{
   srv.reset(baseData());
-  const r=await mod.quickEntryOptions(owner,{db,now,env:{}});
+  const r=await quick().options(owner);
   assert.deepEqual(r.suppliers,[{cod:'F1',nome:'JOÃO SILVA SUCATAS'}]);
   assert.deepEqual(r.customers.map(c=>c.nome),['GERDAU AÇOS LONGOS']);
   assert.deepEqual(r.materials,['COBRE MEL','FERRO','LATÃO']);
@@ -81,7 +80,7 @@ test('compra: cria pedido, conta a pagar e registro; número pula excluídos; re
   srv.reset(baseData());
   const input={operationId:opId(),fornecedorCod:'F1',data:today,vencimento:'2026-11-20',observacao:'placa ABC',
     textoFalado:'comprei 350 quilos de cobre mel do joão a 42',itens:[{material:'cobre mel',quantidadeKg:350,precoKg:42}]};
-  const r=await mod.createQuickPurchase(owner,input,{db,now,listKeys:keysFromDb});
+  const r=await quick().createPurchase(owner,input);
   assert.equal(r.entry.referencia,'T011','T009 existe e T010 foi excluído');
   const ticket=await viaSdk('erp/tickets/T011');
   assert.equal(ticket.fornecedorCod,'F1');
@@ -99,10 +98,9 @@ test('compra: cria pedido, conta a pagar e registro; número pula excluídos; re
   assert.equal(entry.tipo,'compra');assert.equal(entry.criadoPor,'mauro');assert.equal(entry.contaPagar,'CPPO_T011');
   assert.equal(srv.read('erpQuickLocks'),null,'trava do lançamento liberada');
   assert.equal(srv.read('erpFinancePayableTicketLocks'),null,'trava da compra liberada');
-  const again=await mod.createQuickPurchase(owner,input,{db,now,listKeys:keysFromDb});
+  const again=await quick().createPurchase(owner,input);
   assert.equal(again.alreadyCommitted,true);
   assert.equal(Object.keys(await viaSdk('erp/tickets')).length,2,'nenhum pedido duplicado');
-  // Compatível com o ERP: a compra sem baixa pode ser excluída pelo fluxo normal.
   const removed=await mod.deletePurchaseOrder({...admin},{ticketNo:'T011',operationId:opId()},{db,now});
   assert.equal(removed.status,'CONFIRMED');
 });
@@ -112,30 +110,28 @@ test('compra: número tomado no meio do caminho é renovado (TICKET_EXISTS)',asy
   const stale=async()=>['T009'];
   srv.seed('erp/tickets/T010',{ticket:'T010',fornecedorCod:'F1',status:'Pendente',totalGeral:5});
   srv.seed('erp/ticketsDeletedV2/T010',null);
-  const r=await mod.createQuickPurchase(owner,{operationId:opId(),fornecedorCod:'F1',itens:[{material:'FERRO',quantidadeKg:100,precoKg:0.9}]},
-    {db,now,listKeys:stale});
+  const r=await quick({childKeys:stale}).createPurchase(owner,{operationId:opId(),fornecedorCod:'F1',itens:[{material:'FERRO',quantidadeKg:100,precoKg:0.9}]});
   assert.equal(r.entry.referencia,'T011');
   assert.equal((await viaSdk('erp/tickets/T010')).totalGeral,5,'pedido do outro usuário intacto');
 });
 
 test('compra paga pelo fluxo normal de Contas a Pagar e aparece como "Pago" no histórico',async()=>{
   srv.reset(baseData());
-  const r=await mod.createQuickPurchase(owner,{operationId:opId(),fornecedorCod:'F1',itens:[{material:'LATÃO',quantidadeKg:10,precoKg:30}]},
-    {db,now,listKeys:keysFromDb});
+  const r=await quick().createPurchase(owner,{operationId:opId(),fornecedorCod:'F1',itens:[{material:'LATÃO',quantidadeKg:10,precoKg:30}]});
   await mod.payPayable({...admin},{payableId:'CPPO_'+r.entry.referencia,operationId:opId(),bankCode:'B1',date:today,amount:300,
     expected:{valor:300,status:'Pendente',paymentsCount:0}},{db,now});
-  const list=await mod.listQuickEntries(owner,{db});
+  const list=await quick().listEntries(owner);
   assert.equal(list.entries[0].situacao,'Pago');
 });
 
 test('compra: validações em linguagem simples, sem gravar nada',async()=>{
   srv.reset(baseData());
   const base={fornecedorCod:'F1',itens:[{material:'COBRE MEL',quantidadeKg:10,precoKg:42}]};
-  await assert.rejects(()=>mod.createQuickPurchase(owner,{...base,operationId:opId(),fornecedorCod:'F2'},{db,now}),{code:'SUPPLIER_NOT_FOUND'});
-  await assert.rejects(()=>mod.createQuickPurchase(owner,{...base,operationId:opId(),itens:[{material:'OURO',quantidadeKg:1,precoKg:1}]},{db,now}),{code:'UNKNOWN_MATERIAL'});
-  await assert.rejects(()=>mod.createQuickPurchase(owner,{...base,operationId:opId(),itens:[{material:'FERRO',quantidadeKg:10,precoKg:null}]},{db,now}),{code:'INVALID_PRICE',message:/preço por kg da linha 1/});
-  await assert.rejects(()=>mod.createQuickPurchase(owner,{...base,operationId:opId(),data:'2026-11-10',vencimento:'2026-11-09'},{db,now}),{code:'INVALID_DUE_DATE'});
-  await assert.rejects(()=>mod.createQuickPurchase(owner,{...base,operationId:'nao-e-uuid'},{db,now}),{code:'INVALID_OPERATION'});
+  await assert.rejects(()=>quick().createPurchase(owner,{...base,operationId:opId(),fornecedorCod:'F2'}),{code:'SUPPLIER_NOT_FOUND'});
+  await assert.rejects(()=>quick().createPurchase(owner,{...base,operationId:opId(),itens:[{material:'OURO',quantidadeKg:1,precoKg:1}]}),{code:'UNKNOWN_MATERIAL'});
+  await assert.rejects(()=>quick().createPurchase(owner,{...base,operationId:opId(),itens:[{material:'FERRO',quantidadeKg:10,precoKg:null}]}),{code:'INVALID_PRICE',message:/preço por kg da linha 1/});
+  await assert.rejects(()=>quick().createPurchase(owner,{...base,operationId:opId(),data:'2026-11-10',vencimento:'2026-11-09'}),{code:'INVALID_DUE_DATE'});
+  await assert.rejects(()=>quick().createPurchase(owner,{...base,operationId:'nao-e-uuid'}),{code:'INVALID_OPERATION'});
   assert.equal(srv.read('erp/quickEntries'),null);
   assert.deepEqual(Object.keys(await viaSdk('erp/tickets')),['T009']);
 });
@@ -144,7 +140,7 @@ test('venda: venda + conta a receber + registro em um único commit; repetir nã
   srv.reset(baseData());
   const input={operationId:opId(),cliente:'gerdau aços longos',nf:'4521',vencimento:'2026-11-20',
     itens:[{material:'FERRO',quantidadeKg:2000,precoKg:1.2},{material:'LATÃO',quantidadeKg:50,precoKg:28.5}]};
-  const r=await mod.createQuickSale(owner,input,{db,now});
+  const r=await quick().createSale(owner,input);
   const sale=await viaSdk('erp/vendas/'+r.entry.referencia);
   assert.equal(sale.cliente,'GERDAU AÇOS LONGOS');
   assert.equal(sale.total,3825);
@@ -153,50 +149,51 @@ test('venda: venda + conta a receber + registro em um único commit; repetir nã
   assert.deepEqual(sale.itens[0],{mat:'FERRO',matBase:'FERRO',ident:'',qt:2000,pr:1.2,total:2400});
   const receivable=await viaSdk('erp/contasReceber/'+r.entry.contaReceber);
   assert.equal(receivable.valor,3825);assert.equal(receivable.vendaId,sale.id);assert.equal(receivable.venc,'20/11/2026');
-  const again=await mod.createQuickSale(owner,input,{db,now});
+  const again=await quick().createSale(owner,input);
   assert.equal(again.alreadyCommitted,true);
   assert.equal(Object.keys(await viaSdk('erp/vendas')).length,1);
-  await assert.rejects(()=>mod.createQuickSale(owner,{...input,operationId:opId(),cliente:'CLIENTE EXCLUÍDO'},{db,now}),{code:'CUSTOMER_NOT_FOUND'});
-  await assert.rejects(()=>mod.createQuickPurchase(owner,{...input,fornecedorCod:'F1'},{db,now}),{code:'OPERATION_REUSED'});
+  await assert.rejects(()=>quick().createSale(owner,{...input,operationId:opId(),cliente:'CLIENTE EXCLUÍDO'}),{code:'CUSTOMER_NOT_FOUND'});
+  await assert.rejects(()=>quick().createPurchase(owner,{...input,fornecedorCod:'F1'}),{code:'OPERATION_REUSED'});
 });
 
 test('anexos: tipo conferido pelo conteúdo, vinculados ao lançamento e visíveis só ao dono e à administradora',async()=>{
   srv.reset(baseData());
   const bucket=fakeBucket();
-  await assert.rejects(()=>mod.uploadQuickAttachment(owner,{nome:'x.pdf',tipo:'application/pdf',conteudo:JPEG.toString('base64')},{db,bucket,now}),{code:'UNSUPPORTED_FILE'});
-  const {anexo}=await mod.uploadQuickAttachment(owner,{nome:'ticket.jpg',tipo:'image/jpeg',conteudo:JPEG.toString('base64')},{db,bucket,now});
+  const q=quick({bucket});
+  await assert.rejects(()=>q.uploadAttachment(owner,{nome:'x.pdf',tipo:'application/pdf',conteudo:JPEG.toString('base64')}),{code:'UNSUPPORTED_FILE'});
+  const {anexo}=await q.uploadAttachment(owner,{nome:'ticket.jpg',tipo:'image/jpeg',conteudo:JPEG.toString('base64')});
   assert.equal(bucket.files.size,1);
-  const r=await mod.createQuickPurchase(owner,{operationId:opId(),fornecedorCod:'F1',anexos:[anexo.id],
-    itens:[{material:'FERRO',quantidadeKg:10,precoKg:1}]},{db,now,listKeys:keysFromDb});
+  const r=await quick().createPurchase(owner,{operationId:opId(),fornecedorCod:'F1',anexos:[anexo.id],
+    itens:[{material:'FERRO',quantidadeKg:10,precoKg:1}]});
   assert.equal((await viaSdk('erp/tickets/'+r.entry.referencia)).anexosCelular[0].id,anexo.id);
   assert.equal((await viaSdk('erp/quickUploads/mauro/'+anexo.id)).lancamento,r.entry.id);
-  const file=await mod.readQuickAttachment(owner,{dono:'mauro',id:anexo.id},{db,bucket});
+  const file=await q.readAttachment(owner,'mauro',anexo.id);
   assert.deepEqual(file.buffer,JPEG);
-  await assert.rejects(()=>mod.readQuickAttachment({...owner,uid:'erp:outro',erpUser:'outro'},{dono:'mauro',id:anexo.id},{db,bucket}),{code:'ATTACHMENT_FORBIDDEN'});
-  assert.equal((await mod.readQuickAttachment(admin,{dono:'mauro',id:anexo.id},{db,bucket})).tipo,'image/jpeg');
-  await assert.rejects(()=>mod.createQuickPurchase(owner,{operationId:opId(),fornecedorCod:'F1',anexos:['AXinexistente'],
-    itens:[{material:'FERRO',quantidadeKg:10,precoKg:1}]},{db,now}),{code:'ATTACHMENT_NOT_FOUND'});
+  await assert.rejects(()=>q.readAttachment({...owner,uid:'erp:outro',erpUser:'outro'},'mauro',anexo.id),{code:'ATTACHMENT_FORBIDDEN'});
+  assert.equal((await q.readAttachment(admin,'mauro',anexo.id)).tipo,'image/jpeg');
+  await assert.rejects(()=>quick().createPurchase(owner,{operationId:opId(),fornecedorCod:'F1',anexos:['AXinexistente'],
+    itens:[{material:'FERRO',quantidadeKg:10,precoKg:1}]}),{code:'ATTACHMENT_NOT_FOUND'});
 });
 
 test('histórico: cada um vê os seus; administradora vê todos',async()=>{
   srv.reset(baseData());
-  await mod.createQuickSale(owner,{operationId:opId(),cliente:'GERDAU AÇOS LONGOS',itens:[{material:'FERRO',quantidadeKg:1,precoKg:1}]},{db,now});
-  await mod.createQuickSale({...owner,uid:'erp:outro',erpUser:'outro'},{operationId:opId(),cliente:'GERDAU AÇOS LONGOS',itens:[{material:'FERRO',quantidadeKg:2,precoKg:1}]},{db,now});
-  assert.equal((await mod.listQuickEntries(owner,{db})).entries.length,1);
-  const all=await mod.listQuickEntries(admin,{db});
+  await quick().createSale(owner,{operationId:opId(),cliente:'GERDAU AÇOS LONGOS',itens:[{material:'FERRO',quantidadeKg:1,precoKg:1}]});
+  await quick().createSale({...owner,uid:'erp:outro',erpUser:'outro'},{operationId:opId(),cliente:'GERDAU AÇOS LONGOS',itens:[{material:'FERRO',quantidadeKg:2,precoKg:1}]});
+  assert.equal((await quick().listEntries(owner)).entries.length,1);
+  const all=await quick().listEntries(admin);
   assert.equal(all.entries.length,2);assert.equal(all.viewAll,true);
   assert.equal(all.entries[0].situacao,'A receber');
 });
 
 test('IA: só aceita nomes do cadastro; sem chave avisa para usar o interpretador do aparelho',async()=>{
   srv.reset(baseData());
-  await assert.rejects(()=>mod.interpretQuickText(owner,{texto:'comprei cobre'},{db,now,env:{}}),{code:'AI_NOT_CONFIGURED'});
+  await assert.rejects(()=>quick().interpretSpeech(owner,{texto:'comprei cobre'}),{code:'AI_NOT_CONFIGURED'});
   let request=null;
   const client={beta:{messages:{create:async body=>{request=body;return {stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({
     tipo:'compra',parte:'JOÃO SILVA SUCATAS',itens:[{material:'COBRE MEL',materialFalado:'cobre mel',quantidadeKg:350,precoKg:42},
       {material:'OURO INVENTADO',materialFalado:'ouro',quantidadeKg:1,precoKg:-5}],
     data:'2026-11-08',vencimento:'data ruim',nf:null,observacao:null,duvidas:[]})}]};}}}};
-  const r=await mod.interpretQuickText(owner,{texto:'comprei 350 quilos de cobre mel do joão a 42',tipo:'compra'},{db,now,client,env:{}});
+  const r=await quick({interpreter:new mod.ClaudeSpeechInterpreter(client)}).interpretSpeech(owner,{texto:'comprei 350 quilos de cobre mel do joão a 42',tipo:'compra'});
   assert.equal(request.model,'claude-opus-5-5');
   assert.equal(request.output_config.format.type,'json_schema');
   assert.equal(request.fallbacks,'default');
@@ -206,7 +203,7 @@ test('IA: só aceita nomes do cadastro; sem chave avisa para usar o interpretado
   assert.deepEqual(r.itens[1],{material:null,materialFalado:'ouro',quantidadeKg:1,precoKg:null},'material e preço inválidos descartados');
   assert.equal(r.vencimento,null);
   const refusal={beta:{messages:{create:async()=>({stop_reason:'refusal',content:[]})}}};
-  await assert.rejects(()=>mod.interpretQuickText(owner,{texto:'x'},{db,now,client:refusal,env:{}}),{code:'AI_UNAVAILABLE'});
+  await assert.rejects(()=>quick({interpreter:new mod.ClaudeSpeechInterpreter(refusal)}).interpretSpeech(owner,{texto:'x'}),{code:'AI_UNAVAILABLE'});
   const unknown=mod.sanitizeInterpretation({tipo:'compra',parte:'FULANO QUALQUER',itens:[]},{suppliers:[{cod:'F1',nome:'JOÃO'}],customers:[],materials:[]});
   assert.equal(unknown.parte,null);
   assert.match(unknown.duvidas.join(' '),/FULANO QUALQUER/);

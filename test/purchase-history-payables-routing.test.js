@@ -63,7 +63,6 @@ test('Contas a Pagar não abate automaticamente créditos disponíveis; banco po
   assert.match(body.innerHTML,/id="pcp-banco"/);
 });
 
-
 test('banco habilita quando a compensação é zero e desabilita só se não há débito',()=>{
   const src=fnSource('atualizarLiquidoCP','async function confirmarPagarCP(');
   const bank={value:'',disabled:true,options:[{value:''},{value:'BC-005'}],dataset:{}};

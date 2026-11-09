@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {randomUUID} from 'node:crypto';
-import {changeAdvance} from '../server/application/finance-advances.js';
+import {changeAdvance} from '../server/modules/advances/application/advances.js';
 
 const fiscalCode=readFileSync(new URL('../public/modules/fiscal/fiscal-stock-origins.js',import.meta.url),'utf8');
 const advanceCode=readFileSync(new URL('../public/modules/finance/advance-actions.js',import.meta.url),'utf8');

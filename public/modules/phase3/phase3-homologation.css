@@ -4,8 +4,6 @@
 .p3-owner-head{display:flex;justify-content:space-between;align-items:center}.p3-owner-head h2{margin:0}.p3-owner-head p{margin:3px 0;color:#667}.p3-owner-toolbar{display:flex;gap:8px;margin:12px 0}.p3-owner-toolbar input,.p3-owner-toolbar select{padding:8px;border:1px solid #ccd8d1;border-radius:7px}.p3-owner-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.p3-owner-kpis>div{background:#fff;border:1px solid #dbe4df;border-top:3px solid #1b6a45;border-radius:10px;padding:12px;display:grid}.p3-owner-kpis small{color:#778}.p3-owner-kpis b{font-size:1.2rem}.p3-owner-kpis .warn{border-top-color:#d33}.p3-owner-kpis .today{border-top-color:#e89800}.p3-owner-calendar{margin-top:12px}.p3-owner-calendar article{display:grid;grid-template-columns:65px 1fr 130px 100px auto;gap:12px;align-items:center;background:#fff;border:1px solid #e0e7e3;border-radius:10px;padding:9px 12px;margin:7px 0}.p3-owner-calendar article.atrasado{border-left:4px solid #d33}.p3-owner-calendar article.hoje{border-left:4px solid #e89800}.p3-owner-calendar article.pago{opacity:.65;border-left:4px solid #1b8b4b}.p3-owner-calendar .day{display:grid;text-align:center}.p3-owner-calendar .day b{font-size:1.4rem}.p3-owner-calendar .main{display:grid}.p3-owner-calendar .main small,.p3-owner-calendar .main p{font-size:.72rem;color:#778;margin:2px 0}.p3-owner-calendar .badge{font-size:.7rem;background:#f3f5f4;border-radius:10px;padding:3px 6px;text-align:center}.p3-owner-calendar .actions{display:flex;gap:5px}.p3-owner-calendar .actions button{border:1px solid #ccd8d1;background:#fff;border-radius:6px;padding:5px 7px}.p3-owner-calendar .actions .pay{background:#19713e;color:#fff;border-color:#19713e}.p3-cr-fiscal-note{display:flex;gap:12px;background:#edf5f8;border-left:4px solid #277ca2;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:.8rem}.p3-fiscal-link-btn{background:#245c7a;color:#fff;border:0;border-radius:6px;padding:5px 7px;margin-right:4px}
 @media(max-width:1000px){.p3-cal-filters{grid-template-columns:repeat(2,1fr)}.p3-cal-layout{grid-template-columns:1fr}.p3-owner-kpis{grid-template-columns:repeat(2,1fr)}.p3-owner-calendar article{grid-template-columns:55px 1fr 100px}.p3-owner-calendar .badge,.p3-owner-calendar .actions{grid-column:2/-1}.phase3-bank-row{grid-template-columns:1fr 1fr}.phase3-bank-row button{grid-column:2}}
 
-
-/* Fase 3.1 — estabilização de UX */
 .phase3-modal header button,
 .phase3-bank-row button,
 .phase3-modal footer button,
@@ -83,13 +81,11 @@
   .p3-trip-edit-extra{grid-template-columns:1fr}
 }
 
-/* Compra Sucata: observação permanece visível durante a rolagem da tabela */
 #dc-itens-body .phase2-purchase-history-obs{position:sticky!important;right:88px!important;z-index:3!important;background:#fff!important;box-shadow:-5px 0 8px -8px #0008}
 #dc-itens-body .phase2-purchase-history-obs + td{position:sticky!important;right:0!important;z-index:3!important;background:#fff!important;min-width:88px!important}
 #dc-itens-body tr:nth-child(even) .phase2-purchase-history-obs,#dc-itens-body tr:nth-child(even) .phase2-purchase-history-obs + td{background:#f8faf9!important}
 thead .phase2-purchase-history-obs{position:sticky!important;top:0!important;right:88px!important;z-index:6!important;background:#1a3a2a!important;color:#fff!important;min-width:190px!important}
 
-/* Fase 3.3 — calendário confiável e lista pesquisável de clientes/fornecedores */
 .phase3-price-combo{position:relative!important;max-width:760px;width:min(100%,760px);margin:7px 0 10px;z-index:80!important}
 .phase3-price-search-head{position:relative;display:flex;align-items:center;gap:8px}
 .phase3-price-search-head>input{flex:1;min-width:0;width:100%;height:42px;border:1.5px solid #b9c9c0;border-radius:8px;padding:0 90px 0 12px;font-size:.88rem;background:#fff;box-sizing:border-box;cursor:text}
@@ -106,7 +102,6 @@ thead .phase2-purchase-history-obs{position:sticky!important;top:0!important;rig
 .p3-owner-head button,.p3-owner-toolbar button,.p3-owner-calendar button,.p3-owner-calendar .actions button{cursor:pointer!important}
 .p3-payable-today-empty{padding:10px 12px;background:#fff;border:1px dashed #d4ddd8;border-radius:8px;color:#6d7972;font-size:.82rem}
 
-/* Fase 3.4 — seletor pesquisável de preços sem recorte pelo card */
 #tab-precos_fornecedores > .tcard,
 #tab-precos_clientes > .tcard{
   overflow:visible!important;
@@ -134,8 +129,6 @@ thead .phase2-purchase-history-obs{position:sticky!important;top:0!important;rig
   cursor:pointer;
 }
 
-
-/* Contas pessoais: agrupamento por imóvel e subtotais mensais */
 #phase2-owner-bills .p3-owner-property-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0 14px}
 #phase2-owner-bills .p3-owner-property-total{background:#fff;border:1px solid #dce7df;border-top:3px solid #1c7048;border-radius:11px;padding:14px 16px;display:flex;flex-direction:column;gap:5px;min-width:0}
 #phase2-owner-bills .p3-owner-property-total small{font-size:.76rem;font-weight:800;color:#426653}
@@ -156,7 +149,6 @@ thead .phase2-purchase-history-obs{position:sticky!important;top:0!important;rig
 @media(max-width:900px){#phase2-owner-bills .p3-owner-property-totals{grid-template-columns:1fr}#phase2-owner-bills .p3-owner-group{padding:12px 9px}}
 @media(max-width:550px){#phase2-owner-bills .p3-owner-group-head{align-items:flex-start;flex-direction:column}#phase2-owner-bills .p3-owner-group .p3-owner-calendar article{grid-template-columns:50px 1fr;gap:6px}#phase2-owner-bills .p3-owner-calendar article>strong{grid-column:2}#phase2-owner-bills .p3-owner-calendar article .badge,#phase2-owner-bills .p3-owner-calendar article .actions{grid-column:2}}
 
-/* Proteção contra listas extensas de lacunas de cheques */
 #phase3-cheque-gaps{max-height:108px;overflow-y:auto}
 #phase3-cheque-gaps>div{max-width:100%;overflow-wrap:anywhere;line-height:1.35}
 

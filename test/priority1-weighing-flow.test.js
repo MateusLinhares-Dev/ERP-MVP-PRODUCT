@@ -116,7 +116,6 @@ test('interface guiada reduz ambiguidade da operação',()=>{
   assert.match(view,/road-weighing-stepper/);
 });
 
-
 test('fila lateral não renderiza formulário completo de peso final e mantém ação compacta',()=>{
   const view=fs.readFileSync(viewPath,'utf8');
   const flow=fs.readFileSync(flowPath,'utf8');

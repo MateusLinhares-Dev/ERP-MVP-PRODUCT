@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {editPurchaseOrder} from '../server/application/purchase-order-edit.js';
+import {editPurchaseOrder} from '../server/modules/purchases/application/edit-purchase-order.js';
 
 const purchase=readFileSync(new URL('../public/modules/purchase-order/purchase-order.js',import.meta.url),'utf8');
 const core=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
@@ -31,7 +31,6 @@ function setup(){
  function ref(path){return {
   get:async()=>({val:()=>structuredClone(data[path]??null)}),
   transaction:async updater=>{const result=updater(structuredClone(data[path]??null));if(result===undefined)return {committed:false};data[path]=structuredClone(result);return {committed:true};},
-  // O commit é UMA atualização na raiz (pedido, crédito e liberação das travas).
   update:async updates=>{changes.push(structuredClone(updates));for(const [k,v] of Object.entries(updates))data[path?path+'/'+k:k]=structuredClone(v);}
  };}
  const edited=original();edited.itens[0]={...edited.itens[0],preco:76796.05,total:76796.05};

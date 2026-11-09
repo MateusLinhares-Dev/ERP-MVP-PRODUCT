@@ -1,5 +1,4 @@
 .phase1-admin-card{background:#fff;border:1px solid #dbe6df;border-radius:10px;padding:10px 12px;margin:0 0 12px}.phase1-admin-card summary{font-weight:800;color:#173d2a;cursor:pointer}.phase1-fiscal-form{display:grid;grid-template-columns:180px 1fr auto;gap:8px;margin:12px 0}.phase1-fiscal-form input,.phase1-fiscal-form select{padding:8px;border:1px solid #ccd8d0;border-radius:7px}.phase1-fiscal-form button,.phase1-fiscal-party-row button{border:0;background:#173d2a;color:#fff;border-radius:7px;padding:8px 11px;font-weight:800;cursor:pointer}.phase1-fiscal-party-row{display:grid;grid-template-columns:150px 1fr auto;gap:8px;padding:7px;border-top:1px solid #edf1ee;align-items:center}.phase1-fiscal-party-row.inactive{opacity:.5}.phase1-note{padding:7px 9px;background:#f7faf8;border-left:3px solid #78909c;color:#65756c;font-size:.74rem;margin:7px 0}.phase1-doc-cat-add{margin-top:5px;border:0;background:#e8f2ec;color:#173d2a;border-radius:6px;padding:5px 8px;font-size:.72rem;font-weight:800;cursor:pointer}.phase1-admin-search{display:block;width:min(460px,100%);padding:8px 11px;border:1.5px solid #ccd8d0;border-radius:8px;margin:8px 0;box-sizing:border-box}.phase1-coord-filter{display:flex;gap:8px;align-items:end;background:#f7faf8;border:1px solid #dce6df;border-radius:8px;padding:8px 10px;margin-bottom:10px}.phase1-coord-filter label{display:grid;gap:3px;font-size:.68rem;font-weight:800;color:#607068}.phase1-coord-filter input{padding:7px;border:1px solid #ccd8d0;border-radius:7px}@media(max-width:700px){.phase1-fiscal-form,.phase1-fiscal-party-row{grid-template-columns:1fr}}
-/* Fiscal: organização visual. Escopo restrito para não alterar outras telas. */
 #tab-fiscal .fis-work-legacy-title { display:none!important; }
 #tab-fiscal .fis-workspace { min-width:0; width:100%; color:#21382d; }
 #tab-fiscal .fis-work-header { display:flex; align-items:center; justify-content:space-between; margin:2px 0 14px; }
@@ -72,7 +71,6 @@
  #tab-fiscal .fis-work-subtabs .btn-fiscal-tab { font-size:.78rem; padding:7px 9px!important; }
 }
 
-/* Fiscal v3: fluxos segregados, sem interferir nos formulários legados. */
 #tab-fiscal .fis-v3-panel{padding:22px;min-width:0;background:#fff;border:1px solid #dce7df;border-radius:12px;margin-bottom:16px}
 #tab-fiscal .fis-v3-panel h3{color:#173d2a;margin:0 0 5px;font-size:1.07rem}
 #tab-fiscal .fis-v3-panel>p{color:#63766b;font-size:.84rem;margin:0 0 17px;line-height:1.5}
@@ -101,7 +99,6 @@
 @media(max-width:930px){#tab-fiscal .fis-v3-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){#tab-fiscal .fis-v3-panel{padding:14px}#tab-fiscal .fis-v3-fields{grid-template-columns:1fr}#tab-fiscal .fis-v3-wide{grid-column:auto}}
 
-/* Fiscal: a extensão inicia escondida e não compete com abas legadas. */
 #tab-fiscal .fis-v3-panel[hidden],#tab-fiscal [data-fiscal-view][hidden]{display:none!important}
 #tab-fiscal .fis-work-mainnav{flex-wrap:wrap;gap:5px;padding:4px 0 9px;overflow:visible}
 #tab-fiscal .fis-work-mainbutton{border:1px solid transparent;border-radius:7px;padding:9px 13px}
@@ -111,14 +108,12 @@
 #tab-fiscal .fis-v3-fields select{cursor:pointer}
 @media(max-width:600px){#tab-fiscal .fis-work-mainnav{flex-wrap:nowrap;overflow-x:auto}#tab-fiscal .fis-v3-fields button{width:100%}}
 
-/* Duas fileiras sem empilhar controles aleatoriamente. */
 #tab-fiscal .fis-work-mainnav{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;padding:8px 0 12px}
 #tab-fiscal .fis-work-navrow{display:flex;min-width:0;gap:5px;align-items:center;overflow-x:auto;padding:4px 0}
 #tab-fiscal .fis-work-navlabel{flex:0 0 95px;color:#60756a;font-size:.69rem;text-transform:uppercase;letter-spacing:.05em;font-weight:750}
 #tab-fiscal .fis-work-navrow .fis-work-mainbutton{flex:0 0 auto;padding:8px 12px}
 @media(max-width:600px){#tab-fiscal .fis-work-mainnav{display:grid;overflow:visible}#tab-fiscal .fis-work-navlabel{flex-basis:70px}#tab-fiscal .fis-work-navrow .fis-work-mainbutton{padding:8px 10px}}
 
-/* Importação em lote de XMLs via ZIP: visual consistente com os demais painéis fiscais. */
 .fis-v3-xml-batch {margin-top:12px;min-width:0;}
 .fis-v3-xml-summary {margin:9px 0 13px;color:#617366;font-size:.84rem;}
 .fis-v3-xml-row {display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:14px;align-items:center;padding:12px 4px;border-bottom:1px solid #e5ece6;}
@@ -135,7 +130,6 @@
 #fis-v3-xml-file + small {display:block;margin-top:5px;color:#698075;font-size:.73rem;line-height:1.5;}
 @media(max-width:850px){.fis-v3-xml-row{grid-template-columns:1fr auto;}.fis-v3-xml-row-main{grid-column:1/-1;}}
 
-/* Importadores unificados: XML/ZIP e Conta Azul em uma única área. */
 #tab-fiscal #fmtab-btn-importar[hidden]{display:none!important}
 #tab-fiscal .fis-v3-xml-fields{grid-template-columns:minmax(0,1.2fr) minmax(0,.9fr) auto;align-items:end;gap:14px}
 #tab-fiscal .fis-v3-xml-fields label{min-width:0;overflow-wrap:anywhere}
@@ -150,7 +144,6 @@
 @media(max-width:880px){#tab-fiscal .fis-v3-xml-fields{grid-template-columns:repeat(2,minmax(0,1fr))}#tab-fiscal .fis-v3-xml-fields button{grid-column:1/-1}}
 @media(max-width:560px){#tab-fiscal .fis-v3-xml-fields{grid-template-columns:1fr}}
 
-/* Alinhamento uniforme do seletor de destino, arquivo e botão de leitura. */
 #tab-fiscal .fis-v3-xml-fields{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(190px,1fr) auto;align-items:end;gap:12px;margin:0}
 #tab-fiscal .fis-v3-xml-fields label{display:flex;flex-direction:column;gap:7px;min-width:0;margin:0!important;overflow:visible}
 #tab-fiscal .fis-v3-xml-fields input[type=file],#tab-fiscal .fis-v3-xml-fields select,#tab-fiscal .fis-v3-xml-fields button{box-sizing:border-box;width:100%;height:42px;min-height:42px;max-height:42px;margin:0!important;align-self:stretch}

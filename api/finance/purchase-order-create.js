@@ -1,7 +1,7 @@
-import '../../server/config/load-local-env.js';
-import {requireIdentity} from '../../server/http/auth.js';
-import {applyApiSecurityHeaders,assertMethod,assertSameOrigin,assertJsonBody,sendError} from '../../server/http/http.js';
-import {createPurchaseOrder} from '../../server/application/purchase-order-create.js';
+import '../../server/shared/config/load-local-env.js';
+import {requireIdentity} from '../../server/shared/http/auth.js';
+import {applyApiSecurityHeaders,assertMethod,assertSameOrigin,assertJsonBody,sendError} from '../../server/shared/http/http.js';
+import {createPurchaseOrder} from '../../server/modules/purchases/application/create-purchase-order.js';
 
 export default async function handler(req,res){
   try{

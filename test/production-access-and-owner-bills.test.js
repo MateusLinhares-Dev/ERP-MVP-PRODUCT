@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const read=(path)=>fs.readFileSync(new URL(`../${path}`,import.meta.url),'utf8');
 const guard=read('public/legacy/module-access-guard.js');
 const ownerSource=read('public/modules/phase3/phase3-homologation.js');
-const ownerChunk=ownerSource.split('/* Contas pessoais da Dona — separadas por imóvel, sem alterar pagamentos anteriores */')[1]?.split('/* Adiantamentos: ticket selecionável')[0];
+const ownerChunk=(ownerSource.includes('let ownerBills={};')?('let ownerBills={};'+ownerSource.split('let ownerBills={};')[1]).split("function supplierTicketOptions(fornCod,current=''){")[0]:undefined);
 assert.ok(ownerChunk);
 
 function guardCase(profile){

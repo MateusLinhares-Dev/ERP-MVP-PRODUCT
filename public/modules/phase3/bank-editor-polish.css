@@ -1,4 +1,3 @@
-/* Editor bancário v4 — ações consistentes e rodapé fixo, sem alterar outros modais. */
 #phase3-bank-ov .phase3-bank-editor{display:flex;flex-direction:column;gap:0;padding:0;width:min(860px,96vw)!important;max-width:860px!important;max-height:min(90vh,850px);overflow:hidden!important;border-radius:16px;background:#fff}
 #phase3-bank-ov .phase3-bank-header{display:flex;align-items:center;justify-content:space-between;margin:0;padding:20px 24px 16px;border-bottom:1px solid #e0e9e3;flex-shrink:0}
 #phase3-bank-ov .phase3-bank-header h3{margin:0 0 5px;font-size:1.15rem;line-height:1.25;color:#183e2b}

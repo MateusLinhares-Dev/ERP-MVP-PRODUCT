@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {changeSupplierCashRepasse,listSupplierCashRepasses,summarizeSupplierCashRepasses} from '../server/application/supplier-cash-repasses.js';
+import {changeSupplierCashRepasse,listSupplierCashRepasses,summarizeSupplierCashRepasses} from '../server/modules/supplier-repasses/application/supplier-cash-repasses.js';
 
 const identity={uid:'erp:elaine',erpUser:'elaine',erpAccess:true,canPayables:true,canBanking:false};
 const input={action:'receive',operationId:'aaaaaaa0-aaaa-4aaa-aaaa-aaaaaaaaaaaa',fornCod:'F-001',data:'2026-11-05',valor:11000,obs:'Dinheiro para devolver por PIX'};
@@ -65,7 +65,6 @@ test('operações de repasse não liberam leitura ou escrita direta pelo navegad
   }
   assert.deepEqual(rules.rules.erpSupplierRepasseLocks,{'.read':false,'.write':false});
 });
-
 
 test('fluxo de caixa e contas a pagar enxergam entradas e repasses sem duplicidade',async()=>{
   const db=fakeDb();

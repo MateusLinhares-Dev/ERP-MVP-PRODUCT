@@ -1,5 +1,3 @@
-/* Leitor de cartões de ponto RH iD; interpreta as posições do texto do PDF,
-   sem depender de cabeçalhos de um layout específico (NORMAL/NORMAIS/etc.). */
 (function (global) {
   'use strict';
   function clean(s) { return String(s || '').replace(/\s+/g, ' ').trim(); }
@@ -30,8 +28,6 @@
     basic.periodoInicio = periodo ? periodo[1] : null;
     basic.periodoFim = periodo ? periodo[2] : null;
     if (headerIndex < 0) return { ...basic, erro: 'cabecalho_nao_encontrado' };
-    // Cabeçalhos divididos em duas linhas: TOTAL / NORMAIS, FALTA E / ATRASO,
-    // EXTRA / 75%D, etc. Considerar as linhas adjacentes para localizar colunas.
     const header = lines.slice(Math.max(0, headerIndex - 2), headerIndex + 2)
       .flatMap(l => l.itens || []).map(it => ({ x: it.x, s: clean(it.str).toUpperCase() }));
     function xFor(rx) {
@@ -62,7 +58,6 @@
       columns[name] = item.x;
       basic.extraColunas[name] = { pct: match[1], periodo: match[2] };
     }
-    // Não considerar o cabeçalho "DIA FALTA" como data, nem juntar colunas.
     const sorted = Object.entries(columns).filter(([, x]) => Number.isFinite(x))
       .sort((a, b) => a[1] - b[1]);
     if (!sorted.some(([key]) => key === 'ent1')) return { ...basic, erro: 'colunas_nao_encontradas' };

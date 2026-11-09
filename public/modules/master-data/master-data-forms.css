@@ -19,7 +19,6 @@
 @media(max-width:1000px){.phase4-master-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.phase4-master-head{align-items:flex-start;flex-direction:column}.phase4-master-actions{width:100%;justify-content:flex-end}}
 @media(max-width:650px){.phase4-master-grid{grid-template-columns:1fr}.phase4-master-field.span-2,.phase4-master-grid>.span-2{grid-column:span 1}.phase4-master-actions{flex-wrap:wrap}.phase4-master-modal{width:98vw!important;max-height:96vh!important}}
 
-/* Tela de cadastros: histórico e formulário no mesmo módulo, sem modal. */
 .phase4-master-workspace{display:grid;gap:14px;width:100%;min-width:0}
 .phase4-master-workspace *{box-sizing:border-box}
 .phase4-master-workspace-title{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -36,5 +35,4 @@
 .phase4-master-inline-editor .phase4-master-field input,.phase4-master-inline-editor .phase4-master-field select,.phase4-master-inline-editor .phase4-master-field textarea{max-width:100%}
 @media(max-width:650px){.phase4-master-workspace-tabs button,.phase4-master-workspace-views button{flex:1;padding:9px 10px}.phase4-master-inline-editor .phase4-master-section{margin:10px 8px}}
 
-/* Documento desabilitado permanece legível, mas não editável. */
 .phase4-master-field input:disabled{background:#eef2ef;color:#77857b;cursor:not-allowed;border-color:#d8e1da}

@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { buildSecurityClaims } from '../server/domain/access.js';
-import { normalizeLogin, sanitizeProfile } from '../server/domain/user.js';
-import { validateArticle, validateArticleId, assertRevision } from '../server/domain/help-article.js';
+import { buildSecurityClaims } from '../server/modules/access/domain/access-claims.js';
+import { normalizeLogin, sanitizeProfile } from '../server/modules/access/domain/user.js';
+import { validateArticle, validateArticleId, assertRevision } from '../server/modules/help/domain/help-article.js';
 const load=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
 
 test('perfil administrador herda permissões operacionais e matrícula',()=>{
@@ -13,13 +13,13 @@ test('perfil administrador herda permissões operacionais e matrícula',()=>{
 test('conta engAdministrator é login reservado, sem escalonamento por form comum',()=>{
  assert.equal(normalizeLogin('engAdministrator'),'engadministrator');
  assert.equal(sanitizeProfile({name:'x',role:'y',admin:true,engineer:true}).engineer,undefined);
- const manage=load('server/application/manage-user.js');
+ const manage=load('server/modules/access/application/manage-user.js');
  assert.match(manage,/ENGINEER_RESERVED/);
  assert.match(manage,/normalizeLogin\(input\?\.newLogin\)/);
- const auth=load('server/application/authenticate-user.js');
+ const auth=load('server/modules/access/application/authenticate-user.js');
  assert.match(auth,/selected\.record\.engineer === true/);
  assert.match(auth,/selected\.login === 'engadministrator'/);
- const identity=load('server/http/auth.js');
+ const identity=load('server/shared/http/auth.ts');
  assert.match(identity,/ENGINEER_REQUIRED/);
  assert.match(identity,/ENGINEER_REVOKED/);
 });

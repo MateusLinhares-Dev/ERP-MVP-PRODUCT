@@ -1,9 +1,9 @@
-import '../../server/config/load-local-env.js';
-import { authenticateUser } from '../../server/application/authenticate-user.js';
-import { applyApiSecurityHeaders, assertJsonBody, assertMethod, assertSameOrigin, clientIp, sendError } from '../../server/http/http.js';
+import '../../server/shared/config/load-local-env.js';
+import { authenticateUser } from '../../server/modules/access/application/authenticate-user.js';
+import { applyApiSecurityHeaders, assertJsonBody, assertMethod, assertSameOrigin, clientIp, sendError } from '../../server/shared/http/http.js';
 import {
   setRequestActor,
-} from '../../server/observability/logger.js';
+} from '../../server/shared/observability/logger.js';
 
 export default async function handler(req, res) {
   try {

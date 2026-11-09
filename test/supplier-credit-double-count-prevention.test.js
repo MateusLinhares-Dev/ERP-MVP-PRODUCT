@@ -30,11 +30,8 @@ test('ticket excluído e cache residual incoerente não geram crédito automáti
   assert.equal(result.balance,0);
   assert.ok(result.issues.length>0);
   assert.match(result.issues.join(' '),/T089.*não está no histórico/);
-  // O adiantamento com vínculo inválido não é oferecido, mas não impede uma
-  // compra que não o utiliza (antes bloqueava TODAS as compras do fornecedor).
   c.document={getElementById:()=>null};
   assert.doesNotThrow(()=>c.validate({supplierCode:'F001',sourceTicketKeys:[],adts:[],cheques:[],previousCredit:0}));
-  // Usar o crédito residual continua bloqueado enquanto houver pendência.
   c.document={getElementById:id=>id==='cssdv'?{checked:true}:null};
   assert.throws(()=>c.validate({supplierCode:'F001',sourceTicketKeys:[],adts:[],cheques:[],previousCredit:50}),/não está no histórico/);
 });

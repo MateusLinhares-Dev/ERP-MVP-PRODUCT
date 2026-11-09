@@ -1,8 +1,8 @@
-import '../../server/config/load-local-env.js';
-import { requireIdentity } from '../../server/http/auth.js';
-import { FirebaseUserRepository } from '../../server/infrastructure/user-repository.js';
-import { verifyPassword } from '../../server/infrastructure/password-hasher.js';
-import { applyApiSecurityHeaders, assertJsonBody, assertMethod, assertSameOrigin, sendError } from '../../server/http/http.js';
+import '../../server/shared/config/load-local-env.js';
+import { requireIdentity } from '../../server/shared/http/auth.js';
+import { FirebaseUserRepository } from '../../server/modules/access/infrastructure/user-repository.js';
+import { verifyPassword } from '../../server/modules/access/infrastructure/password-hasher.js';
+import { applyApiSecurityHeaders, assertJsonBody, assertMethod, assertSameOrigin, sendError } from '../../server/shared/http/http.js';
 export default async function handler(req,res){
   try{
     applyApiSecurityHeaders(res,req); assertMethod(req,'POST'); assertSameOrigin(req,{required:true}); assertJsonBody(req,{maxBytes:2048}); const identity=await requireIdentity(req);

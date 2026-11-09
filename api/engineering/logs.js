@@ -1,7 +1,7 @@
-import '../../server/config/load-local-env.js';
-import {getFirebaseAdmin} from '../../server/infrastructure/firebase-admin.js';
-import {requireIdentity} from '../../server/http/auth.js';
-import {applyApiSecurityHeaders,assertMethod,sendError} from '../../server/http/http.js';
+import '../../server/shared/config/load-local-env.js';
+import {getFirebaseAdmin} from '../../server/shared/firebase/firebase-admin.js';
+import {requireIdentity} from '../../server/shared/http/auth.js';
+import {applyApiSecurityHeaders,assertMethod,sendError} from '../../server/shared/http/http.js';
 const str=(v,max=120)=>String(v||'').trim().slice(0,max);
 export default async function handler(req,res){
  applyApiSecurityHeaders(res,req);

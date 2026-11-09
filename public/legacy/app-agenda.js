@@ -292,7 +292,6 @@ function agdTimelineRender(){
   const esc=function(t){ return String(t==null?'':t).replace(/</g,'&lt;'); };
   const sel=_agdDataFiltro();
   const hoje=_agdHoje();
-  // ─ faixa da semana (Dom a Sáb da semana do dia escolhido) ─
   const strip=document.getElementById('agd-sem-strip');
   if(strip){
     const p=sel.split('-').map(Number);
@@ -310,7 +309,6 @@ function agdTimelineRender(){
     }
     strip.innerHTML=sh;
   }
-  // ─ linha do tempo de 06:00 às 19:00 (meia em meia hora) ─
   const doDia=(AGENDA_DB||[]).filter(function(a){ return a && a.data===sel; });
   const slots={}; const semHora=[];
   doDia.forEach(function(a){

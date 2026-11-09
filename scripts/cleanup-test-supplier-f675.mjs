@@ -1,10 +1,4 @@
 #!/usr/bin/env node
-/**
- * Manutenção excepcional e limitada aos REGISTROS DE TESTE do fornecedor F675.
- * Não é uma função de produto e não deve ser usada para fornecedores reais.
- * Modo padrão: somente leitura. O modo --apply exige credenciais administrativas,
- * hash da prévia obtido AO VIVO e confirmação literal da produção.
- */
 import {createHash,randomUUID} from 'node:crypto';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {homedir} from 'node:os';
@@ -49,7 +43,6 @@ function stable(value){
 const digest=value=>createHash('sha256').update(JSON.stringify(stable(value))).digest('hex');
 const assert=(condition,message,issues)=>{if(!condition)issues.push(message);};
 
-/** Return only a plan. Never modify input. Allowlist every entity by ID, amount and links. */
 export function planSupplierTestCleanup(source){
   const erp=source?.erp??source??{};
   const problems=[];
@@ -107,8 +100,6 @@ export function planSupplierTestCleanup(source){
     if(TICKETS.includes(id)||TICKETS.includes(text(t.ticket||t.numeroPedido))||text(t.fornecedorCod)===SUPPLIER)
       problems.push(`Ticket ativo relacionado ainda existe: ${id}`);
   }
-  // Dois saldos legados exclusivos de T284 são resíduos conhecidos do teste,
-  // mas qualquer valor/ticket/campo inesperado continua bloqueando a manutenção.
   const legacyBalances=[];
   for(const [collection,want] of EXPECTED_LEGACY_BALANCES){
     const record=erp[collection]?.[SUPPLIER];
@@ -119,7 +110,6 @@ export function planSupplierTestCleanup(source){
     assert(exact,`Saldo legado ${collection}/${SUPPLIER} ausente ou divergente do T284 de R$ 200,00`,problems);
     if(exact)legacyBalances.push({collection,ticket:want.ticket,value:want.value});
   }
-  // Other current operational collections cannot keep active references to these records.
   const identifiers=[...EXPECTED_ADVANCES.keys(),...EXPECTED_PAYABLES.keys(),...EXPECTED_MOVEMENTS.keys()];
   const referencedTickets=['T275','T284','T296','T303','T309'];
   for(const collection of ['chequesControle','chequesCli','contasReceber','saldoDevedor','saldos','cheques','adtCli']){
@@ -131,7 +121,6 @@ export function planSupplierTestCleanup(source){
         problems.push(`Referência em outro módulo ${collection}/${id}; revisão manual necessária`);
     }
   }
-  // Sensitive immutable operation receipts are intentionally preserved, not blockers.
   const projection={
     advances:erp.adiantamentos?.[SUPPLIER]??null,
     payables:Object.fromEntries(EXPECTED_PAYABLES.keys().map(id=>[id,erp.contasPagar?.[id]??null])),
@@ -169,8 +158,6 @@ function makeUpdates(erp,plan,operationId,now,actor){
   for(const collection of EXPECTED_LEGACY_BALANCES.keys())updates[`erp/${collection}/${SUPPLIER}`]=null;
   for(const id of EXPECTED_MOVEMENTS.keys()){
     updates[`erp/lancBanco/${id}`]=null;
-    // A lista existente pode ser array/objeto; evitar substituir seu formato inteiro.
-    // Cada ID recebe um tombstone individual para impedir reimportação legado.
     updates[`erp/lancBancoDeletedV2/${id}`]=true;
   }
   updates[`erp/financeTestCleanupOperations/${operationId}`]={
@@ -185,7 +172,7 @@ function makeUpdates(erp,plan,operationId,now,actor){
 
 async function getLiveDatabase(){
   if(!inProduction())throw Error('Projeto/ambiente não autorizado para este script (exige produção manuelametaisltda e não emulador).');
-  const {getFirebaseAdmin}=await import('../server/infrastructure/firebase-admin.js');
+  const {getFirebaseAdmin}=await import('../server/shared/firebase/firebase-admin.js');
   return getFirebaseAdmin().db;
 }
 
@@ -220,13 +207,10 @@ export async function executeControlledCleanup(db,{planHash,confirm,actor='maint
     const backupPath=join(dir,`F675-${operationId}.json`);
     await writeFile(backupPath,JSON.stringify(backup,null,2),{flag:'wx',mode:0o600});
     const update=makeUpdates(data,preview,operationId,now(),actor);
-    // Liberação de bloqueios dentro do mesmo commit multi-caminho.
     for(const path of acquired)update[path]=null;
     try{
       await db.ref().update(update);
     }catch(error){
-      // A resposta da gravação pode se perder depois do commit: consultar recibo
-      // antes de considerar a operação falha, sem enviar outra atualização.
       const receipt=(await db.ref('erp/financeTestCleanupOperations/'+operationId).get().catch(()=>null))?.val();
       if(receipt?.planHash!==planHash)throw error;
     }

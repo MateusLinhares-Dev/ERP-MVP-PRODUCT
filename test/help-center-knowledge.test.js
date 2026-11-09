@@ -22,7 +22,7 @@ test('central carrega artigos pela API autenticada e renderiza texto com escapin
 test('fluxo de documentos da ajuda não injeta conteúdo automático',()=>{
  assert.match(read('api/help/articles.js'),/requireIdentity/);
  assert.match(read('api/help/articles.js'),/engineer:true/);
- assert.match(read('server/domain/help-article.js'),/REVISION_CONFLICT/);
+ assert.match(read('server/modules/help/domain/help-article.js'),/REVISION_CONFLICT/);
  assert.match(read('database.rules.json'),/"erpHelp"/);
 });
 test('bootstrap mantém integração antiga e carrega portal de engenharia depois da ajuda',()=>{

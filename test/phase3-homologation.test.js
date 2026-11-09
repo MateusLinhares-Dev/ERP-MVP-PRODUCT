@@ -54,7 +54,6 @@ test('participantes da Coordenação possuem cards espaçados',()=>{
   assert.ok(css.includes('.p3-coord-participants'));
 });
 
-
 test('observação da Compra fica sticky e não some na rolagem', () => {
   assert.match(phase2,/className='phase2-purchase-history-obs'/);
   assert.match(css,/position:sticky!important;right:88px/);
@@ -67,7 +66,6 @@ test('adiantamento usa snapshot financeiro como base e soma somente lançamentos
   assert.match(js,/reconcileKnownLinkedAdvances/);
   assert.match(js,/_phase3AdvanceBase/);
 });
-
 
 test('detalhe da compra mantém a chave atual para correções subsequentes',()=>{
   has("let currentPurchaseTicketKey=''",'currentPurchaseTicketKey=k','resolveTicketKey(currentPurchaseTicketKey)');
@@ -118,7 +116,6 @@ test('intervalo de Contas a Pagar deixa de ficar preso ao mês e Vencimentos de 
   has('bindPayableRange','fixPayableToday','Nenhuma conta vencendo hoje.','_cpMesFiltro=\'\';_cpFiltroDia=\'\'');
   assert.ok(css.includes('.p3-payable-today-empty'));
 });
-
 
 test('agenda recarrega direto da nuvem depois do login e ao abrir Calendário',()=>{
   has('loadCalendarFresh',"repository.read('calendarEvents')","tabId==='afazeres'","document.addEventListener('erp:user-started'",'calendarLoadSequence');

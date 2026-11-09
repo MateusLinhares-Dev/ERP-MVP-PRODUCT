@@ -1,12 +1,12 @@
-import '../../server/config/load-local-env.js';
+import '../../server/shared/config/load-local-env.js';
 
 import {
   manageUser,
-} from '../../server/application/manage-user.js';
+} from '../../server/modules/access/application/manage-user.js';
 
 import {
   requireIdentity,
-} from '../../server/http/auth.js';
+} from '../../server/shared/http/auth.js';
 
 import {
   applyApiSecurityHeaders,
@@ -15,15 +15,15 @@ import {
   assertSameOrigin,
   clientIp,
   sendError,
-} from '../../server/http/http.js';
+} from '../../server/shared/http/http.js';
 
 import {
   AuditRepository,
-} from '../../server/infrastructure/audit-repository.js';
+} from '../../server/modules/audit/infrastructure/audit-repository.js';
 
 import {
   logRequestEvent,
-} from '../../server/observability/logger.js';
+} from '../../server/shared/observability/logger.js';
 
 export default async function handler(req, res) {
   let action = 'unknown';

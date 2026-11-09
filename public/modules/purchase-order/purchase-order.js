@@ -128,10 +128,7 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
     });
   });
   const issues=[];
-  // Mantido por compatibilidade: um adiantamento com vínculo inválido deixa de
-  // ser oferecido, mas NÃO impede compras que não o utilizam.
   const blockedIssues=[];
-  // Número que esta compra vai receber: o servidor aceita adiantamento vinculado ao próprio pedido.
   let reservedNumber='';
   try{reservedNumber=String(body?.dataset?.purchaseReservedNumber||(typeof getNextTicketId==='function'?getNextTicketId():'')||'').trim();}catch(e){reservedNumber='';}
   const all=(ADT_POR_FORN[code]||[]).filter(function(a){return a&&String(a.status||'Pendente').trim().toLowerCase()==='pendente'&&Number(a.valor||0)>0;});
@@ -159,8 +156,6 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
     }
     if(linked&&!origin&&!sourceKeys.has(linked)){
       if(reservedNumber&&linked===reservedNumber&&!a.ticketOrigem){eligible.push(a);return;}
-      // Fail-closed apenas para ESTE adiantamento: não é oferecido nem libera
-      // crédito residual, mas as demais compras do fornecedor continuam possíveis.
       issues.push('O adiantamento '+(id||'sem código')+' está vinculado ao ticket '+linked+', que não está no histórico, e não será oferecido nesta compra. Se ele ainda não foi usado, edite o adiantamento e limpe o campo "Vinculado ao Ticket".');
       return;
     }
@@ -186,10 +181,6 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
     });
     const legacyExcess=recordedTicket?Math.max(0,Number(recordedTicket.adiantamento||0)-Number(recordedTicket.totalGeral||0)):0;
     const legacyDuplicate=legacyExcess>0&&Math.abs(legacyExcess-persisted)<0.01;
-    // Crédito de sobra de compra antiga (ex.: T284: 500 adiantados, 300 comprados).
-    // Os demais adiantamentos pendentes NÃO são cópias desse saldo: podem coexistir.
-    // Só disponibilizar a sobra quando a origem, o pagamento original, o saldo
-    // persistido e o consumo posterior forem consistentes (fail-closed).
     const sourceAdvances=(ADT_POR_FORN[code]||[]).filter(function(a){
       return a&&a.status==='Quitado'&&String(a.ticket||'')===persistedTicket&&
         !String(a.forma||'').toLowerCase().includes('cheque');
@@ -209,7 +200,6 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
         Math.abs(Number(a.valor||0)-persisted)<0.01;
     });
     if(residualAlreadyInAdvance){
-      // Comprovado no adiantamento pendente; jamais disponibilizar novamente em saldoDevedor.
       balance=0;
     }else if(legacyVerified){
       balance=persisted;
@@ -217,8 +207,6 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
     }else if(!all.length&&(linkedAdvance||legacyDuplicate)){
       issues.push('O saldo anterior pode ser duplicação de um adiantamento já utilizado. É necessário conferir o histórico financeiro.');
     }else if(all.length&&!trackedSource){
-      // Saldo legado incerto NÃO é um motivo para esconder adiantamentos novos,
-      // independentes e ainda pendentes. Bloqueamos apenas o próprio saldo.
       issues.push('O saldo anterior deste fornecedor não tem conciliação comprovada e não será usado automaticamente.');
     }else if(persistedTicket&&!recordedTicket){
       issues.push('O saldo anterior aponta para um ticket excluído ou indisponível. Confira o histórico financeiro antes de aplicá-lo.');
@@ -233,8 +221,6 @@ function financialData(body,supplierCode,sourceTicketKeys=[]){
 function validatePurchaseCredits(state){
   if(state.editKey)return;
   const latest=financialData(null,state.supplierCode,state.sourceTicketKeys);
-  // Alertas de crédito legado não impedem uma nova compra SEM usar esse
-  // crédito. O backend valida cada adiantamento selecionado pelo ID.
   const creditSelected=Boolean(document.getElementById('cssdv')?.checked&&Number(state.previousCredit||0)>0);
   if(latest.blockedIssues.length)throw new Error(latest.blockedIssues.join(' '));
   if(creditSelected&&latest.issues.length)throw new Error(latest.issues.join(' '));
@@ -528,7 +514,6 @@ global.phase4PurchaseSaveDescription=function(index){
 };
 function readOrderNotes(state){
   const field=document.getElementById('phase4-po-notes');
-  // Uma observação removida no formulário precisa continuar vazia, sem restaurar o valor anterior.
   return String(field?field.value:(state?.notes||'')).trim();
 }
 global.phase4PurchaseSyncMeta=function(){
@@ -567,8 +552,6 @@ global.phase4PurchaseRecalc=function(){
   const credit=document.getElementById('cssdv');
   if(credit?.checked)advances+=Number(credit.value||0);
   if(state.editKey){
-    // All historic prepayments and paid installments have already been applied.
-    // Editing only changes the outstanding amount by the difference in gross total.
     advances=Math.max(0,Number(state.appliedAdvance||0));
   }
   if(!state.editKey)advances=Math.min(total,advances);
@@ -582,11 +565,7 @@ global.phase4PurchaseRecalc=function(){
   set('phase4-po-products-total','R$ '+money(productTotal));
   set('phase4-po-grand-total','R$ '+money(total));
   set('phase4-po-advance-total','R$ '+money(advances));
-  // Uma redução em pedido liquidado não gera crédito automaticamente.
-  // O servidor exige conciliação financeira: a prévia não pode anunciar R$ 30
-  // como saldo disponível antes que essa reconciliação seja confirmada.
   const reducesSettled=Boolean(state.editKey&&balance<0&&Number(state.originalBalance||0)>=0);
-  // Compra paga com adiantamento (recibo v2): a diferença volta ao adiantamento.
   const refundsAdvance=reducesSettled&&state.advanceRefundable===true&&Math.abs(balance)<=Number(state.appliedAdvance||0)+0.005;
   const requiresReconciliation=reducesSettled&&!refundsAdvance;
   set('phase4-po-balance',refundsAdvance
@@ -604,8 +583,6 @@ global.phase4PurchaseRecalc=function(){
   return {productTotal,total,advances,balance};
 };
 global.phase4PurchaseSupplierChanged=function(){
-  // A troca de fornecedor nunca deve desmontar o input dentro do evento change/blur.
-  // O Chrome pode disparar NotFoundError ao tentar atualizar o foco de um nó removido.
   const input=document.getElementById('phase4-po-supplier');
   const typed=String(input?.value||'').trim();
   const supplier=supplierByName(typed);
@@ -626,7 +603,6 @@ global.phase4PurchaseSupplierChanged=function(){
     if(manualMode){
       const target=document.getElementById('cs-lanc-body');if(!target)return;
       const next=currentState(target);
-      // Não reutilizar os datasets financeiros do fornecedor anterior.
       const fin=financialData(null,supplier.cod);
       next.supplierName=supplier.nome;
       next.supplierCode=supplier.cod||'';
@@ -796,8 +772,6 @@ function patchCreatedTicket(key,state,legacyItems,totals){
       total:amount*price
     });
   });
-  // O identificador do pedido deve ser o mesmo ticket definitivo criado pelo legado.
-  // state.orderNumber pode ter sido calculado antes da criação e ficar um número atrás.
   ticket.numeroPedido=String(ticket.ticket||key);
   ticket.ordemCompra=state.purchaseOrder||'';
   ticket.dataCompra=state.purchaseDate||today();
@@ -806,9 +780,6 @@ function patchCreatedTicket(key,state,legacyItems,totals){
   ticket.observacoesPedido=String(state.notes||'').trim();
   ticket.descontoCompra=Number(state.discount||0);
   ticket.freteCompra=Number(state.freight||0);
-  // O formulário atual não possui "valores extras" da fase 1: o total exibido
-  // é produtos - desconto + frete. Um acréscimo legado residual causaria
-  // TOTAL_MISMATCH no servidor e o pedido não seria salvo.
   ticket.acrescimo=0;
   ticket.acrescimos=[];
   ticket.totalProdutos=totals.productTotal;
@@ -839,10 +810,6 @@ function patchCreatedTicket(key,state,legacyItems,totals){
   try{if(typeof renderDashboard==='function')renderDashboard();}catch(e){}
   return ticket;
 }
-// Server acknowledgement is mandatory before the purchase screen reports success.
-// A printed PDF is not evidence that an RTDB write completed.
-// Pause legacy debounced writes while a purchase waits for the server transaction.
-// A failed purchase must not be silently pushed later by the generic save queue.
 const legacyFbSalvar=typeof global.fbSalvar==='function'?global.fbSalvar.bind(global):null;
 const legacyFbSalvarImediato=typeof global.fbSalvarImediato==='function'?global.fbSalvarImediato.bind(global):null;
 if(legacyFbSalvar)global.fbSalvar=function(){
@@ -853,8 +820,6 @@ if(legacyFbSalvarImediato)global.fbSalvarImediato=function(){
   if(global.__ERP_PURCHASE_IN_PROGRESS__){global.__ERP_PURCHASE_DEFERRED_SAVE__=true;return;}
   return legacyFbSalvarImediato(...arguments);
 };
-// O sincronizador genérico ignora pedidos/títulos geridos pela API
-// (_purchaseOperationId, CPPO_), então é seguro publicar o restante.
 function schedulePostPurchaseSave(){
   try{if(typeof global.fbSalvar==='function')setTimeout(function(){try{global.fbSalvar();}catch(_e){}},0);}catch(_e){}
 }
@@ -873,8 +838,6 @@ function purchaseStableSnapshot(value){
   if(value&&typeof value==='object')return '{'+Object.keys(value).sort().map(function(key){return JSON.stringify(key)+':'+purchaseStableSnapshot(value[key]);}).join(',')+'}';
   return JSON.stringify(value);
 }
-// A escrita foi confirmada no RTDB. Uma leitura geral que começou antes do
-// commit não pode esconder temporariamente esse ticket no Histórico.
 function purchaseRememberServerAck(key, ticket){
   if(!ticket || !ticket._purchaseOperationId)return;
   const recent=global.__ERP_PURCHASE_RECENT_CONFIRMED__ instanceof Map
@@ -902,14 +865,11 @@ async function purchaseConfirmCloud(key,ticket,options={}){
     if(removed?.val?.())throw new Error('Este número está excluído na nuvem. Use outro identificador.');
   }
   const expected=options.expected||null;
-  // Listener ativo durante a transação: a 1ª chamada recebe o pedido real
-  // (com cache frio o SDK abortaria uma edição válida).
   const runTx=typeof global.__erpRunTransaction==='function'
     ?function(fn){return global.__erpRunTransaction(ref,fn);}
     :function(fn){return ref.transaction(fn,undefined,false);};
   const tx=await runTx(function(current){
     if(create){
-      // Repetição após perda da resposta não deve criar outro ticket ou sobrescrever terceiros.
       if(current!==null&&current!==undefined){
         if(payload._purchaseOperationId && current._purchaseOperationId===payload._purchaseOperationId
             && purchaseStableSnapshot(current)===purchaseStableSnapshot(payload))return current;
@@ -951,8 +911,6 @@ async function purchaseCreateAtomic(key,ticket,state,body){
   const operationId=body.dataset.purchaseOperationId;
   const payload=JSON.stringify({operationId,ticketNo:key,fornecedorCod:state.supplierCode,ticket,
     advanceCodes,chequeIds,useLegacyCredit,sourceTicketKeys:state.sourceTicketKeys||[]});
-  // O servidor é idempotente por operationId: repetir a MESMA operação após
-  // queda de rede/instabilidade nunca cria um segundo pedido nem baixa crédito duas vezes.
   let response=null,result={},networkError=null;
   for(let attempt=1;attempt<=3;attempt++){
     networkError=null;
@@ -991,8 +949,6 @@ async function purchaseCreateAtomic(key,ticket,state,body){
   if(result.saldo==null)delete SALDO_DEVEDOR_FORN[state.supplierCode];
   else{
     SALDO_DEVEDOR_FORN[state.supplierCode]=clone(result.saldo);
-    // Há saldo residual confirmado pelo servidor: desfaz a marca de exclusão
-    // criada pelo fluxo legado, que apagaria esse saldo nas outras sessões.
     try{
       if(typeof _DEL_SETS!=='undefined'&&_DEL_SETS.saldoDevedor?.delete(state.supplierCode)&&typeof _DEL_LS_KEY!=='undefined')
         localStorage.setItem(_DEL_LS_KEY.saldoDevedor,JSON.stringify([..._DEL_SETS.saldoDevedor]));
@@ -1007,7 +963,6 @@ async function purchaseCreateAtomic(key,ticket,state,body){
   purchaseRememberServerAck(key,result.ticket);
   return result.ticket;
 }
-
 
 function sourceSignature(keys){
   return (keys||[]).map(String).filter(Boolean).sort().join('|');
@@ -1063,8 +1018,6 @@ function finishPurchaseSave(body,key,ticket,totals){
   if(typeof global.csTab==='function')global.csTab('historico');
   try{showToast('Pedido '+String(ticket?.numeroPedido||ticket?.ticket||key)+' salvo e fechado. Total R$ '+money(totals.total)+'.','success',6000);}catch(e){}
 }
-// O legado altera tickets de pesagem, adiantamentos e contas locais antes do ACK.
-// Uma recusa da transação deve desfazer SOMENTE as mutações dessa tentativa.
 function purchaseTakeLocalSnapshot(state){
   const code=String(state.supplierCode||'');
   const editKey=String(state.editKey||'');
@@ -1092,8 +1045,6 @@ function purchaseRollbackLocal(snapshot){
   restore(CHEQUES_POR_FORN,snapshot.code,snapshot.cheques);
   restore(SALDO_DEVEDOR_FORN,snapshot.code,snapshot.balance);
   restore(PRECOS_FORN_DATA,snapshot.code,snapshot.prices);
-  // Desfaz tambem o marcador de exclusao; caso contrario o proximo sync
-  // pode apagar da nuvem um saldo restaurado apos uma transacao recusada.
   try{
     if(typeof _DEL_SETS!=='undefined'&&_DEL_SETS.saldoDevedor){
       if(snapshot.balanceDeleted)_DEL_SETS.saldoDevedor.add(snapshot.code);
@@ -1102,8 +1053,6 @@ function purchaseRollbackLocal(snapshot){
         localStorage.setItem(_DEL_LS_KEY.saldoDevedor,JSON.stringify([..._DEL_SETS.saldoDevedor]));
     }
   }catch(e){}
-  // Preserva contas de outros pedidos e restaura as contas antes da edicao
-  // quando um 409 financeiro impede a confirmacao no servidor.
   if(Array.isArray(CONTAS_PAGAR)){
     for(let i=CONTAS_PAGAR.length-1;i>=0;i--){
       const row=CONTAS_PAGAR[i];
@@ -1164,7 +1113,6 @@ async function purchaseEditWithReconciliation(key,ticket,state){
   const operationId=state.editOperationId||(global.crypto?.randomUUID?.()||('00000000-0000-4000-8000-'+String(Date.now()).padStart(12,'0').slice(-12)));
   state.editOperationId=operationId;
   const payload=JSON.stringify({operationId,ticketNo:key,expectedTicket:JSON.parse(state.ticketSnapshot),ticket});
-  // Mesmo operationId em todas as tentativas: o servidor devolve o recibo se já gravou.
   let response=null,result={},networkError=null;
   for(let attempt=1;attempt<=3;attempt++){
     networkError=null;
@@ -1238,7 +1186,6 @@ global.phase4PurchaseSave=async function(){
     }
     finally{
       finishPurchaseDeferredSave(false);setSaving(false);
-      // Edição confirmada: publica dados auxiliares alterados localmente (ex.: preços).
       if(editCommitted)schedulePostPurchaseSave();
     }
     return;
@@ -1264,7 +1211,6 @@ global.phase4PurchaseSave=async function(){
     global.__ERP_PURCHASE_SELECTED_NUMBER__=availableNumber;
     const numberInput=document.getElementById('phase4-po-number');
     if(numberInput)numberInput.value=availableNumber;
-    // Mesmo ID de operação em todas as tentativas do formulário.
     if(!body.dataset.purchaseOperationId)
       body.dataset.purchaseOperationId=global.crypto?.randomUUID?.()||('po-'+Date.now()+'-'+Math.random().toString(36).slice(2));
     const advanceLimit={};
@@ -1273,7 +1219,6 @@ global.phase4PurchaseSave=async function(){
     const chequeLimit={};
     state.cheques.forEach(function(c,index){if(document.getElementById('cscheq-'+index)?.checked&&!c.cod)chequeLimit[String(c.id||c.num||c.numero||'')]=Number(c.valor||0);});
     global.__ERP_PURCHASE_APPROVED_ADVANCES__={supplierCode:state.supplierCode,amounts:advanceLimit,cheques:chequeLimit,originals:Object.fromEntries(state.adts.map(function(a){return [String(a.cod||''),Number(a.valorOriginal||a.valor||0)];})),spent:Object.fromEntries(state.adts.map(function(a){return [String(a.cod||''),Number(a.valorCompensado||0)];}))};
-    // Reconfere a fonte diretamente no servidor ANTES de alterar dados locais.
     await validateCloudSourceTickets(state);
     snapshot=purchaseTakeLocalSnapshot(state);
     const result=await legacy.confirmPurchase.call(global,prepared.supplier.nome);
@@ -1287,19 +1232,13 @@ global.phase4PurchaseSave=async function(){
     try{
       await purchaseCreateAtomic(key,ticket,state,body);
     }finally{purchasePendingKeys.delete(key);}
-    // Sem saveContasPagar/fbSalvar aqui: o backend já confirmou todas as
-    // coleções num único commit, e regravar cache local causaria corrida.
     purchaseCommitted=true;
     delete body.dataset.purchaseOperationId;
     finishPurchaseSave(body,key,TICKETS_DB[key],totals);
     return result;
   }catch(error){
-    // Rollback apenas quando o resultado é negativo ou desconhecido; se o ACK
-    // estiver incerto, os dados do formulário continuam preservados para conferência.
     purchaseRollbackLocal(snapshot);
     console.error('[purchase-order] salvar',error);
-    // Número tomado por OUTRA operação (o servidor confere o recibo desta antes):
-    // a próxima tentativa deve reservar um novo número e uma nova operação.
     if(['TICKET_EXISTS','OPERATION_REUSED'].includes(String(error?.code||''))){
       delete body.dataset.purchaseReservedNumber;
       delete body.dataset.purchaseOperationId;
@@ -1315,11 +1254,8 @@ global.phase4PurchaseSave=async function(){
   }finally{
     delete global.__ERP_PURCHASE_SELECTED_NUMBER__;
     delete global.__ERP_PURCHASE_APPROVED_ADVANCES__;
-    // A operação já foi persistida atomicamente; não republicar o snapshot legado.
     finishPurchaseDeferredSave(false);
     setSaving(false);
-    // Compra confirmada: os preços do fornecedor atualizados pelo pedido ainda
-    // precisam ir para a nuvem (antes ficavam só no navegador até outro salvamento).
     if(purchaseCommitted)schedulePostPurchaseSave();
   }
 };
@@ -1379,14 +1315,12 @@ function stateForExistingTicket(key,cloudTicket){
     dueDate:isoDate(ticket.vencimentoSaldo||po.vencimentoSaldo||ticket.data),
     sourceTicketKeys:[],adts:[],cheques:[],previousCredit:0,
     appliedAdvance:Number(ticket.adiantamento||0)||0,
-    // Recibo v2: uma redução pode devolver a diferença ao próprio adiantamento.
     advanceRefundable:Number(ticket.reciboFinanceiro?.versao)===2&&
       (ticket.reciboFinanceiro?.adiantamentos||[]).some(function(row){return Number(row?.valorAplicado||0)>0;})&&
       !(ticket.reciboFinanceiro?.cheques||[]).some(function(row){return Number(row?.valorAplicado||0)>0;})&&
       !(Number(ticket.creditoFornecedorAplicado||0)>0),
     originalBalance:Number(ticket.saldoPagar||0),
     originalTotal:Number(ticket.totalGeral||0)||0,
-    // Preserve legacy extras/taxes outside the product grid (e.g. extra services).
     legacyExtra:Math.round(((Number(ticket.totalGeral||0)||0)-
       ((ticket.itens||[]).reduce(function(sum,i){return sum+itemNet(i)*Number(i.preco||0);},0)-
       (Number(ticket.descontoCompra??po.desconto??0)||0)+(Number(ticket.freteCompra??po.frete??0)||0)))*100)/100,
@@ -1463,8 +1397,6 @@ function saveEditedTicket(state,totals){
     vencimentoSaldo:state.dueDate,observacoes:ticket.observacoesPedido,
     desconto:state.discount,frete:state.freight,totalProdutos:totals.productTotal,totalPedido:totals.total
   });
-  // Do not touch ADT_POR_FORN, CHEQUES_POR_FORN or reciboFinanceiro: they were
-  // settled during creation. Only update the residual payable for this ticket.
   return ticket;
 }
 function afterConfirmedPurchaseEdit(ticket,state,totals){
@@ -1601,8 +1533,6 @@ if(typeof legacy.tab==='function'){
           }
           render(body);
         }else{
-          // Reopening the tab must reflect advances registered in another module
-          // without discarding the material/items already typed on this form.
           const state=currentState(body);
           if(!state.editKey&&state.supplierCode){
             const fresh=financialData(body,state.supplierCode);
@@ -1692,9 +1622,6 @@ function companyLogoSrc(){
     return 'assets/branding/manuela-metais-logo.webp';
   }
 }
-// Detalhamento documental de abatimentos efetivamente vinculados à compra.
-// Não considera adiantamentos pendentes de outras compras do mesmo fornecedor.
-// Preserve o valor original do ticket; o canhoto é somente leitura.
 function printAppliedAdvances(key,ticket,advance){
   const ticketNo=String(ticket.ticket||key||'').trim();
   const supplierCode=String(ticket.fornecedorCod||ticket.fornCod||'').trim();
@@ -1751,8 +1678,6 @@ function printAppliedAdvances(key,ticket,advance){
   }
   return rows;
 }
-// Financial receipt is a live view of the linked payable. Never mutate the
-// ticket or create a second payment while printing.
 function printPaymentSnapshot(key,ticket,total){
   const safe=function(value){const n=Number(value);return Number.isFinite(n)?Math.max(0,n):0;};
   const ticketNo=String(ticket.ticket||key||'').trim();
@@ -1778,8 +1703,6 @@ function printPaymentSnapshot(key,ticket,total){
         details:String(payment.formaPagamento||payment.forma||payment.metodoPagamento||'').trim()});
     }
   }
-  // A payable that has been settled or partially paid is more recent than
-  // the ticket's initial balance in some legacy synchronization paths.
   const hasPayableChanges=linked.some(function(cp){
     return String(cp.status||'').toLowerCase()==='pago'||
       (Array.isArray(cp.pagamentos)&&cp.pagamentos.length>0)||safe(cp.valorPago)>0||safe(cp.adtCompensado)>0;
@@ -1793,8 +1716,6 @@ function printPaymentSnapshot(key,ticket,total){
   return {priorDebt,amountDue,advance,balance,settled,
     sincePurchase:Math.max(0,settled-advance),payments};
 }
-// Balance of supplier advances still available AFTER the purchase. This is not the
-// purchase payable (which can be zero), nor a new receivable or repasse.
 function supplierUnappliedAdvance(ticket){
   const code=String(ticket.fornecedorCod||ticket.fornCod||'').trim();
   let ledger=[];
@@ -1805,7 +1726,6 @@ function supplierUnappliedAdvance(ticket){
     const applied=Math.max(0,Number(a.valorCompensado||0));
     return sum+Math.min(current,Math.max(0,original-applied));
   },0);
-  // Only use the ticket receipt as fallback if the supplier ledger is not loaded.
   if(ledger.length)return Math.round(amount*100)/100;
   const rows=ticket?.reciboFinanceiro?.adiantamentos||[];
   return Math.round(rows.reduce((sum,row)=>sum+Math.max(0,Number(row.valorPendente||0)),0)*100)/100;
@@ -1814,11 +1734,8 @@ function printHtml(key,ticket){
   const info=companyInfo();
   const supplier=supplierInfo(ticket);
   const po=ticket.pedidoCompra||{};
-  // O canhoto deve identificar o ticket da linha selecionada, não o número
-  // sugerido no formulário antes do ticket definitivo ser criado.
   const orderNo=String(ticket.ticket||key||ticket.numeroPedido||po.numero||'');
   const purchaseDate=ticket.dataCompra||po.dataCompra||ticket.data||'';
-  // Vencimento financeiro não é a data prevista da entrega do material.
   const expectedDate=ticket.dataPrevista||po.dataPrevista||'';
   const dueDate=ticket.vencimentoSaldo||po.vencimentoSaldo||purchaseDate;
   const items=Array.isArray(ticket.itens)?ticket.itens:[];

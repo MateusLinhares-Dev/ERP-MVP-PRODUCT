@@ -26,7 +26,6 @@
 .erp-reconcile-audit{margin-top:16px;border-top:1px solid #d9e6dc;padding-top:14px;font-size:.77rem;color:#586e5e}
 .erp-reconcile-audit summary{cursor:pointer;font-weight:650}
 .erp-reconcile-audit ol{margin:10px 0 0;padding-left:20px;line-height:1.9}
-/* Workspace de conciliação avançada — conteúdo denso, ações evidentes, sem rolagem horizontal de página. */
 .erp-reconcile-metrics{grid-template-columns:repeat(5,minmax(0,1fr))}
 .erp-rec-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:10px 24px;border-top:1px solid #edf0ed;color:#607369;font-size:.79rem}
 .erp-rec-line{display:flex;align-items:stretch;border:1px solid #e0e8e2;border-radius:7px;margin:0 0 8px;overflow:hidden;background:#fff}
@@ -74,7 +73,6 @@
 .erp-rec-title-form{border:1px solid #c9dccc;background:#f7faf8;padding:13px;border-radius:8px;margin-top:14px}
 .erp-rec-title-form[hidden]{display:none}.erp-rec-title-form h4{font-size:.86rem;margin:0 0 10px}
 
-/* Ações rápidas para reabrir vínculos e estados de conciliação. */
 .erp-reconcile-metrics{grid-template-columns:repeat(6,minmax(0,1fr))}
 .erp-rec-quick-undo{align-self:center;margin:0 10px 0 0;padding:7px 10px;border:1px solid #b9d3c2;border-radius:5px;background:#fff;color:#20583b;font-size:.72rem;font-weight:650;cursor:pointer;white-space:nowrap}
 .erp-rec-quick-undo:hover{background:#e8f3eb;border-color:#4d9869}
@@ -84,9 +82,7 @@
 @media(max-width:950px){.erp-reconcile-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:500px){.erp-reconcile-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
-/* Oculta alertas antigos quando o status é atualizado pelo servidor. */
 .erp-reconcile-notice:empty{display:none}
-/* Navegação bancária clara: sugestões primeiro, operações especiais recolhidas. */
 .erp-reconcile-dialog{width:min(1200px,100%)}
 .erp-reconcile-metrics{grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;background:#fafbf9;padding:11px 22px}
 .erp-reconcile-metrics>div{box-shadow:none;border:1px solid #dce6df;background:#fff;border-radius:7px;min-width:0}
@@ -107,7 +103,6 @@
 @media(max-width:790px){.erp-reconcile-metrics{grid-template-columns:repeat(3,minmax(0,1fr));padding:9px}.erp-rec-actions{gap:10px}}
 @media(max-width:500px){.erp-reconcile-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
-/* Ações secundárias visíveis em fluxo normal, sem recorte pelo painel rolável. */
 .erp-rec-more-actions:not([open])>.erp-rec-secondary-actions{display:none}
 .erp-rec-more-actions[open]>.erp-rec-secondary-actions{position:static;width:min(260px,100%);margin-top:7px;box-shadow:none;border:1px solid #d9e4da;display:flex;flex-direction:column;z-index:auto}
 .erp-rec-more-actions>summary:focus-visible{outline:2px solid #2a7049;outline-offset:2px}

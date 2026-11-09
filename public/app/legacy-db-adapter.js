@@ -73,8 +73,6 @@ export function createLegacyDatabaseAdapter(rawDb, storage) {
             const dataUrl = joinChunks(value);
             if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return target.set(value);
             const { blob, contentType } = dataUrlToBlob(dataUrl);
-            // Uma nova versao nao sobrescreve o arquivo que o metadado antigo aponta.
-            // Isso permite compensar falhas do RTDB sem perder documentos existentes.
             const version = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,12)}`;
             const newStoragePath = `${storagePath}--v-${version}`;
             const fileRef = storage.ref(newStoragePath);
@@ -88,8 +86,6 @@ export function createLegacyDatabaseAdapter(rawDb, storage) {
                 updatedAt: Date.now(),
               });
             } catch (error) {
-              // Uma resposta perdida nao significa que o RTDB nao confirmou a escrita.
-              // Nunca apagar um arquivo que talvez ja esteja referenciado no Database.
               let resultadoConfirmado = false;
               let exclusaoSegura = false;
               try {
@@ -128,7 +124,6 @@ export function createLegacyDatabaseAdapter(rawDb, storage) {
         }
         if (prop === 'remove') {
           return async () => {
-            // Se a remocao do RTDB for recusada, o arquivo deve permanecer acessivel.
             const snapshot = await target.once('value');
             const value = snapshot.val();
             const result = await target.remove();
@@ -137,7 +132,6 @@ export function createLegacyDatabaseAdapter(rawDb, storage) {
                 (value.path === storagePath || value.path.startsWith(storagePath + '--v-'))) {
               try { await storage.ref(value.path).delete(); }
               catch (error) {
-                // Metadado ja removido: deixar o objeto orfao para limpeza auditada.
                 console.warn('[Documentos] Metadado removido, limpeza do Storage pendente:', error);
                 auditManagedFile('file_cleanup_pending', path);
               }
@@ -152,7 +146,6 @@ export function createLegacyDatabaseAdapter(rawDb, storage) {
 
   return new Proxy(rawDb, {
     get(target, prop) {
-      // ref() sem argumento = raiz. ref('') é rejeitado pelo SDK ("invalid path").
       if (prop === 'ref') return (path) => (path === undefined || path === null || path === '' || path === '/')
         ? target.ref()
         : wrapRef(target.ref(path), String(path));

@@ -1,11 +1,8 @@
 #!/usr/bin/env node
-// Simulação local e SOMENTE LEITURA: a função financeira recebe um Firebase
-// em memória. Nenhuma credencial é carregada, nenhum POST é enviado e o JSON
-// original não é escrito nem alterado em disco.
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
-import {changeAdvance} from '../server/application/finance-advances.js';
+import {changeAdvance} from '../server/modules/advances/application/advances.js';
 
 const opts=Object.fromEntries(process.argv.slice(2).filter(a=>a.startsWith('--')&&a.includes('='))
   .map(a=>{const i=a.indexOf('=');return [a.slice(2,i),a.slice(i+1)];}));

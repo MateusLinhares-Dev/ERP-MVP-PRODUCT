@@ -1,5 +1,3 @@
-// Lançamento rápido — tela simplificada para celular (Compra e Venda por voz).
-// Nada é gravado a partir da fala: a pessoa confere a tela de resumo e confirma.
 import {loadFirebaseCompat} from '/app/firebase-loader.js';
 import {interpretarFala,normalizar} from '/rapido/parser.js';
 
@@ -8,7 +6,6 @@ const LIMITE_ARQUIVO=3*1024*1024;
 const estado={auth:null,claims:{},opcoes:null,tipo:'compra',parte:null,itens:[],anexos:[],operationId:'',textoFalado:'',
   salvando:false,rascunho:{compra:null,venda:null}};
 
-// ---------- utilidades ----------
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const brl=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const num=(v,casas=3)=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:casas});
@@ -35,7 +32,6 @@ function aviso(texto,tipo='',ms=4500){
   clearTimeout(avisoTimer);avisoTimer=setTimeout(()=>{el.hidden=true;},ms);
 }
 
-// ---------- navegação (o botão "voltar" do celular funciona) ----------
 const TELAS=['tela-carregando','tela-bloqueado','tela-inicio','tela-lancamento','tela-conferir','tela-sucesso','tela-historico'];
 function mostrar(id){
   $('#aviso').hidden=true;
@@ -51,7 +47,6 @@ function irPara(tela,{substituir=false}={}){
 window.addEventListener('popstate',evento=>{
   const tela=evento.state?.tela||'inicio';
   if(estado.salvando){history.pushState({tela:'conferir'},'','#conferir');return;}
-  // Depois de salvar, "voltar" nunca reabre o formulário já gravado (evita lançar em dobro).
   if((tela==='lancamento'||tela==='conferir')&&(!estado.opcoes||estado.ultimoSalvo)){
     history.replaceState({tela:'inicio'},'','#inicio');mostrar('tela-inicio');return;
   }
@@ -60,7 +55,6 @@ window.addEventListener('popstate',evento=>{
   if(tela==='historico')carregarHistorico();
 });
 
-// ---------- sessão e API ----------
 function irParaLogin(){
   try{sessionStorage.removeItem('mm_sessao');}catch(e){}
   location.replace('/?destino=rapido');
@@ -105,7 +99,6 @@ async function api(caminho,{method='GET',body,repetir=true}={}){
   return dados;
 }
 
-// ---------- início ----------
 async function iniciar(){
   try{
     const resposta=await fetch('/api/config',{credentials:'same-origin',cache:'no-store'});
@@ -143,7 +136,6 @@ async function iniciar(){
   }
 }
 
-// ---------- formulário ----------
 function itemVazio(){return {material:'',kg:null,preco:null,voz:false,falado:''};}
 function formularioTemConteudo(){
   return Boolean(estado.parte||estado.anexos.length||$('#texto-falado').value.trim()||estado.itens.some(i=>i.material||i.kg||i.preco));
@@ -272,7 +264,6 @@ $('#btn-add-item').onclick=()=>{estado.itens.push(itemVazio());renderItens();
 $('#busca-parte').addEventListener('input',buscarPartes);
 $('#busca-parte').addEventListener('focus',buscarPartes);
 
-// ---------- voz ----------
 const Reconhecimento=window.SpeechRecognition||window.webkitSpeechRecognition;
 let reconhecedor=null,ouvindo=false;
 function atualizarMicrofone(){
@@ -326,8 +317,6 @@ async function entender(){
   const botao=$('#btn-entender');botao.disabled=true;botao.lastChild.textContent='Entendendo…';
   try{
     let resultado=await interpretar(texto);
-    // Falou "comprei" na tela de venda (ou o contrário): troca de tela sozinho e
-    // interpreta de novo procurando na lista certa (fornecedores x clientes).
     const falado=resultado.tipoFalado||(resultado.fonte==='ia'?resultado.tipo:'');
     let trocou='';
     if((falado==='compra'||falado==='venda')&&falado!==estado.tipo){
@@ -356,7 +345,6 @@ function aplicarInterpretacao(r,trocou=''){
   if(itens.length){
     estado.itens=itens.map(it=>({material:it.material||'',kg:it.quantidadeKg??null,preco:it.precoKg??null,voz:true,falado:it.material?'':(it.materialFalado||'')}));
   }else{
-    // Não deixa na tela material/peso de uma fala anterior como se fossem desta.
     if(estado.itens.every(i=>i.voz||(!i.material&&!i.kg&&!i.preco)))estado.itens=[itemVazio()];
     duvidas.push('Não entendi o material e o peso. Fale o nome do material como está no cadastro, ou escolha abaixo.');
   }
@@ -385,7 +373,6 @@ function renderDuvidas(duvidas,outroTipo){
   };
 }
 
-// ---------- anexos ----------
 function lerImagem(arquivo){
   return new Promise((resolve,reject)=>{
     const url=URL.createObjectURL(arquivo);const img=new Image();
@@ -446,7 +433,6 @@ for(const id of ['#arq-camera','#arq-galeria']){
   $(id).addEventListener('change',evento=>{const arquivos=[...evento.target.files];evento.target.value='';if(arquivos.length)anexar(arquivos);});
 }
 
-// ---------- conferência e gravação ----------
 function validar(){
   const problemas=[];
   document.querySelectorAll('.erro-campo').forEach(el=>el.classList.remove('erro-campo'));
@@ -527,7 +513,6 @@ async function salvar(){
 $('#btn-salvar').onclick=salvar;
 $('#btn-outro').onclick=()=>abrirLancamento(estado.tipo);
 
-// ---------- histórico ----------
 function classeSituacao(s){
   if(/^(Pago|Recebido|Permuta)$/.test(s))return 'ok';
   if(/Excluído/.test(s))return 'excluido';
@@ -573,7 +558,6 @@ $('#lista-historico').addEventListener('click',async evento=>{
 });
 $('#btn-fechar-visualizador').onclick=()=>{const img=$('#img-visualizador');if(img.src.startsWith('blob:'))URL.revokeObjectURL(img.src);img.removeAttribute('src');$('#visualizador').hidden=true;};
 
-// ---------- ligações gerais ----------
 document.addEventListener('click',evento=>{
   const novo=evento.target.closest('[data-novo]');
   if(novo){abrirLancamento(novo.dataset.novo);return;}

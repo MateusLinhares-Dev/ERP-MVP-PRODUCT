@@ -1,4 +1,3 @@
-/* Manuela Metais — artigos publicados, fornecidos pela API; base inicia vazia. */
 (function(global){
 'use strict';
 const categories=[

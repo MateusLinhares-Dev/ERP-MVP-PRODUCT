@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// Auditoria SOMENTE LEITURA. Nenhuma operação é enviada ao Firebase.
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 

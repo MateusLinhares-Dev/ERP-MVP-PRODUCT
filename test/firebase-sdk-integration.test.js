@@ -1,11 +1,3 @@
-// Integração com o SDK OFICIAL do Firebase (firebase-admin) falando o protocolo
-// WebSocket real com um servidor RTDB simulado (test/support/fake-rtdb-server.mjs).
-//
-// Os testes antigos usavam objetos falsos que chamavam a transação já com o
-// valor do banco e aceitavam ref(''). Por isso não detectaram, em produção:
-//  - db.ref('') lança "invalid path" no SDK Admin  -> HTTP 500 ao salvar compra;
-//  - liberação de trava com cache frio é abortada  -> HTTP 409 por até 120 s;
-//  - queda do WebSocket com transação em voo       -> Error('disconnect') / 500.
 import test,{before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
@@ -44,19 +36,19 @@ before(async()=>{
   process.env.FIREBASE_DATABASE_EMULATOR_HOST=srv.host;
   process.env.FIREBASE_STORAGE_BUCKET='demo-erp-test.appspot.com';
   delete process.env.APP_ENV;delete process.env.VERCEL_ENV;
-  const admin=await import('../server/infrastructure/firebase-admin.js');
+  const admin=await import('../server/shared/firebase/firebase-admin.js');
   ({app,db}=admin.getFirebaseAdmin());
   mod={admin,
-    ...(await import('../server/infrastructure/rtdb-transaction.js')),
-    ...(await import('../server/infrastructure/firebase-session.js')),
-    ...(await import('../server/application/purchase-order-create.js')),
-    ...(await import('../server/application/purchase-order-edit.js')),
-    ...(await import('../server/application/purchase-order-delete.js')),
-    ...(await import('../server/application/finance-advances.js')),
-    ...(await import('../server/application/finance-payment.js')),
-    ...(await import('../server/application/supplier-cash-repasses.js')),
-    ...(await import('../server/domain/agenda-service-catalog.js')),
-    ...(await import('../server/domain/company-directory.js'))
+    ...(await import('../server/shared/firebase/rtdb-transaction.js')),
+    ...(await import('../server/shared/firebase/firebase-session.js')),
+    ...(await import('../server/modules/purchases/application/create-purchase-order.js')),
+    ...(await import('../server/modules/purchases/application/edit-purchase-order.js')),
+    ...(await import('../server/modules/purchases/application/delete-purchase-order.js')),
+    ...(await import('../server/modules/advances/application/advances.js')),
+    ...(await import('../server/modules/payables/application/payables.js')),
+    ...(await import('../server/modules/supplier-repasses/application/supplier-cash-repasses.js')),
+    ...(await import('../server/modules/agenda/domain/service-catalog.js')),
+    ...(await import('../server/modules/company/domain/company-directory.js'))
   };
 });
 after(async()=>{
@@ -71,7 +63,6 @@ test('SDK real: padrão antigo de liberação aborta com cache frio; releaseLeas
   assert.equal(srv.read('locks/T1').owner,'A');
   assert.equal(await mod.releaseLease(db.ref('locks/T1'),'A'),true);
   assert.equal(srv.read('locks/T1'),null);
-  // Trava de outro dono nunca é removida.
   srv.seed('locks/T2',{owner:'B',expiresAt:Date.now()+60000});
   assert.equal(await mod.releaseLease(db.ref('locks/T2'),'A'),true);
   assert.equal(srv.read('locks/T2').owner,'B');
@@ -127,7 +118,7 @@ test('compras: associa adiantamento PIX parcial e adiantamento pago em cheque',a
     {cod:'ADTCHQ',valor:50,status:'Pendente',forma:'Cheque',data:'02/11/2026',chequeIds:['CC1']}
   ];
   srv.reset(data);
-  const ticket=purchaseTicket('T331',[['ALUMINIO',3,40]]); // 120,00
+  const ticket=purchaseTicket('T331',[['ALUMINIO',3,40]]);
   const result=await mod.createPurchaseOrder(identity,{operationId:randomUUID(),ticketNo:'T331',fornecedorCod:'F1',ticket,
     advanceCodes:['ADTPIX','ADTCHQ'],chequeIds:[],useLegacyCredit:false,sourceTicketKeys:[]},{db});
   assert.equal(result.ticket.adiantamento,120);
@@ -146,7 +137,6 @@ test('compras: edição com mudança de valor e exclusão de pedido sem baixa fu
   srv.reset(baseData());
   const ticket=purchaseTicket('T332',[['BRONZE',2,50]]);
   const created=await mod.createPurchaseOrder(identity,{operationId:randomUUID(),ticketNo:'T332',fornecedorCod:'F1',ticket,advanceCodes:[],chequeIds:[],useLegacyCredit:false,sourceTicketKeys:[]},{db});
-  // O cliente lê o pedido pelo SDK (arrays reconstituídos); o teste faz o mesmo.
   const expectedTicket=await viaSdk('erp/tickets/T332');
   const next=structuredClone(expectedTicket);
   next.itens[0].preco=60;next.itens[0].total=120;next.totalProdutos=120;next.totalGeral=120;next.saldoPagar=120;
@@ -225,7 +215,6 @@ test('agenda e empresas: exclusão funciona com cache frio',async()=>{
 
 test('conexão: cada rajada de requisições usa WebSocket novo e encerra ao ficar ociosa',async()=>{
   srv.reset({erp:{_ts:1}});
-  // Estado inicial conhecido: uma rajada encerrada deixa a conexão offline.
   const warm=new EventEmitter();mod.trackFirebaseRequest(warm);warm.emit('finish');
   const before=srv.stats.connections;
   for(let i=0;i<2;i++){
@@ -237,7 +226,6 @@ test('conexão: cada rajada de requisições usa WebSocket novo e encerra ao fic
     assert.equal(mod.firebaseSessionState().activeRequests,0);
   }
   assert.ok(srv.stats.connections>=before+2,'uma conexão nova por rajada');
-  // Requisições concorrentes compartilham a mesma conexão.
   const a=new EventEmitter(),b=new EventEmitter();
   mod.trackFirebaseRequest(a);mod.trackFirebaseRequest(b);
   const first=mod.admin.getFirebaseAdmin().db;
@@ -247,6 +235,5 @@ test('conexão: cada rajada de requisições usa WebSocket novo e encerra ao fic
   assert.equal((await mod.admin.getFirebaseAdmin().db.ref('erp/_ts').get()).val(),1);
   b.emit('finish');
   assert.equal(mod.firebaseSessionState().activeRequests,0);
-  // Deixa o SDK online para os próximos testes do arquivo (se houver).
   mod.admin.getFirebaseAdmin();
 });

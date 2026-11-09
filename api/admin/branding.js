@@ -1,7 +1,7 @@
-import '../../server/config/load-local-env.js';
-import {getFirebaseAdmin} from '../../server/infrastructure/firebase-admin.js';
-import {requireIdentity} from '../../server/http/auth.js';
-import {applyApiSecurityHeaders,assertJsonBody,assertMethod,assertSameOrigin,sendError} from '../../server/http/http.js';
+import '../../server/shared/config/load-local-env.js';
+import {getFirebaseAdmin} from '../../server/shared/firebase/firebase-admin.js';
+import {requireIdentity} from '../../server/shared/http/auth.js';
+import {applyApiSecurityHeaders,assertJsonBody,assertMethod,assertSameOrigin,sendError} from '../../server/shared/http/http.js';
 
 const fields=['nome','razaoSocial','cnpj','ie','endereco','enderecoCurto','financeiro','escritorio','compras','email','responsavel'];
 const brandFields=['logoPrefix','logoAccent','tagline','title'];

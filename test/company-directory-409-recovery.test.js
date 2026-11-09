@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {changeCompanyDirectory,companyDirectoryResponse} from '../server/domain/company-directory.js';
+import {changeCompanyDirectory,companyDirectoryResponse} from '../server/modules/company/domain/company-directory.js';
 
 const core=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
 const start=core.indexOf('let _erpEmpresaAlteracaoEmCurso=false;');
