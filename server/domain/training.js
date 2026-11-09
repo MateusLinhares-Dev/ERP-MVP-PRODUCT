@@ -1,3 +1,4 @@
+import {businessTodayISO} from './business-date.js';
 // Validation and calendar logic for the training matrix. No browser or Firebase dependencies.
 const invalid=(message,status=400)=>Object.assign(new Error(message),{status,code:'TRAINING_VALIDATION'});
 export const textField=(value,max=160)=>{
@@ -30,7 +31,7 @@ export const enrollmentPayload=(raw)=>{
   if(status==='concluido'&&!completedAt)throw invalid('Informe a conclusão do curso.');
   return {courseId,employeeId,employeeLogin:optionalText(raw?.employeeLogin,80).toLowerCase(),status,completedAt,scheduledAt,expiresAt,notes:optionalText(raw?.notes,500),notifyAt:optionalDate(raw?.notifyAt),notifyEnabled:Boolean(raw?.notifyEnabled)};
 };
-export const courseState=(entry,course,asOf=new Date().toISOString().slice(0,10))=>{
+export const courseState=(entry,course,asOf=businessTodayISO())=>{
   const expires=entry.expiresAt||(entry.completedAt&&course.renewalMonths?yearMonthDelta(entry.completedAt,course.renewalMonths):'');
   const days=expires?Math.round((new Date(expires+'T12:00:00Z')-new Date(asOf+'T12:00:00Z'))/86400000):null;
   const status=entry.status!=='concluido'?entry.status:days===null?'sem-vencimento':days<0?'vencido':days<=course.noticeDays?'a-vencer':'em-dia';

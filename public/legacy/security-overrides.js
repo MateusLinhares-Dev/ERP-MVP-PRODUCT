@@ -43,6 +43,8 @@
       _aplicarPerfil(result.username,result.profile);
       _salvarPerfisLocal();
       if(err) err.style.display='none';
+      // Perfil "Lançamento rápido": vai direto para a tela simplificada (sem carregar o ERP).
+      if(window.erpDestinoRapido && window.erpDestinoRapido(result.username,{...(result.profile||{})})) return;
       fbCarregar(function(){
         try{ loadUsers(); }catch(e){}
         _aplicarPerfil(result.username,result.profile);

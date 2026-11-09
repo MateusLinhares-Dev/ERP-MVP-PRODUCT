@@ -54,6 +54,7 @@ test('Contas a Pagar não abate automaticamente créditos disponíveis; banco po
     TICKETS_DB:{},FORNECEDORES:[],document:{getElementById:(id)=>elements[id]||null},
     crypto:{randomUUID:()=> 'aaaa-bbbb'},esc:(v)=>String(v),
     _cpConsultarContasBancarias(){},atualizarLiquidoCP(){},
+    _hojeISO:()=>'2026-11-08',
   };
   runInNewContext('const _cpPendingPayments=new Map();'+core.slice(start,end)+';pagarContaRapido(0,"CP-T303");',env);
   assert.match(body.innerHTML,/id="pcp-adt"[^>]*value="0\.00"/);

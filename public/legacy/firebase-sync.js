@@ -40,7 +40,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-08-1900-v213-firebase-travas';
+  const _APP_BUILD = '2026-11-09-0000-v214-rapido-cheques-datas';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){

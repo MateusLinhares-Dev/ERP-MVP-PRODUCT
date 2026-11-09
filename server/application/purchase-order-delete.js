@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {acquireLease,releaseLease} from '../infrastructure/rtdb-transaction.js';
+import {refundAdvanceReceipt} from './purchase-order-edit.js';
 
 const conflict=(status,code,message)=>{const error=new Error(message);error.status=status;error.code=code;throw error;};
 const validKey=(value,label)=>{const val=String(value??'').trim();if(!/^[A-Za-z0-9_-]{1,80}$/.test(val))conflict(422,'INVALID_KEY',label+' inválido.');return val;};
@@ -26,6 +27,24 @@ const isPaidPayable=payable=>{
   if(cents(payable.valorPago||0)>0||cents(payable.adtCompensado||0)>0)return true;
   if(Array.isArray(payable.pagamentos)&&payable.pagamentos.length>0)return true;
   return Boolean(payable.dataPgto||payable.movBancoIdCP||payable.bancoCod);
+};
+// Compra criada pela API e paga SOMENTE com adiantamento(s) (recibo v2): pode ser
+// excluída devolvendo o valor aplicado a cada adiantamento no mesmo commit.
+const advanceOnlyReceipt=ticket=>{
+  const receipt=ticket.reciboFinanceiro||{};
+  return Number(receipt.versao)===2&&Array.isArray(receipt.adiantamentos)&&
+    receipt.adiantamentos.some(row=>cents(row?.valorAplicado||0)>0)&&
+    !(receipt.cheques||[]).some(row=>cents(row?.valorAplicado||0)>0)&&
+    !(Array.isArray(receipt.creditos)&&receipt.creditos.length)&&
+    cents(ticket.creditoFornecedorAplicado||0)===0&&ticket._pagoUndo==null;
+};
+// Conta sem nenhum pagamento: pendente, ou encerrada com R$ 0 por uma edição que devolveu ao adiantamento.
+const payableWithoutPayment=payable=>{
+  if(cents(payable.valorPago||0)>0||cents(payable.adtCompensado||0)>0)return false;
+  if(Array.isArray(payable.pagamentos)&&payable.pagamentos.length>0)return false;
+  if(payable.movBancoIdCP||payable.bancoCod)return false;
+  const status=String(payable.status||'').toLocaleLowerCase('pt-BR');
+  return status==='pendente'||(status==='pago'&&cents(payable.valor||0)===0);
 };
 async function acquire(ref,owner,now){
   const acquired=await acquireLease(ref,owner,{now,ttlMs:120000,meta:{kind:'purchase-delete'}});
@@ -110,30 +129,60 @@ export async function deletePurchaseOrder(identity,input,{db,now=()=>Date.now(),
     if(currentPayables.length!==payableMatches.length||currentPayables.some(([id])=>!payableMatches.some(([old])=>same(old,id))))
       conflict(409,'PAYABLE_CHANGED','O título desta compra mudou. Atualize a tela.');
     const total=cents(ticket.totalGeral||0),remaining=cents(ticket.saldoPagar||0);
-    if(String(ticket.status||'').toLocaleLowerCase('pt-BR')==='pago'||
+    let refund=null,advanceRows=null;
+    if(advanceOnlyReceipt(ticket)){
+      const applied=cents(ticket.adiantamento||0);
+      if(currentPayables.some(([,row])=>!payableWithoutPayment(row)))
+        conflict(409,'PURCHASE_HAS_PAYMENTS','A compra possui baixa financeira registrada. Estorne o pagamento antes de excluir.');
+      if(applied<=0||applied+remaining!==total)
+        conflict(409,'PURCHASE_HAS_FINANCE','Os valores desta compra não fecham com o adiantamento aplicado. Solicite conciliação antes de excluir.');
+      if(currentPayables.some(([id,row])=>!same(id,'CPPO_'+ticketId)||!same(row.id,'CPPO_'+ticketId)))
+        conflict(409,'LEGACY_PAYABLE_REVIEW','Este pedido possui um título financeiro antigo que precisa de revisão antes de excluir.');
+      if(remaining>0&&(currentPayables.length!==1||cents(currentPayables[0][1].valor||0)!==remaining))
+        conflict(409,'PAYABLE_CHANGED','A conta a pagar desta compra não confere com o saldo. Atualize a tela.');
+      if(currentPayables.some(([,row])=>row.fornCod&&!same(row.fornCod,supplier)))
+        conflict(409,'SUPPLIER_MISMATCH','A conta a pagar pertence a outro fornecedor.');
+      // O próprio adiantamento e o seu PIX citam a compra: são exatamente o que será devolvido.
+      const purchaseBank=Object.fromEntries(asRows(bank).filter(([,row])=>row.source!=='advance'&&!row.advanceCode));
+      if(hasTicketRef(cheques,ticketId)||hasTicketRef(saldo,ticketId)||hasTicketRef(saldoDevedor,ticketId)||
+        hasTicketRef(paymentOps,ticketId)||linkedBank(purchaseBank,currentPayables,ticketId))
+        conflict(409,'PURCHASE_HAS_LINKS','Existem outros vínculos financeiros nesta compra. Não é possível excluí-la sem estorno e conciliação.');
+      const advanceLock=db.ref('erpFinanceAdvanceLocks/'+supplier);
+      await acquire(advanceLock,owner,now);
+      held.push({ref:advanceLock,path:'erpFinanceAdvanceLocks/'+supplier});
+      const liveTicket=(await db.ref('erp/tickets/'+ticketId).get()).val();
+      if(!liveTicket||JSON.stringify(liveTicket)!==JSON.stringify(ticket))conflict(409,'PURCHASE_CHANGED','A compra mudou durante a exclusão. Atualize o Histórico.');
+      const ledger=(await db.ref('erp/adiantamentos/'+supplier).get()).val();
+      const result=refundAdvanceReceipt(ticket,ledger,applied,ticketId,now());
+      advanceRows=result.records;
+      refund={valor:applied/100,adiantamentos:result.refunds};
+    }
+    if(!refund&&(String(ticket.status||'').toLocaleLowerCase('pt-BR')==='pago'||
       cents(ticket.adiantamento||0)!==0||hasFinancialReceipt(ticket)||
       (total>0&&remaining!==total)||
-      (ticket._pagoUndo!=null))
+      (ticket._pagoUndo!=null)))
       conflict(409,'PURCHASE_HAS_FINANCE','Esta compra possui pagamento ou adiantamento. Para removê-la é necessário cancelar e estornar as operações financeiras.');
     // Uma compra consolidada de valor positivo precisa ter seu único CP
     // criado na nuvem ANTES de a exclusão começar. Nunca apagar apenas o ticket.
-    if(ticket._consolidado===true&&cents(ticket.totalGeral||0)>0&&currentPayables.length!==1)
+    if(!refund&&ticket._consolidado===true&&cents(ticket.totalGeral||0)>0&&currentPayables.length!==1)
       conflict(409,'PURCHASE_PAYABLE_MISSING','A conta a pagar desta compra não foi localizada. Atualize o Financeiro antes de excluir.');
     if(currentPayables.some(([id,row])=>!same(id,'CPPO_'+ticketId)||!same(row.id,'CPPO_'+ticketId)))
       conflict(409,'LEGACY_PAYABLE_REVIEW','Este pedido possui um título financeiro antigo que precisa de revisão antes de excluir.');
-    if(currentPayables.some(([,row])=>isPaidPayable(row)))
+    if(!refund&&currentPayables.some(([,row])=>isPaidPayable(row)))
       conflict(409,'PURCHASE_HAS_PAYMENTS','A compra possui baixa financeira registrada. Não é possível excluir diretamente.');
     if(currentPayables.some(([,row])=>row.fornCod&&!same(row.fornCod,supplier)))
       conflict(409,'SUPPLIER_MISMATCH','A conta a pagar pertence a outro fornecedor.');
-    if(hasTicketRef(advances,ticketId)||hasTicketRef(cheques,ticketId)||
+    if(!refund&&(hasTicketRef(advances,ticketId)||hasTicketRef(cheques,ticketId)||
       hasTicketRef(saldo,ticketId)||hasTicketRef(saldoDevedor,ticketId)||
       hasTicketRef(paymentOps,ticketId)||hasTicketRef(advanceOps,ticketId)||
-      linkedBank(bank,currentPayables,ticketId))
+      linkedBank(bank,currentPayables,ticketId)))
       conflict(409,'PURCHASE_HAS_LINKS','Existem vínculos financeiros nesta compra. Não é possível excluí-la sem estorno e conciliação.');
     const deletedAt=now();
-    const receipt={status:'CONFIRMED',ticketNo:ticketId,supplierCode:supplier,deletedPayableIds:currentPayables.map(([id,row])=>String(row.id||id)),deletedAt,actor};
+    const receipt={status:'CONFIRMED',ticketNo:ticketId,supplierCode:supplier,deletedPayableIds:currentPayables.map(([id,row])=>String(row.id||id)),deletedAt,actor,
+      ...(refund?{advanceRefund:refund}:{})};
     const updates={['tickets/'+ticketId]:null,['ticketsDeletedV2/'+ticketId]:true,
       ['purchaseDeleteOperations/'+actor+'_'+operationId]:receipt,_ts:deletedAt};
+    if(advanceRows)updates['adiantamentos/'+supplier]=advanceRows;
     for(const [path,row] of currentPayables){
       updates['contasPagar/'+path]=null;
       if(row.id)updates['contasPagarDeleted/'+validKey(row.id,'Título')]=true;
@@ -152,7 +201,7 @@ export async function deletePurchaseOrder(identity,input,{db,now=()=>Date.now(),
       if(verified){committed=true;return verified;}
       throw error;
     }
-    return receipt;
+    return advanceRows?{...receipt,advances:advanceRows}:receipt;
   }finally{
     if(!committed){
       for(const lock of held.reverse())await release(lock.ref,owner);

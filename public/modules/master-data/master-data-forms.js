@@ -22,7 +22,7 @@ function parseMoney(value){
   if(raw.includes(','))raw=raw.replace(/\./g,'').replace(',','.');
   const n=Number(raw);return Number.isFinite(n)?n:0;
 }
-function today(){return new Date().toISOString().slice(0,10);}
+function today(){return new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);}
 function modal(){
   document.getElementById('modal-ov')?.remove();
   const ov=document.createElement('div');ov.className='modal-ov open';ov.id='modal-ov';

@@ -450,7 +450,7 @@ function init(shell){
   const ret=section('Notas fiscais de devolução','Controle documental das devoluções por competência. O registro não emite uma NF-e na SEFAZ nem altera estoque ou contas automaticamente.',
     `<div class="fis-v3-fields"><label>Data<input type="date" id="fis-v3-ret-date"></label><label>Número da NF<input id="fis-v3-ret-num" maxlength="40"></label><label>Tipo<select id="fis-v3-ret-kind"><option value="venda">Devolução de venda</option><option value="compra">Devolução de compra</option></select></label><label id="fis-v3-ret-party-label">Cliente fiscal<select id="fis-v3-ret-party" required><option value="">Selecione um cliente fiscal</option></select></label><label>NF original<input id="fis-v3-ret-origin" maxlength="40"></label><label>Valor (R$)<input id="fis-v3-ret-value" inputmode="decimal" placeholder="0,00"></label><label class="fis-v3-wide">Observação<input id="fis-v3-ret-note" maxlength="300"></label><button id="fis-v3-ret-save" type="button">Registrar devolução</button></div><div id="fis-v3-ret-info" role="status"></div><div id="fis-v3-ret-list"></div><button id="fis-v3-ret-apur" type="button" class="fis-v3-subtle">Atualizar devoluções da apuração (vendas)</button>`);
   ret.id='fis-v3-devolucoes';ret.dataset.fiscalView='devolucoes';shell.append(ret);
-  $('#fis-v3-ret-date').value=new Date().toISOString().slice(0,10);
+  $('#fis-v3-ret-date').value=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
   $('#fis-v3-ret-save').onclick=saveReturn;
   $('#fis-v3-ret-kind').addEventListener('change',()=>populateReturnParties());
   $('#fis-v3-ret-apur').onclick=applyReturns;

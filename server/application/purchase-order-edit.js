@@ -1,5 +1,6 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {acquireLease,releaseLeases} from '../infrastructure/rtdb-transaction.js';
+import {businessTodayISO} from '../domain/business-date.js';
 
 function reject(status,code,message){
   const error=new Error(message);
@@ -162,7 +163,7 @@ function adjustPayable(raw,ticketNo,oldBalance,nextBalance,operationId,supplierC
     if(nextBalance===0){
       const historical=cash(Number(row.valorPago||0))+cash(Number(row.adtCompensado||0));
       updated.valor=round(historical>0?historical:0);
-      updated.dataPgto=String(row.dataPgto||new Date().toISOString().slice(0,10));
+      updated.dataPgto=String(row.dataPgto||businessTodayISO());
     }
     return {path,updated};
   }
@@ -185,6 +186,64 @@ function adjustmentOfCredit(raw,before,after,ticketNo){
   if(obj.ticket&&String(obj.ticket)!==ticketNo)reject(409,'CREDIT_CHANGED','O crédito do fornecedor foi utilizado em outra compra.');
   if(Math.abs(cash(Number(obj.valor||0))-before)>1)reject(409,'CREDIT_CHANGED','O saldo credor já foi alterado.');
   return {...obj,valor:round(after),ticket:ticketNo};
+}
+// Recibo v2 (compra criada pela API): cada adiantamento registra quanto foi
+// aplicado nesta compra. Uma redução maior que o saldo em aberto devolve a
+// diferença AO PRÓPRIO adiantamento (último aplicado primeiro), que volta a
+// ficar disponível para outras compras. Dinheiro pago pelo banco, cheques e
+// crédito residual continuam exigindo estorno no financeiro.
+export function refundAdvanceReceipt(previous,ledgerRaw,excess,ticketNo,at){
+  const receipt=clone(previous.reciboFinanceiro||{});
+  if((receipt.cheques||[]).some(row=>cash(Number(row.valorAplicado||0))>0))
+    reject(409,'CHEQUE_RECONCILIATION_REQUIRED','Esta compra foi paga com cheque. Para reduzir o valor ou excluir, devolva o cheque pelo financeiro.');
+  if((Array.isArray(receipt.creditos)&&receipt.creditos.length)||cash(Number(previous.creditoFornecedorAplicado||0))>0)
+    reject(409,'CREDIT_RECONCILIATION_REQUIRED','Esta compra usou crédito residual do fornecedor. Reduzir ou excluir precisa de conciliação no financeiro.');
+  const rows=Array.isArray(receipt.adiantamentos)?receipt.adiantamentos:[];
+  if(Number(receipt.versao)!==2||!rows.length)
+    reject(409,'ADVANCE_RECONCILIATION_REQUIRED','O adiantamento deste pedido antigo não possui vínculo financeiro único. Não foi alterado.');
+  const appliedTotal=rows.reduce((sum,row)=>sum+cash(Number(row.valorAplicado||0)),0);
+  if(Math.abs(appliedTotal-cash(Number(previous.adiantamento||0)))>1)
+    reject(409,'ADVANCE_RECEIPT_MISMATCH','O recibo possui abatimentos diferentes do total original. Confira as baixas antes de editar.');
+  if(excess>appliedTotal)
+    reject(409,'PAID_REFUND_REQUIRED','A redução passa do valor pago com adiantamento (R$ '+round(appliedTotal).toFixed(2).replace('.',',')+'). A diferença foi paga pelo banco: faça o estorno no financeiro.');
+  const records=readRows(ledgerRaw);
+  const entries=rowEntries(records);
+  const refunds=[];
+  let remaining=excess;
+  for(let index=rows.length-1;index>=0&&remaining>0;index--){
+    const row=rows[index];
+    const applied=cash(Number(row.valorAplicado||0));
+    const take=Math.min(applied,remaining);
+    if(!take)continue;
+    const matches=entries.filter(([,record])=>String(record.cod||'')===String(row.cod||'')&&record.origem!=='compensacao_cp');
+    if(matches.length!==1)reject(409,'ADVANCE_CHANGED','O adiantamento '+String(row.cod||'')+' não foi encontrado de forma única. Solicite conferência.');
+    const record=matches[0][1];
+    const original=cash(Number(record.valorOriginal??record.valor));
+    const consumed=cash(Number(record.valorCompensado||0));
+    const consistent=record.status==='Quitado'
+      ?consumed===original
+      :record.status==='Pendente'&&cash(Number(record.valorDisponivel??record.valor??0))===original-consumed;
+    if(consumed<take||original<consumed||!consistent)
+      reject(409,'ADVANCE_CHANGED','O saldo do adiantamento '+String(row.cod||'')+' mudou desde a compra. Atualize a tela antes de editar.');
+    const usedAfter=consumed-take,available=original-usedAfter;
+    record.valorOriginal=round(original);
+    record.valorCompensado=round(usedAfter);
+    record.valorDisponivel=round(available);
+    record.valor=round(available);
+    record.status='Pendente';
+    // Volta a ser oferecido: o vínculo da quitação vira "origem" (e some se nada mais foi usado).
+    if(record.ticket){if(!record.ticketOrigem)record.ticketOrigem=String(record.ticket);record.ticket='';}
+    if(usedAfter===0&&String(record.ticketOrigem||'')===ticketNo)delete record.ticketOrigem;
+    record.devolucoesCompra=[...(Array.isArray(record.devolucoesCompra)?record.devolucoesCompra:[]),{ticket:ticketNo,valor:round(take),em:at}];
+    row.valorAplicado=round(applied-take);
+    row.valorPendente=round(cash(Number(row.valorPendente||0))+take);
+    refunds.push({cod:String(row.cod),valor:round(take)});
+    remaining-=take;
+  }
+  if(remaining>0)reject(409,'ADVANCE_RECEIPT_MISMATCH','Não foi possível devolver todo o valor aos adiantamentos. Nada foi alterado.');
+  receipt.total=round(appliedTotal-excess);
+  receipt.devolucoes=[...(Array.isArray(receipt.devolucoes)?receipt.devolucoes:[]),{em:at,valor:round(excess),adiantamentos:refunds}];
+  return {receipt,records,applied:appliedTotal-excess,refunds};
 }
 export async function editPurchaseOrder(identity,input,{db,now=()=>Date.now(),uuid=randomUUID}={}){
   if(identity?.erpAccess!==true||identity?.canPurchasing!==true)reject(403,'PURCHASE_FORBIDDEN','Sem autorização para editar compras.');
@@ -231,6 +290,7 @@ export async function editPurchaseOrder(identity,input,{db,now=()=>Date.now(),uu
       const live=(await db.ref('erp/tickets/'+ticketNo).get()).val();
       if(!live||hash(live)!==hash(previous))reject(409,'TICKET_CHANGED','O pedido mudou durante a edição. Reabra o Histórico.');
     }
+    let advanceRefund=null;
     if(changed){
       const oldBalance=cash(Number(previous.saldoPagar||0));
       const payments=Object.values(snaps[4].val()||{}).filter(row=>row&&String(row.ticket||'')===ticketNo);
@@ -247,12 +307,26 @@ export async function editPurchaseOrder(identity,input,{db,now=()=>Date.now(),uu
       }else if(oldBalance>=0&&result.balance>=0){
         const payable=adjustPayable(snaps[4].val()||[],ticketNo,oldBalance,result.balance,opId,code,previous);
         updates['contasPagar/'+payable.path]=payable.updated;
+      }else if(oldBalance>=0&&result.balance<0&&advancesUsed){
+        const refund=refundAdvanceReceipt(previous,snaps[1].val(),-result.balance,ticketNo,now());
+        updates['adiantamentos/'+code]=refund.records;
+        result.ticket.reciboFinanceiro=refund.receipt;
+        result.ticket.adiantamento=round(refund.applied);
+        result.ticket.saldoPagar=0;
+        result.ticket.status='Pago';
+        if(oldBalance>0){
+          // O saldo em aberto também deixa de existir: a conta a pagar é encerrada.
+          const payable=adjustPayable(snaps[4].val()||[],ticketNo,oldBalance,0,opId,code,previous);
+          updates['contasPagar/'+payable.path]=payable.updated;
+        }
+        advanceRefund={valor:round(-result.balance),adiantamentos:refund.refunds};
       }else reject(409,'FINANCE_RECONCILIATION_REQUIRED','O valor altera a natureza do saldo do pedido. Essa mudança exige conciliação específica.');
     }
     updates._ts=now();
     const record={ticket:result.ticket,advances:updates['adiantamentos/'+code]||null,
       saldo:updates['saldos/'+code]||null,creditLegacy:updates['saldoDevedor/'+code]||null,
       payable:Object.entries(updates).find(([path])=>path.startsWith('contasPagar/'))?.[1]||null,
+      ...(advanceRefund?{advanceRefund}:{}),
       updatedAt:now(),actor:String(identity.erpUser||identity.uid||'')};
     updates['purchaseEditOperations/'+opKey]=record;
     const atomic=Object.fromEntries(Object.entries(updates).map(([path,value])=>['erp/'+path,value]));

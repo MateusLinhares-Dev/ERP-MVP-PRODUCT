@@ -167,7 +167,7 @@
     var body=document.getElementById('modal-body'); if(!body) return;
     var ativos=(typeof FUNCIONARIOS!=='undefined'?FUNCIONARIOS:[]).map(function(f,i){ return {f:f,i:i}; }).filter(function(o){ return o.f && String(o.f.status||'Ativo').toLowerCase()!=='inativo' && !o.f.dataRescisao; });
     var opts=ativos.map(function(o){ return '<option value="'+o.i+'">'+o.f.nome+(Number(o.f.valeTransporte||0)>0?(' (atual: R$ '+_fmtBR(o.f.valeTransporte)+')'):'')+'</option>'; }).join('');
-    var mesAtual=new Date().toISOString().slice(0,7);
+    var mesAtual=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,7);
     body.innerHTML=''+
       '<h2 style="margin:0 0 14px;color:#1f6b34">🚌 Vale-transporte</h2>'+
       '<div style="font-size:.85rem;color:#666;margin-bottom:12px">Grava o valor mensal no funcionário (RH) e cria as contas no Contas a Pagar. Não mexe em nada que já existe.</div>'+
@@ -197,7 +197,7 @@
       f.valeTransporte=valor; f._upd=Date.now();
       try{ localStorage.setItem('mm_funcionarios_edit', JSON.stringify(FUNCIONARIOS)); }catch(e){}
 
-      var hoje=new Date().toISOString().slice(0,10).split('-').reverse().join('/');
+      var hoje=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10).split('-').reverse().join('/');
       var grupoId='vt_'+Date.now();
       var criadas=0;
       for(var i=0;i<meses;i++){
