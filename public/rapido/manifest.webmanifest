@@ -7,8 +7,8 @@
   "scope": "/rapido/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#f3f4f6",
-  "theme_color": "#14532d",
+  "background_color": "#f0f4f2",
+  "theme_color": "#1a3a2a",
   "icons": [
     {"src": "/rapido/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
     {"src": "/rapido/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},

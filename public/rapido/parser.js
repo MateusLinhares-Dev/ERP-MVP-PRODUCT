@@ -60,13 +60,26 @@ function numeroBR(token){
 const PALAVRAS_VAZIAS=new Set(['DE','DA','DO','DAS','DOS','E','A','O','AS','OS','EM','NO','NA','PARA','PRA','PRO','COM',
   'LTDA','ME','EPP','EIRELI','SA','S','COMERCIO','COMERCIAL','INDUSTRIA','METAIS','METAL','SUCATA','SUCATAS','RECICLAGEM','RECICLAVEIS']);
 
+// Erro comum do reconhecimento de voz: uma letra trocada ("Gerdal" x "Gerdau").
+export function parecido(a,b){
+  if(a===b)return true;
+  if(a.length<5||b.length<5||Math.abs(a.length-b.length)>1)return false;
+  let i=0,j=0,erros=0;
+  while(i<a.length&&j<b.length){
+    if(a[i]===b[j]){i++;j++;continue;}
+    if(++erros>1)return false;
+    if(a.length>b.length)i++;else if(b.length>a.length)j++;else{i++;j++;}
+  }
+  return erros+(a.length-i)+(b.length-j)<=1;
+}
 function encontrarParte(tokens,partes,palavrasMaterial){
-  const presentes=new Set(tokens.map(t=>t.toUpperCase()));
+  const presentes=[...new Set(tokens.map(t=>chave(t)).filter(Boolean))];
+  const temPalavra=t=>presentes.some(p=>parecido(p,t));
   let melhores=[],melhor=0;
   for(const parte of partes){
     const nomeTokens=chave(parte.nome).split(' ').filter(t=>t.length>=3&&!PALAVRAS_VAZIAS.has(t)&&!palavrasMaterial.has(t));
     if(!nomeTokens.length)continue;
-    const acertos=nomeTokens.filter(t=>presentes.has(t)).length;
+    const acertos=nomeTokens.filter(temPalavra).length;
     if(!acertos)continue;
     const nota=acertos+(acertos===nomeTokens.length?0.5:0);
     if(nota>melhor){melhor=nota;melhores=[parte];}
@@ -105,7 +118,8 @@ function mencoesMaterial(tokens,indice,ignorar=new Set()){
 
 const UNIDADE_KG=/^(kg|kgs|quilo|quilos|kilo|kilos|quilograma|quilogramas)$/;
 const UNIDADE_T=/^(t|ton|tonelada|toneladas)$/;
-const MARCA_PRECO=/^(a|por|r\$|preco|valor|pago|paguei|cobrei)$/;
+const MARCA_UNITARIO=/^(a|preco)$/;
+const MARCA_TOTAL=/^(por|valor|total|deu|pago|paguei|cobrei|custou|ficou|fica|vale)$/;
 const MOEDA=/^(real|reais|r\$)$/;
 
 function lerFatos(tokens,ignorar=new Set()){
@@ -121,19 +135,26 @@ function lerFatos(tokens,ignorar=new Set()){
     const centavosApos=(k)=>tokens[k]==='e'&&/^\d{1,2}$/.test(tokens[k+1]||'')&&!UNIDADE_KG.test(tokens[k+2]||'')&&!UNIDADE_T.test(tokens[k+2]||'');
     if(UNIDADE_KG.test(depois)){fatos.push({pos:i,fim:i+2,tipo:'qtd',valor:n});i++;continue;}
     if(UNIDADE_T.test(depois)){fatos.push({pos:i,fim:i+2,tipo:'qtd',valor:n*1000});i++;continue;}
-    let preco=MARCA_PRECO.test(antes)||antes==='r$'||tokens[i].startsWith('r$');
+    // Palavra que vem antes do valor, pulando "r$" e "de" ("no valor de r$ 225").
+    let m=i-1;
+    while(m>=0&&/^(r\$|de)$/.test(tokens[m]))m--;
+    const marca=tokens[m]||'';
+    const marcaTotal=MARCA_TOTAL.test(marca);
+    let preco=marcaTotal||MARCA_UNITARIO.test(marca)||antes==='r$'||tokens[i].startsWith('r$');
     if(MOEDA.test(depois)){preco=true;fim=i+2;}
     if(preco){
       if(centavosApos(fim)){n=n+Number(tokens[fim+1])/(tokens[fim+1].length===1?10:100);fim+=2;if(tokens[fim]==='centavos')fim++;}
       // "42 reais o quilo", "7200 a tonelada", "3 por kg": só atravessa palavras de ligação,
       // nunca um número ("42 reais e 80 quilos de latão" = preço 42 e peso 80 do próximo item).
-      let porTonelada=false;
+      let unidade='';
       for(let k=fim;k<Math.min(tokens.length,fim+3);k++){
-        if(UNIDADE_T.test(tokens[k])){porTonelada=true;fim=k+1;break;}
-        if(UNIDADE_KG.test(tokens[k])){fim=k+1;break;}
+        if(UNIDADE_T.test(tokens[k])){unidade='t';fim=k+1;break;}
+        if(UNIDADE_KG.test(tokens[k])){unidade='kg';fim=k+1;break;}
         if(!/^(o|a|por|cada|de|do|da)$/.test(tokens[k]))break;
       }
-      fatos.push({pos:i,fim,tipo:'preco',valor:porTonelada?n/1000:n,porTonelada});
+      // "por R$ 4000" sem "o quilo" é o valor TOTAL do item, nunca o preço por kg.
+      const total=marcaTotal&&!unidade;
+      fatos.push({pos:i,fim,tipo:'preco',valor:unidade==='t'?n/1000:n,porTonelada:unidade==='t',total});
       i=fim-1;continue;
     }
     fatos.push({pos:i,fim,tipo:'numero',valor:n});
@@ -215,7 +236,7 @@ export function interpretarFala(texto,{materiais=[],fornecedores=[],clientes=[],
   const eventos=[...mencoes.map(m=>({...m,tipo:'material'})),...fatos].sort((a,b)=>a.pos-b.pos);
   const itens=[];
   let atual=null;
-  const novo=()=>{atual={material:null,materialFalado:'',quantidadeKg:null,precoKg:null,_semUnidade:false,_candidatos:[]};itens.push(atual);};
+  const novo=()=>{atual={material:null,materialFalado:'',quantidadeKg:null,precoKg:null,_total:null,_semUnidade:false,_candidatos:[]};itens.push(atual);};
   for(const ev of eventos){
     if(ev.tipo==='material'){
       if(!atual||atual.material||atual.materialFalado)novo();
@@ -225,14 +246,26 @@ export function interpretarFala(texto,{materiais=[],fornecedores=[],clientes=[],
       atual.quantidadeKg=ev.valor;
     }else if(ev.tipo==='preco'){
       if(!atual)novo();
-      if(atual.precoKg!=null)novo();
-      atual.precoKg=ev.valor;
+      if(atual.precoKg!=null||atual._total!=null)novo();
+      if(ev.total)atual._total=ev.valor;
+      else atual.precoKg=ev.valor;
       if(ev.porTonelada)duvidas.push('Preço por tonelada convertido para R$ '+fmt(ev.valor)+' por kg.');
     }else{
       if(!atual)novo();
       if(atual.quantidadeKg==null){atual.quantidadeKg=ev.valor;atual._semUnidade=true;}
       else if(atual.precoKg==null)atual.precoKg=ev.valor;
       else{novo();atual.quantidadeKg=ev.valor;atual._semUnidade=true;}
+    }
+  }
+  for(const it of itens){
+    if(it._total==null)continue;
+    if(it.quantidadeKg>0){
+      it.precoKg=Math.round(it._total/it.quantidadeKg*10000)/10000;
+      duvidas.push('Calculei R$ '+fmt(it.precoKg)+' por kg (total de R$ '+fmt(it._total)+' ÷ '+fmt(it.quantidadeKg)+' kg). Confira.');
+    }else if(it.material||it.materialFalado){
+      duvidas.push('Você disse o valor total de R$ '+fmt(it._total)+(it.material?' do '+it.material:'')+', mas não o peso. Informe o peso e o preço por kg.');
+    }else{
+      duvidas.push('Entendi o valor de R$ '+fmt(it._total)+', mas não qual material nem o peso.');
     }
   }
   const limpos=itens.filter(it=>it.material||it.materialFalado||it.quantidadeKg!=null).map(it=>{
@@ -259,5 +292,5 @@ export function interpretarFala(texto,{materiais=[],fornecedores=[],clientes=[],
   }
   const nf=/\bnota(?:\s+fiscal)?(?:\s+(?:numero|n|no))?\s+(\d{1,10})\b/.exec(tokens.join(' '));
 
-  return {fonte:'aparelho',tipo:tipoFinal,parte,itens:limpos,data,vencimento,nf:nf?nf[1]:null,observacao:null,duvidas:[...new Set(duvidas)]};
+  return {fonte:'aparelho',tipo:tipoFinal,tipoFalado:tipoDetectado,parte,itens:limpos,data,vencimento,nf:nf?nf[1]:null,observacao:null,duvidas:[...new Set(duvidas)]};
 }
