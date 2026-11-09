@@ -25,12 +25,13 @@ test('certificado vencido tem aviso apenas para o login vinculado',()=>{
  assert.equal(visibleNotice(e,course,'test3','2025-10-01'),false);
 });
 test('serviço de matriz é exclusivo de Elaine e usa autenticação do Firebase no servidor',()=>{
- const src=read('api/training/matrix.js');
- assert.match(src,/requireIdentity\(req\)/);
+ const src=read('server/modules/training/application/training-matrix.ts');
+ const endpoint=read('api/training/matrix.ts');
+ assert.match(endpoint,/access: 'user'/);
  assert.match(src,/identity\.admin|i\.admin===true/);
  assert.match(src,/elaine/);
- assert.match(src,/assertSameOrigin\(req,\{required:true\}\)/);
- assert.match(src,/getFirebaseAdmin/);
+ assert.match(endpoint,/POST: \{/);assert.doesNotMatch(endpoint,/sameOrigin: 'optional'/);
+ assert.match(endpoint,/getFirebaseAdmin/);
  assert.match(src,/audit/);
 });
 test('RTDB mantém dados da matriz server-only e Storage restringe certificados',()=>{

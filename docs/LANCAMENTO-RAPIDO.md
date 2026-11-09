@@ -73,7 +73,7 @@ Pagamento, recebimento, adiantamentos e cheques continuam sendo feitos no ERP pe
 - API: `api/quick/{options,purchase,sale,history,attachment,interpret}.ts`.
 - Regras de negócio: módulo `server/modules/quick-entry/` (domínio, casos de uso, infraestrutura e `index.ts`; veja `docs/ARCHITECTURE.md`).
 - Permissão:
-  - aba `lancamento_rapido` → claim `canQuickEntry` (`server/modules/access/domain/access-claims.js`), válida após novo login;
+  - aba `lancamento_rapido` → claim `canQuickEntry` (`server/modules/access/domain/access-claims.ts`), válida após novo login;
   - admin sempre tem.
 - Nós do RTDB: `erp/quickEntries`, `erp/quickUploads` e `erpQuickLocks`. Não têm regra própria, então ficam bloqueados para o navegador; só o servidor (Admin SDK) acessa. **Não é preciso publicar regras.**
 - `vercel.json`: `microphone=(self)`, liberado só para o próprio site; antes estava bloqueado. `maxDuration` de 30 s em interpret, purchase e attachment.

@@ -2,19 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
+import {changeCompanyConfig,normalizeEmployeeCompanies} from '../server/modules/company/index.ts';
 
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
-const api=read('api/admin/employee-companies.js');
+const api=read('api/admin/employee-companies.ts')+'\n'+read('server/modules/company/application/company-directory-service.ts');
 const core=read('public/legacy/app-core.js');
-const brand=read('server/modules/company/application/get-public-branding.js');
+const brand=read('server/modules/company/application/get-public-branding.ts');
 const sync=read('public/legacy/firebase-sync.js');
 
 function apiFunctions(){
-  const begin=api.indexOf('function companyKey(value)');
-  const end=api.indexOf('export default async function handler',begin);
-  const ctx={};
-  runInNewContext(api.slice(begin,end).replaceAll('export function','function')+'\nthis.changeCompanyConfig=changeCompanyConfig;',ctx);
-  return ctx;
+  return {changeCompanyConfig};
 }
 function browser(config={}){
   const begin=core.indexOf('function _cfgPublicBusiness(){');
@@ -90,7 +87,7 @@ test('interface exclui de verdade sem reativar e API mantém autorização admin
   assert.match(section,/data-company-action=\\\"delete|data-company-action=\"delete/);
   assert.match(section,/Excluir/);
   assert.doesNotMatch(section,/Reativar/);
-  assert.match(api,/requireIdentity\(req,\{admin:true\}\)/);
+  assert.match(api,/access: 'admin'/);
   assert.match(api,/ref\('erp\/companyDirectory'\)/);
   assert.match(brand,/deletedCompanies: stringList\(directory\.deletedCompanies\)/);
   assert.match(sync,/__erpApplyCompanyDirectory\(\{employeeCompanies:cfg\.companies/);

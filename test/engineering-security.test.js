@@ -13,12 +13,12 @@ test('perfil administrador herda permissões operacionais e matrícula',()=>{
 test('conta engAdministrator é login reservado, sem escalonamento por form comum',()=>{
  assert.equal(normalizeLogin('engAdministrator'),'engadministrator');
  assert.equal(sanitizeProfile({name:'x',role:'y',admin:true,engineer:true}).engineer,undefined);
- const manage=load('server/modules/access/application/manage-user.js');
+ const manage=load('server/modules/access/application/manage-user.ts');
  assert.match(manage,/ENGINEER_RESERVED/);
- assert.match(manage,/normalizeLogin\(input\?\.newLogin\)/);
- const auth=load('server/modules/access/application/authenticate-user.js');
- assert.match(auth,/selected\.record\.engineer === true/);
- assert.match(auth,/selected\.login === 'engadministrator'/);
+ assert.match(manage,/normalizeLogin\(input\.newLogin\) === ENGINEER_LOGIN/);
+ const auth=load('server/modules/access/application/authenticate-user.ts');
+ assert.match(auth,/const ENGINEER_LOGIN = 'engadministrator';/);
+ assert.match(auth,/login === ENGINEER_LOGIN && record\.engineer === true && record\.admin === true/);
  const identity=load('server/shared/http/auth.ts');
  assert.match(identity,/ENGINEER_REQUIRED/);
  assert.match(identity,/ENGINEER_REVOKED/);
@@ -45,13 +45,16 @@ test('regras da base de ajuda são server-only e auditoria lê apenas com claim 
  assert.match(rules.erpAudit['.read'],/auth.token.engineer == true/);
  assert.match(rules.erpAudit['.read'],/engadministrator/);
  assert.match(load('storage.rules'),/request.auth.token.engineer == true/);
- assert.match(load('api/engineering/logs.js'),/requireIdentity\(req,\{engineer:true\}\)/);
- assert.match(load('api/help/articles.js'),/await requireIdentity\(req,\{engineer:true\}\)/);
+ assert.match(load('api/engineering/logs.ts'),/access: 'engineer'/);
+ assert.match(load('api/help/articles.ts'),/access: 'engineer'/);
+ assert.match(load('api/help/articles.ts'),/await requireIdentity\(req, \{ engineer: true \}\)/);
 });
 test('telemetria jamais transmite dados sensíveis brutos e possui limite no servidor',()=>{
- const s=load('api/engineering/telemetry.js');
- assert.match(s,/maxBytes:4096/);
- assert.match(s,/Number\(v.count\)>=12/);
+ const endpoint=load('api/engineering/telemetry.ts');
+ const s=load('server/modules/audit/application/client-telemetry.ts');
+ assert.match(endpoint,/maxBodyBytes: 4096/);
+ assert.match(s,/const MAX_EVENTS = 12;/);
+ assert.match(s,/Number\(current\.count\) >= MAX_EVENTS/);
  assert.match(s,/createHash\('sha256'\)/);
  assert.doesNotMatch(s, /input\.stack|input\.message/);
  const front=load('public/modules/engineering/engineering.js');

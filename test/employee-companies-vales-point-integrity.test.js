@@ -2,10 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-const companyApi=readFileSync(new URL('../api/admin/employee-companies.js',import.meta.url),'utf8');
-const normalizer={};
-runInNewContext(companyApi.slice(companyApi.indexOf('function companyKey(value)'),companyApi.indexOf('export default async function handler(')).replaceAll('export function','function')+';this.normalizeEmployeeCompanies=normalizeEmployeeCompanies;',normalizer);
-const normalizeEmployeeCompanies=normalizer.normalizeEmployeeCompanies;
+import {normalizeEmployeeCompanies} from '../server/modules/company/index.ts';
+
 
 const core=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
 const master=readFileSync(new URL('../public/modules/master-data/master-data-forms.js',import.meta.url),'utf8');

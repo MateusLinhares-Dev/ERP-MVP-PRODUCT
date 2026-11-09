@@ -10,8 +10,8 @@ const mustExist = [
   'dist/app/rtdb-collection-policy.json',
   'dist/app/firebase-loader.js',
   'dist/legacy/app-core.js',
-  'api/config.js',
-  'api/auth/login.js',
+  'api/config.ts',
+  'api/auth/login.ts',
   'vercel.json',
 ];
 for (const rel of mustExist) {

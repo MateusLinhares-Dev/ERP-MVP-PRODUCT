@@ -2,19 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
+import {changeCompanyConfig,normalizeEmployeeCompanies} from '../server/modules/company/index.ts';
 
 const path=new URL('../public/legacy/app-core.js',import.meta.url);
 const source=readFileSync(path,'utf8');
 const html=readFileSync(new URL('../public/index.template.html',import.meta.url),'utf8');
-const api=readFileSync(new URL('../api/admin/employee-companies.js',import.meta.url),'utf8');
-const branding=readFileSync(new URL('../server/modules/company/application/get-public-branding.js',import.meta.url),'utf8');
+const api=readFileSync(new URL('../api/admin/employee-companies.ts',import.meta.url),'utf8')+'\n'+readFileSync(new URL('../server/modules/company/application/company-directory-service.ts',import.meta.url),'utf8');
+const branding=readFileSync(new URL('../server/modules/company/application/get-public-branding.ts',import.meta.url),'utf8');
 
 function companyApi(){
-  const start=api.indexOf('function companyKey(value)');
-  const end=api.indexOf('export default async function handler',start);
-  const context={};
-  runInNewContext(api.slice(start,end).replaceAll('export function','function')+'\nthis.changeCompanyConfig=changeCompanyConfig;this.normalizeEmployeeCompanies=normalizeEmployeeCompanies;',context);
-  return context;
+  return {changeCompanyConfig,normalizeEmployeeCompanies};
 }
 
 function companyUi(){
@@ -89,9 +86,9 @@ test('cadastro gerenciado possui exclusão definitiva pela API autenticada',()=>
   assert.match(source,/if\(!_usuarioAtualEhAdmin\(\)\)/);
   assert.match(source,/data-company-action/);
   assert.match(source,/data-company-action="delete/);
-  assert.match(api,/action==='delete'/);
+  assert.match(api,/action === 'delete'/);
   assert.match(source,/\/api\/admin\/employee-companies/);
-  assert.match(api,/requireIdentity\(req,\{admin:true\}\)/);
+  assert.match(api,/access: 'admin'/);
   assert.match(api,/db\.ref\('erp\/companyDirectory'\)/);
 });
 

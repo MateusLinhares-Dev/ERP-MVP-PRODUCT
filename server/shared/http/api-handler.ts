@@ -13,6 +13,8 @@ import {
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
+export type Body = Record<string, unknown>;
+
 export interface RouteContext<TBody> {
   req: ApiRequest;
   res: ApiResponse;

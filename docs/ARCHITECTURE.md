@@ -126,12 +126,35 @@ Para devolver um arquivo em vez de JSON, escreva na `res` e retorne `RAW_RESPONS
 | Etapa | Escopo | Situação |
 |---|---|---|
 | 1 | Ferramentas (TS, ESLint, Prettier), remoção de comentários, nova estrutura de pastas, núcleo `shared/`, módulo `quick-entry` e `api/quick` em TS | **Concluída** |
-| 2 | Servidor em TS: `access`, `audit`, `company`, `agenda`, `training`, `help`, `fiscal`, `snapshots` + seus endpoints | A fazer |
+| 2 | Servidor em TS: `access`, `audit`, `company`, `agenda`, `training`, `help`, `fiscal`, `snapshots` + endpoints `auth`, `admin`, `agenda`, `training`, `help`, `fiscal`, `engineering`, `config`, `public-config`, `health` | **Concluída** |
 | 3 | Servidor em TS: `purchases`, `advances`, `payables`, `supplier-repasses`, `banking` (regras financeiras) + endpoints | A fazer |
 | 4 | Interface: base React + Vite + TS; Lançamento rápido como primeira tela | A fazer |
 | 5+ | Interface: substituir o `public/legacy/app-core.js` módulo a módulo (compras, financeiro, cadastros, RH, frota, fiscal) | A fazer |
 
-Arquivos ainda em `.js` dentro de `server/modules` já estão na pasta certa e funcionam junto com o TypeScript (`allowJs`). Cada um vira `.ts` na sua etapa.
+Arquivos ainda em `.js` dentro de `server/modules` já estão na pasta certa e funcionam junto com o TypeScript (`allowJs`). Cada um vira `.ts` na sua etapa. Depois da etapa 2, só os módulos financeiros (`purchases`, `advances`, `payables`, `supplier-repasses`, `banking`) e seus endpoints em `api/finance` e `api/banking` continuam em `.js`.
+
+### O que a etapa 2 mudou
+
+- **Endpoints:** todos os endpoints não financeiros usam `defineApi`. A regra de negócio que estava dentro deles foi para os módulos:
+
+| Endpoint | Caso de uso |
+|---|---|
+| `api/admin/employee-companies.ts` | `company/application/company-directory-service.ts` |
+| `api/admin/branding.ts` | `company/application/update-branding.ts` |
+| `api/admin/snapshots.ts`, `restore-history.ts`, `data-backup.ts` | `snapshots/application/data-administration.ts` |
+| `api/training/matrix.ts` | `training/application/training-matrix.ts` (recebe `db` e `storage` por parâmetro) |
+| `api/help/articles.ts` | `help/application/help-center.ts` |
+| `api/agenda/services.ts` | `agenda/application/agenda-services.ts` |
+| `api/fiscal/staff.ts` | `fiscal/application/fiscal-staff-query.ts` |
+| `api/engineering/logs.ts`, `telemetry.ts` | `audit/application/audit-log.ts`, `client-telemetry.ts` |
+
+- **Fachada:** cada módulo tem `index.ts`, e os endpoints importam só dela.
+- **Erros:** todos têm código (`fail(status, 'CODIGO', mensagem)`). Erros que antes saíam sem código agora têm um próprio; por exemplo, o login com senha vazia devolve `INVALID_CREDENTIAL`.
+- **Texto:** `shared/domain/text.ts` (`hasControlChars`, `replaceControlChars`, `hasMarkup`) substitui as expressões regulares de caracteres de controle, que o ESLint recusa.
+- **Scripts:** os que importam o módulo `access` passam a rodar com `node --import tsx`: `seed:emulator`, `migrate:auth` e `provision:engineer`.
+- **Testes:** os que copiavam trechos do código dos endpoints agora importam os módulos `.ts`. Há dois testes novos:
+  - `api-endpoints-contract.test.js`: método aceito, origem e login exigido de cada endpoint;
+  - `access-login-integration.test.js`: login, bloqueio por tentativas e gestão de usuários contra o banco simulado.
 
 ## Fontes de verdade dos dados
 

@@ -7,7 +7,7 @@ const read=path=>fs.readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const avisos=read('public/legacy/app-avisos.js');
 const core=read('public/legacy/app-core.js');
 const matrix=read('public/modules/final-ops/final-ops.js');
-const backend=read('api/training/matrix.js');
+const backend=read('server/modules/training/application/training-matrix.ts');
 
 function birthdayHarness(day=3){
   const source=avisos.slice(avisos.indexOf('  function _isLegacyBirthdayTask('),avisos.indexOf('  function _fimExperiencia()'));
@@ -94,10 +94,10 @@ test('matriz apresenta pesquisa, edição de curso e exclusão de vínculo audit
   assert.match(matrix,/data-edit-course/);
   assert.match(matrix,/data-remove-enroll/);
   assert.match(matrix,/e\.notes\?/);
-  assert.match(backend,/action==='removeEnrollment'/);
-  assert.match(backend,/\['enrollments\/'\+key\]:null/);
-  assert.match(backend,/await commit\(\{/);
-  assert.match(backend,/root\.child\('enrollmentLocks\/'\+pairKey\)/);
+  assert.match(backend,/case 'removeEnrollment':/);
+  assert.match(backend,/\['enrollments\/' \+ key\]: null/);
+  assert.match(backend,/await this\.commit\(\{/);
+  assert.match(backend,/this\.root\.child\('enrollmentLocks\/' \+ pairKey\)/);
   assert.match(backend,/Esse funcionário já possui vínculo ativo/);
   assert.match(backend,/Esse vínculo possui certificado/);
 });
@@ -123,19 +123,12 @@ async function trainingApiHarness(){
       if(next===undefined)return {committed:false,snapshot:snapshots(path)};
       setPath(path,next);return {committed:true,snapshot:snapshots(path)};}
   });
-  const context={
-    console,crypto:{randomUUID},runTransaction,
-    getFirebaseAdmin:()=>({db:{ref},storage:{bucket:()=>({})}}),
-    loginFromStorageKey:x=>x,
-    requireIdentity:async()=>({admin:true,erpUser:'elaine',uid:'TEST_USER'}),
-    applyApiSecurityHeaders:()=>{},assertSameOrigin:()=>{},assertJsonBody:()=>{},
-    sendError:(res,e)=>res.status(e.status||500).json({message:e.message,code:e.code}),
-    ...domain
-  };
-  const script=backend.replace(/^import .+;\n/gm,'').replace('export default async function handler','async function handler');
-  vm.runInNewContext(script+'\nthis.handler=handler;',context);
-  const post=async(body)=>{let status=200;const res={status(n){status=n;return this;},json(data){return {status,data};}};
-    return context.handler({method:'POST',body,query:{}},res);
+  const {changeTrainingMatrix}=await import('../server/modules/training/index.ts');
+  const deps={db:{ref},storage:{bucket:()=>({})}};
+  const identity={admin:true,erpUser:'elaine',uid:'TEST_USER'};
+  const post=async(body)=>{
+    try{return {status:200,data:await changeTrainingMatrix(deps,identity,body)};}
+    catch(error){return {status:error.status||500,data:{message:error.message,code:error.code}};}
   };
   return {state,post};
 }

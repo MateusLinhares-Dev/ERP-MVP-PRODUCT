@@ -5,7 +5,7 @@ import {runInNewContext} from 'node:vm';
 
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const core=read('public/legacy/app-core.js');
-const api=read('api/admin/employee-companies.js');
+const api=read('api/admin/employee-companies.ts')+'\n'+read('server/modules/company/application/company-directory-service.ts');
 const sync=read('public/legacy/firebase-sync.js');
 
 function companyClient(fetcher){
@@ -79,9 +79,9 @@ test('servidor que recusa POST não tem segundo envio',async()=>{
 });
 
 test('GET administrativo permite leitura de confirmacao com revisao e nao expõe dados sem identidade',()=>{
-  assert.match(api,/if\(req\.method==='GET'\)/);
-  assert.match(api,/await requireIdentity\(req,\{admin:true\}\)/);
-  assert.match(api,/Cache-Control','no-store, max-age=0'/);
+  assert.match(api,/GET: \{ access: 'admin', handle: \(\) => readCompanyDirectory/);
+  assert.match(api,/POST: \{\s*access: 'admin'/);
+  assert.match(read('server/shared/http/http.ts'),/'Cache-Control', 'no-store, max-age=0'/);
   assert.match(api,/companyDirectoryResponse\(await getCompanyDirectory\(db\)\)/);
 });
 
