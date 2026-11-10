@@ -35,7 +35,7 @@ test('artigos possuem validações, bloqueio de XSS na interface e controle de v
  assert.doesNotThrow(()=>validateArticleId('h_'+'a'.repeat(32)));
  assert.throws(()=>validateArticleId('../../../etc'));
  assert.throws(()=>assertRevision({revision:2},1),{code:'REVISION_CONFLICT'});
- assert.match(load('public/modules/help-center/help-center.js'),/const esc=/);
+ assert.doesNotMatch(load('web/modules/help-center/ui/HelpCenter.tsx'),/dangerouslySetInnerHTML|innerHTML/,'React escapa o texto dos artigos');
 });
 test('regras da base de ajuda são server-only e auditoria lê apenas com claim engenharia',()=>{
  const rules=JSON.parse(load('database.rules.json')).rules;

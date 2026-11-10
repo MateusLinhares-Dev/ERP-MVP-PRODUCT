@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {ABS,decimalCents,validatePlan,remainingForTarget,suggestions,suggestCombinations,batchSuggestions} from '../public/modules/banking/reconciliation-engine.mjs';
+import {ABS,decimalCents,validatePlan,remainingForTarget,suggestions,suggestCombinations,batchSuggestions,scoreMatch} from '../server/modules/banking/domain/reconciliation-engine.ts';
 import {executeReconciliation} from '../server/modules/banking/application/reconciliation.js';
 const identity={uid:'uid-A',erpUser:'Elaine',erpAccess:true,canBanking:true,canFinance:true,canReceivables:true};
 const imp=(id,n)=>({id,date:'2026-10-26',amountCents:String(n),description:'Compra fornecedores'});
@@ -167,4 +167,15 @@ test('cliente identifica status e ID da requisição sem expor erros internos',(
   assert.match(ui,/X-Request-Id/);
   assert.match(ui,/e\.status===409/);
   assert.match(ui,/Confira o histórico antes de tentar novamente/);
+});
+
+test('sugestão: lançamento do mesmo dia vale mais que o de 1 dia depois (antes 0 dia virava 45)',()=>{
+  const entry={id:'I1',date:'2026-11-10',description:'PIX FORNECEDOR',amountCents:'-10000'};
+  const sameDay={kind:'payable',id:'P1',date:'2026-11-10',description:'Compra',amount:'100,00'};
+  const nextDay={...sameDay,id:'P2',date:'2026-11-11'};
+  assert.equal(scoreMatch(entry,sameDay,10000n),80);
+  assert.equal(scoreMatch(entry,nextDay,10000n),79);
+  const planned=batchSuggestions([entry],[sameDay],new Map());
+  assert.equal(planned.length,1,'conciliação em lote agora sugere o par do mesmo dia');
+  assert.equal(planned[0].allocations[0].id,'P1');
 });
