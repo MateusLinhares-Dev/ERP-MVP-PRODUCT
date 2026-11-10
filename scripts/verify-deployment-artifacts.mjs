@@ -10,6 +10,8 @@ const mustExist = [
   'dist/app/rtdb-collection-policy.json',
   'dist/app/firebase-loader.js',
   'dist/legacy/app-core.js',
+  'dist/rapido/index.html',
+  'dist/rapido/manifest.webmanifest',
   'api/config.ts',
   'api/auth/login.ts',
   'vercel.json',
@@ -24,6 +26,15 @@ catch { errors.push('vercel.json inválido.'); }
 if (vercel.buildCommand !== 'npm run build') errors.push('vercel.json deve usar buildCommand = npm run build');
 if (vercel.outputDirectory !== 'dist') errors.push('vercel.json deve usar outputDirectory = dist');
 if (vercel.framework !== null) errors.push('vercel.json deve manter framework=null (Other/static + Functions).');
+
+const quickEntryPage = path.join(root, 'dist/rapido/index.html');
+if (fs.existsSync(quickEntryPage)) {
+  const html = fs.readFileSync(quickEntryPage, 'utf8');
+  const script = /<script type="module" crossorigin src="(\/web\/[^"]+\.js)"><\/script>/.exec(html);
+  if (!script) errors.push('dist/rapido/index.html não aponta para o pacote React em /web/.');
+  else if (!fs.existsSync(path.join(root, 'dist', script[1]))) errors.push(`Pacote do Lançamento rápido ausente: dist${script[1]}`);
+  if (/\.tsx?["']/.test(html)) errors.push('dist/rapido/index.html ainda referencia código-fonte .ts/.tsx.');
+}
 
 function walk(dir) {
   if (!fs.existsSync(dir)) return [];

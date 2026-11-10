@@ -28,7 +28,20 @@ server/
       application/          Casos de uso (o "o que fazer") + ports.ts (interfaces que precisam)
       infrastructure/       Implementações concretas: Realtime Database, Storage, Claude...
       index.ts              Composição: monta o módulo ligando application às implementações
-public/                   Interface (legado em JS; vai virar React + Vite)
+web/                      Interface nova (React + Vite + TypeScript)
+  pages/<tela>/index.html   Página de cada tela; o endereço publicado é /<tela>/
+  shared/                   Peças comuns das telas
+    auth/                     Login do Firebase (mesma sessão do ERP)
+    http/api-client.ts        Chamadas à API com token, nova tentativa em 401 e mensagens de erro
+    domain/                   Funções puras: texto, números digitados, formatos, ids
+    ui/                       Ícones, aviso (toast) e ganchos (hooks) comuns
+  modules/<tela>/
+    domain/                   Regras puras da tela (testáveis com node:test)
+    application/              Chamadas à API, sessão, voz, histórico do navegador
+    ui/                       Componentes React e CSS
+    main.tsx                  Ponto de entrada
+public/                   Interface legada em JS (encolhe a cada etapa) + arquivos estáticos
+vite.config.ts            Build das telas React para dist/ (chamado por scripts/build.mjs)
 test/                     Testes (node:test, executados via tsx)
 ```
 
@@ -102,7 +115,7 @@ Para devolver um arquivo em vez de JSON, escreva na `res` e retorne `RAW_RESPONS
 ## Convenções de código
 
 - **TypeScript estrito:** `tsconfig.json` com `strict` e `noUncheckedIndexedAccess`. Evite `any`; dados do banco entram como `unknown` e são validados.
-- **Imports relativos com extensão `.js`**, mesmo apontando para arquivos `.ts`. É o padrão NodeNext, aceito por `tsc`, `tsx` e Vercel.
+- **Imports relativos com extensão `.js`**, mesmo apontando para arquivos `.ts` ou `.tsx`. É o padrão NodeNext, aceito por `tsc`, `tsx`, Vite e Vercel. Vale também em `web/`.
 - **Formatação:** Prettier, aplicado por `npm run format`.
 - **Lint:** ESLint com `typescript-eslint` e a regra própria `erp/no-comments`, que impede comentários.
 - **Dinheiro:** cálculos em **centavos** (inteiros) e conversão para reais só na saída.
@@ -114,10 +127,11 @@ Para devolver um arquivo em vez de JSON, escreva na `res` e retorne `RAW_RESPONS
 
 | Comando | O que faz |
 |---|---|
-| `npm run typecheck` | Verifica os tipos |
+| `npm run typecheck` | Verifica os tipos do servidor (`tsconfig.json`) e das telas (`web/tsconfig.json`) |
 | `npm run lint` | ESLint (inclui a proibição de comentários) |
-| `npm run format` | Formata os arquivos `.ts` |
+| `npm run format` | Formata `server/`, `api/` e `web/` (`.ts`, `.tsx`, `.css`, `.html`) |
 | `npm test` | Todos os testes (node:test via tsx) |
+| `npm run build` | Copia `public/` para `dist/` e roda o Vite, que gera as telas React |
 | `npm run check` | Tudo acima + build. Rode antes de cada commit |
 | `npm run check:release` | `check` + verificações de segurança e de deploy |
 
@@ -128,10 +142,35 @@ Para devolver um arquivo em vez de JSON, escreva na `res` e retorne `RAW_RESPONS
 | 1 | Ferramentas (TS, ESLint, Prettier), remoção de comentários, nova estrutura de pastas, núcleo `shared/`, módulo `quick-entry` e `api/quick` em TS | **Concluída** |
 | 2 | Servidor em TS: `access`, `audit`, `company`, `agenda`, `training`, `help`, `fiscal`, `snapshots` + endpoints `auth`, `admin`, `agenda`, `training`, `help`, `fiscal`, `engineering`, `config`, `public-config`, `health` | **Concluída** |
 | 3 | Servidor em TS: `purchases`, `advances`, `payables`, `supplier-repasses`, `banking` (regras financeiras) + endpoints `api/finance` e `api/banking` | **Concluída** |
-| 4 | Interface: base React + Vite + TS; Lançamento rápido como primeira tela | A fazer |
+| 4 | Interface: base React + Vite + TS (`web/`); Lançamento rápido como primeira tela | **Concluída** |
 | 5+ | Interface: substituir o `public/legacy/app-core.js` módulo a módulo (compras, financeiro, cadastros, RH, frota, fiscal) | A fazer |
 
 Todo o servidor (`server/` e `api/`) está em TypeScript desde a etapa 3. O `allowJs` continua ligado por um único motivo: a conciliação bancária usa o motor `public/modules/banking/reconciliation-engine.mjs`, que é o mesmo da tela. O servidor importa esse arquivo por meio de um adaptador tipado (`server/modules/banking/domain/reconciliation-engine.ts`).
+
+### O que a etapa 4 mudou
+
+- **Nova pasta `web/`** com a interface em React 19 + Vite 8 + TypeScript estrito (`web/tsconfig.json`).
+- **Lançamento rápido em React** (`web/modules/quick-entry/`):
+  - mesmas telas, mesmo visual, mesmo endereço `/rapido/` e mesmo login do ERP;
+  - os 4 arquivos antigos (`public/rapido/index.html`, `rapido.js`, `parser.js`, `rapido.css`) foram removidos;
+  - manifest e ícones continuam em `public/rapido/`.
+- **Build:**
+  - `scripts/build.mjs` copia `public/` e depois chama o Vite;
+  - o Vite grava `dist/rapido/index.html` e os pacotes com hash em `dist/web/`;
+  - a Vercel não mudou (`npm run build` → `dist/`).
+- **Cache:** `vercel.json` marca `/web/*` como `immutable`, porque o nome do arquivo muda a cada versão. A página `index.html` não fica em cache, então a versão nova chega sem `?v=`.
+- **Login nas telas novas:**
+  - `web/shared/auth/firebase-session.ts` carrega só o app e o auth do Firebase (9.23.0, o mesmo do ERP);
+  - a sessão fica no `sessionStorage`, compartilhada com o ERP.
+- **Lint:** `eslint-plugin-react-hooks` (regras do React Compiler), com `exhaustive-deps` como erro.
+- **Verificação de deploy:** `verify-deployment-artifacts.mjs` confere que `dist/rapido/index.html` aponta para um pacote existente em `/web/`.
+- **Testes:** a varredura de segredos (`security-scan.test.js`) também olha `web/`.
+
+Para criar a próxima tela React:
+
+1. Crie `web/pages/<tela>/index.html`, apontando para `../../modules/<tela>/main.tsx`.
+2. Adicione a página em `build.rolldownOptions.input` no `vite.config.ts`.
+3. Coloque as regras em `domain/` (com testes em `test/`), as chamadas em `application/` e os componentes em `ui/`.
 
 ### O que a etapa 3 mudou
 

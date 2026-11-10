@@ -69,7 +69,12 @@ Pagamento, recebimento, adiantamentos e cheques continuam sendo feitos no ERP pe
 
 ## Técnico
 
-- Tela: `public/rapido/` (`index.html`, `rapido.js`, `parser.js`, `rapido.css`, manifest e ícones).
+- Tela: React + TypeScript em `web/modules/quick-entry/` (desde a etapa 4 da migração; veja `docs/ARCHITECTURE.md`).
+  - Página: `web/pages/rapido/index.html`. O build gera `dist/rapido/index.html` e o pacote em `dist/web/`.
+  - Interpretador de fala do aparelho: `web/modules/quick-entry/domain/speech-parser.ts` (`interpretSpeech`).
+  - Regras do formulário (rascunho, validação, aplicar a fala, montar o envio): `domain/entry-draft.ts`.
+  - Manifest e ícones continuam em `public/rapido/`.
+  - O endereço continua `/rapido/`, e o login continua sendo o do ERP.
 - API: `api/quick/{options,purchase,sale,history,attachment,interpret}.ts`.
 - Regras de negócio: módulo `server/modules/quick-entry/` (domínio, casos de uso, infraestrutura e `index.ts`; veja `docs/ARCHITECTURE.md`).
 - Permissão:
@@ -79,4 +84,12 @@ Pagamento, recebimento, adiantamentos e cheques continuam sendo feitos no ERP pe
 - `vercel.json`: `microphone=(self)`, liberado só para o próprio site; antes estava bloqueado. `maxDuration` de 30 s em interpret, purchase e attachment.
 - Testes:
   - `test/quick-entry.test.js`: SDK real contra o RTDB simulado. Cobre compra, venda, idempotência, número de pedido, anexos, histórico, IA, interpretador e redirecionamento do login.
-  - A tela foi testada em Chromium com tela de celular: preencher pela fala, conferir, salvar, voltar, venda manual, anexo e histórico.
+  - `test/quick-entry-web.test.js`: regras do formulário da tela (números digitados, validação, aplicar a fala, troca compra/venda, tabela de preço, busca, envio e nova tentativa).
+  - A tela React foi testada em Chromium com tela de celular (57 verificações):
+    - preencher pela fala e pelo microfone;
+    - troca automática de venda para compra;
+    - busca e troca de fornecedor; preço da tabela;
+    - anexo; conferir; voltar pelo navegador;
+    - salvar com nova tentativa sem duplicar;
+    - rascunho guardado; histórico com foto;
+    - usuário sem permissão e usuário sem sessão.
