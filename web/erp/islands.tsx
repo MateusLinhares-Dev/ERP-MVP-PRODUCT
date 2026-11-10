@@ -7,6 +7,9 @@ import { createApiClient } from '../shared/http/api-client.js';
 import { ChequeReport } from '../modules/cheque-report/ui/ChequeReport.js';
 import { HELP_CATEGORIES } from '../modules/help-center/domain/help-articles.js';
 import { HelpCenter } from '../modules/help-center/ui/HelpCenter.js';
+import { AuditLogs } from '../modules/engineering/ui/AuditLogs.js';
+import { HelpEditor } from '../modules/engineering/ui/HelpEditor.js';
+import { installErrorTelemetry } from '../shared/observability/telemetry.js';
 
 const CHEQUE_REPORT = 'adt-cheques-report';
 const roots = new Map<string, Root>();
@@ -96,3 +99,89 @@ Object.assign(window, {
 
 const openHelpTab = document.getElementById('tab-help_center');
 if (openHelpTab?.classList.contains('active')) renderHelpCenter(openHelpTab);
+
+const ENGINEERING_TABS = [
+  { id: 'engineering_logs', label: 'Auditoria e logs', icon: '▤' },
+  { id: 'engineering_help', label: 'Gestão da Ajuda', icon: '✎' },
+] as const;
+const ENGINEER_LOGIN = 'engadministrator';
+
+const loadAuditLogs = (query: string) => api.request<unknown>('/api/engineering/logs?' + query);
+const sendHelpArticle = (body: unknown) =>
+  api.request<{ id?: string }>('/api/help/articles', { method: 'POST', body });
+const confirmDelete = (message: string) => window.confirm(message);
+
+function renderEngineeringTab(id: string): void {
+  const host = document.getElementById('tab-' + id);
+  if (!host) return;
+  const node =
+    id === 'engineering_logs' ? (
+      <AuditLogs key={Date.now()} load={loadAuditLogs} />
+    ) : (
+      <HelpEditor
+        key={Date.now()}
+        load={loadHelpArticles}
+        send={sendHelpArticle}
+        confirmDelete={confirmDelete}
+      />
+    );
+  mountElement(host, node);
+}
+
+function showEngineeringTab(id: string): void {
+  for (const tab of ENGINEERING_TABS)
+    document.getElementById('tab-' + tab.id)?.classList.toggle('active', tab.id === id);
+  legacyNavigation().switchTab?.(id);
+  renderEngineeringTab(id);
+}
+
+function installEngineeringMenu(): void {
+  const nav = document.getElementById('nav-bar');
+  if (!nav || nav.querySelector('[data-tab="engineering_logs"]')) return;
+  const group = document.createElement('div');
+  group.className = 'sb-group open mm-eng-group';
+  const header = document.createElement('div');
+  header.className = 'sb-group-hdr';
+  header.innerHTML =
+    '<span class="sb-gicon">⚙</span><span class="sb-glabel">Engenharia</span><span class="sb-arr">▶</span>';
+  header.onclick = () => group.classList.toggle('open');
+  const items = document.createElement('div');
+  items.className = 'sb-items';
+  for (const tab of ENGINEERING_TABS) {
+    const panel = document.createElement('section');
+    panel.className = 'tab-panel mm-eng-panel';
+    panel.id = 'tab-' + tab.id;
+    document.querySelector('.app-body .content')?.append(panel);
+    const item = document.createElement('div');
+    item.className = 'nav-tab';
+    item.dataset.tab = tab.id;
+    const icon = document.createElement('span');
+    icon.className = 'nt-icon';
+    icon.textContent = tab.icon;
+    const label = document.createElement('span');
+    label.className = 'nt-label';
+    label.textContent = tab.label;
+    item.append(icon, label);
+    item.onclick = () => showEngineeringTab(tab.id);
+    items.append(item);
+  }
+  group.append(header, items);
+  nav.append(group);
+}
+
+async function initializeEngineering(): Promise<void> {
+  try {
+    const user = erpSessionUser();
+    const isEngineerProfile =
+      (window as unknown as { erpIsEngineer?: () => boolean }).erpIsEngineer?.() === true;
+    if (!user || !isEngineerProfile) return;
+    const { claims } = await user.getIdTokenResult();
+    if (claims.engineer === true && claims.erpUser === ENGINEER_LOGIN) installEngineeringMenu();
+  } catch (error) {
+    console.warn('[engenharia] menu não instalado', error);
+  }
+}
+
+installErrorTelemetry(erpSessionUser);
+document.addEventListener('erp:user-started', () => queueMicrotask(() => void initializeEngineering()));
+void initializeEngineering();

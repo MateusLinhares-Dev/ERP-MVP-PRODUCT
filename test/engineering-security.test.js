@@ -57,7 +57,7 @@ test('telemetria jamais transmite dados sensíveis brutos e possui limite no ser
  assert.match(s,/Number\(current\.count\) >= MAX_EVENTS/);
  assert.match(s,/createHash\('sha256'\)/);
  assert.doesNotMatch(s, /input\.stack|input\.message/);
- const front=load('public/modules/engineering/engineering.js');
+ const front=load('web/shared/observability/telemetry.ts');
  assert.match(front,/unhandledrejection/);
  assert.match(front,/js_error/);
  assert.doesNotMatch(front, /stack:/);

@@ -23,9 +23,8 @@ test('salvamento e exclusão de contas exigem confirmação, sem limpar forneced
 });
 test('restauração mantém RH iD e paginação do app-core e carrega engenharia na ordem certa',()=>{
  for(const value of ['_rhidAssinaturaFuncionarios','freeDown<270&&freeUp>freeDown','_erpPaginarDados(','_RHID_PREVIA_POR_PAGINA = 6'])assert.ok(core.includes(value),value);
- for(const name of ['rhid-card-reader.js','list-pagination.js','final-ops.js','engineering.js'])assert.ok(bootstrap.includes(name),name);
+ for(const name of ['rhid-card-reader.js','list-pagination.js','final-ops.js'])assert.ok(bootstrap.includes(name),name);
  assert.ok(bootstrap.indexOf('rhid-card-reader.js')<bootstrap.indexOf('/legacy/app-core.js'));
- assert.ok(bootstrap.indexOf('final-ops.js')<bootstrap.indexOf('engineering.js'));
  const occ=(bootstrap.match(/loadClassic\('\/modules\/phase1\/phase1-searchable-select\.js'\)/g)||[]).length;
  assert.equal(occ,1);
 });

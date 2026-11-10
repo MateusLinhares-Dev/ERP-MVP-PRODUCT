@@ -42,8 +42,6 @@ test('fluxo de documentos da ajuda não injeta conteúdo automático', () => {
   assert.match(read('database.rules.json'), /"erpHelp"/);
 });
 
-test('final-ops continua chamando a Central pela mesma função e engenharia carrega depois', () => {
-  const bootstrap = read('public/app/bootstrap.js');
-  assert.ok(bootstrap.indexOf('final-ops.js') < bootstrap.indexOf('engineering.js'));
+test('final-ops continua chamando a Central pela mesma função', () => {
   assert.match(read('public/modules/final-ops/final-ops.js'), /ERPHelpCenter\?\.render/);
 });
