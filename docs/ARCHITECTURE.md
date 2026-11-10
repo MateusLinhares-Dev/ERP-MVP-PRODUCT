@@ -143,9 +143,9 @@ Para devolver um arquivo em vez de JSON, escreva na `res` e retorne `RAW_RESPONS
 | 2 | Servidor em TS: `access`, `audit`, `company`, `agenda`, `training`, `help`, `fiscal`, `snapshots` + endpoints `auth`, `admin`, `agenda`, `training`, `help`, `fiscal`, `engineering`, `config`, `public-config`, `health` | **Concluída** |
 | 3 | Servidor em TS: `purchases`, `advances`, `payables`, `supplier-repasses`, `banking` (regras financeiras) + endpoints `api/finance` e `api/banking` | **Concluída** |
 | 4 | Interface: base React + Vite + TS (`web/`); Lançamento rápido como primeira tela | **Concluída** |
-| 5+ | Interface: substituir o `public/legacy/app-core.js` módulo a módulo (compras, financeiro, cadastros, RH, frota, fiscal), como **ilhas React** dentro do ERP | **Em andamento**: base das ilhas + Relatório de cheques |
+| 5+ | Interface: substituir o `public/legacy/app-core.js` módulo a módulo (compras, financeiro, cadastros, RH, frota, fiscal), como **ilhas React** dentro do ERP | **Em andamento**: base das ilhas, Relatório de cheques e Central de Ajuda |
 
-Todo o servidor (`server/` e `api/`) está em TypeScript desde a etapa 3. O `allowJs` continua ligado por um único motivo: a conciliação bancária usa o motor `public/modules/banking/reconciliation-engine.mjs`, que é o mesmo da tela. O servidor importa esse arquivo por meio de um adaptador tipado (`server/modules/banking/domain/reconciliation-engine.ts`).
+Todo o servidor (`server/` e `api/`) está em TypeScript desde a etapa 3. Desde a etapa 5, o `allowJs` está desligado. O motor de conciliação bancária saiu de `public/` (só o servidor o usava) e virou `server/modules/banking/domain/reconciliation-engine.ts`.
 
 ### Etapa 5: ilhas React dentro do ERP
 
@@ -162,8 +162,16 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
   - o `verify-deployment-artifacts.mjs` reprova o deploy sem esse pacote.
 - **Telas migradas:**
   - Relatório de cheques (`web/modules/cheque-report/`). O antigo `public/modules/finance/advance-cheque-report.js` foi removido.
-  - A tela React usa os mesmos ids e classes, então o CSS e os testes de tela continuaram valendo.
-- **Próxima:** cadastro de Fornecedores. Antes, ele precisa de uma API no servidor, porque hoje grava pelo sincronismo do navegador.
+  - Central de Ajuda (`web/modules/help-center/`). O antigo `public/modules/help-center/help-center.js` foi removido. O `final-ops.js` continua chamando `window.ERPHelpCenter.render(host)`, que agora monta a tela React.
+  - As telas React usam os mesmos ids e classes, então o CSS e os testes de tela continuaram valendo.
+- **Ordem das próximas migrações:**
+  1. Primeiro as telas que só usam APIs do servidor: Engenharia (logs e editor da Ajuda), Integrações bancárias, Repasses de caixa a fornecedor, Recuperação de adiantamentos órfãos.
+  2. Depois Fornecedores. Antes, ele precisa de uma API no servidor, porque hoje grava pelo sincronismo do navegador e a lista em memória (`FORNECEDORES`) é lida por dezenas de telas.
+- **Limpeza feita na etapa 5:**
+  - scripts avulsos de incidentes já resolvidos (fornecedor de teste F675, ticket T284, adiantamento excluído);
+  - migrações únicas já aplicadas (`migrate:auth`, `migrate:storage`);
+  - `SHA256SUMS.txt` desatualizado e arquivos `:Zone.Identifier` do Windows;
+  - `bootstrap-admin.json`, que tinha o hash de senha da administradora e não era usado.
 
 Para migrar uma tela:
 

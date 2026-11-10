@@ -252,7 +252,6 @@ async function main() {
   await Promise.all([
     loadClassic('/legacy/operations-polish.js'),
     loadClassic('/legacy/workspace-navigation.js'),
-    loadClassic('/modules/help-center/help-center.js'),
     loadClassic('/modules/final-ops/final-ops.js'),
     loadClassic('/modules/fiscal/fiscal-stock-origins.js'),
     loadClassic('/modules/finance/advance-actions.js'),

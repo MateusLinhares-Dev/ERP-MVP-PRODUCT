@@ -10,8 +10,6 @@
     "dev:vercel": "node scripts/prepare-local-env.mjs && node scripts/vercel-dev.mjs",
     "dev": "node scripts/prepare-local-env.mjs && concurrently -k -n FIREBASE,APP \"npm:emulators\" \"wait-on http://127.0.0.1:4000 && npm run seed:emulator && npm run dev:vercel\"",
     "test": "node --import tsx --test test/*.test.js",
-    "migrate:auth": "node --import tsx scripts/migrate-legacy-auth.mjs",
-    "migrate:storage": "node scripts/migrate-storage.mjs",
     "smoke:local": "node scripts/prepare-local-env.mjs && node --env-file=.env.erp.local scripts/smoke-local.mjs",
     "dev:static": "node scripts/static-dev.mjs",
     "check:demo": "npm test && npm run build",

@@ -226,3 +226,28 @@ export function operationKeyOf(identity: Identity, operationId: string): string 
     pathKey(String(identity.uid || identity.erpUser || 'user').replace(/[^\w-]/g, '_')) + '_' + operationId
   );
 }
+
+const CHEQUE_ACCENTS = new RegExp('[\\u0300-\\u036f]', 'g');
+
+export function normalizeChequeBank(bank: unknown): string {
+  return String(bank ?? '')
+    .normalize('NFD')
+    .replace(CHEQUE_ACCENTS, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function isGenericChequeBank(bank: unknown): boolean {
+  const name = normalizeChequeBank(bank);
+  return !name || name.includes('terceiro');
+}
+
+export function chequeIdentity(bank: unknown, number: unknown): string | null {
+  if (isGenericChequeBank(bank)) return null;
+  const digits = String(number ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^0+(?=[0-9a-z])/, '');
+  return digits ? normalizeChequeBank(bank) + '|' + digits : null;
+}

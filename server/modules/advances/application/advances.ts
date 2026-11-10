@@ -17,6 +17,7 @@ import {
   assertLinkedBankMovement,
   bankEntries,
   chequeFingerprint,
+  chequeIdentity,
   clean,
   expectedMatches,
   failure,
@@ -89,11 +90,6 @@ async function resolveDatabase(db?: Database): Promise<Database> {
   const { getFirebaseAdmin } = await import('../../../shared/firebase/firebase-admin.js');
   return getFirebaseAdmin().db;
 }
-
-const lower = (value: unknown): string =>
-  String(value || '')
-    .trim()
-    .toLocaleLowerCase('pt-BR');
 
 function inProgress(message: string, active: unknown, now: () => number): AppError {
   const seconds = Math.ceil((Number((active as { expiresAt?: unknown } | null)?.expiresAt) - now()) / 1000);
@@ -227,38 +223,24 @@ function parseCheques(input: Row, forma: string, date: string, value: number): C
   if (totalCents !== Math.round(value * 100)) {
     failure(422, 'CHEQUE_TOTAL_MISMATCH', 'A soma dos cheques deve ser igual ao valor do adiantamento.');
   }
-  const ids = new Set<string>();
-  const duplicateRows: ChequeInput[] = [];
-  for (const cheque of cheques) {
+  const seen = new Map<string, number>();
+  cheques.forEach((cheque, index) => {
     if (forma === 'Cheque de Terceiro' && !cheque.cli) {
       failure(422, 'CHEQUE_DRAWER_REQUIRED', 'Informe o dono/emitente de cada cheque de terceiro.');
     }
-    const key = (cheque.b + '|' + cheque.n).toLocaleLowerCase('pt-BR');
-    if (ids.has(key)) {
-      if (forma === 'Cheque')
-        failure(
-          409,
-          'DUPLICATE_CHEQUE',
-          'Cheque próprio repetido na lista: ' + cheque.b + ' nº ' + cheque.n + '.',
-        );
-      duplicateRows.push(cheque);
+    const identity = chequeIdentity(cheque.b, cheque.n);
+    if (!identity) return;
+    const first = seen.get(identity);
+    if (first !== undefined) {
+      failure(
+        409,
+        'DUPLICATE_CHEQUE',
+        `Cheque repetido na lista: ${cheque.b} nº ${cheque.n} (linhas ${first + 1} e ${index + 1}). ` +
+          'O mesmo banco não pode ter dois cheques com o mesmo número.',
+      );
     }
-    ids.add(key);
-  }
-  const firstDuplicate = duplicateRows[0];
-  if (firstDuplicate && input.confirmDuplicates !== true) {
-    failure(
-      409,
-      'CHEQUE_DUPLICATE_CONFIRMATION_REQUIRED',
-      'Há ' +
-        duplicateRows.length +
-        ' cheque(s) de terceiro com banco e número repetidos nesta lista (ex.: ' +
-        firstDuplicate.b +
-        ' nº ' +
-        firstDuplicate.n +
-        '). Confirme conscientemente para continuar.',
-    );
-  }
+    seen.set(identity, index);
+  });
   return cheques;
 }
 
@@ -287,7 +269,6 @@ export async function createAdvance(
   const chequeSituation = clean(input.chequeSituation || 'A', 1);
   if (isCheque && !['A', 'C'].includes(chequeSituation))
     failure(422, 'INVALID_CHEQUE_STATUS', 'Situação do cheque inválida.');
-  const confirmDuplicates = input.confirmDuplicates === true;
   const cheques = isCheque ? parseCheques(input, forma, date, value) : [];
   const requestFingerprint = createHash('sha256')
     .update(
@@ -353,11 +334,12 @@ export async function createAdvance(
     }
     const committed = await replay((await opRef.get()).val() as StoredOperation | null);
     if (committed) return committed;
-    const [banksSnap, suppliersSnap, advancesSnap, chequesSnap] = await Promise.all([
+    const [banksSnap, suppliersSnap, advancesSnap, chequesSnap, deletedChequesSnap] = await Promise.all([
       isCheque ? Promise.resolve(null) : instance.ref('erp/bancos').get(),
       instance.ref('erp/fornecedores').get(),
       instance.ref('erp/adiantamentos/' + fornCod).get(),
       isCheque ? instance.ref('erp/chequesControle').get() : Promise.resolve(null),
+      isCheque ? instance.ref('erp/chequesControle_del').get() : Promise.resolve(null),
     ]);
     const suppliers: unknown = suppliersSnap.val();
     if (!supplierExists(suppliers, fornCod))
@@ -386,34 +368,29 @@ export async function createAdvance(
     const createdCheques: ChequeRecord[] = [];
     if (isCheque) {
       const storedCheques = (chequesSnap?.val() ?? {}) as Record<string, unknown>;
-      const previousCheques = Object.values(storedCheques).filter(
-        (cheque): cheque is ChequeRecord => Boolean(cheque) && typeof cheque === 'object',
-      );
+      const deletedCheques = (deletedChequesSnap?.val() ?? {}) as Record<string, unknown>;
+      const registered = new Map<string, ChequeRecord>();
+      for (const [storedId, raw] of Object.entries(storedCheques)) {
+        if (!raw || typeof raw !== 'object' || deletedCheques[storedId]) continue;
+        const stored = raw as ChequeRecord;
+        const identity = stored.s === 'X' ? null : chequeIdentity(stored.b, stored.n);
+        if (identity && !registered.has(identity)) registered.set(identity, stored);
+      }
       for (const [chequeIndex, cheque] of cheques.entries()) {
-        const duplicatedInBatch = cheques
-          .slice(0, chequeIndex)
-          .some((old) => lower(old.b) === lower(cheque.b) && lower(old.n) === lower(cheque.n));
-        const duplicated = previousCheques.some(
-          (old) => lower(old.b) === lower(cheque.b) && lower(old.n) === lower(cheque.n),
-        );
-        if (duplicated && forma === 'Cheque') {
+        const identity = chequeIdentity(cheque.b, cheque.n);
+        const existing = identity ? registered.get(identity) : undefined;
+        if (existing) {
+          const where = [
+            existing.advanceCode ? 'adiantamento ' + clean(existing.advanceCode, 60) : '',
+            clean(existing.dest, 120),
+          ]
+            .filter(Boolean)
+            .join(', ');
           failure(
             409,
             'CHEQUE_ALREADY_EXISTS',
-            'Cheque próprio ' + cheque.n + ' de ' + cheque.b + ' já cadastrado.',
-          );
-        }
-        if (duplicated && !confirmDuplicates) {
-          failure(
-            409,
-            'CHEQUE_DUPLICATE_CONFIRMATION_REQUIRED',
-            'Cheque de terceiro nº ' +
-              cheque.n +
-              ' do banco ' +
-              cheque.b +
-              ' já existe. Confira o emitente (' +
-              cheque.cli +
-              '), valor e documento e confirme para manter ambos.',
+            `Cheque ${cheque.b} nº ${cheque.n} já está cadastrado${where ? ' (' + where + ')' : ''}. ` +
+              'O mesmo banco não pode ter dois cheques com o mesmo número.',
           );
         }
         const slug =
@@ -454,7 +431,6 @@ export async function createAdvance(
           advanceCode: id,
           fornCod,
           tipoCheque: forma,
-          duplicidadeConfirmada: Boolean(duplicated || duplicatedInBatch),
         };
         if (empresa) record.origem = empresa;
         createdCheques.push(record);

@@ -281,27 +281,37 @@ test('sincronização limpa cache bancário antigo quando perfil não tem canBan
   assert.match(sync,/localStorage\.removeItem\(key\)/);
 });
 
-test('cheque de terceiro repetido exige confirmação; mesmo número de emissores distintos mantém ambos',async()=>{
+test('regra da cliente: só não pode repetir o mesmo banco com o mesmo número',async()=>{
   const db=fakeDb();
-  const rows=[
+  const generic=[
     {b:'Cheque de Terceiro',n:'175',v:500,d:'2026-11-05',cli:'EMERSON WARMLING'},
     {b:'Cheque de Terceiro',n:'175',v:800,d:'2026-11-05',cli:'RESTAURANTE RAÍZES CHOPERIA'}
   ];
-  const third={...chequeInput,forma:'Cheque de Terceiro',valor:1300,cheques:rows};
-  await assert.rejects(()=>createAdvance(finance,third,{db}),{code:'CHEQUE_DUPLICATE_CONFIRMATION_REQUIRED'});
-  assert.equal(db.updates,0);
-  const done=await createAdvance(finance,{...third,confirmDuplicates:true},{db});
-  assert.equal(done.cheques.length,2);
-  assert.notEqual(done.cheques[0].id,done.cheques[1].id);
-  assert.equal(done.cheques[0].emitente,'EMERSON WARMLING');
+  const third={...chequeInput,forma:'Cheque de Terceiro',valor:1300,cheques:generic};
+  const done=await createAdvance(finance,third,{db});
+  assert.equal(done.cheques.length,2,'banco genérico "terceiro" não identifica o banco: não bloqueia');
   assert.equal(done.cheques[1].emitente,'RESTAURANTE RAÍZES CHOPERIA');
-  assert.equal(done.cheques[1].duplicidadeConfirmada,true);
-  assert.equal(Object.keys(db.state.erp.chequesControle).length,2);
-  const other={...third,operationId:'50d55897-08dc-44aa-a2f4-bfef8c79d55e',valor:300,cheques:[{b:'Cheque de Terceiro',n:'175',v:300,d:'2026-11-05',cli:'NOVO EMITENTE'}]};
-  await assert.rejects(()=>createAdvance(finance,other,{db}),{code:'CHEQUE_DUPLICATE_CONFIRMATION_REQUIRED'});
-  const repeated=await createAdvance(finance,{...other,confirmDuplicates:true},{db});
-  assert.equal(repeated.cheques[0].duplicidadeConfirmada,true);
-  assert.equal(Object.keys(db.state.erp.chequesControle).length,3);
+  const ownWithTerceiro={...chequeInput,operationId:'50d55897-08dc-44aa-a2f4-bfef8c79d55e',valor:300,
+    cheques:[{b:'terceiro',n:'175',v:100,d:'2026-11-05',cli:'GN ALUMINIOS'},{b:'terceiro',n:'175',v:200,d:'2026-11-05',cli:'ALUMIL ESQUADRIAS'}]};
+  assert.equal((await createAdvance(finance,ownWithTerceiro,{db})).cheques.length,2,'caso do print: forma Cheque com banco "terceiro"');
+  const otherBanks={...chequeInput,operationId:'6a0d5b2e-1111-4111-8111-111111111111',valor:300,
+    cheques:[{b:'Sicredi',n:'150',v:100,d:'2026-11-05'},{b:'Itaú',n:'150',v:200,d:'2026-11-05'}]};
+  assert.equal((await createAdvance(finance,otherBanks,{db})).cheques.length,2,'mesmo número em bancos diferentes é permitido');
+  const repeatedInList={...chequeInput,operationId:'6a0d5b2e-2222-4222-8222-222222222222',valor:300,
+    cheques:[{b:'Bradesco',n:'0150',v:100,d:'2026-11-05'},{b:' bradesco ',n:'150',v:200,d:'2026-11-05'}]};
+  await assert.rejects(()=>createAdvance(finance,repeatedInList,{db}),
+    error=>error.code==='DUPLICATE_CHEQUE'&&/linhas 1 e 2/.test(error.message)&&/mesmo banco não pode/.test(error.message));
+  const alreadyThere={...chequeInput,operationId:'6a0d5b2e-3333-4333-8333-333333333333',forma:'Cheque de Terceiro',valor:100,
+    cheques:[{b:'SICREDI',n:'150',v:100,d:'2026-11-06',cli:'OUTRO CLIENTE'}]};
+  await assert.rejects(()=>createAdvance(finance,alreadyThere,{db}),error=>error.code==='CHEQUE_ALREADY_EXISTS'&&/Sicredi|SICREDI/.test(error.message));
+});
+
+test('cheque cancelado ou excluído não impede cadastrar o mesmo banco e número de novo',async()=>{
+  const db=fakeDb();
+  db.state.erp.chequesControle={cancelado:{id:'cancelado',b:'Banco Azul',n:'100',v:400,s:'X'},apagado:{id:'apagado',b:'Banco Azul',n:'101',v:400}};
+  db.state.erp.chequesControle_del={apagado:true};
+  const result=await createAdvance(finance,chequeInput,{db});
+  assert.equal(result.cheques.length,2);
 });
 
 test('cheque próprio nunca aceita repetição mesmo com override',async()=>{

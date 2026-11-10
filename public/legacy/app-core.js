@@ -10856,18 +10856,6 @@ async function salvarAdiantamento(){
       let response=null,reply=null,networkError=null;
       try{
         ({response,result:reply}=await enviar());
-        if(!response.ok&&reply.code==='CHEQUE_DUPLICATE_CONFIRMATION_REQUIRED'&&forma==='Cheque de Terceiro'){
-          const confirmado=window.confirm('ATENÇÃO: cheques de terceiros com banco e número repetidos.\n\n'+
-            String(reply.message||'Confirme os dados antes de aceitar a duplicidade.')+'\n\n'+
-            'Confira emitente, número, valor e documento e confirme antes de continuar.');
-          if(!confirmado){
-            _adtLimparPendente(user.uid,opId);
-            if(button){delete button.dataset.operationSent;delete button.dataset.operationId;delete button.dataset.operationPayload;}
-            return false;
-          }
-          payload.confirmDuplicates=true;
-          ({response,result:reply}=await enviar());
-        }
       }catch(error){networkError=error;}
       if(response?.ok&&reply?.advance)result=reply;
       else if(networkError||!response||response.status>=500||reply?.code==='ADVANCE_IN_PROGRESS'){
@@ -19629,20 +19617,23 @@ function excluirVenda(btnOrIdx){
     idx=parseInt(btnOrIdx);
     vid=(VENDAS_DB[idx]&&VENDAS_DB[idx].id)||'';
   }
+  if(vid){ var porId=VENDAS_DB.findIndex(function(x){ return x&&x.id===vid; }); if(porId>=0) idx=porId; }
   if(isNaN(idx)||idx<0||idx>=VENDAS_DB.length){alert('Venda não encontrada.');return;}
   var v=VENDAS_DB[idx];
   if(!v){alert('Venda não encontrada.');return;}
   var conf='Excluir venda de '+v.cliente+' — R$ '+Number(v.total||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+'?\nEsta ação não pode ser desfeita.';
   if(!confirm(conf)) return;
-  
+  var abatimentosDevolvidos=0;
+  try{ abatimentosDevolvidos=_vendaRestaurarAbatimentos(v); }catch(e){ console.warn('[vendas] devolver abatimentos',e); }
   _syncVendas.remover(idx);
   saveVendas();
+  if(abatimentosDevolvidos){ try{ saveAdtCli(); }catch(e){} try{ saveChequesCli(); }catch(e){} try{ renderAdtCli(); }catch(e){} try{ renderChequesCli(); }catch(e){} }
 
   var crAntes=CONTAS_RECEBER.length;
   for(var i=CONTAS_RECEBER.length-1;i>=0;i--){
     var cr=CONTAS_RECEBER[i];
     var matchById=vid&&cr.vendaId===vid;
-    var matchByData=cr.cli===v.cliente&&Math.abs(Number(cr.valor)-Number(v.total))<0.01&&cr.data===v.data;
+    var matchByData=!cr.vendaId&&cr.cli===v.cliente&&Math.abs(Number(cr.valor)-Number(v.total))<0.01&&cr.data===v.data;
     if(matchById||matchByData) _syncContasReceber.remover(i);
   }
   if(CONTAS_RECEBER.length!==crAntes){ saveContasReceber(); renderContasReceber(); }
@@ -19652,7 +19643,7 @@ function excluirVenda(btnOrIdx){
   try{renderFluxo();}catch(e){}
   try{renderDashboard();}catch(e){}
   cm();
-  showToast('Venda excluída com sucesso.','success');
+  showToast('Venda excluída com sucesso.'+(abatimentosDevolvidos?' '+abatimentosDevolvidos+' adiantamento(s)/cheque(s) voltaram a ficar disponíveis para o cliente.':''),'success');
 }
 window['excluirVenda']=excluirVenda;
 
@@ -19855,6 +19846,85 @@ function calcVPgto(){
   } else if(bar) bar.style.display='none';
 }
 
+function _vendaR2(x){ return Math.round((Number(x)+Number.EPSILON)*100)/100; }
+function _vendaPlanejarAbatimentos(saldo, adiantamentos, cheques){
+  const r2=function(x){ return Math.round((Number(x)+Number.EPSILON)*100)/100; };
+  const fmt=function(x){ return Number(x||0).toLocaleString('pt-BR',{minimumFractionDigits:2}); };
+  let resta=r2(Math.max(0,Number(saldo)||0));
+  const usos=[];
+  for(const c of (cheques||[])){
+    const valor=r2(c&&c.valor);
+    if(!(valor>0)) continue;
+    if(valor>resta+0.009) return {erro:'O cheque nº '+(c.num||'—')+' (R$ '+fmt(valor)+') é maior que o saldo a receber desta venda (R$ '+fmt(resta)+'). Cheque não pode ser usado em parte: desmarque-o ou ajuste os valores.',usos:[],resta};
+    usos.push({tipo:'cheque',item:c,valor});
+    resta=r2(resta-valor);
+  }
+  for(const a of (adiantamentos||[])){
+    const disponivel=r2(a&&a.valor);
+    if(!(disponivel>0)) continue;
+    if(resta<=0.009) return {erro:'O saldo desta venda já está coberto. Desmarque o adiantamento de '+(a.data||'')+' (R$ '+fmt(disponivel)+').',usos:[],resta};
+    const valor=r2(Math.min(disponivel,resta));
+    usos.push({tipo:'adiantamento',item:a,valor});
+    resta=r2(resta-valor);
+  }
+  return {usos,resta};
+}
+function _vendaAplicarAbatimentos(usos, vendaRef){
+  const r2=function(x){ return Math.round((Number(x)+Number.EPSILON)*100)/100; };
+  (usos||[]).forEach(function(u){
+    const item=u.item;
+    item.vinculo=item.vinculo||vendaRef;
+    if(u.tipo==='cheque'){ item.status='Quitado'; return; }
+    const disponivel=r2(item.valor);
+    if(item.valorOriginal==null) item.valorOriginal=disponivel;
+    item.usos=(Array.isArray(item.usos)?item.usos:[]).concat([{venda:vendaRef,valor:u.valor}]);
+    if(u.valor>=disponivel-0.009){ item.status='Quitado'; item.ticket=item.ticket||vendaRef; }
+    else item.valor=r2(disponivel-u.valor);
+  });
+}
+function _vendaRegistroAbatimentos(usos){
+  return (usos||[]).map(function(u){
+    return u.tipo==='cheque'
+      ? {tipo:'cheque',num:String(u.item.num||''),valor:u.valor}
+      : {tipo:'adiantamento',cod:String(u.item.cod||''),valor:u.valor};
+  });
+}
+function _vendaAbatimentosUsados(v){
+  if(Array.isArray(v.abatimentos)&&v.abatimentos.length) return v.abatimentos;
+  const lista=[];
+  (CONTAS_RECEBER||[]).forEach(function(cr){
+    if(!v.id||!cr||cr.vendaId!==v.id) return;
+    const obs=String(cr.obs||'');
+    const adt=/(ADTC\d+)/.exec(obs);
+    if(cr.forma==='Adiantamento'&&adt) lista.push({tipo:'adiantamento',cod:adt[1],valor:Number(cr.valor)||0});
+    const chq=/cheque (?:nº )?([^\s—|]+)/i.exec(obs);
+    if(cr.forma==='Cheque'&&chq) lista.push({tipo:'cheque',num:chq[1],valor:Number(cr.valor)||0});
+  });
+  return lista;
+}
+function _vendaRestaurarAbatimentos(v){
+  const r2=function(x){ return Math.round((Number(x)+Number.EPSILON)*100)/100; };
+  const ref=v.nf||v.id;
+  let restaurados=0;
+  _vendaAbatimentosUsados(v).forEach(function(ab){
+    if(ab.tipo==='adiantamento'){
+      const a=((ADT_CLI&&ADT_CLI[v.cliente])||[]).find(function(x){ return String(x.cod||'')===String(ab.cod); });
+      if(!a) return;
+      if(a.status==='Quitado'){ a.status='Pendente'; a.valor=r2(ab.valor||a.valor); }
+      else a.valor=r2(Number(a.valor||0)+Number(ab.valor||0));
+      if(Array.isArray(a.usos)) a.usos=a.usos.filter(function(u){ return u.venda!==ref; });
+      if(a.vinculo===ref) a.vinculo='';
+      restaurados++;
+    } else {
+      const c=((CHEQUES_CLI&&CHEQUES_CLI[v.cliente])||[]).find(function(x){ return String(x.num||'')===String(ab.num); });
+      if(!c||c.status!=='Quitado') return;
+      c.status='Pendente';
+      if(c.vinculo===ref) c.vinculo='';
+      restaurados++;
+    }
+  });
+  return restaurados;
+}
 function salvarVenda(){
   const nf=document.getElementById('v-nf')?.value.trim()||'';
   const data=document.getElementById('v-data')?.value;
@@ -19874,6 +19944,7 @@ function salvarVenda(){
     const mat=_matEfetivoEstoque(matBase,ident);
     const qt=parseFloat(document.getElementById('vqt-'+i)?.value)||0;
     const pr=parseFloat(document.getElementById('vpr-'+i)?.value)||0;
+    if(qt>0&&!mat){ showToast('⚠️ Escolha o material da linha '+(itens.length+1)+' antes de salvar.','error',7000); return; }
     if(qt>0){
       if(mat && !METAIS.includes(mat)) _garantirMetalCadastrado(mat);
       itens.push({mat,matBase,ident,qt,pr,total:qt*pr});
@@ -19887,6 +19958,7 @@ function salvarVenda(){
     qtPorMat[it.mat]=(qtPorMat[it.mat]||0)+Number(it.qt);
   });
   const errosEstoque=[];
+  let _avisoEstoque='';
   Object.entries(qtPorMat).forEach(([mat,qtVenda])=>{
     const e=ESTOQUE_DB[mat]||{inicial:0,saidas:0};
     const entradas=getEntradasMaterial(mat);
@@ -19902,7 +19974,7 @@ function salvarVenda(){
     const linhas=errosEstoque.map(e=>
       '• '+e.mat+': solicitado '+fmt2(e.qtVenda)+' kg | disponível '+fmt2(Math.max(0,e.saldoDisp))+' kg'
     ).join('\n');
-    showToast('⚠️ Estoque insuficiente:<br>'+linhas.replace(/\n/g,'<br>')+'<br>Venda salva com aviso.','error',6000);
+    _avisoEstoque='⚠️ Estoque insuficiente:<br>'+linhas.replace(/\n/g,'<br>')+'<br>Venda salva com aviso.';
   }
 
   const _r2v=x=>Math.round((Number(x)+Number.EPSILON)*100)/100;
@@ -19928,24 +20000,26 @@ function salvarVenda(){
     if(valor>0) pagamentos.push({forma,banco,valor,obs:obsP});
   });
 
-  const _abateAdt=[], _abateCheq=[];
+  const _adtsMarcados=[], _chqsMarcados=[];
   document.querySelectorAll('.v-abate-adt:checked').forEach(function(chk){
     const a=(ADT_CLI[cliente]||[])[Number(chk.dataset.idx)];
-    if(a && (a.status||'Pendente')==='Pendente' && Number(a.valor)>0){
-      pagamentos.push({forma:'Adiantamento', banco:a.bancoNome||'', valor:Number(a.valor), obs:'Adiantamento '+(a.cod||'')+(nf?' — '+nf:'')});
-      _abateAdt.push(a);
-    }
+    if(a && (a.status||'Pendente')==='Pendente' && Number(a.valor)>0) _adtsMarcados.push(a);
   });
   document.querySelectorAll('.v-abate-cheq:checked').forEach(function(chk){
     const c=(CHEQUES_CLI[cliente]||[])[Number(chk.dataset.idx)];
-    if(c && Number(c.valor)>0){
-      pagamentos.push({forma:'Cheque', banco:c.banco||'', valor:Number(c.valor), obs:'Cheque nº '+(c.num||'')+(nf?' — '+nf:'')});
-      _abateCheq.push(c);
-    }
+    if(c && Number(c.valor)>0) _chqsMarcados.push(c);
+  });
+  const _pagoDireto=pagamentos.reduce(function(s,p){ return s+Number(p.valor||0); },0);
+  const _planoAbate=_vendaPlanejarAbatimentos(_r2v(total-_pagoDireto),_adtsMarcados,_chqsMarcados);
+  if(_planoAbate.erro){ showToast('⚠️ '+_planoAbate.erro,'error',9000); return; }
+  _planoAbate.usos.forEach(function(u){
+    if(u.tipo==='cheque') pagamentos.push({forma:'Cheque', banco:u.item.banco||'', valor:u.valor, obs:'Cheque nº '+(u.item.num||'')+(nf?' — '+nf:'')});
+    else pagamentos.push({forma:'Adiantamento', banco:u.item.bancoNome||'', valor:u.valor, obs:'Adiantamento '+(u.item.cod||'')+(nf?' — '+nf:'')});
   });
 
   const vendaId='VD-'+Date.now();
   const venda={id:vendaId,nf,data:dataFmt,cliente,itens,subtotal,desconto,descontoTipo,descontoInput,acrescimo:acrescimoV||0,acrescimos:extrasVenda.map(function(e){return {v:e.v,obs:e.obs,quando:_hojeISO()};}),total,venc:vencFmt,status,obs,pagamentos};
+  if(_planoAbate.usos.length) venda.abatimentos=_vendaRegistroAbatimentos(_planoAbate.usos);
   VENDAS_DB.push(venda);
   saveVendas();
   renderVendas();
@@ -19996,9 +20070,8 @@ function salvarVenda(){
   }
   saveContasReceber();
   
-  if(_abateAdt.length||_abateCheq.length){
-    _abateAdt.forEach(function(a){ a.status='Quitado'; a.vinculo=a.vinculo||nf||vendaId; a.ticket=a.ticket||nf; });
-    _abateCheq.forEach(function(c){ c.status='Quitado'; c.vinculo=c.vinculo||nf||vendaId; });
+  if(_planoAbate.usos.length){
+    _vendaAplicarAbatimentos(_planoAbate.usos, nf||vendaId);
     try{ saveAdtCli(); }catch(e){}
     try{ saveChequesCli(); }catch(e){}
     try{ renderAdtCli(); }catch(e){}
@@ -20022,7 +20095,8 @@ function salvarVenda(){
   let msg='Venda salva! Total: R$ '+fmt(total);
   if(pagamentos.length>0) msg+=' | '+pagamentos.length+' lancamento(s) em Contas a Receber.';
   else if(status!=='Pago') msg+=' | Lancado em Contas a Receber.';
-  showToast(msg,'success');
+  if(_avisoEstoque) showToast(msg+'<br>'+_avisoEstoque,'error',9000);
+  else showToast(msg,'success');
 }
 
 function editVenda(idx){
@@ -20165,6 +20239,11 @@ function calcEditVenda(){
 function salvarEditVenda(){
   const idx=parseInt(document.getElementById('ev-vidx').value);
   const v=VENDAS_DB[idx]; if(!v) return;
+  const _semMaterial=[...(document.getElementById('ev-itens-body')?.querySelectorAll('tr')||[])].findIndex(function(tr){
+    const id=tr.id.replace('evrow-','');
+    return (parseFloat(document.getElementById('evqt-'+id)?.value)||0)>0 && !(document.getElementById('evmat-'+id)?.value||'');
+  });
+  if(_semMaterial>=0){ showToast('⚠️ Escolha o material da linha '+(_semMaterial+1)+' antes de salvar. Nada foi alterado.','error',7000); return; }
   v.nf=document.getElementById('evv-nf').value.trim();
   v.data=document.getElementById('evv-data').value;
   v.venc=document.getElementById('evv-venc').value;
@@ -20207,6 +20286,7 @@ function salvarEditVenda(){
         const _restante=Math.max(0,_totalNovo-_recebido);
         _crPend.valor=_restante;
         if(_restante<=0.009){ _crPend.valor=0; _crPend.status='Recebido'; _crPend.dataReceb=_crPend.dataReceb||v.data; }
+        try{ saveContasReceber(); }catch(e){ console.warn('[vendas] gravar conta a receber da venda editada',e); }
       }
     }
   }
@@ -20215,20 +20295,26 @@ function salvarEditVenda(){
   const _adtsPend=((typeof ADT_CLI!=='undefined'&&ADT_CLI[cli])||[]).filter(a=>(a.status||'Pendente')==='Pendente');
   const _chsPend=((typeof CHEQUES_CLI!=='undefined'&&CHEQUES_CLI[cli])||[]).filter(c=>{const st=(c.status||'Pendente');return st!=='Compensado'&&st!=='Devolvido'&&st!=='Quitado';});
   let _abatido=0, _mexeu=false;
-  document.querySelectorAll('.ev-abate-adt:checked').forEach(function(chk){
-    const a=_adtsPend[Number(chk.dataset.idx)]; if(!a||Number(a.valor)<=0) return;
-    _abatido+=Number(a.valor);
-    CONTAS_RECEBER.push({ data:v.data, cli:cli, nf:v.nf||'', valor:Number(a.valor), forma:'Adiantamento', banco:a.bancoNome||'', venc:v.venc||v.data, status:'Recebido', dataReceb:v.data, obs:'Abatido na venda '+(v.nf||'')+' — adiant. '+(a.cod||''), vendaId:v.id });
-    a.status='Quitado'; a.vinculo=a.vinculo||v.nf||v.id;
-    _mexeu=true;
-  });
-  document.querySelectorAll('.ev-abate-cheq:checked').forEach(function(chk){
-    const c=_chsPend[Number(chk.dataset.idx)]; if(!c||Number(c.valor)<=0) return;
-    _abatido+=Number(c.valor);
-    CONTAS_RECEBER.push({ data:v.data, cli:cli, nf:v.nf||'', valor:Number(c.valor), forma:'Cheque', banco:c.banco||'', venc:v.venc||v.data, status:'Recebido', dataReceb:v.data, obs:'Abatido na venda '+(v.nf||'')+' — cheque '+(c.num||''), vendaId:v.id });
-    c.status='Quitado'; c.vinculo=c.vinculo||v.nf||v.id;
-    _mexeu=true;
-  });
+  const _adtsMarcados=[], _chqsMarcados=[];
+  document.querySelectorAll('.ev-abate-adt:checked').forEach(function(chk){ const a=_adtsPend[Number(chk.dataset.idx)]; if(a&&Number(a.valor)>0) _adtsMarcados.push(a); });
+  document.querySelectorAll('.ev-abate-cheq:checked').forEach(function(chk){ const c=_chsPend[Number(chk.dataset.idx)]; if(c&&Number(c.valor)>0) _chqsMarcados.push(c); });
+  if(_adtsMarcados.length||_chqsMarcados.length){
+    let _pendenteVenda=0;
+    CONTAS_RECEBER.forEach(function(cr){ if(cr.vendaId===v.id&&cr.status==='Pendente'&&cr.forma!=='Adiantamento'&&cr.forma!=='Cheque') _pendenteVenda+=Number(cr.valor||0); });
+    const _plano=_vendaPlanejarAbatimentos(_pendenteVenda,_adtsMarcados,_chqsMarcados);
+    if(_plano.erro){
+      showToast('⚠️ Alterações salvas, mas o abatimento não foi aplicado: '+_plano.erro,'error',9000);
+    } else {
+      _plano.usos.forEach(function(u){
+        _abatido+=u.valor;
+        if(u.tipo==='cheque') CONTAS_RECEBER.push({ data:v.data, cli:cli, nf:v.nf||'', valor:u.valor, forma:'Cheque', banco:u.item.banco||'', venc:v.venc||v.data, status:'Recebido', dataReceb:v.data, obs:'Abatido na venda '+(v.nf||'')+' — cheque '+(u.item.num||''), vendaId:v.id });
+        else CONTAS_RECEBER.push({ data:v.data, cli:cli, nf:v.nf||'', valor:u.valor, forma:'Adiantamento', banco:u.item.bancoNome||'', venc:v.venc||v.data, status:'Recebido', dataReceb:v.data, obs:'Abatido na venda '+(v.nf||'')+' — adiant. '+(u.item.cod||''), vendaId:v.id });
+      });
+      _vendaAplicarAbatimentos(_plano.usos, v.nf||v.id);
+      v.abatimentos=(Array.isArray(v.abatimentos)?v.abatimentos:[]).concat(_vendaRegistroAbatimentos(_plano.usos));
+      _mexeu=_plano.usos.length>0;
+    }
+  }
   
   if(_abatido>0){
     let rest=_abatido;
