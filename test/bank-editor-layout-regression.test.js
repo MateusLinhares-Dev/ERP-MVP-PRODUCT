@@ -27,6 +27,6 @@ test('restauração mantém RH iD e paginação do app-core e carrega engenharia
  assert.ok(bootstrap.indexOf('rhid-card-reader.js')<bootstrap.indexOf('/legacy/app-core.js'));
  assert.ok(bootstrap.indexOf('help-center.js')<bootstrap.indexOf('final-ops.js'));
  assert.ok(bootstrap.indexOf('final-ops.js')<bootstrap.indexOf('engineering.js'));
- const occ=(bootstrap.match(/await loadClassic\('\/modules\/phase1\/phase1-searchable-select\.js'\)/g)||[]).length;
+ const occ=(bootstrap.match(/loadClassic\('\/modules\/phase1\/phase1-searchable-select\.js'\)/g)||[]).length;
  assert.equal(occ,1);
 });

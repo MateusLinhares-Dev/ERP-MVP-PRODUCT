@@ -30,6 +30,7 @@
     try{ fbSalvar(); }catch(e){}
   };
 
+  window.__ERP_SECURE_LOGIN__ = true;
   window.doLogin = async function(){
     const inp=document.getElementById('inp-p');
     const err=document.getElementById('lerr');

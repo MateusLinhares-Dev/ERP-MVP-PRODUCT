@@ -13,9 +13,13 @@ export default defineConfig({
     emptyOutDir: false,
     copyPublicDir: false,
     assetsDir: 'web',
+    manifest: true,
     target: 'es2020',
     rolldownOptions: {
-      input: { rapido: fromRoot('./web/pages/rapido/index.html') },
+      input: {
+        rapido: fromRoot('./web/pages/rapido/index.html'),
+        'erp-islands': fromRoot('./web/erp/islands.tsx'),
+      },
     },
   },
 });

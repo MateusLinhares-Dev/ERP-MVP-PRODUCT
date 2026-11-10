@@ -675,11 +675,34 @@ function populateFornSelects(){
 }
 
 function _fornNomeNormalizado(value){
-  return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,' ').toLocaleLowerCase('pt-BR');
+  const cache=_fornNomeNormalizado.cache||(_fornNomeNormalizado.cache=new Map());
+  const raw=String(value||'');
+  const cached=cache.get(raw);
+  if(cached!==undefined) return cached;
+  const normalized=raw.normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,' ').toLocaleLowerCase('pt-BR');
+  if(cache.size>20000) cache.clear();
+  cache.set(raw,normalized);
+  return normalized;
 }
 
 function _fornRotuloOpcao(f,lista){
+  const porLista=_fornRotuloOpcao.cache||(_fornRotuloOpcao.cache=new WeakMap());
+  let entry=porLista.get(lista);
+  if(!entry||entry.length!==lista.length){
+    const counts=new Map();
+    lista.forEach(item=>{ const k=_fornNomeNormalizado(item&&item.nome); counts.set(k,(counts.get(k)||0)+1); });
+    const labels=new Map();
+    lista.forEach(item=>{
+      if(!item) return;
+      const n=String(item.nome||'').trim();
+      labels.set(item,counts.get(_fornNomeNormalizado(n))>1?n+' — '+String(item.cod||''):n);
+    });
+    entry={length:lista.length,labels};
+    porLista.set(lista,entry);
+  }
   const nome=String(f.nome||'').trim();
+  const label=entry.labels.get(f);
+  if(label!==undefined&&label.startsWith(nome)) return label;
   const repetidos=lista.filter(item=>_fornNomeNormalizado(item.nome)===_fornNomeNormalizado(nome));
   return repetidos.length>1?nome+' — '+String(f.cod||''):nome;
 }
@@ -1053,6 +1076,11 @@ function doLogin() {
     const p = document.getElementById('inp-p').value;
     const errEl = document.getElementById('lerr');
     errEl.style.color = '';
+    if(!window.__ERP_SECURE_LOGIN__){
+      errEl.textContent = 'O sistema ainda está carregando. Aguarde um instante e toque em Entrar de novo.';
+      errEl.style.display = 'block';
+      return;
+    }
     
     if(!p || p.trim() === '') {
       errEl.textContent = 'Digite a senha.';
@@ -2037,15 +2065,30 @@ function _normalizarTicketFinanceiro(tk){
   return mudou;
 }
 
+let _ticketsPorFornIndice=null;
+function _indiceTicketsPorForn(){
+  const agora=Date.now();
+  const tickets=Object.values(TICKETS_DB);
+  if(_ticketsPorFornIndice&&agora-_ticketsPorFornIndice.at<300&&_ticketsPorFornIndice.count===tickets.length&&_ticketsPorFornIndice.source===TICKETS_DB) return _ticketsPorFornIndice;
+  const porCod=new Map(), porNome=new Map(), ordem=new Map();
+  const add=(mapa,chave,tk)=>{ if(!chave) return; let lista=mapa.get(chave); if(!lista){ lista=[]; mapa.set(chave,lista); } lista.push(tk); };
+  tickets.forEach((tk,i)=>{
+    if(!tk||tk._balSessao||tk._balFinalizado) return;
+    ordem.set(tk,i);
+    add(porCod,tk.fornecedorCod,tk);
+    const nomes=new Set([tk.fornecedor,tk.fornecedorNome,tk.forn].filter(Boolean));
+    nomes.forEach(n=>add(porNome,n,tk));
+  });
+  _ticketsPorFornIndice={at:agora,count:tickets.length,source:TICKETS_DB,porCod,porNome,ordem};
+  return _ticketsPorFornIndice;
+}
 function getTicketsPorForn(cod){
   const forn = FORNECEDORES.find(f=>f.cod===cod);
   const nome = forn?.nome||'';
-  return Object.values(TICKETS_DB).filter(tk=>
-    !tk._balSessao && !tk._balFinalizado && (
-      tk.fornecedorCod===cod ||
-      (nome && (tk.fornecedor===nome || tk.fornecedorNome===nome || tk.forn===nome))
-    )
-  );
+  const indice=_indiceTicketsPorForn();
+  const achados=new Set(indice.porCod.get(cod)||[]);
+  if(nome) (indice.porNome.get(nome)||[]).forEach(tk=>achados.add(tk));
+  return [...achados].sort((a,b)=>indice.ordem.get(a)-indice.ordem.get(b));
 }
 function ticketsDeForn(cod){ return getTicketsPorForn(cod); }
 
@@ -8353,7 +8396,7 @@ function _renderAdiantamentosLista(all, _qtdCargaOculta){
     tbody.innerHTML=`<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum adiantamento encontrado para "${esc(document.getElementById('adt-busca-forn').value)}"</td></tr>`;
     
   }
-  else tbody.innerHTML=allFiltrado.map(a=>`
+  else tbody.innerHTML=_erpPaginarDados('adiantamentos-lista',allFiltrado,'tb-adiantamentos-list',renderAdiantamentos).map(a=>`
     <tr style="${a.status==='Quitado'?'background:#eaf7ee':''}">
       <td>${a.cod}</td>
       <td>${fmtDate(a.data)||'—'}</td>

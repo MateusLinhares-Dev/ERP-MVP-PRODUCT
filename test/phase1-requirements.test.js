@@ -11,13 +11,13 @@ const modules=['phase1-requirements','phase1-store','phase1-dom','phase1-purchas
 
 test('bootstrap carrega os módulos da Fase 1 depois do legado e da Prioridade 1',()=>{
   const bootstrap=read('public/app/bootstrap.js');
-  const core=bootstrap.indexOf("await loadClassic('/legacy/app-core.js')");
-  const weighing=bootstrap.indexOf("await loadClassic('/modules/weighing/road-weighing-flow.js')");
+  const core=bootstrap.indexOf("loadClassic('/legacy/app-core.js')");
+  const weighing=bootstrap.indexOf("loadClassic('/modules/weighing/road-weighing-flow.js')");
   let last=weighing;
   for(const name of modules){
     const file=`public/modules/phase1/${name}.js`;
     assert.equal(exists(file),true,file);
-    const pos=bootstrap.indexOf(`await loadClassic('/modules/phase1/${name}.js')`);
+    const pos=bootstrap.indexOf(`loadClassic('/modules/phase1/${name}.js')`);
     assert.ok(pos>last,`${name} deve carregar em ordem`);
     last=pos;
   }

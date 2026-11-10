@@ -27,6 +27,25 @@ if (vercel.buildCommand !== 'npm run build') errors.push('vercel.json deve usar 
 if (vercel.outputDirectory !== 'dist') errors.push('vercel.json deve usar outputDirectory = dist');
 if (vercel.framework !== null) errors.push('vercel.json deve manter framework=null (Other/static + Functions).');
 
+const builtIndex = path.join(root, 'dist/index.html');
+const builtBootstrap = path.join(root, 'dist/app/bootstrap.js');
+if (fs.existsSync(builtIndex) && fs.existsSync(builtBootstrap)) {
+  const revisions = [...fs.readFileSync(builtIndex, 'utf8').matchAll(/\?v=([^"&]+)/g)].map((m) => m[1]);
+  const bootRevision = /const assetRevision = '([^']+)';/.exec(fs.readFileSync(builtBootstrap, 'utf8'))?.[1] || '';
+  const hashOf = (rev) => /-([a-f0-9]{10})$/.exec(rev)?.[1] || '';
+  const hashes = new Set([...revisions, bootRevision].map(hashOf));
+  if (!revisions.length || hashes.size !== 1 || hashes.has('')) {
+    errors.push('Revisão dos arquivos sem hash de conteúdo: o cache longo (immutable) serviria arquivos velhos. Rode npm run build.');
+  }
+}
+
+if (fs.existsSync(builtBootstrap)) {
+  const islands = /const webIslandsEntry = '([^']*)';/.exec(fs.readFileSync(builtBootstrap, 'utf8'))?.[1] || '';
+  if (!/^\/web\/erp-islands-[\w-]+\.js$/.test(islands) || !fs.existsSync(path.join(root, 'dist', islands))) {
+    errors.push('bootstrap.js do build não aponta para o pacote das telas React do ERP (/web/erp-islands-*.js).');
+  }
+}
+
 const quickEntryPage = path.join(root, 'dist/rapido/index.html');
 if (fs.existsSync(quickEntryPage)) {
   const html = fs.readFileSync(quickEntryPage, 'utf8');

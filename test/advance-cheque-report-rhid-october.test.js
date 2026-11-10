@@ -3,9 +3,13 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {listAdvanceCheques} from '../server/modules/advances/application/advances.js';
 import '../public/modules/phase1/rhid-card-reader.js';
-import '../public/modules/finance/advance-cheque-report.js';
 
-const report=globalThis.AdvanceChequeReport;
+import * as chequeReport from '../web/modules/cheque-report/domain/cheque-report.ts';
+
+const report={
+  filter:(items,c={})=>chequeReport.filterCheques(items,{customer:c.cliente,company:c.empresa,year:c.year,month:c.month,from:c.from,to:c.to,status:c.status}),
+  csv:chequeReport.chequesCsv,summary:chequeReport.chequesSummary,isoDate:chequeReport.isoDate,printHtml:chequeReport.chequesPrintHtml
+};
 const reader=globalThis.RHiDCardReader;
 function row(...pairs){return {itens:pairs.map(([x,str])=>({x,str}))};}
 const october=[
@@ -98,10 +102,11 @@ test('CSV inclui linhas e total no formato brasileiro e bloqueia fórmulas',()=>
 test('UI vincula relatório ao controle e carrega API protegida sem consultar bancos',()=>{
   const html=readFileSync(new URL('../public/index.template.html',import.meta.url),'utf8');
   const bootstrap=readFileSync(new URL('../public/app/bootstrap.js',import.meta.url),'utf8');
-  const js=readFileSync(new URL('../public/modules/finance/advance-cheque-report.js',import.meta.url),'utf8');
+  const js=readFileSync(new URL('../web/erp/islands.tsx',import.meta.url),'utf8');
   assert.match(html,/id="adt-cheques-report"/);
   assert.match(html,/abrirRelatorioChequesAdiantamentos\(\)/);
-  assert.match(bootstrap,/\/modules\/finance\/advance-cheque-report\.js/);
+  assert.match(bootstrap,/await import\(webIslandsEntry\)/,'relatório agora é tela React carregada pelas ilhas do ERP');
+  assert.match(js,/abrirRelatorioChequesAdiantamentos: openChequeReport/);
   assert.match(js,/\/api\/finance\/advance-cheques/);
   assert.doesNotMatch(js,/erp\/bancos|erp\/lancBanco/);
 });

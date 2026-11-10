@@ -143,9 +143,60 @@ Para devolver um arquivo em vez de JSON, escreva na `res` e retorne `RAW_RESPONS
 | 2 | Servidor em TS: `access`, `audit`, `company`, `agenda`, `training`, `help`, `fiscal`, `snapshots` + endpoints `auth`, `admin`, `agenda`, `training`, `help`, `fiscal`, `engineering`, `config`, `public-config`, `health` | **Concluída** |
 | 3 | Servidor em TS: `purchases`, `advances`, `payables`, `supplier-repasses`, `banking` (regras financeiras) + endpoints `api/finance` e `api/banking` | **Concluída** |
 | 4 | Interface: base React + Vite + TS (`web/`); Lançamento rápido como primeira tela | **Concluída** |
-| 5+ | Interface: substituir o `public/legacy/app-core.js` módulo a módulo (compras, financeiro, cadastros, RH, frota, fiscal) | A fazer |
+| 5+ | Interface: substituir o `public/legacy/app-core.js` módulo a módulo (compras, financeiro, cadastros, RH, frota, fiscal), como **ilhas React** dentro do ERP | **Em andamento**: base das ilhas + Relatório de cheques |
 
 Todo o servidor (`server/` e `api/`) está em TypeScript desde a etapa 3. O `allowJs` continua ligado por um único motivo: a conciliação bancária usa o motor `public/modules/banking/reconciliation-engine.mjs`, que é o mesmo da tela. O servidor importa esse arquivo por meio de um adaptador tipado (`server/modules/banking/domain/reconciliation-engine.ts`).
+
+### Etapa 5: ilhas React dentro do ERP
+
+O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada tela migrada vira uma **ilha React** montada dentro de um elemento da aba antiga. Assim a troca é feita tela por tela, sem parar o sistema.
+
+- **Entrada:** `web/erp/islands.tsx`.
+  - Monta cada tela no `id` do contêiner antigo.
+  - Substitui as funções globais que os botões antigos chamam (por exemplo, `abrirRelatorioChequesAdiantamentos`).
+- **Login:** `web/shared/auth/erp-session.ts` usa o usuário que o ERP já autenticou. As chamadas à API passam pelo mesmo `api-client.ts` do Lançamento rápido.
+- **Build:**
+  - o Vite gera `dist/web/erp-islands-<hash>.js` (com `manifest`);
+  - o `scripts/build.mjs` grava esse caminho em `webIslandsEntry` no `dist/app/bootstrap.js`;
+  - o `bootstrap.js` carrega as ilhas depois do ERP antigo; se falharem, o ERP continua funcionando;
+  - o `verify-deployment-artifacts.mjs` reprova o deploy sem esse pacote.
+- **Telas migradas:**
+  - Relatório de cheques (`web/modules/cheque-report/`). O antigo `public/modules/finance/advance-cheque-report.js` foi removido.
+  - A tela React usa os mesmos ids e classes, então o CSS e os testes de tela continuaram valendo.
+- **Próxima:** cadastro de Fornecedores. Antes, ele precisa de uma API no servidor, porque hoje grava pelo sincronismo do navegador.
+
+Para migrar uma tela:
+
+1. Crie `web/modules/<tela>/` com `domain/` (regras puras e testes) e `ui/`.
+2. Registre a tela em `web/erp/islands.tsx`, no contêiner da aba antiga.
+3. Tire o script antigo do `bootstrap.js` e apague-o.
+4. Rode o teste de tela da aba.
+
+### Desempenho (10/11/2026)
+
+Medido com latência de 80 ms e uma base de 300 fornecedores e 1.500 compras:
+
+| Medida | Antes | Depois |
+|---|---|---|
+| Tela de login pronta | 5,0 s | 2,0 s |
+| ERP pronto após o login | 1,5–2,1 s | 0,33 s |
+| Aba Compra | ~450 ms | ~40 ms |
+| Aba Adiantamentos | ~650–780 ms | ~90 ms |
+
+Mudanças:
+
+- **Scripts em paralelo:** o `bootstrap.js` e o `firebase-loader.js` disparam todos os scripts juntos (`async=false` mantém a ordem). Antes era um `await` por arquivo, em fila.
+- **Login antes da hora:** o `doLogin` antigo respondia "Senha incorreta" se a pessoa entrasse antes de o login seguro carregar. Agora avisa que o sistema ainda está carregando.
+- **Algoritmos:**
+  - o rótulo de fornecedor (`_fornRotuloOpcao`) era quadrático: cerca de 90 mil normalizações a cada letra digitada;
+  - as compras por fornecedor percorriam todas as compras para cada fornecedor;
+  - os dois agora usam cache ou índice.
+- **Lista de Adiantamentos paginada:** antes desenhava todas as linhas, cerca de 480 ms só de layout.
+- **Cache:**
+  - o build acrescenta o hash do conteúdo a todos os `?v=` do `index.html` e à revisão do `bootstrap.js`;
+  - com isso, o `vercel.json` guarda em cache longo (`immutable`) os endereços de `/legacy`, `/modules` e `/app` que têm `?v=`;
+  - a verificação de deploy reprova build sem o hash.
+- **Testes:** `test/erp-load-performance.test.js`.
 
 ### O que a etapa 4 mudou
 
