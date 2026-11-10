@@ -6,6 +6,7 @@ import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 
 const assetRevision = '20261110-parcial-cheques-v9';
 const crudCacheRevision = '20261108-crud-sync-per-record-v2';
+const webIslandsEntry = '';
 
 function loadClassic(src) {
   return new Promise((resolve, reject) => {
@@ -168,38 +169,11 @@ async function main() {
   window.__fbRaw = { auth, db, storage };
   window.__businessRepository = createRealtimeBusinessRepository(db);
 
-  await loadClassic('/legacy/audit-trail.js');
-  await loadClassic('/legacy/firebase-sync.js');
-  await loadClassic('/legacy/whatsapp-format.js');
-  await loadClassic('/modules/banking/bank-ledger.js');
-  await loadClassic('/modules/banking/reconciliation-domain.js');
   loadStyle('/modules/banking/reconciliation.css');
   loadStyle('/modules/banking/bank-integrations.css');
-  await loadClassic('/modules/phase1/rhid-card-reader.js');
-  await loadClassic('/modules/phase1/list-pagination.js');
-  await loadClassic('/legacy/app-core.js');
   loadStyle('/modules/finance/advance-cheque-report.css');
-  await loadClassic('/modules/finance/advance-cheque-report.js');
-  await loadClassic('/legacy/persistence-feedback.js');
-  await loadClassic('/modules/banking/reconciliation-ui.js');
-  await loadClassic('/modules/banking/bank-integrations-ui.js');
-  await loadClassic('/legacy/module-access-guard.js');
-  await loadClassic('/legacy/app-agenda.js');
-  await loadClassic('/legacy/app-avisos.js');
-  await loadClassic('/legacy/security-overrides.js');
-  await loadClassic('/legacy/supplier-compat.js');
-  await loadClassic('/legacy/alert-state-sync.js');
-  await loadClassic('/legacy/chat-read-sync.js');
-  await loadClassic('/legacy/access-dependencies.js');
-
   loadStyle('/modules/weighing/road-weighing-flow.css');
-  await loadClassic('/modules/weighing/road-weighing-domain.js');
-  await loadClassic('/modules/weighing/road-weighing-view.js');
-  await loadClassic('/modules/weighing/road-weighing-flow.js');
-
   loadStyle('/modules/pricing/purchase-price-table.css');
-  await loadClassic('/modules/pricing/purchase-price-table.js');
-
   loadStyle('/modules/phase1/phase1-purchase.css');
   loadStyle('/modules/phase1/phase1-agenda.css');
   loadStyle('/modules/phase1/phase1-searchable-select.css');
@@ -211,30 +185,52 @@ async function main() {
   loadStyle('/modules/phase1/phase1-operations.css');
   loadStyle('/modules/phase1/phase1-fiscal-admin.css');
   loadStyle('/modules/phase2/phase2-feedback.css');
-
-  await loadClassic('/modules/phase1/phase1-requirements.js');
-  await loadClassic('/modules/phase1/phase1-store.js');
-  await loadClassic('/modules/phase1/phase1-dom.js');
-  await loadClassic('/modules/phase1/phase1-purchase.js');
-  await loadClassic('/modules/phase1/phase1-searchable-select.js');
-  await loadClassic('/modules/phase1/phase1-agenda.js');
-  await loadClassic('/modules/phase1/phase1-alerts.js');
-  await loadClassic('/modules/phase1/phase1-commercial.js');
-  await loadClassic('/modules/phase1/phase1-usability.js');
-  await loadClassic('/modules/phase1/phase1-finance.js');
-  await loadClassic('/modules/phase1/phase1-operations.js');
-  await loadClassic('/modules/phase1/phase1-fiscal-admin.js');
-  await loadClassic('/modules/phase2/phase2-feedback.js');
-
   loadStyle('/modules/phase3/phase3-homologation.css');
   loadStyle('/modules/phase3/bank-editor-polish.css');
-  await loadClassic('/modules/phase3/phase3-homologation.js');
-
   loadStyle('/modules/master-data/master-data-forms.css');
-  await loadClassic('/modules/master-data/master-data-forms.js');
-
   loadStyle('/modules/purchase-order/purchase-order.css');
-  await loadClassic('/modules/purchase-order/purchase-order.js');
+  await Promise.all([
+    loadClassic('/legacy/audit-trail.js'),
+    loadClassic('/legacy/firebase-sync.js'),
+    loadClassic('/legacy/whatsapp-format.js'),
+    loadClassic('/modules/banking/bank-ledger.js'),
+    loadClassic('/modules/banking/reconciliation-domain.js'),
+    loadClassic('/modules/phase1/rhid-card-reader.js'),
+    loadClassic('/modules/phase1/list-pagination.js'),
+    loadClassic('/legacy/app-core.js'),
+    loadClassic('/legacy/persistence-feedback.js'),
+    loadClassic('/modules/banking/reconciliation-ui.js'),
+    loadClassic('/modules/banking/bank-integrations-ui.js'),
+    loadClassic('/legacy/module-access-guard.js'),
+    loadClassic('/legacy/app-agenda.js'),
+    loadClassic('/legacy/app-avisos.js'),
+    loadClassic('/legacy/security-overrides.js'),
+    loadClassic('/legacy/supplier-compat.js'),
+    loadClassic('/legacy/alert-state-sync.js'),
+    loadClassic('/legacy/chat-read-sync.js'),
+    loadClassic('/legacy/access-dependencies.js'),
+    loadClassic('/modules/weighing/road-weighing-domain.js'),
+    loadClassic('/modules/weighing/road-weighing-view.js'),
+    loadClassic('/modules/weighing/road-weighing-flow.js'),
+    loadClassic('/modules/pricing/purchase-price-table.js'),
+    loadClassic('/modules/phase1/phase1-requirements.js'),
+    loadClassic('/modules/phase1/phase1-store.js'),
+    loadClassic('/modules/phase1/phase1-dom.js'),
+    loadClassic('/modules/phase1/phase1-purchase.js'),
+    loadClassic('/modules/phase1/phase1-searchable-select.js'),
+    loadClassic('/modules/phase1/phase1-agenda.js'),
+    loadClassic('/modules/phase1/phase1-alerts.js'),
+    loadClassic('/modules/phase1/phase1-commercial.js'),
+    loadClassic('/modules/phase1/phase1-usability.js'),
+    loadClassic('/modules/phase1/phase1-finance.js'),
+    loadClassic('/modules/phase1/phase1-operations.js'),
+    loadClassic('/modules/phase1/phase1-fiscal-admin.js'),
+    loadClassic('/modules/phase2/phase2-feedback.js'),
+    loadClassic('/modules/phase3/phase3-homologation.js'),
+    loadClassic('/modules/master-data/master-data-forms.js'),
+    loadClassic('/modules/purchase-order/purchase-order.js'),
+  ]);
+
   window.__PHASE1_READY__ = true;
   window.__PHASE2_FEEDBACK_READY__ = true;
   window.__PHASE3_HOMOLOGATION_READY__ = true;
@@ -246,22 +242,31 @@ async function main() {
   const uiStylesheet = document.querySelector('link[href^="/legacy/professional-ui.css"]');
   if (uiStylesheet) document.head.appendChild(uiStylesheet);
   loadStyle('/legacy/operations-polish.css');
-  await loadClassic('/legacy/operations-polish.js');
   loadStyle('/legacy/design-system-v2.css');
   loadStyle('/legacy/erp-selects-polish.css');
-  await loadClassic('/legacy/workspace-navigation.js');
-
   loadStyle('/modules/help-center/help-center.css');
-  await loadClassic('/modules/help-center/help-center.js');
   loadStyle('/modules/final-ops/final-ops.css');
-  await loadClassic('/modules/final-ops/final-ops.js');
   loadStyle('/modules/fiscal/fiscal-stock-origins.css');
-  await loadClassic('/modules/fiscal/fiscal-stock-origins.js');
-  await loadClassic('/modules/finance/advance-actions.js');
   loadStyle('/modules/finance/supplier-cash-repasses.css');
-  await loadClassic('/modules/finance/supplier-cash-repasses.js');
   loadStyle('/modules/engineering/engineering.css');
-  await loadClassic('/modules/engineering/engineering.js');
+  await Promise.all([
+    loadClassic('/legacy/operations-polish.js'),
+    loadClassic('/legacy/workspace-navigation.js'),
+    loadClassic('/modules/help-center/help-center.js'),
+    loadClassic('/modules/final-ops/final-ops.js'),
+    loadClassic('/modules/fiscal/fiscal-stock-origins.js'),
+    loadClassic('/modules/finance/advance-actions.js'),
+    loadClassic('/modules/finance/supplier-cash-repasses.js'),
+    loadClassic('/modules/engineering/engineering.js'),
+  ]);
+
+  if (webIslandsEntry) {
+    try {
+      await import(webIslandsEntry);
+    } catch (error) {
+      console.error('[ERP] Telas novas (React) não carregaram.', error);
+    }
+  }
 
   document.dispatchEvent(new CustomEvent('erp:ready'));
 }

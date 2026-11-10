@@ -22,10 +22,10 @@ function loadDomain(){
 test('prioridade 1 possui arquitetura modular e carregamento ordenado',()=>{
   for(const file of [domainPath,flowPath,viewPath,cssPath]) assert.equal(fs.existsSync(file),true,file);
   const bootstrap=fs.readFileSync(bootstrapPath,'utf8');
-  const core=bootstrap.indexOf("await loadClassic('/legacy/app-core.js')");
-  const domain=bootstrap.indexOf("await loadClassic('/modules/weighing/road-weighing-domain.js')");
-  const view=bootstrap.indexOf("await loadClassic('/modules/weighing/road-weighing-view.js')");
-  const flow=bootstrap.indexOf("await loadClassic('/modules/weighing/road-weighing-flow.js')");
+  const core=bootstrap.indexOf("loadClassic('/legacy/app-core.js')");
+  const domain=bootstrap.indexOf("loadClassic('/modules/weighing/road-weighing-domain.js')");
+  const view=bootstrap.indexOf("loadClassic('/modules/weighing/road-weighing-view.js')");
+  const flow=bootstrap.indexOf("loadClassic('/modules/weighing/road-weighing-flow.js')");
   assert.ok(core>=0&&domain>core&&view>domain&&flow>view);
   assert.match(bootstrap,/road-weighing-flow\.css/);
 });

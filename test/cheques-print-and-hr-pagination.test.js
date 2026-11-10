@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import '../public/modules/finance/advance-cheque-report.js';
+import * as chequeReport from '../web/modules/cheque-report/domain/cheque-report.ts';
 
-const report=globalThis.AdvanceChequeReport;
+const report={
+  filter:(items,c={})=>chequeReport.filterCheques(items,{customer:c.cliente,company:c.empresa,year:c.year,month:c.month,from:c.from,to:c.to,status:c.status}),
+  csv:chequeReport.chequesCsv,summary:chequeReport.chequesSummary,isoDate:chequeReport.isoDate,printHtml:chequeReport.chequesPrintHtml
+};
 const core=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
 const html=readFileSync(new URL('../public/index.template.html',import.meta.url),'utf8');
 const css=readFileSync(new URL('../public/modules/phase1/phase1-usability.css',import.meta.url),'utf8');

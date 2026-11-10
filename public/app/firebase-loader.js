@@ -21,10 +21,12 @@ function loadScript(src) {
 
 export async function loadFirebaseCompat(runtimeConfig) {
   const base = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
-  await loadScript(`${base}/firebase-app-compat.js`);
-  await loadScript(`${base}/firebase-auth-compat.js`);
-  await loadScript(`${base}/firebase-database-compat.js`);
-  await loadScript(`${base}/firebase-storage-compat.js`);
+  await Promise.all([
+    loadScript(`${base}/firebase-app-compat.js`),
+    loadScript(`${base}/firebase-auth-compat.js`),
+    loadScript(`${base}/firebase-database-compat.js`),
+    loadScript(`${base}/firebase-storage-compat.js`),
+  ]);
 
   if (!window.firebase.apps.length) {
     window.firebase.initializeApp(runtimeConfig.firebase);

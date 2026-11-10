@@ -34,7 +34,7 @@ test('Cartão de usuários não expõe senhas no HTML',()=>{
 });
 test('Polimento carrega após outras folhas CSS, sem substituir contratos ou permissões',()=>{
   assert.match(bootstrap,/document\.head\.appendChild\(uiStylesheet\);[\s\S]*loadStyle\('\/legacy\/operations-polish\.css'\)/);
-  assert.match(bootstrap,/await loadClassic\('\/legacy\/operations-polish\.js'\)/);
+  assert.match(bootstrap,/loadClassic\('\/legacy\/operations-polish\.js'\)/);
   assert.match(css,/#tab-folha_pagamento \.folha-tbl/);
   assert.match(css,/#modal-ficha-cli/);
   assert.match(css,/#modal-ficha-forn/);

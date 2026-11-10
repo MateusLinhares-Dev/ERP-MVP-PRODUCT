@@ -1,7 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { runInNewContext } from 'node:vm';
 import { createAdvance, listAdvanceCheques } from '../server/modules/advances/application/advances.ts';
 
 const who = { uid: 'op', erpUser: 'Elaine', erpAccess: true, canAdvances: true };
@@ -119,20 +117,16 @@ test('adiantamento em cheque sem cheque cadastrado aparece uma vez, com o valor 
   );
 });
 
-test('tela do relatório mostra "não informado" quando o cheque não tem número', () => {
-  const window = {};
-  runInNewContext(readFileSync(new URL('../public/modules/finance/advance-cheque-report.js', import.meta.url), 'utf8'), {
-    globalThis: window,
-    window,
-  });
-  const report = window.AdvanceChequeReport;
-  const rows = report.usable([
+test('tela do relatório mostra "não informado" quando o cheque não tem número', async () => {
+  const report = await import('../web/modules/cheque-report/domain/cheque-report.ts');
+  const rows = report.usableCheques([
     { numero: '', cliente: 'FORNECEDOR TESTE 1', empresa: '', data: '22/10/2026', valor: 100000 },
     { numero: '1', cliente: '', valor: 10 },
     { numero: '2', cliente: 'X', valor: 0 },
   ]);
   assert.equal(rows.length, 1);
-  assert.match(report.tableRows(rows), /<td>não informado<\/td>/);
-  assert.match(report.csv(rows), /"não informado"/);
-  assert.equal(JSON.stringify(report.summary(rows)), JSON.stringify({ count: 1, total: 100000 }));
+  assert.equal(report.chequeNumber(rows[0]), 'não informado');
+  assert.match(report.chequesCsv(rows), /"não informado"/);
+  assert.match(report.chequesPrintHtml(rows), /<td>não informado<\/td>/);
+  assert.deepEqual(report.chequesSummary(rows), { count: 1, total: 100000 });
 });

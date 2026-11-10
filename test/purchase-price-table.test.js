@@ -32,8 +32,8 @@ test('tabela de edição também fica mais compacta sem perder destaque',()=>{
 });
 
 test('bootstrap carrega o módulo de preços após o legado',()=>{
-  const core=bootstrap.indexOf("await loadClassic('/legacy/app-core.js')");
-  const pricing=bootstrap.indexOf("await loadClassic('/modules/pricing/purchase-price-table.js')");
+  const core=bootstrap.indexOf("loadClassic('/legacy/app-core.js')");
+  const pricing=bootstrap.indexOf("loadClassic('/modules/pricing/purchase-price-table.js')");
   assert.ok(core>=0&&pricing>core);
   assert.match(bootstrap,/purchase-price-table\.css/);
 });
