@@ -127,11 +127,25 @@ Para devolver um arquivo em vez de JSON, escreva na `res` e retorne `RAW_RESPONS
 |---|---|---|
 | 1 | Ferramentas (TS, ESLint, Prettier), remoção de comentários, nova estrutura de pastas, núcleo `shared/`, módulo `quick-entry` e `api/quick` em TS | **Concluída** |
 | 2 | Servidor em TS: `access`, `audit`, `company`, `agenda`, `training`, `help`, `fiscal`, `snapshots` + endpoints `auth`, `admin`, `agenda`, `training`, `help`, `fiscal`, `engineering`, `config`, `public-config`, `health` | **Concluída** |
-| 3 | Servidor em TS: `purchases`, `advances`, `payables`, `supplier-repasses`, `banking` (regras financeiras) + endpoints | A fazer |
+| 3 | Servidor em TS: `purchases`, `advances`, `payables`, `supplier-repasses`, `banking` (regras financeiras) + endpoints `api/finance` e `api/banking` | **Concluída** |
 | 4 | Interface: base React + Vite + TS; Lançamento rápido como primeira tela | A fazer |
 | 5+ | Interface: substituir o `public/legacy/app-core.js` módulo a módulo (compras, financeiro, cadastros, RH, frota, fiscal) | A fazer |
 
-Arquivos ainda em `.js` dentro de `server/modules` já estão na pasta certa e funcionam junto com o TypeScript (`allowJs`). Cada um vira `.ts` na sua etapa. Depois da etapa 2, só os módulos financeiros (`purchases`, `advances`, `payables`, `supplier-repasses`, `banking`) e seus endpoints em `api/finance` e `api/banking` continuam em `.js`.
+Todo o servidor (`server/` e `api/`) está em TypeScript desde a etapa 3. O `allowJs` continua ligado por um único motivo: a conciliação bancária usa o motor `public/modules/banking/reconciliation-engine.mjs`, que é o mesmo da tela. O servidor importa esse arquivo por meio de um adaptador tipado (`server/modules/banking/domain/reconciliation-engine.ts`).
+
+### O que a etapa 3 mudou
+
+| Módulo | Organização |
+|---|---|
+| `purchases` | `domain/installments.ts` (parcelas), `domain/purchase-edit.ts` (regras puras da edição), `domain/advance-refund.ts` (devolução ao adiantamento), `domain/purchase-records.ts` (tipos e centavos); `application/` com criar, editar e excluir |
+| `payables` | `application/payables.ts`: baixa, conferência e bancos para pagamento |
+| `advances` | `domain/advance-rules.ts` (validações), `infrastructure/advance-locks.ts` (travas com recuperação por recibo), `application/advances.ts` e `orphan-recovery.ts`. A lista de fornecedores usa `suppliers/domain/supplier-directory.ts`, sem cópia |
+| `supplier-repasses` | `application/supplier-cash-repasses.ts` |
+| `banking` | `application/bank-integrations.ts` (Pluggy) e `reconciliation.ts`; `domain/reconciliation-engine.ts` (adaptador tipado) |
+
+- Os endpoints `api/finance/*` e `api/banking/*` usam `defineApi`.
+- O teste `api-endpoints-contract.test.js` cobre todos eles.
+- Os testes que copiavam `acquireAdvanceLock` agora importam a função de `advances/infrastructure/advance-locks.ts`.
 
 ### O que a etapa 2 mudou
 

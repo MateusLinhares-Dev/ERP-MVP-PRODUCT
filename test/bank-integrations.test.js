@@ -81,8 +81,8 @@ test('conexão Pluggy, escolha de conta e importação idempotente com paginaç�
  assert.equal(Object.keys(db.data.erp.bankReconciliationImports['BANK-1']).length,2);
 });
 test('integração só usa backend autenticado e não publica dados privados no RTDB do navegador',()=>{
- const endpoint=readFileSync(new URL('../api/banking/integrations.js',import.meta.url),'utf8');
- assert.match(endpoint,/requireIdentity/);assert.match(endpoint,/assertSameOrigin/);
+ const endpoint=readFileSync(new URL('../api/banking/integrations.ts',import.meta.url),'utf8');
+ assert.match(endpoint,/POST: \{\s*access: 'user'/);assert.doesNotMatch(endpoint,/sameOrigin: 'optional'/);
  const frontend=readFileSync(new URL('../public/modules/banking/bank-integrations-ui.js',import.meta.url),'utf8');
  assert.match(frontend,/root\.firebase\?\.auth/);
  assert.match(frontend,/Bearer /);

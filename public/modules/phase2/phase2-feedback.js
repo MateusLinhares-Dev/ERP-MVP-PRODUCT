@@ -67,7 +67,7 @@ global.phase2PurchaseObsSave=function(index,value){
 };
 
 function removeNumberSpinners(){
-  $$('input[type="number"]').forEach(input=>input.classList.add('phase2-no-spinner'));
+  $$('input[type="number"]:not(.phase2-no-spinner)').forEach(input=>input.classList.add('phase2-no-spinner'));
 }
 function fixPartyBanks(){
   $$('#tb-fornecedores-list .phase1-party-bank-btn').forEach(b=>b.remove());
@@ -785,7 +785,7 @@ async function loadFiscalParties(){
 global.phase2FiscalReload=loadFiscalParties;
 function fiscalPartyList(type){return Object.values(fiscalParties||{}).filter(x=>x&&x.active!==false&&(!type||norm(x.type).includes(type)));}
 function replaceFiscalRegistry(){
-  const old=$('#phase1-fiscal-parties');if(!old)return;if(old.dataset.phase2==='1'){loadFiscalParties();return;}old.dataset.phase2='1';old.open=true;old.innerHTML=`<summary>🧾 Cadastros Fiscais</summary><div class="phase2-fiscal-registry"><div class="phase2-fiscal-toolbar"><select id="p2fis-type" onchange="phase2FiscalFilter()"><option value="">Todos</option><option value="Fornecedor Fiscal">Fornecedor Fiscal</option><option value="Cliente Fiscal">Cliente Fiscal</option></select><input id="p2fis-search" placeholder="🔍 Buscar cadastro fiscal..." oninput="phase2FiscalFilter()"><button class="phase2-primary" onclick="phase2FiscalOpen()">＋ Novo cadastro</button></div><div id="p2fis-list"></div></div>`;loadFiscalParties();
+  const old=$('#phase1-fiscal-parties');if(!old)return;if(old.dataset.phase2==='1'&&old.querySelector('#p2fis-list'))return;old.dataset.phase2='1';old.open=true;old.innerHTML=`<summary>🧾 Cadastros Fiscais</summary><div class="phase2-fiscal-registry"><div class="phase2-fiscal-toolbar"><select id="p2fis-type" onchange="phase2FiscalFilter()"><option value="">Todos</option><option value="Fornecedor Fiscal">Fornecedor Fiscal</option><option value="Cliente Fiscal">Cliente Fiscal</option></select><input id="p2fis-search" placeholder="🔍 Buscar cadastro fiscal..." oninput="phase2FiscalFilter()"><button class="phase2-primary" onclick="phase2FiscalOpen()">＋ Novo cadastro</button></div><div id="p2fis-list"></div></div>`;loadFiscalParties();
 }
 function renderFiscalRegistry(){const host=$('#p2fis-list');if(!host)return;const q=norm($('#p2fis-search')?.value),type=$('#p2fis-type')?.value||'';const arr=Object.values(fiscalParties||{}).filter(x=>x&&(!type||x.type===type)&&(!q||norm([x.name,x.legalName,x.tradeName,x.cnpj,x.cpf,x.city,x.uf].join(' ')).includes(q))).sort((a,b)=>String(a.name||a.legalName||'').localeCompare(String(b.name||b.legalName||''),'pt-BR'));const page=window.ERPListPager?.slice('fiscal-cadastros',arr,'p2fis-list',renderFiscalRegistry)||arr;host.innerHTML=arr.length?page.map(x=>`<div class="phase2-fiscal-party ${x.active===false?'inactive':''}"><div><span>${esc(x.type||'')}</span><b>${esc(x.legalName||x.name||'')}</b><small>${esc(x.cnpj||x.cpf||'Sem CPF/CNPJ')} ${x.city?'· '+esc(x.city+'/'+(x.uf||'')):''}</small></div><button onclick="phase2FiscalOpen('${x.id}')">Editar</button><button onclick="phase2FiscalToggle('${x.id}')">${x.active===false?'Ativar':'Inativar'}</button></div>`).join(''):'<div class="phase2-empty">Nenhum cadastro fiscal.</div>';}
 global.phase2FiscalFilter=renderFiscalRegistry;
@@ -973,7 +973,7 @@ global.phase2ContractDownload=function(i){
 };
 function mergeCasaGloria(){
   let changed=false;try{Object.keys(CUSTO_CASA||{}).forEach(m=>{(CUSTO_CASA[m]||[]).forEach(x=>{if(norm(x.area)==='casa gloria'){x.area='Casa';changed=true;}});});if(changed&&typeof saveCustoCasa==='function')saveCustoCasa();}catch(e){}
-  $('#cc-aba-Casa Glória')?.remove();$$('[data-cc-area]').forEach(b=>{if(norm(b.getAttribute('data-cc-area'))==='casa gloria')b.remove();});const note=$('#phase1-house-history-note');if(note)note.textContent='Histórico preservado por período. Casa e Casa Glória foram consolidadas em Casa; Sítio e Veículos Pessoais permanecem separados.';
+  $('#cc-aba-Casa Glória')?.remove();$$('[data-cc-area]').forEach(b=>{if(norm(b.getAttribute('data-cc-area'))==='casa gloria')b.remove();});
 }
 
 const originalCcConfigAreas=global._ccConfigAreas;

@@ -149,6 +149,6 @@ global.phase1PurchaseSharePdf=async function(ticketId){
 };
 function enhanceHistory(){const tb=document.getElementById('tb-compras');if(!tb)return;Array.from(tb.rows).forEach(row=>{if(row.querySelector('.phase1-purchase-pdf'))return;const key=String(row.cells?.[0]?.textContent||'').trim();if(!key||!tickets()[key])return;const cell=row.cells[row.cells.length-1];if(!cell)return;cell.insertAdjacentHTML('beforeend',` <button class="phase1-purchase-pdf" onclick="phase1PurchasePrint('${esc(key)}')" title="PDF da compra">📄</button>`);});}
 if(typeof original.tickets==='function')global.renderTickets=function(){const result=original.tickets.apply(this,arguments);setTimeout(enhanceHistory,0);return result;};
-function applyNavigation(){const nav=document.querySelector('.nav-tab[data-tab="canhoto_compra"]');if(nav)nav.remove();const panel=document.getElementById('tab-canhoto_compra');if(panel)panel.dataset.phase1Deprecated='1';}
+function applyNavigation(){const nav=document.querySelector('.nav-tab[data-tab="canhoto_compra"]');if(nav)nav.remove();const panel=document.getElementById('tab-canhoto_compra');if(panel&&panel.dataset.phase1Deprecated!=='1')panel.dataset.phase1Deprecated='1';}
 if(global.Phase1Dom)global.Phase1Dom.register(applyNavigation);else setTimeout(applyNavigation,100);
 })(window);

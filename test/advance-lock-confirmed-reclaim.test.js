@@ -68,9 +68,8 @@ test('trava abandonada de operação COM recibo confirmado é recuperada sem esp
   assert.equal(previousStatus.advance.cod,previous.advance.cod);
 });
 
-const source=readFileSync(new URL('../server/modules/advances/application/advances.js',import.meta.url),'utf8');
-const lockSource=source.slice(source.indexOf('async function acquireAdvanceLock('),source.indexOf('export async function createAdvance('));
-function lockAcquirer(){const ctx={setTimeout,runTransaction,releaseLease};runInNewContext(lockSource+';this.take=acquireAdvanceLock;',ctx);return ctx.take;}
+const {acquireAdvanceLock}=await import('../server/modules/advances/infrastructure/advance-locks.ts');
+function lockAcquirer(){return acquireAdvanceLock;}
 
 test('trava ativa SEM recibo confirmado não é tomada nem se identificador estiver presente',async()=>{
   const db=memoryDb(),now=()=>100000;
