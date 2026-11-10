@@ -539,7 +539,7 @@ function renderInstallments(state,balance){
   }
   const note=locked
     ?'<div class="phase4-po-empty-pay" role="status">'+(Number(state.originalBalance||0)>0.005
-      ?'Já existe pagamento registrado nesta compra. As parcelas não podem ser alteradas aqui; ajuste em Financeiro → Contas a Pagar.'
+      ?'Já existe pagamento registrado nesta compra. As parcelas não mudam aqui. Se o valor da compra mudar, a diferença vai para a última parcela em aberto em Contas a Pagar.'
       :'Compra já quitada. Se o total aumentar, a diferença vira uma conta única em Contas a Pagar.')+'</div>'
     :'';
   container.innerHTML=note+(rows.length?'<div class="phase4-po-table-wrap"><table class="phase4-po-table phase4-po-installments-table"><thead><tr><th>#</th><th>Dias</th><th>Data</th><th>Valor</th><th>Forma</th><th>Observação</th><th></th></tr></thead><tbody>'+
@@ -1421,8 +1421,6 @@ global.phase4PurchaseSave=async function(){
       state.installments=fresh.installments;state.dueDate=fresh.dueDate;
       const totalChanged=Math.abs(Number(totals.total||0)-Number(state.originalTotal||0))>0.005;
       const supplierChanged=Boolean(state.originalSupplierCode)&&String(state.originalSupplierCode)!==String(state.supplierCode||'');
-      if(state.installmentsLocked&&state.installmentsMulti&&totalChanged&&Number(state.originalBalance||0)>0.005)
-        throw new Error('Esta compra tem parcela paga. Para mudar o valor, estorne o pagamento em Contas a Pagar.');
       const plan=state.installmentsLocked?null:validateInstallments(state,totals.balance);
       const planChanged=plan!==null&&(toCents(totals.balance)>0?installmentKey(state.installments):'[]')!==state.originalInstallmentKey;
       state.installmentPlan=planChanged||totalChanged?plan:null;
@@ -1925,12 +1923,23 @@ function printPaymentForm(row){
   if(row.kind==='Cheque')return row.ref?'Cheque nº '+row.ref:'Cheque';
   return String(row.method||'').trim()||'—';
 }
-function printInstallmentPaid(ticketNo,index,count){
+function printInstallmentAccount(ticketNo,index,count){
   const id=count>1?'CPPO_'+ticketNo+'-'+(index+1):'CPPO_'+ticketNo;
   try{
-    const account=(Array.isArray(CONTAS_PAGAR)?CONTAS_PAGAR:[]).find(function(cp){return cp&&String(cp.id||'')===id;});
-    return Boolean(account)&&String(account.status||'').toLowerCase()==='pago';
-  }catch(e){return false;}
+    return (Array.isArray(CONTAS_PAGAR)?CONTAS_PAGAR:[]).find(function(cp){return cp&&String(cp.id||'')===id;})||null;
+  }catch(e){return null;}
+}
+function printInstallmentPaid(ticketNo,index,count){
+  const account=printInstallmentAccount(ticketNo,index,count);
+  return Boolean(account)&&String(account.status||'').toLowerCase()==='pago';
+}
+function printInstallmentStatus(ticketNo,index,count){
+  const account=printInstallmentAccount(ticketNo,index,count);
+  if(!account)return '';
+  if(String(account.status||'').toLowerCase()==='pago')return 'Paga';
+  const settled=toCents(account.valorPago)+toCents(account.adtCompensado);
+  if(settled<=0)return '';
+  return 'Abatido R$ '+money(settled/100)+' · resta R$ '+money(toCents(account.valor)/100);
 }
 function printAppliedAdvances(key,ticket,advance){
   const ticketNo=String(ticket.ticket||key||'').trim();
@@ -2117,9 +2126,9 @@ function printHtml(key,ticket){
   const plan=Array.isArray(ticket.parcelas)?ticket.parcelas.filter(function(row){return row&&Number(row.valor||0)>0;}):[];
   const installments=plan.length>1
     ?plan.map(function(row,index){
-      const paid=printInstallmentPaid(String(ticket.ticket||key||''),index,plan.length);
+      const situation=printInstallmentStatus(String(ticket.ticket||key||''),index,plan.length);
       return '<tr><td class="center">'+daysBetween(purchaseDate,row.vencimento)+'</td><td>'+esc(dateBR(row.vencimento))+'</td><td class="numeric">R$ '+money(row.valor)+'</td>'+
-        '<td>'+esc(row.forma||'—')+'</td><td>'+esc([row.obs,paid?'Paga':''].filter(Boolean).join(' · ')||'—')+'</td></tr>';
+        '<td>'+esc(row.forma||'—')+'</td><td>'+esc([row.obs,situation].filter(Boolean).join(' · ')||'—')+'</td></tr>';
     }).join('')
     :balance>0
       ?'<tr><td class="center">'+daysBetween(purchaseDate,dueDate)+'</td><td>'+esc(dateBR(dueDate))+'</td><td class="numeric">R$ '+money(balance)+'</td><td>'+esc(plan[0]?.forma||'—')+'</td><td>'+esc(plan[0]?.obs||(advance>0?'Abatimentos/adiantamentos aplicados: R$ '+money(advance):'Saldo do pedido'))+'</td></tr>'

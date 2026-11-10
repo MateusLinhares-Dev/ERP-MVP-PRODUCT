@@ -24,8 +24,10 @@ import {
   currentPlan,
   purchasePayables,
   replanPayables,
+  shiftOpenInstallment,
   untouchedPayable,
   type EditInput,
+  type OpenInstallmentShift,
   type Replan,
 } from '../domain/purchase-edit.js';
 import {
@@ -248,23 +250,31 @@ export async function editPurchaseOrder(
     let replanned: Replan | null = null;
     const oldBalance = cash(Number(previous.saldoPagar || 0));
     const previousPlan = Array.isArray(previous.parcelas) ? (previous.parcelas as unknown[]) : [];
+    let openShift: OpenInstallmentShift | null = null;
     if (
       oldBalance > 0 &&
       previousPlan.length > 1 &&
       changed &&
       purchasePayables(value(4), ticketNo, previous).rows.some(([, row]) => !untouchedPayable(row))
     ) {
-      reject(
-        409,
-        'INSTALLMENTS_HAVE_PAYMENTS',
-        'Já existe parcela paga desta compra. Para mudar valores ou parcelas, estorne o pagamento em Contas a Pagar.',
-      );
+      openShift = shiftOpenInstallment({
+        raw: value(4),
+        ticketNo,
+        previous,
+        oldBalance,
+        nextBalance: result.balance,
+        at: now(),
+      });
+      Object.assign(updates, openShift.updates);
+      result.ticket.parcelas = openShift.plan;
     }
-    const rawRequested = Array.isArray(incomingTicket.parcelas)
-      ? incomingTicket.parcelas
-      : previousPlan.length > 1
-        ? previousPlan
-        : null;
+    const rawRequested = openShift
+      ? null
+      : Array.isArray(incomingTicket.parcelas)
+        ? incomingTicket.parcelas
+        : previousPlan.length > 1
+          ? previousPlan
+          : null;
     const requested =
       (rawRequested || supplierChanged) && result.balance > 0
         ? normalizeInstallments(rawRequested, {
@@ -293,7 +303,9 @@ export async function editPurchaseOrder(
       result.ticket.status = 'Pago';
       advanceRefund = { valor: round(-result.balance), adiantamentos: refund.refunds };
     };
-    if (multi && (changed || planChanged || supplierChanged)) {
+    if (openShift) {
+      result.ticket.status = previous.status === 'Parcial' ? 'Parcial' : 'Pendente';
+    } else if (multi && (changed || planChanged || supplierChanged)) {
       if (result.balance < 0 && !advancesUsed) {
         reject(
           409,

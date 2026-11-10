@@ -20,5 +20,5 @@
     "checkJs": false,
     "noEmit": true
   },
-  "include": ["server/**/*", "api/**/*"]
+  "include": ["server/**/*", "api/**/*", "vite.config.ts"]
 }

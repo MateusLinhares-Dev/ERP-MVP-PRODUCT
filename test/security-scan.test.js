@@ -14,7 +14,7 @@ function allFiles(dir){
 }
 
 test('public bundle does not contain legacy Firebase secrets/passwords',()=>{
-  const files=allFiles(path.join(root,'public'));
+  const files=[...allFiles(path.join(root,'public')),...allFiles(path.join(root,'web'))];
   const source=files.map(f=>fs.readFileSync(f,'utf8')).join('\n');
   assert.equal(/AIzaSy[A-Za-z0-9_-]{20,}/.test(source),false,'Firebase API key hardcoded in public source');
   assert.equal(/(?:senha|password)\s*:\s*['"][^'"]{4,}['"]/i.test(source),false,'plaintext password-like literal found in public source');

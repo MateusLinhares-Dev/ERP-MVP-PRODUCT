@@ -210,42 +210,42 @@ test('IA: só aceita nomes do cadastro; sem chave avisa para usar o interpretado
 });
 
 test('interpretador do aparelho: frases reais, sem inventar',async()=>{
-  const {interpretarFala,palavrasParaNumeros}=await import('../public/rapido/parser.js');
-  const ctx={materiais:['COBRE MEL','COBRE MISTO','LATÃO','ALUMÍNIO LATINHA','FERRO','BATERIA'],
-    fornecedores:[{cod:'F1',nome:'JOÃO SILVA SUCATAS'},{cod:'F3',nome:'FERRO VELHO DO ZÉ'}],
-    clientes:[{cod:'C1',nome:'GERDAU AÇOS LONGOS'},{cod:'C2',nome:'FUNDIÇÃO TUPY'}],hoje:today};
-  assert.equal(palavrasParaNumeros('dois mil e quinhentos quilos a quarenta e dois e cinquenta'),'2500 quilos a 42 e 50');
-  let r=interpretarFala('Comprei 350 quilos de cobre mel do João a 42 reais o quilo',ctx);
+  const {interpretSpeech,wordsToNumbers}=await import('../web/modules/quick-entry/domain/speech-parser.ts');
+  const ctx={materials:['COBRE MEL','COBRE MISTO','LATÃO','ALUMÍNIO LATINHA','FERRO','BATERIA'],
+    suppliers:[{cod:'F1',nome:'JOÃO SILVA SUCATAS'},{cod:'F3',nome:'FERRO VELHO DO ZÉ'}],
+    customers:[{cod:'C1',nome:'GERDAU AÇOS LONGOS'},{cod:'C2',nome:'FUNDIÇÃO TUPY'}],today};
+  assert.equal(wordsToNumbers('dois mil e quinhentos quilos a quarenta e dois e cinquenta'),'2500 quilos a 42 e 50');
+  let r=interpretSpeech('Comprei 350 quilos de cobre mel do João a 42 reais o quilo',ctx);
   assert.equal(r.tipo,'compra');assert.equal(r.parte.cod,'F1');
   assert.deepEqual(r.itens,[{material:'COBRE MEL',materialFalado:'cobre mel',quantidadeKg:350,precoKg:42}]);
-  r=interpretarFala('Vendi para a Gerdau 2 toneladas de ferro a 1 real e 20 vence dia 20',ctx);
+  r=interpretSpeech('Vendi para a Gerdau 2 toneladas de ferro a 1 real e 20 vence dia 20',ctx);
   assert.equal(r.tipo,'venda');assert.equal(r.parte.nome,'GERDAU AÇOS LONGOS');
   assert.deepEqual(r.itens,[{material:'FERRO',materialFalado:'ferro',quantidadeKg:2000,precoKg:1.2}]);
   assert.equal(r.vencimento,'2026-11-20');
-  r=interpretarFala('comprei 500 de bateria a 3 reais do ferro velho do zé para 15 dias',ctx);
+  r=interpretSpeech('comprei 500 de bateria a 3 reais do ferro velho do zé para 15 dias',ctx);
   assert.equal(r.parte.cod,'F3');assert.equal(r.itens.length,1,'nome do fornecedor e prazo não viram material/peso');
   assert.equal(r.vencimento,'2026-11-23');
-  r=interpretarFala('vendi pra tupy meia tonelada de alumínio latinha a 7.200 a tonelada nota 4521',ctx);
+  r=interpretSpeech('vendi pra tupy meia tonelada de alumínio latinha a 7.200 a tonelada nota 4521',ctx);
   assert.deepEqual(r.itens,[{material:'ALUMÍNIO LATINHA',materialFalado:'aluminio latinha',quantidadeKg:500,precoKg:7.2}]);
   assert.equal(r.nf,'4521');
-  r=interpretarFala('comprei cobre 100 kg a 40 do joão',ctx);
+  r=interpretSpeech('comprei cobre 100 kg a 40 do joão',ctx);
   assert.equal(r.itens[0].material,null,'"cobre" é ambíguo: pergunta em vez de chutar');
   assert.match(r.duvidas.join(' '),/COBRE MEL \/ COBRE MISTO/);
-  r=interpretarFala('Comprei 350 quilos de cobre mel do João a 42 reais e 80 quilos de latão a 30 o quilo',ctx);
+  r=interpretSpeech('Comprei 350 quilos de cobre mel do João a 42 reais e 80 quilos de latão a 30 o quilo',ctx);
   assert.deepEqual(r.itens.map(i=>[i.material,i.quantidadeKg,i.precoKg]),[['COBRE MEL',350,42],['LATÃO',80,30]],'o peso do 2º item não é engolido pelo preço do 1º');
-  r=interpretarFala('comprei 100 kg de cobre mel do joão por 4000 reais',ctx);
+  r=interpretSpeech('comprei 100 kg de cobre mel do joão por 4000 reais',ctx);
   assert.equal(r.itens[0].precoKg,40,'"por R$ 4000" é o TOTAL do item, não R$ 4000 por kg');
   assert.match(r.duvidas.join(' '),/total de R\$ 4\.000 ÷ 100 kg/);
-  r=interpretarFala('comprei cobre mel no valor de r$ 225',ctx);
+  r=interpretSpeech('comprei cobre mel no valor de r$ 225',ctx);
   assert.equal(r.itens[0].precoKg,null,'sem peso não inventa preço por kg');
   assert.match(r.duvidas.join(' '),/valor total de R\$ 225/);
-  r=interpretarFala('comprei 100 kg de latão por 30 o quilo',ctx);
+  r=interpretSpeech('comprei 100 kg de latão por 30 o quilo',ctx);
   assert.equal(r.itens[0].precoKg,30,'"por 30 o quilo" continua sendo preço por kg');
-  r=interpretarFala('vendi 1 tonelada de ferro pra gerdal a 2 reais',{...ctx,tipo:'venda'});
+  r=interpretSpeech('vendi 1 tonelada de ferro pra gerdal a 2 reais',{...ctx,kind:'venda'});
   assert.equal(r.parte?.nome,'GERDAU AÇOS LONGOS','uma letra trocada pelo reconhecimento de voz');
-  r=interpretarFala('comprei 10 kg de latão do joão a 30',{...ctx,tipo:'venda'});
+  r=interpretSpeech('comprei 10 kg de latão do joão a 30',{...ctx,kind:'venda'});
   assert.equal(r.tipoFalado,'compra','a tela troca sozinha para COMPRA');
-  r=interpretarFala('comprei 100 quilos de latão',ctx);
+  r=interpretSpeech('comprei 100 quilos de latão',ctx);
   assert.equal(r.parte,null);assert.equal(r.itens[0].precoKg,null,'preço não dito fica vazio');
 });
 
