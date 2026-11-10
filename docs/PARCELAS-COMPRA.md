@@ -8,11 +8,11 @@ O quadro **Parcelas** fica no cartão **Pagamento**, abaixo dos adiantamentos.
 
 - **Sem mexer em nada:** a compra tem uma parcela só, com o saldo inteiro, como antes.
 - **Condição de pagamento + Gerar parcelas:**
+  - `3x` (ou `3 parcelas`) cria 3 parcelas **todas no mesmo dia** (a data da 1ª parcela). Depois é só mudar a data de cada uma, se precisar;
   - `0 30 60` ou `0/30/60` cria parcelas com esses dias, contados da data da compra;
-  - `3x` cria 30, 60 e 90 dias;
   - `à vista` ou `0` cria uma parcela na data da compra.
 
-  O saldo é dividido igualmente entre as parcelas.
+  O saldo é dividido igualmente entre as parcelas, e **+ Adicionar outra parcela** usa a mesma data da última.
 - **Em cada linha:** Dias, Data, Valor, Forma (PIX, TED, Boleto, Dinheiro, Cheque, Depósito, Transferência) e Observação (ex.: "NF 4521"). Ao mudar os dias, a data muda junto, e o contrário também.
 - **A última parcela é calculada pelo sistema:** saldo a pagar menos as outras. Ela fica cinza e não aceita edição. Se a soma das outras passar do saldo, aparece o aviso em vermelho e o pedido não salva.
 - **+ Adicionar outra parcela** divide a última em duas. O **×** remove uma linha, e o valor dela volta para a última.
@@ -31,6 +31,8 @@ O quadro **Parcelas** fica no cartão **Pagamento**, abaixo dos adiantamentos.
 - No Histórico de compras, o botão de baixa abre a **próxima parcela em aberto**.
 
 ## Editar e excluir
+
+- **Trocar o fornecedor de um pedido salvo:** na edição, escolha outro fornecedor e salve. O número do pedido continua o mesmo, e as contas a pagar passam para o novo fornecedor. Isso só é bloqueado quando a compra já usou adiantamento, cheque ou crédito do fornecedor atual, ou já tem pagamento. Nesse caso o dinheiro está ligado ao fornecedor antigo: exclua o pedido (o valor volta para o adiantamento) e lance de novo.
 
 - **Sem nenhuma parcela paga:** dá para mudar valores, datas, formas e a quantidade de parcelas. O servidor refaz as contas a pagar numa gravação única:
   - recria as que mudaram;
@@ -57,7 +59,7 @@ Testes: `test/purchase-installments-client-guards.test.js`.
 
 ## Notinha (impressão do pedido)
 
-- **Adiantamentos e abatimentos:** a coluna "Referência / forma" virou **Forma**. Os códigos internos (`ADT…`) não aparecem mais. Cheque aparece como "Cheque nº 000123".
+- **Adiantamentos e abatimentos:** colunas Data, Origem, **Forma**, **Valor do adiantamento** (o valor cheio que o fornecedor recebeu) e **Valor aplicado** (o que foi abatido nesta compra). A coluna "Referência / forma" virou **Forma**. Os códigos internos (`ADT…`) não aparecem mais. Cheque aparece como "Cheque nº 000123".
 - **Parcelas:** colunas Dias, Data Vencimento, Valor, **Forma** e Observações. Uma parcela já paga mostra "Paga" na observação.
 
 ## Técnico

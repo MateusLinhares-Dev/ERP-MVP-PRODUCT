@@ -414,24 +414,27 @@ function addDaysISO(iso,days){
 function parsePaymentCondition(text){
   const raw=String(text||'').trim().toLocaleLowerCase('pt-BR');
   if(!raw)return null;
-  if(/^(a|à)\s*vista$|^avista$/.test(raw))return [0];
-  const times=/^(\d{1,2})\s*x$/.exec(raw);
+  if(/^(a|à)\s*vista$|^avista$/.test(raw))return {days:[0]};
+  const times=/^(\d{1,2})\s*(x|vezes|parcelas?)$/.exec(raw);
   if(times){
     const count=Number(times[1]);
     if(count<1||count>MAX_INSTALLMENTS)return null;
-    return Array.from({length:count},function(_,index){return 30*(index+1);});
+    return {count};
   }
   const parts=raw.replace(/\s*dias?$/,'').split(/[\s,;/+]+/).filter(Boolean);
   if(!parts.length||parts.length>MAX_INSTALLMENTS||parts.some(function(part){return !/^\d{1,4}$/.test(part);}))return null;
-  return parts.map(Number);
+  return {days:parts.map(Number)};
 }
-function generateInstallments(days,balance,purchaseDate,previous){
+function generateInstallments(plan,balance,purchaseDate,previous,baseDate){
   const totalCents=Math.max(0,toCents(balance));
-  const count=days.length;
+  const dates=plan.count
+    ?Array.from({length:plan.count},function(){return baseDate||purchaseDate;})
+    :plan.days.map(function(day){return addDaysISO(purchaseDate,day);});
+  const count=dates.length;
   const share=Math.floor(totalCents/count);
-  return days.map(function(day,index){
+  return dates.map(function(date,index){
     const old=(previous||[])[index]||{};
-    return {date:addDaysISO(purchaseDate,day),value:(index===count-1?totalCents-share*(count-1):share)/100,
+    return {date,value:(index===count-1?totalCents-share*(count-1):share)/100,
       form:String(old.form||(previous||[])[0]?.form||''),obs:String(old.obs||'')};
   });
 }
@@ -457,7 +460,6 @@ function validateInstallments(state,balance){
   rows.forEach(function(row,index){
     const line=index+1;
     if(!/^\d{4}-\d{2}-\d{2}$/.test(String(row.date||'')))throw new Error('Informe a data de vencimento da parcela '+line+'.');
-    if(String(row.date)<String(state.purchaseDate||''))throw new Error('A parcela '+line+' vence antes da data da compra.');
     if(toCents(row.value)<=0)throw new Error(index===rows.length-1&&rows.length>1
       ?'A soma das parcelas passa do saldo a pagar. Ajuste os valores.'
       :'Informe o valor da parcela '+line+'.');
@@ -486,7 +488,7 @@ function installmentsHtml(state){
   return '<div class="phase4-po-installments" id="phase4-po-installments">'+
     '<div class="phase4-po-installments-head"><h4>Parcelas</h4>'+
     '<div class="phase4-po-installments-tools" id="phase4-po-installments-tools">'+
-    '<label class="phase4-po-field"><span>Condição de pagamento</span><input id="phase4-po-condition" autocomplete="off" placeholder="Ex.: 30 60 90 ou 3x" value="'+esc(state.paymentCondition||'')+'" oninput="phase4PurchaseCondition(this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();phase4PurchaseGenerateInstallments();}"></label>'+
+    '<label class="phase4-po-field"><span>Condição de pagamento</span><input id="phase4-po-condition" autocomplete="off" placeholder="Ex.: 3x (mesmo dia) ou 0 30 60" value="'+esc(state.paymentCondition||'')+'" oninput="phase4PurchaseCondition(this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();phase4PurchaseGenerateInstallments();}"></label>'+
     '<button type="button" class="phase4-po-outline" onclick="phase4PurchaseGenerateInstallments()">Gerar parcelas</button></div></div>'+
     '<div id="phase4-po-installments-body"></div>'+
     '<input id="cs-lanc-venc" type="hidden" value="'+esc(state.dueDate||today())+'">'+
@@ -570,14 +572,15 @@ global.phase4PurchaseGenerateInstallments=function(){
   if(!body||!totals||state.installmentsLocked)return;
   if(toCents(totals.balance)<=0){try{showToast('Não há saldo a pagar para dividir em parcelas.','info');}catch(e){}return;}
   const text=document.getElementById('phase4-po-condition')?.value??state.paymentCondition;
-  const days=parsePaymentCondition(text);
-  if(!days){
-    try{showToast('Condição inválida. Informe os dias separados por espaço (ex.: 30 60 90) ou a quantidade de parcelas (ex.: 3x).','error',6500);}catch(e){}
+  const plan=parsePaymentCondition(text);
+  if(!plan){
+    try{showToast('Condição inválida. Informe a quantidade de parcelas (ex.: 3x, todas no mesmo dia) ou os dias separados por espaço (ex.: 0 30 60).','error',7000);}catch(e){}
     return;
   }
-  if(toCents(totals.balance)<days.length){try{showToast('O saldo é pequeno demais para essa quantidade de parcelas.','error');}catch(e){}return;}
+  if(toCents(totals.balance)<(plan.count||plan.days.length)){try{showToast('O saldo é pequeno demais para essa quantidade de parcelas.','error');}catch(e){}return;}
   state.paymentCondition=String(text||'').trim().slice(0,80);
-  state.installments=generateInstallments(days,totals.balance,state.purchaseDate||today(),state.installments);
+  const baseDate=state.installments?.[0]?.date||state.dueDate||state.purchaseDate||today();
+  state.installments=generateInstallments(plan,totals.balance,state.purchaseDate||today(),state.installments,baseDate);
   storeState(body,state);
   global.phase4PurchaseRecalc();
 };
@@ -613,9 +616,9 @@ global.phase4PurchaseAddInstallment=function(){
   const last=rows[rows.length-1];
   if(last){
     last.value=Math.floor(Math.max(0,toCents(last.value))/2)/100;
-    rows.push({date:addDaysISO(last.date||state.purchaseDate||today(),30),value:0,form:String(last.form||''),obs:''});
+    rows.push({date:last.date||state.purchaseDate||today(),value:0,form:String(last.form||''),obs:''});
   }else{
-    rows.push({date:addDaysISO(state.purchaseDate||today(),30),value:0,form:'',obs:''});
+    rows.push({date:state.dueDate||state.purchaseDate||today(),value:0,form:'',obs:''});
   }
   storeState(body,state);
   global.phase4PurchaseRecalc();
@@ -826,7 +829,17 @@ global.phase4PurchaseSupplierChanged=function(){
   }
   const body=document.getElementById('cs-lanc-body');
   const state=body?currentState(body):null;
-  if(state?.editKey){try{showToast('O fornecedor não pode ser alterado na edição deste pedido.','info');}catch(e){}if(input)input.value=state.supplierName;return;}
+  if(state?.editKey){
+    if(String(supplier.cod||'')===String(state.supplierCode||''))return;
+    if(state.supplierLocked){
+      try{showToast('Esta compra já usou adiantamento, cheque ou pagamento do fornecedor atual. Para trocar o fornecedor, exclua o pedido (o valor volta para o adiantamento) e lance de novo no fornecedor certo.','error',9000);}catch(e){}
+      if(input)input.value=state.supplierName;return;
+    }
+    state.supplierName=supplier.nome;state.supplierCode=supplier.cod||'';
+    storeState(body,state);setHiddenSupplier(supplier.nome);
+    try{showToast('Fornecedor trocado para '+supplier.nome+'. Clique em Salvar para confirmar; o número do pedido continua o mesmo.','info',7000);}catch(e){}
+    return;
+  }
   if(state&&String(state.supplierCode||'')===String(supplier.cod||'')&&state.supplierName===supplier.nome)return;
   supplierChangeTimer=setTimeout(function(){
     supplierChangeTimer=null;
@@ -1407,6 +1420,7 @@ global.phase4PurchaseSave=async function(){
       const fresh=currentState(body);
       state.installments=fresh.installments;state.dueDate=fresh.dueDate;
       const totalChanged=Math.abs(Number(totals.total||0)-Number(state.originalTotal||0))>0.005;
+      const supplierChanged=Boolean(state.originalSupplierCode)&&String(state.originalSupplierCode)!==String(state.supplierCode||'');
       if(state.installmentsLocked&&state.installmentsMulti&&totalChanged&&Number(state.originalBalance||0)>0.005)
         throw new Error('Esta compra tem parcela paga. Para mudar o valor, estorne o pagamento em Contas a Pagar.');
       const plan=state.installmentsLocked?null:validateInstallments(state,totals.balance);
@@ -1416,7 +1430,7 @@ global.phase4PurchaseSave=async function(){
       purchasePendingKeys.add(String(state.editKey));
       let confirmed;
       try{
-        const financeChanged=totalChanged||planChanged;
+        const financeChanged=totalChanged||planChanged||supplierChanged;
         confirmed=financeChanged
           ?await purchaseEditWithReconciliation(String(state.editKey),ticket,state)
           :await purchaseConfirmCloud(String(state.editKey),ticket,{
@@ -1590,6 +1604,13 @@ function stateForExistingTicket(key,cloudTicket){
         (Array.isArray(cp.pagamentos)&&cp.pagamentos.length>0)||Number(cp.valorPago||0)>0||Number(cp.adtCompensado||0)>0);
     }),
     paymentCondition:'',
+    originalSupplierCode:supplier.cod||'',
+    supplierLocked:Number(ticket.saldoPagar||0)<=0.005||Number(ticket.adiantamento||0)>0||Number(ticket.creditoFornecedorAplicado||0)>0||
+      Boolean((ticket.reciboFinanceiro?.adiantamentos||[]).length||(ticket.reciboFinanceiro?.cheques||[]).length||(ticket.reciboFinanceiro?.creditos||[]).length)||
+      (typeof CONTAS_PAGAR!=='undefined'&&Array.isArray(CONTAS_PAGAR)?CONTAS_PAGAR:[]).some(function(cp){
+        return cp&&String(cp.ticket||'').trim()===String(ticket.ticket||key)&&(String(cp.status||'').toLowerCase()==='pago'||
+          (Array.isArray(cp.pagamentos)&&cp.pagamentos.length>0)||Number(cp.valorPago||0)>0||Number(cp.adtCompensado||0)>0);
+      }),
     legacyExtra:Math.round(((Number(ticket.totalGeral||0)||0)-
       ((ticket.itens||[]).reduce(function(sum,i){return sum+itemNet(i)*Number(i.preco||0);},0)-
       (Number(ticket.descontoCompra??po.desconto??0)||0)+(Number(ticket.freteCompra??po.frete??0)||0)))*100)/100,
@@ -1623,7 +1644,7 @@ global.phase4PurchaseEditTicket=async function(ticketRef){
     body.dataset.saldoAnterior='0';
     storeState(body,state);
     render(body);
-    const sup=document.getElementById('phase4-po-supplier');if(sup){sup.readOnly=true;sup.title='Fornecedor do pedido existente';}
+    const sup=document.getElementById('phase4-po-supplier');if(sup&&state.supplierLocked){sup.readOnly=true;sup.title='Compra com adiantamento, cheque ou pagamento: o fornecedor não pode ser trocado';}
     try{document.getElementById('cst-lancamento')?.scrollIntoView({block:'start',behavior:'smooth'});}catch(e){}
   },0);
 };
@@ -1636,6 +1657,10 @@ function saveEditedTicket(state,totals){
   if(totals.balance< -0.005 && Number(state.originalBalance||0)>=-0.005 && Number(state.appliedAdvance||0)<=0)throw new Error('O total editado ficou abaixo de pagamento já registrado. Faça a conciliação financeira antes de salvar.');
   const supplier=supplierByName(state.supplierName);
   if(!supplier||String(supplier.cod||'')!==String(state.supplierCode||''))throw new Error('Fornecedor do pedido divergente.');
+  if(state.originalSupplierCode&&String(state.originalSupplierCode)!==String(supplier.cod||'')){
+    ticket.fornecedor=supplier.nome;ticket.fornecedorNome=supplier.nome;ticket.fornecedorCod=supplier.cod||'';
+    if(ticket.fornCod!=null)ticket.fornCod=supplier.cod||'';
+  }
   const items=(state.items||[]).filter(function(item){return String(item.mat||'').trim()&&Number(item.quantidade||0)>0;});
   if(!items.length)throw new Error('Inclua pelo menos um material com quantidade.');
   const oldItems=(ticket.itens||[]).slice();
@@ -1913,25 +1938,27 @@ function printAppliedAdvances(key,ticket,advance){
   const appliedLimit=Math.max(0,Math.round(Number(advance||0)*100));
   const candidates=[];
   const unique=new Set();
-  function take(kind,ref,date,method,amount,identity){
+  function take(kind,ref,date,method,amount,identity,original){
     const cents=Math.round(Number(amount||0)*100);
     if(!Number.isSafeInteger(cents)||cents<=0)return;
     const id=identity||kind+':'+String(ref||'')+':'+String(date||'');
     if(unique.has(id))return;
     unique.add(id);
-    candidates.push({kind,ref:String(ref||''),date:String(date||''),method:String(method||''),cents});
+    const originalCents=Math.round(Number(original||0)*100);
+    candidates.push({kind,ref:String(ref||''),date:String(date||''),method:String(method||''),cents,
+      originalCents:Number.isSafeInteger(originalCents)&&originalCents>=cents?originalCents:cents});
   }
   const snap=ticket.reciboFinanceiro;
   if(snap&&typeof snap==='object'){
     for(const a of (Array.isArray(snap.adiantamentos)?snap.adiantamentos:[])){
       if(!a)continue;
       take('Adiantamento',a.cod,a.data,String(a.forma||''),a.valorAplicado,
-        a.cod?'ADT:'+String(a.cod):'SNAP-ADT:'+candidates.length);
+        a.cod?'ADT:'+String(a.cod):'SNAP-ADT:'+candidates.length,a.valorOriginal);
     }
     for(const c of (Array.isArray(snap.cheques)?snap.cheques:[])){
       if(!c)continue;
       take('Cheque',c.num||c.numero||'',c.bomPara,'',c.valorAplicado,
-        c.id?'CHQ:'+String(c.id):'SNAP-CHQ:'+candidates.length);
+        c.id?'CHQ:'+String(c.id):'SNAP-CHQ:'+candidates.length,c.valorOriginal);
     }
   }
   try{
@@ -1939,7 +1966,7 @@ function printAppliedAdvances(key,ticket,advance){
     for(const a of rows){
       if(!a||String(a.ticket||'').trim()!==ticketNo||String(a.status||'').trim().toLowerCase()!=='quitado')continue;
       take('Adiantamento',a.cod,a.data,String(a.forma||''),a.valor,
-        a.cod?'ADT:'+String(a.cod):'LIVE-ADT:'+candidates.length);
+        a.cod?'ADT:'+String(a.cod):'LIVE-ADT:'+candidates.length,a.valorOriginal??a.valor);
     }
   }catch(e){}
   try{
@@ -1955,11 +1982,11 @@ function printAppliedAdvances(key,ticket,advance){
   for(const c of candidates){
     if(remaining<=0)break;
     const used=Math.min(remaining,c.cents);
-    if(used>0)rows.push({...c,amount:used/100});
+    if(used>0)rows.push({...c,amount:used/100,original:c.originalCents/100});
     remaining-=used;
   }
   if(remaining>0){
-    rows.push({kind:'Outros abatimentos aplicados',ref:'',date:'',method:'',amount:remaining/100});
+    rows.push({kind:'Outros abatimentos aplicados',ref:'',date:'',method:'',amount:remaining/100,original:null});
   }
   return rows;
 }
@@ -2074,11 +2101,12 @@ function printHtml(key,ticket){
   const advanceRows=printAppliedAdvances(key,ticket,advance);
   const advanceDetails=advance>0
     ?'<section class="print-section applied-advances"><h2>Adiantamentos e abatimentos desta compra</h2>'+
-      '<table class="installments"><thead><tr><th>Data</th><th>Origem</th><th>Forma</th><th>Valor aplicado</th></tr></thead><tbody>'+
+      '<table class="installments"><thead><tr><th>Data</th><th>Origem</th><th>Forma</th><th>Valor do adiantamento</th><th>Valor aplicado</th></tr></thead><tbody>'+
       advanceRows.map(function(row){return '<tr><td>'+esc(row.date?dateBR(row.date):'—')+'</td>'+
         '<td>'+esc(row.kind)+'</td><td>'+esc(printPaymentForm(row))+'</td>'+
+        '<td class="numeric">'+(row.original==null?'—':'R$ '+money(row.original))+'</td>'+
         '<td class="numeric">R$ '+money(row.amount)+'</td></tr>';}).join('')+
-      '<tr class="advance-total"><th colspan="3">Total abatido no fechamento</th><td class="numeric">R$ '+money(advance)+'</td></tr>'+
+      '<tr class="advance-total"><th colspan="4">Total abatido no fechamento</th><td class="numeric">R$ '+money(advance)+'</td></tr>'+
       '</tbody></table></section>':'';
   const laterPayments=finance.payments.length
     ?'<section class="print-section payment-history"><h2>Pagamentos registrados após o pedido</h2><table class="installments">'+

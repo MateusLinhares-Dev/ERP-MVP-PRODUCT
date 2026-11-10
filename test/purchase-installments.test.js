@@ -36,7 +36,7 @@ test('parcelas: a última é sempre o saldo restante, como no Bling',()=>{
 
 test('parcelas: recusa soma acima do saldo, data antes da compra, forma desconhecida e excesso de parcelas',()=>{
   rejects(()=>normalizeInstallments([{vencimento:'2026-11-08',valor:600},{vencimento:'2026-12-08',valor:400},{vencimento:'2027-01-08'}],context),'INSTALLMENTS_TOTAL_MISMATCH');
-  rejects(()=>normalizeInstallments([{vencimento:'2026-11-07',valor:10},{vencimento:'2026-12-08'}],context),'INVALID_INSTALLMENT_DATE');
+  assert.equal(normalizeInstallments([{vencimento:'2026-11-07',valor:10},{vencimento:'2026-12-08'}],context)[0].dias,-1,'pedido antigo com vencimento anterior à compra continua editável');
   rejects(()=>normalizeInstallments([{vencimento:'2026-13-01',valor:10},{vencimento:'2026-12-08'}],context),'INVALID_INSTALLMENT_DATE');
   rejects(()=>normalizeInstallments([{vencimento:'2026-11-09',valor:10,forma:'Bitcoin'},{vencimento:'2026-12-08'}],context),'INVALID_INSTALLMENT_FORM');
   rejects(()=>normalizeInstallments([{vencimento:'2026-11-09',valor:0},{vencimento:'2026-12-08'}],context),'INVALID_INSTALLMENT_VALUE');
@@ -69,7 +69,7 @@ const viaSdk=async path=>(await db.ref(path).get()).val();
 const lockPaths=()=>['erpFinancePayableTicketLocks','erpFinanceAdvanceLocks','erpFinancePayableLocks']
   .flatMap(root=>Object.keys(srv.read(root)||{}).map(key=>root+'/'+key));
 const baseData=()=>({erp:{
-  fornecedores:{f1:{cod:'F1',nome:'TESTE NAO APAGAR',ativo:true}},
+  fornecedores:{f1:{cod:'F1',nome:'TESTE NAO APAGAR',ativo:true},f2:{cod:'F2',nome:'FORNECEDOR CERTO',ativo:true},f9:{cod:'F9',nome:'INATIVO',ativo:false}},
   bancos:{b1:{cod:'B1',banco:'Conta Principal'}},
   tickets:{},contasPagar:{},adiantamentos:{},_ts:1
 }});
@@ -230,6 +230,48 @@ test('compra já quitada não aceita dividir a diferença em parcelas',async()=>
   assert.deepEqual(lockPaths(),[]);
 });
 
+const changeSupplier=(next,code,name)=>{next.fornecedorCod=code;next.fornecedor=name;next.fornecedorNome=name;};
+
+test('trocar o fornecedor mantém o número do pedido e refaz as contas no nome do novo fornecedor',async()=>{
+  srv.reset(baseData());
+  await create(purchaseTicket('T510',100,100,[{vencimento:'2026-11-20',valor:4000,forma:'TED'},{vencimento:'2026-11-20',valor:0}]));
+  const edited=await edit('T510',next=>changeSupplier(next,'F2','FORNECEDOR CERTO'));
+  assert.equal(edited.ticket.ticket,'T510');
+  assert.equal(edited.ticket.fornecedorCod,'F2');
+  assert.equal(edited.ticket.fornecedor,'FORNECEDOR CERTO');
+  const rows=Object.values(srv.read('erp/contasPagar')).filter(row=>row.ticket==='T510').sort((a,b)=>a.id.localeCompare(b.id));
+  assert.deepEqual(rows.map(row=>[row.id,row.fornCod,row.cred,row.valor,row.formaPrevista||'']),[
+    ['CPPO_T510-1','F2','FORNECEDOR CERTO',4000,'TED'],['CPPO_T510-2','F2','FORNECEDOR CERTO',6000,'']
+  ]);
+  assert.match(rows[0].desc,/FORNECEDOR CERTO — T510 — parcela 1\/2/);
+  const removed=await mod.deletePurchaseOrder(identity,{operationId:randomUUID(),ticketNo:'T510',expectedTotal:10000,expectedSupplier:'F2'},{db});
+  assert.equal(removed.status,'CONFIRMED');
+  assert.deepEqual(lockPaths(),[]);
+
+  await create(purchaseTicket('T511',10,50));
+  const single=await edit('T511',next=>changeSupplier(next,'F2','FORNECEDOR CERTO'));
+  assert.equal(single.payable.id,'CPPO_T511');
+  assert.equal(srv.read('erp/contasPagar/CPPO_T511').fornCod,'F2');
+  assert.equal(srv.read('erp/contasPagar/CPPO_T511').valor,500);
+  assert.deepEqual(lockPaths(),[]);
+});
+
+test('não troca fornecedor de compra com adiantamento, com pagamento ou para fornecedor inativo',async()=>{
+  srv.reset(baseData());
+  const advance=await mod.createAdvance(identity,{fornCod:'F1',data:today,valor:100,forma:'PIX',bancoCod:'B1',empresa:'Manuela',ticket:'',obs:'',operationId:randomUUID()},{db});
+  await create(purchaseTicket('T520',3,100),[advance.advance.cod]);
+  await assert.rejects(edit('T520',next=>changeSupplier(next,'F2','FORNECEDOR CERTO')),{code:'SUPPLIER_CHANGE_BLOCKED'});
+  await create(purchaseTicket('T521',10,50));
+  await mod.payPayable(identity,{payableId:'CPPO_T521',operationId:randomUUID(),bankCode:'B1',date:today,amount:100,
+    expected:{valor:500,status:'Pendente',paymentsCount:0}},{db});
+  await assert.rejects(edit('T521',next=>changeSupplier(next,'F2','FORNECEDOR CERTO')),{code:'SUPPLIER_CHANGE_BLOCKED'});
+  await create(purchaseTicket('T522',10,50));
+  await assert.rejects(edit('T522',next=>changeSupplier(next,'F9','INATIVO')),{code:'SUPPLIER_NOT_FOUND'});
+  await assert.rejects(edit('T522',next=>changeSupplier(next,'F404','NAO EXISTE')),{code:'SUPPLIER_NOT_FOUND'});
+  assert.equal(srv.read('erp/tickets/T522').fornecedorCod,'F1');
+  assert.deepEqual(lockPaths(),[]);
+});
+
 const ui=readFileSync(new URL('../public/modules/purchase-order/purchase-order.js',import.meta.url),'utf8');
 function uiHelpers(){
   const start=ui.indexOf('const INSTALLMENT_FORMS=');
@@ -243,11 +285,13 @@ function uiHelpers(){
 
 test('tela: condição de pagamento entende "30 60 90", "3x", "à vista" e recusa texto inválido',()=>{
   const api=uiHelpers();
-  assert.deepEqual([...api.parsePaymentCondition('30 60 90')],[30,60,90]);
-  assert.deepEqual([...api.parsePaymentCondition('0/30/60')],[0,30,60]);
-  assert.deepEqual([...api.parsePaymentCondition('3x')],[30,60,90]);
-  assert.deepEqual([...api.parsePaymentCondition('à vista')],[0]);
-  assert.deepEqual([...api.parsePaymentCondition('28 dias')],[28]);
+  const plain=value=>JSON.parse(JSON.stringify(api.parsePaymentCondition(value)));
+  assert.deepEqual(plain('30 60 90'),{days:[30,60,90]});
+  assert.deepEqual(plain('0/30/60'),{days:[0,30,60]});
+  assert.deepEqual(plain('3x'),{count:3});
+  assert.deepEqual(plain('5 parcelas'),{count:5});
+  assert.deepEqual(plain('à vista'),{days:[0]});
+  assert.deepEqual(plain('28 dias'),{days:[28]});
   assert.equal(api.parsePaymentCondition('abc'),null);
   assert.equal(api.parsePaymentCondition('40x'),null);
   assert.equal(api.parsePaymentCondition(''),null);
@@ -255,7 +299,10 @@ test('tela: condição de pagamento entende "30 60 90", "3x", "à vista" e recus
 
 test('tela: gerar parcelas divide o saldo e a última fecha o total; editar uma recalcula a última',()=>{
   const api=uiHelpers();
-  const rows=api.generateInstallments([0,30,60],1000,'2026-11-08',[{form:'TED',obs:'NF 1'}]);
+  const sameDay=JSON.parse(JSON.stringify(api.generateInstallments({count:3},1000,'2026-11-08',[],'2026-11-20')));
+  assert.deepEqual(sameDay.map(row=>row.date),['2026-11-20','2026-11-20','2026-11-20'],'3x: todas no mesmo dia');
+  assert.deepEqual(sameDay.map(row=>row.value),[333.33,333.33,333.34]);
+  const rows=api.generateInstallments({days:[0,30,60]},1000,'2026-11-08',[{form:'TED',obs:'NF 1'}]);
   assert.deepEqual(JSON.parse(JSON.stringify(rows)),[
     {date:'2026-11-08',value:333.33,form:'TED',obs:'NF 1'},{date:'2026-12-08',value:333.33,form:'TED',obs:''},{date:'2027-01-07',value:333.34,form:'TED',obs:''}
   ]);
@@ -268,7 +315,7 @@ test('tela: gerar parcelas divide o saldo e a última fecha o total; editar uma 
   ]);
   rows[0].value=900;api.balanceInstallments(rows,1000);
   assert.throws(()=>api.validateInstallments(state,1000),/passa do saldo a pagar/);
-  assert.throws(()=>api.validateInstallments({purchaseDate:'2026-11-09',installments:[{date:'2026-11-08',value:1000}]},1000),/vence antes da data da compra/);
+  assert.equal(api.validateInstallments({purchaseDate:'2026-11-09',installments:[{date:'2026-11-08',value:1000}]},1000)[0].vencimento,'2026-11-08');
   assert.deepEqual(JSON.parse(JSON.stringify(api.validateInstallments({purchaseDate:'2026-11-08',installments:[]},0))),[]);
 });
 
@@ -329,13 +376,13 @@ test('notinha lista as parcelas com dias, vencimento, valor, forma e observaçã
 test('notinha não mostra códigos internos de adiantamento; cheque aparece pelo número',()=>{
   const ticket={ticket:'T601',fornecedor:'Fornecedor de teste',fornecedorCod:'F1',dataCompra:'2026-11-08',vencimentoSaldo:'2026-11-08',
     itens:[{mat:'COBRE',quantidade:10,preco:100}],totalProdutos:1000,totalGeral:1000,adiantamento:1000,saldoPagar:0,
-    reciboFinanceiro:{versao:2,total:1000,adiantamentos:[{cod:'ADTMW9KNLL7E91539D1',data:'2026-11-01',forma:'PIX',valorAplicado:600}],
-      cheques:[{id:'CHQ-INTERNO-1',num:'000123',bomPara:'2026-11-05',valorAplicado:400}]}};
+    reciboFinanceiro:{versao:2,total:1000,adiantamentos:[{cod:'ADTMW9KNLL7E91539D1',data:'2026-11-01',forma:'PIX',valorOriginal:20010.25,valorAplicado:600,valorPendente:19410.25}],
+      cheques:[{id:'CHQ-INTERNO-1',num:'000123',bomPara:'2026-11-05',valorOriginal:400,valorAplicado:400}]}};
   const html=printHtml(ticket);
   assert.doesNotMatch(html,/ADTMW9KNLL7E91539D1|CHQ-INTERNO-1/);
-  assert.match(html,/<th>Data<\/th><th>Origem<\/th><th>Forma<\/th><th>Valor aplicado<\/th>/);
+  assert.match(html,/<th>Data<\/th><th>Origem<\/th><th>Forma<\/th><th>Valor do adiantamento<\/th><th>Valor aplicado<\/th>/);
   assert.deepEqual(sectionRows(html,'Adiantamentos e abatimentos desta compra'),[
-    ['01/11/2026','Adiantamento','PIX','R$ 600,00'],['05/11/2026','Cheque','Cheque nº 000123','R$ 400,00']
+    ['01/11/2026','Adiantamento','PIX','R$ 20.010,25','R$ 600,00'],['05/11/2026','Cheque','Cheque nº 000123','R$ 400,00','R$ 400,00']
   ]);
 });
 

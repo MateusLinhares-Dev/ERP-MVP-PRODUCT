@@ -16,6 +16,21 @@ const ENDPOINTS = {
   'training/matrix': { GET: 'user', POST: 'user' },
   'engineering/logs': { GET: 'engineer' },
   'engineering/telemetry': { POST: 'user' },
+  'finance/advance-banks': { GET: 'user' },
+  'finance/advance-change': { POST: 'user' },
+  'finance/advance-cheques': { GET: 'user' },
+  'finance/advance-orphan-recovery': { POST: 'user' },
+  'finance/advance-status': { GET: 'user' },
+  'finance/advances': { POST: 'user' },
+  'finance/bank-options': { GET: 'user' },
+  'finance/payables-payment': { POST: 'user' },
+  'finance/payables-status': { GET: 'user' },
+  'finance/purchase-order-create': { POST: 'user' },
+  'finance/purchase-order-delete': { POST: 'user' },
+  'finance/purchase-order-edit': { POST: 'user' },
+  'finance/supplier-cash-repasses': { GET: 'user', POST: 'user' },
+  'banking/integrations': { POST: 'user' },
+  'banking/reconcile': { POST: 'user' },
 };
 
 function response() {

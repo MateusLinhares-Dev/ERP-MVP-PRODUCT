@@ -79,9 +79,9 @@ test('estado bancário não é gravável pelo browser e endpoint exige identidad
   const rules=JSON.parse(readFileSync(new URL('../database.rules.json',import.meta.url),'utf8')).rules.erp;
   assert.equal(rules.bankReconciliationState['.write'],false);
   assert.match(rules.bankReconciliationState['.read'],/canBanking/);
-  const endpoint=readFileSync(new URL('../api/banking/reconcile.js',import.meta.url),'utf8');
-  assert.match(endpoint,/requireIdentity/);
-  assert.match(endpoint,/assertSameOrigin/);
+  const endpoint=readFileSync(new URL('../api/banking/reconcile.ts',import.meta.url),'utf8');
+  assert.match(endpoint,/POST: \{\s*access: 'user'/);
+  assert.doesNotMatch(endpoint,/sameOrigin: 'optional'/);
 });
 
 test('transação global impede usar mesmo título em contas bancárias diferentes',async()=>{

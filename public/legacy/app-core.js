@@ -570,7 +570,7 @@ function _removerCPporIndice(idx){
 }
 
 function _cpGeridaPeloServidor(c){
-  return Boolean(c) && (String(c.id||'').startsWith('CPPO_') || Number(c.parcelas||0)>1);
+  return Boolean(c) && String(c.id||'').startsWith('CPPO_');
 }
 function _compraConfirmadaNoServidor(t){
   return Boolean(t && t._purchaseOperationId);

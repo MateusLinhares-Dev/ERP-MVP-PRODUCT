@@ -101,9 +101,6 @@ export function normalizeInstallments(raw: unknown, context: InstallmentContext)
     const vencimento = String(row.vencimento ?? '').trim();
     if (!isIsoDate(vencimento))
       fail(422, 'INVALID_INSTALLMENT_DATE', `Data de vencimento da parcela ${line} inválida.`);
-    if (vencimento < context.purchaseDate) {
-      fail(422, 'INVALID_INSTALLMENT_DATE', `A parcela ${line} vence antes da data da compra.`);
-    }
     const cents = index === lastIndex ? 0 : centsOf(row.valor, line);
     othersCents += cents;
     return {

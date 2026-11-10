@@ -103,8 +103,8 @@ test('histórico financeiro não conta pesagem de origem junto de pedido consoli
 test('paginador de compra aparece antes da tabela e nunca é escondido com <=25 compras',()=>{
  assert.match(pager,/key === 'compra-historico' \? 'beforebegin' : 'afterend'/);
  assert.match(core,/ERPListPager\?\.slice\('compra-historico',all,'tb-compras',renderTickets,\{alwaysShow:true\}\)/);
- assert.match(bootstrap,/const assetRevision = '20261109-parcelas-compra-v7'/);
- assert.match(html,/bootstrap\.js\?v=20261109-parcelas-compra-v7/);
+ assert.match(bootstrap,/const assetRevision = '20261110-correcoes-cliente-v8'/);
+ assert.match(html,/bootstrap\.js\?v=20261110-correcoes-cliente-v8/);
 });
 
 test('sincronizador em lote não publica pedido provisório enquanto transação individual está em andamento',()=>{
