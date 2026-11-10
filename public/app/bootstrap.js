@@ -4,7 +4,7 @@ import { createLegacyDatabaseAdapter } from './legacy-db-adapter.js';
 import { createRealtimeBusinessRepository } from './realtime-business-repository.js';
 import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 
-const assetRevision = '20261110-correcoes-cliente-v8';
+const assetRevision = '20261110-parcial-cheques-v9';
 const crudCacheRevision = '20261108-crud-sync-per-record-v2';
 
 function loadClassic(src) {

@@ -82,6 +82,6 @@ test('as duas leituras gerais usam proteção e child_removed descarta registro 
 });
 
 test('versão atualizada do bootstrap impede carregar JavaScript antigo',()=>{
-  assert.match(bootstrap,/assetRevision = '20261110-correcoes-cliente-v8'/);
-  assert.match(html,/bootstrap\.js\?v=20261110-correcoes-cliente-v8/);
+  assert.match(bootstrap,/assetRevision = '20261110-parcial-cheques-v9'/);
+  assert.match(html,/bootstrap\.js\?v=20261110-parcial-cheques-v9/);
 });

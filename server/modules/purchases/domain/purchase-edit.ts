@@ -493,6 +493,69 @@ export function replanPayables(input: {
   return { updates, payables: created, removed };
 }
 
+export interface OpenInstallmentShift {
+  updates: Row;
+  plan: unknown[];
+  path: string;
+}
+
+const installmentNumber = (path: string): number => Number(/-(\d{1,2})$/.exec(path)?.[1] ?? 0);
+const brl = (cents: number): string =>
+  'R$ ' + (cents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+export function shiftOpenInstallment(input: {
+  raw: unknown;
+  ticketNo: string;
+  previous: PurchaseTicket;
+  oldBalance: number;
+  nextBalance: number;
+  at: number;
+}): OpenInstallmentShift {
+  const { expected, rows } = purchasePayables(input.raw, input.ticketNo, input.previous);
+  if (rows.some(([path, row]) => !expected.has(path) || String(row.id || '') !== path)) {
+    reject(
+      409,
+      'LEGACY_PAYABLE_REVIEW',
+      'As contas a pagar deste pedido precisam de revisão no financeiro antes de mudar o valor.',
+    );
+  }
+  const open = rows
+    .filter(([, row]) => String(row.status || '') === 'Pendente' && cash(Number(row.valor || 0)) > 0)
+    .sort(([a], [b]) => installmentNumber(a) - installmentNumber(b));
+  const openTotal = open.reduce((sum, [, row]) => sum + cash(Number(row.valor || 0)), 0);
+  const target = open.at(-1);
+  if (!target || openTotal !== input.oldBalance) {
+    reject(
+      409,
+      'PAYABLE_CHANGED',
+      'As parcelas em Contas a Pagar não conferem com o saldo do pedido. Atualize a tela.',
+    );
+  }
+  const [path, row] = target;
+  const delta = input.nextBalance - input.oldBalance;
+  const current = cash(Number(row.valor || 0));
+  const nextValue = current + delta;
+  if (nextValue <= 0) {
+    reject(
+      409,
+      'INSTALLMENT_ADJUST_EXCEEDS_OPEN',
+      `A redução de ${brl(-delta)} é maior que a última parcela em aberto (${brl(current)}). ` +
+        'Ajuste em Contas a Pagar ou estorne um pagamento antes de editar.',
+    );
+  }
+  const plan = Array.isArray(input.previous.parcelas) ? clone(input.previous.parcelas as unknown[]) : [];
+  const entry = plan[installmentNumber(path) - 1];
+  if (entry && typeof entry === 'object') {
+    const planned = entry as Row;
+    planned.valor = round(cash(Number(planned.valor || 0)) + delta);
+  }
+  return {
+    updates: { ['contasPagar/' + path]: { ...row, valor: round(nextValue), _upd: input.at } },
+    plan,
+    path,
+  };
+}
+
 export function applyPlan(ticket: PurchaseTicket, installments: Installment[]): void {
   const first = installments[0];
   if (first) {

@@ -15,6 +15,7 @@
   };
   const cents=value=>Math.round(Number(value||0)*100);
   const money=value=>Number(value||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const chequeNumber=item=>String(item?.numero||'').trim()||'não informado';
   function filter(items,criteria={}){
     const cliente=normalize(criteria.cliente),empresa=normalize(criteria.empresa);
     const year=String(criteria.year||''),month=String(criteria.month||'');
@@ -37,19 +38,20 @@
       return '"'+valueText.replace(/"/g,'""')+'"';
     };
     const lines=[['CHEQUE','EMPRESA','CLIENTE','NÚMERO','DATA','VALOR']];
-    for(const item of items)lines.push(['CHEQUE',item.empresa,item.cliente,item.numero,item.data,'R$ '+money(item.valor)]);
+    for(const item of items)lines.push(['CHEQUE',item.empresa,item.cliente,chequeNumber(item),item.data,'R$ '+money(item.valor)]);
     lines.push(['TOTAL','','','','','R$ '+money(summary(items).total)]);
     return '\uFEFF'+lines.map(cells=>cells.map(escapeCell).join(';')).join('\r\n');
   }
   function tableRows(items){
-    return items.map(c=>'<tr><td>CHEQUE</td><td>'+esc(c.empresa||'—')+'</td><td>'+esc(c.cliente)+'</td><td>'+esc(c.numero)+'</td><td>'+esc(c.data)+'</td><td class="adt-report-amount">R$ '+money(c.valor)+'</td></tr>').join('');
+    return items.map(c=>'<tr><td>CHEQUE</td><td>'+esc(c.empresa||'—')+'</td><td>'+esc(c.cliente)+'</td><td>'+esc(chequeNumber(c))+'</td><td>'+esc(c.data)+'</td><td class="adt-report-amount">R$ '+money(c.valor)+'</td></tr>').join('');
   }
   function printHtml(items){
     const table='<table><thead><tr><th>CHEQUE</th><th>EMPRESA</th><th>CLIENTE</th><th>NÚMERO</th><th>DATA</th><th>VALOR</th></tr></thead><tbody>'+tableRows(items)+'</tbody><tfoot><tr><td><b>TOTAL</b></td><td></td><td></td><td></td><td></td><td><b>R$ '+money(summary(items).total)+'</b></td></tr></tfoot></table>';
     return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relação de cheques</title><style>@page{size:A4 landscape;margin:12mm}body{font:12px Arial,sans-serif;margin:20px;color:#222}h1{font-size:17px;margin:0 0 14px}table{border-collapse:collapse;width:100%;table-layout:auto}th,td{border:1px solid #555;padding:5px 7px;text-align:left;overflow-wrap:anywhere}th,tfoot td{background:#fff35b;font-weight:700}td:last-child,th:last-child{text-align:right;white-space:nowrap}tr{break-inside:avoid}button{margin-bottom:14px;background:#245b41;color:white;border:0;border-radius:5px;padding:9px 14px;cursor:pointer}@media print{button{display:none}body{margin:0}thead{display:table-header-group}tfoot{display:table-footer-group}}</style></head><body><button type="button" onclick="window.print()">Imprimir</button><h1>Relação de cheques</h1>'+table+'<script>window.addEventListener("load",function(){window.focus();window.print()})<\/script></body></html>';
   }
   function summary(items){return {count:items.length,total:items.reduce((sum,item)=>sum+cents(item.valor),0)/100};}
-  global.AdvanceChequeReport={filter,csv,summary,isoDate,printHtml,tableRows};
+  const usable=items=>Array.isArray(items)?items.filter(c=>c&&typeof c==='object'&&String(c.cliente||'').trim()&&Number.isFinite(c.valor)&&c.valor>0):[];
+  global.AdvanceChequeReport={filter,csv,summary,isoDate,printHtml,tableRows,usable};
   if(typeof document==='undefined')return;
   const panel=()=>document.getElementById('adt-cheques-report');
   const user=()=>{try{return global.firebase?.auth?.().currentUser||null;}catch(e){return null;}};
@@ -112,11 +114,12 @@
       const response=await fetch('/api/finance/advance-cheques',{headers:{Authorization:'Bearer '+token,Accept:'application/json'},credentials:'same-origin',cache:'no-store'});
       const data=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(data.message||('Erro na consulta ('+response.status+').'));
-      if(user()?.uid!==identity.uid)return;
-      rows=Array.isArray(data.cheques)?data.cheques.filter(c=>c&&typeof c==='object'&&c.numero&&c.cliente&&Number.isFinite(c.valor)&&c.valor>0):[];
+      if(user()?.uid!==identity.uid){root.querySelector('#adt-report-message').textContent='O usuário mudou durante a consulta. Toque em Atualizar.';return;}
+      rows=usable(data.cheques);
       currentUid=identity.uid;
       years();render();
-      root.querySelector('#adt-report-message').textContent=rows.length+' cheque(s) de adiantamentos carregado(s).';
+      const missing=rows.filter(row=>!String(row.numero||'').trim()).length;
+      root.querySelector('#adt-report-message').textContent=rows.length+' cheque(s) de adiantamentos carregado(s).'+(missing?' '+missing+' sem número de cheque cadastrado (aparecem como "não informado").':'');
     }catch(e){
       rows=[];render();
       root.querySelector('#adt-report-message').textContent='Falha ao consultar o relatório: '+String(e.message||e);

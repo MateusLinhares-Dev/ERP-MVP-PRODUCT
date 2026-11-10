@@ -148,18 +148,69 @@ test('compra com 3 parcelas gera 3 contas a pagar; Elaine paga cada uma separada
   assert.equal(inspected.state,'confirmed');
   assert.equal((await mod.inspectPayablePayment(identity,{payableId:'CPPO_T500-2'},{db})).state,'pending');
 
-  await assert.rejects(edit('T500',next=>setPrice(next,100,90)),{code:'INSTALLMENTS_HAVE_PAYMENTS'});
+  await edit('T500',next=>setPrice(next,100,90));
+  assert.deepEqual(payables('T500'),[
+    ['CPPO_T500-1',2000,'08/11/2026','Pago'],['CPPO_T500-2',3000,'08/12/2026','Pendente'],['CPPO_T500-3',4000,'07/01/2027','Pendente']
+  ],'fechar a notinha com valor menor: a diferença sai da última parcela em aberto; a parcela paga não muda');
+  assert.equal(srv.read('erp/tickets/T500').saldoPagar,7000);
+  assert.equal(srv.read('erp/tickets/T500').status,'Parcial');
+  assert.deepEqual((await viaSdk('erp/tickets/T500')).parcelas.map(row=>row.valor),[2000,3000,4000]);
+  await assert.rejects(edit('T500',next=>setPrice(next,100,20)),{code:'INSTALLMENT_ADJUST_EXCEEDS_OPEN'});
   await assert.rejects(edit('T500',next=>{next.parcelas=[{vencimento:'2026-11-08',valor:2000},{vencimento:'2026-12-20'}];}),{code:'INSTALLMENTS_HAVE_PAYMENTS'});
-  await assert.rejects(mod.deletePurchaseOrder(identity,{operationId:randomUUID(),ticketNo:'T500',expectedTotal:10000,expectedSupplier:'F1'},{db}),{code:'PURCHASE_HAS_FINANCE'});
+  await assert.rejects(mod.deletePurchaseOrder(identity,{operationId:randomUUID(),ticketNo:'T500',expectedTotal:9000,expectedSupplier:'F1'},{db}),{code:'PURCHASE_HAS_FINANCE'});
   assert.deepEqual(lockPaths(),[]);
 
-  for(const [id,amount] of [['CPPO_T500-2',3000],['CPPO_T500-3',5000]]){
+  for(const [id,amount] of [['CPPO_T500-2',3000],['CPPO_T500-3',4000]]){
     await mod.payPayable(identity,{payableId:id,operationId:randomUUID(),bankCode:'B1',date:today,amount,
       expected:{valor:amount,status:'Pendente',paymentsCount:0}},{db});
   }
   assert.equal(srv.read('erp/tickets/T500').saldoPagar,0);
   assert.equal(srv.read('erp/tickets/T500').status,'Pago');
   assert.equal((await mod.inspectPayablePayment(identity,{payableId:'CPPO_T500-3'},{db})).state,'confirmed');
+});
+
+const advanceFor=(valor,operationId=randomUUID())=>mod.createAdvance(identity,{operationId,fornCod:'F1',data:today,valor,
+  forma:'PIX',bancoCod:'B1',empresa:'',ticket:'',obs:''},{db});
+const pay=(payableId,valor,{amount=0,advanceAmount=0}={})=>mod.payPayable(identity,{payableId,operationId:randomUUID(),bankCode:amount?'B1':'',
+  date:today,amount,advanceAmount,fornCod:'F1',expected:{valor,status:'Pendente',paymentsCount:(srv.read('erp/contasPagar/'+payableId)?.pagamentos||[]).length}},{db});
+
+test('fluxo do cliente, uma parcela: notinha hoje, abate parte em Contas a Pagar, fecha amanhã com o valor final',async()=>{
+  srv.reset(baseData());
+  await create(purchaseTicket('T510',1000,100));
+  assert.deepEqual(payables('T510'),[['CPPO_T510',100000,'08/11/2026','Pendente']]);
+  await pay('CPPO_T510',100000,{amount:30000});
+  await advanceFor(20000);
+  const advance=srv.read('erp/adiantamentos/F1')[0];
+  assert.equal(advance.status,'Pendente','adiantamento lançado depois da notinha fica disponível');
+  await pay('CPPO_T510',70000,{advanceAmount:20000});
+  assert.deepEqual(payables('T510'),[['CPPO_T510',50000,'08/11/2026','Pendente']]);
+  assert.equal(srv.read('erp/adiantamentos/F1')[0].status,'Quitado','adiantamento compensado em Contas a Pagar');
+  assert.equal(srv.read('erp/tickets/T510').saldoPagar,50000);
+  await edit('T510',next=>setPrice(next,1000,112));
+  assert.deepEqual(payables('T510'),[['CPPO_T510',62000,'08/11/2026','Pendente']],'valor final 112.000 − 30.000 pagos − 20.000 compensados');
+  assert.equal(srv.read('erp/tickets/T510').saldoPagar,62000);
+  await pay('CPPO_T510',62000,{amount:62000});
+  assert.equal(srv.read('erp/tickets/T510').saldoPagar,0);
+  assert.equal(srv.read('erp/tickets/T510').status,'Pago');
+  assert.deepEqual(lockPaths(),[]);
+});
+
+test('fluxo do cliente, com parcelas: abate em Contas a Pagar e o fechamento ajusta a última parcela em aberto',async()=>{
+  srv.reset(baseData());
+  await create(purchaseTicket('T511',1000,172,[{vencimento:today,valor:50000},{vencimento:today,valor:0}]));
+  assert.deepEqual(payables('T511'),[['CPPO_T511-1',50000,'08/11/2026','Pendente'],['CPPO_T511-2',122000,'08/11/2026','Pendente']]);
+  await pay('CPPO_T511-1',50000,{amount:50000});
+  await advanceFor(50000);
+  await pay('CPPO_T511-2',122000,{advanceAmount:50000});
+  assert.deepEqual(payables('T511'),[['CPPO_T511-1',50000,'08/11/2026','Pago'],['CPPO_T511-2',72000,'08/11/2026','Pendente']]);
+  await edit('T511',next=>setPrice(next,1000,180));
+  assert.deepEqual(payables('T511'),[['CPPO_T511-1',50000,'08/11/2026','Pago'],['CPPO_T511-2',80000,'08/11/2026','Pendente']]);
+  const ticket=await viaSdk('erp/tickets/T511');
+  assert.equal(ticket.saldoPagar,80000);
+  assert.deepEqual(ticket.parcelas.map(row=>row.valor),[50000,130000]);
+  assert.equal(srv.read('erp/contasPagar/CPPO_T511-2').adtCompensado,50000,'o que já foi abatido continua registrado');
+  await assert.rejects(edit('T511',next=>setPrice(next,1000,40)),{code:'INSTALLMENT_ADJUST_EXCEEDS_OPEN'});
+  assert.deepEqual(lockPaths(),[]);
 });
 
 test('editar parcelas sem pagamento refaz as contas: 3 → 2 → 1 → 3 e exclusão remove todas',async()=>{
@@ -364,13 +415,13 @@ test('notinha lista as parcelas com dias, vencimento, valor, forma e observaçã
     itens:[{mat:'COBRE',quantidade:100,preco:100}],totalProdutos:10000,totalGeral:10000,adiantamento:0,saldoPagar:8000,
     parcelas:[{vencimento:'2026-11-08',valor:2000,forma:'TED',obs:'NF 4521'},{vencimento:'2026-12-08',valor:3000,forma:'TED',obs:''},{vencimento:'2027-01-07',valor:5000,forma:'',obs:''}]};
   const html=printHtml(ticket,[{id:'CPPO_T600-1',ticket:'T600',valor:2000,status:'Pago',pagamentos:[{data:'08/11/2026',valor:2000}]},
-    {id:'CPPO_T600-2',ticket:'T600',valor:3000,status:'Pendente'},{id:'CPPO_T600-3',ticket:'T600',valor:5000,status:'Pendente'}]);
+    {id:'CPPO_T600-2',ticket:'T600',valor:3000,status:'Pendente'},{id:'CPPO_T600-3',ticket:'T600',valor:3000,status:'Pendente',valorPago:1500,adtCompensado:500}]);
   assert.match(html,/<th>Dias<\/th><th>Data Vencimento<\/th><th>Valor<\/th><th>Forma<\/th><th>Observações<\/th>/);
   assert.deepEqual(sectionRows(html,'Parcelas'),[
     ['0','08/11/2026','R$ 2.000,00','TED','NF 4521 · Paga'],
     ['30','08/12/2026','R$ 3.000,00','TED','—'],
-    ['60','07/01/2027','R$ 5.000,00','—','—']
-  ]);
+    ['60','07/01/2027','R$ 5.000,00','—','Abatido R$ 2.000,00 · resta R$ 3.000,00']
+  ],'parcela abatida em parte (pagamento + compensação de adiantamento) mostra quanto foi abatido e quanto falta');
 });
 
 test('notinha não mostra códigos internos de adiantamento; cheque aparece pelo número',()=>{

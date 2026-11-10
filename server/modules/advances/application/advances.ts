@@ -4,6 +4,14 @@ import type { Identity } from '../../../shared/auth/identity.js';
 import { AppError } from '../../../shared/errors/app-error.js';
 import { supplierOptions, supplierTombstones } from '../../suppliers/domain/supplier-directory.js';
 import {
+  advanceChequeRows,
+  customerChequeRows,
+  serverChequeRows,
+  supplierChequeRows,
+  supplierNames,
+  type ChequeReportRow,
+} from '../domain/cheque-report.js';
+import {
   advanceRecords,
   amount,
   assertLinkedBankMovement,
@@ -121,62 +129,32 @@ export async function listAdvanceBankOptions(identity: Identity, { db }: { db?: 
 export async function listAdvanceCheques(identity: Identity, { db }: { db?: Database } = {}) {
   requireFinance(identity);
   const instance = await resolveDatabase(db);
-  const [snapshot, deletedSnapshot] = await Promise.all([
-    instance.ref('erp/chequesControle').get(),
-    instance.ref('erp/chequesControle_del').get(),
-  ]);
-  const deleted = (deletedSnapshot.val() ?? {}) as Record<string, unknown>;
-  const rows = Object.entries((snapshot.val() ?? {}) as Record<string, unknown>)
-    .filter(
-      (entry): entry is [string, ChequeRecord] =>
-        Boolean(entry[1]) &&
-        typeof entry[1] === 'object' &&
-        !Array.isArray(entry[1]) &&
-        Boolean((entry[1] as ChequeRecord).advanceCode) &&
-        Boolean((entry[1] as ChequeRecord).fornCod) &&
-        deleted[entry[0]] !== true,
-    )
-    .map(([id, cheque]) => ({
-      origem: 'Adiantamento a fornecedor',
-      id: clean(cheque.id || id, 100),
-      adiantamento: clean(cheque.advanceCode, 100),
-      empresa: clean(cheque.emitente || cheque.origem || '', 180),
-      cliente: clean(cheque.dest || '', 240),
-      numero: clean(cheque.n, 40),
-      data: clean(cheque.d, 10),
-      vencimento: clean(cheque.venc, 10),
-      valor: Number(cheque.v),
-      situacao: cheque.s === 'C' ? 'Compensado' : cheque.s === 'X' ? 'Cancelado' : 'A compensar',
-    }))
-    .filter((cheque) => cheque.numero && cheque.cliente && Number.isFinite(cheque.valor) && cheque.valor > 0);
+  const paths = [
+    'erp/chequesControle',
+    'erp/chequesControle_del',
+    'erp/cheques',
+    'erp/chequesPorFornDeleted',
+    'erp/adiantamentos',
+    'erp/adtPorFornDeleted',
+    'erp/fornecedores',
+  ];
+  const [
+    control,
+    controlDeleted,
+    supplierCheques,
+    supplierChequesDeleted,
+    advances,
+    advancesDeleted,
+    suppliers,
+  ] = (await Promise.all(paths.map((path) => instance.ref(path).get()))).map((snap): unknown => snap.val());
+  const names = supplierNames(suppliers);
+  const rows: ChequeReportRow[] = [
+    ...serverChequeRows(control, controlDeleted),
+    ...supplierChequeRows(supplierCheques, names, supplierChequesDeleted),
+    ...advanceChequeRows(advances, names, advancesDeleted),
+  ];
   if (identity.canFinance === true) {
-    const customers = ((await instance.ref('erp/chequesCli').get()).val() ?? {}) as Record<string, unknown>;
-    for (const [customer, raw] of Object.entries(customers)) {
-      if (!raw || typeof raw !== 'object') continue;
-      for (const value of Object.values(raw)) {
-        const cheque = value as Row | null;
-        if (!cheque || typeof cheque !== 'object' || clean(cheque.tipo, 40).toLowerCase() !== 'adiantamento')
-          continue;
-        const item = {
-          origem: 'Cheque de cliente',
-          id: '',
-          adiantamento: '',
-          empresa: clean(cheque.emitente || '', 180),
-          cliente: clean(customer, 240),
-          numero: clean(cheque.num, 40),
-          data: clean(cheque.data || cheque.bomPara, 10),
-          vencimento: clean(cheque.bomPara, 10),
-          valor: Number(cheque.valor),
-          situacao:
-            cheque.status === 'Compensado'
-              ? 'Compensado'
-              : cheque.status === 'Devolvido'
-                ? 'Devolvido'
-                : 'A compensar',
-        };
-        if (item.numero && item.cliente && Number.isFinite(item.valor) && item.valor > 0) rows.push(item);
-      }
-    }
+    rows.push(...customerChequeRows((await instance.ref('erp/chequesCli').get()).val()));
   }
   return { cheques: rows };
 }
