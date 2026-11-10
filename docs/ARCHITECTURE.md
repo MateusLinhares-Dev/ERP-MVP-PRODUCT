@@ -143,7 +143,7 @@ Para devolver um arquivo em vez de JSON, escreva na `res` e retorne `RAW_RESPONS
 | 2 | Servidor em TS: `access`, `audit`, `company`, `agenda`, `training`, `help`, `fiscal`, `snapshots` + endpoints `auth`, `admin`, `agenda`, `training`, `help`, `fiscal`, `engineering`, `config`, `public-config`, `health` | **Concluída** |
 | 3 | Servidor em TS: `purchases`, `advances`, `payables`, `supplier-repasses`, `banking` (regras financeiras) + endpoints `api/finance` e `api/banking` | **Concluída** |
 | 4 | Interface: base React + Vite + TS (`web/`); Lançamento rápido como primeira tela | **Concluída** |
-| 5+ | Interface: substituir o `public/legacy/app-core.js` módulo a módulo (compras, financeiro, cadastros, RH, frota, fiscal), como **ilhas React** dentro do ERP | **Em andamento**: base das ilhas, Relatório de cheques, Central de Ajuda e Engenharia |
+| 5+ | Interface: substituir o `public/legacy/app-core.js` módulo a módulo (compras, financeiro, cadastros, RH, frota, fiscal), como **ilhas React** dentro do ERP | **Em andamento**: base das ilhas, Relatório de cheques, Central de Ajuda, Engenharia e Integrações bancárias |
 
 Todo o servidor (`server/` e `api/`) está em TypeScript desde a etapa 3. Desde a etapa 5, o `allowJs` está desligado. O motor de conciliação bancária saiu de `public/` (só o servidor o usava) e virou `server/modules/banking/domain/reconciliation-engine.ts`.
 
@@ -164,9 +164,10 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
   - Relatório de cheques (`web/modules/cheque-report/`). O antigo `public/modules/finance/advance-cheque-report.js` foi removido.
   - Central de Ajuda (`web/modules/help-center/`). O antigo `public/modules/help-center/help-center.js` foi removido. O `final-ops.js` continua chamando `window.ERPHelpCenter.render(host)`, que agora monta a tela React.
   - Engenharia (`web/modules/engineering/`): logs de auditoria e editor da Central de Ajuda. O menu é criado pela ilha só para a conta técnica. A captura de erros da tela foi para `web/shared/observability/telemetry.ts`. O antigo `public/modules/engineering/engineering.js` foi removido.
+  - Integrações bancárias (`web/modules/bank-integrations/`): janela de configuração do Pluggy. A função `window.erpBankIntegrationsOpen(bankCode)`, usada pela tela de Bancos e pela Conciliação, abre a versão React. O antigo `public/modules/banking/bank-integrations-ui.js` foi removido.
   - As telas React usam os mesmos ids e classes, então o CSS e os testes de tela continuaram valendo.
 - **Ordem das próximas migrações:**
-  1. Primeiro as telas que só usam APIs do servidor: Integrações bancárias, Repasses de caixa a fornecedor, Recuperação de adiantamentos órfãos.
+  1. Primeiro as telas que só usam APIs do servidor: Repasses de caixa a fornecedor, Recuperação de adiantamentos órfãos.
   2. Depois Fornecedores. Antes, ele precisa de uma API no servidor, porque hoje grava pelo sincronismo do navegador e a lista em memória (`FORNECEDORES`) é lida por dezenas de telas.
 - **Limpeza feita na etapa 5:**
   - scripts avulsos de incidentes já resolvidos (fornecedor de teste F675, ticket T284, adiantamento excluído);

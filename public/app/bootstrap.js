@@ -200,7 +200,6 @@ async function main() {
     loadClassic('/legacy/app-core.js'),
     loadClassic('/legacy/persistence-feedback.js'),
     loadClassic('/modules/banking/reconciliation-ui.js'),
-    loadClassic('/modules/banking/bank-integrations-ui.js'),
     loadClassic('/legacy/module-access-guard.js'),
     loadClassic('/legacy/app-agenda.js'),
     loadClassic('/legacy/app-avisos.js'),

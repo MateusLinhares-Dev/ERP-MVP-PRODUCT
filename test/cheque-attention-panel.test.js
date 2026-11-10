@@ -30,7 +30,7 @@ test('limita a renderizacao mesmo com multiplos intervalos',()=>{
  assert.equal(review.total,999);assert.ok(review.rows.length<=48);
 });
 test('criacao sugerida preenche somente banco e numero e nao salva automaticamente',()=>{
- const snippet=source.slice(source.indexOf('global.phase2ChequeCreateMissing=function('),source.indexOf('function phase2FilterChequeRows(',source.indexOf('global.phase2ChequeCreateMissing=function(')));
+ const snippet=source.slice(source.indexOf('global.phase2ChequeCreateMissing=function('),source.indexOf("if(typeof originalRenderChequeControl==='function')",source.indexOf('global.phase2ChequeCreateMissing=function(')));
  const bank={options:[{value:'A'},{value:'B'}],value:'B',dispatchEvent(){}};
  const num={value:'',dispatchEvent(){}};
  const other={value:''};

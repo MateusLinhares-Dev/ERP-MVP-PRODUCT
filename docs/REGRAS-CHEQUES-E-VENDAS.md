@@ -18,6 +18,16 @@ Regra combinada com a cliente: **só não pode repetir o mesmo banco com o mesmo
 - Testes: `test/advance-banks-atomicity.test.js`.
 - A confirmação "cheques de terceiro repetidos, confirme para continuar" deixou de existir. Agora o cheque é bloqueado (mesmo banco e número) ou permitido.
 
+## Listas de cheques paginadas
+
+- As três listas de cheques mostram 25 por página, com opção de 50 ou 100 e navegação "Anterior/Próxima": Cheques a compensar, Cheques de fornecedor e Cheques de cliente.
+- A busca em "Cheques a compensar" procura em todos os cheques, e não só na página visível:
+  - não diferencia acento nem maiúscula;
+  - procura em número, cliente e banco;
+  - volta para a página 1;
+  - mantém o foco e o texto digitado.
+- O filtro antigo do `phase2-feedback.js` só escondia linhas da tela e foi removido.
+
 ## Vendas: abatimento de adiantamento e cheque do cliente
 
 - **Cheque** não pode ser usado em parte. Se for maior que o saldo da venda, a venda não é salva e a tela explica o motivo.

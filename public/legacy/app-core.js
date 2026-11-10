@@ -8009,7 +8009,7 @@ function renderChequesCli(){
     return;
   }
   const hoje=_hojeISO();
-  tbody.innerHTML=all.map(c=>{
+  tbody.innerHTML=_erpPaginarDados('cheques-cliente',all,'tb-cheques-cli-list',renderChequesCli).map(c=>{
     const bomISO=c.bomPara&&c.bomPara.indexOf('/')>=0?c.bomPara.split('/').reverse().join('-'):c.bomPara;
     const devolvido=c.status==='Devolvido';
     const pagoDev=c.status==='Pago (após devolução)';
@@ -9417,7 +9417,7 @@ function renderCheques(){
 
   const baseList=temFiltro?allFiltrado:all;
   const allParaLista=baseList.filter(c=>c.status!=='Compensado'||compDentroFiltro(c));
-  tbody.innerHTML=allParaLista.map(c=>{
+  tbody.innerHTML=_erpPaginarDados('cheques-fornecedor',allParaLista,'tb-cheques-list',renderCheques).map(c=>{
     const cheqId=c.id||('CHQ_'+c.num+'_'+c.fornCod);
     const dataVal=c.dataCompensacao||'';
     const dataInput=dataVal?dataVal.split('/').reverse().join('-'):'';
@@ -15071,6 +15071,8 @@ var _CHQ_ENSURE = [];
 var _chqFbanco = 'TODOS';
 var _chqFsit = 'A';        
 var _chqFbusca = '';
+var _chqFbuscaTexto = '';
+function _chqNormBusca(v){ return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(); }
 const _CHQ_SIT_LBL = {A:'A Compensar', C:'Compensado', X:'Cancelado'};
 
 function _chqRef(){ const db=_supGetDB(); return db?db.ref('erp/chequesControle'):null; }
@@ -15128,11 +15130,18 @@ function _chqTotais(){
   return t;
 }
 
-function chqSetSit(s){ _chqFsit=s; renderChequesCompensar(); }
-function chqSetBanco(v){ _chqFbanco=v; renderChequesCompensar(); }
-function chqSetBusca(v){ _chqFbusca=(v||'').toLowerCase().trim(); renderChequesCompensar(); }
+function chqSetSit(s){ _chqFsit=s; _erpReiniciarPagina('cheques-compensar'); renderChequesCompensar(); }
+function chqSetBanco(v){ _chqFbanco=v; _erpReiniciarPagina('cheques-compensar'); renderChequesCompensar(); }
+function chqSetBusca(v){
+  _chqFbuscaTexto=String(v||'');
+  _chqFbusca=_chqNormBusca(v);
+  _erpReiniciarPagina('cheques-compensar');
+  renderChequesCompensar();
+  var input=document.querySelector('#chq-ctrl-root input[data-chq-busca]');
+  if(input){ input.focus(); var fim=input.value.length; try{ input.setSelectionRange(fim,fim); }catch(e){} }
+}
 
-function chqVerBanco(b){ _chqFbanco=b; _chqFsit='TODOS'; renderChequesCompensar(); }
+function chqVerBanco(b){ _chqFbanco=b; _chqFsit='TODOS'; _erpReiniciarPagina('cheques-compensar'); renderChequesCompensar(); }
 
 function _chqAdtCheque(banco, num){
   if(typeof CHEQUES_POR_FORN==='undefined') return null;
@@ -15186,7 +15195,7 @@ function renderChequesCompensar(){
     if(_chqFsit!=='TODOS' && (c.s||'A')!==_chqFsit) return false;
     if(_chqFbanco!=='TODOS' && c.b!==_chqFbanco) return false;
     if(_chqFbusca){
-      var hay=((c.n||'')+' '+(c.c||'')+' '+(c.b||'')).toLowerCase();
+      var hay=_chqNormBusca((c.n||'')+' '+(c.c||'')+' '+(c.dest||'')+' '+(c.b||''));
       if(hay.indexOf(_chqFbusca)<0) return false;
     }
     return true;
@@ -15257,7 +15266,7 @@ function renderChequesCompensar(){
   h+='<option value="TODOS"'+(_chqFbanco==='TODOS'?' selected':'')+'>Todos os bancos</option>';
   bancos.forEach(function(b){ h+='<option value="'+esc(b)+'"'+(_chqFbanco===b?' selected':'')+'>'+esc(b)+'</option>'; });
   h+='</select>';
-  h+='<input type="text" placeholder="🔍 Nº ou cliente..." value="'+esc(_chqFbusca)+'" oninput="chqSetBusca(this.value)" style="font-size:.82rem;padding:6px 10px;border:1px solid #ddd;border-radius:7px;min-width:170px">';
+  h+='<input type="text" placeholder="🔍 Nº ou cliente..." value="'+esc(_chqFbuscaTexto)+'" data-chq-busca="1" oninput="chqSetBusca(this.value)" style="font-size:.82rem;padding:6px 10px;border:1px solid #ddd;border-radius:7px;min-width:170px">';
   if(!_chqSec){
 
     var _rpComp=_legacyRepairConfig('gratusSicrediComplete');
@@ -15283,7 +15292,7 @@ function renderChequesCompensar(){
      '<th style="padding:7px 9px">Nº</th><th style="padding:7px 9px">Banco</th><th style="padding:7px 9px">Cliente</th>'+
      '<th style="padding:7px 9px;text-align:right">Valor</th><th style="padding:7px 9px">Data Saída</th>'+
      '<th style="padding:7px 9px">Vencimento</th>'+
-     '<th style="padding:7px 9px">Caiu em</th><th style="padding:7px 9px">Situação</th><th style="padding:7px 9px;text-align:center">Desc. Compra?</th><th style="padding:7px 9px;text-align:center">Ações</th></tr></thead><tbody>';
+     '<th style="padding:7px 9px">Caiu em</th><th style="padding:7px 9px">Situação</th><th style="padding:7px 9px;text-align:center">Desc. Compra?</th><th style="padding:7px 9px;text-align:center">Ações</th></tr></thead><tbody id="chq-ctrl-body">';
   if(!arr.length){
     h+='<tr><td colspan="10" style="padding:18px;text-align:center;color:#aaa">Nenhum cheque neste filtro.</td></tr>';
   }
@@ -15298,7 +15307,7 @@ function renderChequesCompensar(){
       });
     }
   }catch(e){}
-  arr.forEach(function(c){
+  _erpPaginarDados('cheques-compensar',arr,'chq-ctrl-body',renderChequesCompensar).forEach(function(c){
     var s=c.s||'A';
     var bg = s==='A' ? '#fff9e6' : (s==='C' ? '#f2faf3' : (s==='N' ? '#efefef' : '#f5f5f5'));
     var sitTag = s==='A' ? '<span style="background:#fff3cd;color:#8a6d00;border-radius:9px;padding:2px 9px;font-size:.74rem;font-weight:700">🟠 A Compensar</span>'
@@ -15337,6 +15346,7 @@ function renderChequesCompensar(){
   });
   h+='</tbody></table></div>';
   root.innerHTML=h;
+  _erpPaginarDados('cheques-compensar',arr,'chq-ctrl-body',renderChequesCompensar);
 }
 
 var _CHQ_BANCO_COD={};
