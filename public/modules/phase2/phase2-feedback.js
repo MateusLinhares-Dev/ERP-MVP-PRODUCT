@@ -126,7 +126,6 @@ function filterPriceMaterialRows(tab,q){q=norm(q);$$('tbody tr',tab).forEach(row
 function priceSearches(){ensurePriceSearch('tab-precos_fornecedores','pf-forn-sel');ensurePriceSearch('tab-precos_clientes','pc-cli-sel');}
 
 const originalRenderChequeControl=global.renderChequesCompensar;
-const originalChqSetBusca=global.chqSetBusca;
 const originalChqModal=global._chqModal;
 const originalChqSave=global.chqSalvarModal;
 function chequeData(){let obj={};try{obj=CHQ_CTRL||{};}catch(e){}return Object.values(obj||{}).filter(Boolean);}
@@ -256,11 +255,6 @@ function cleanChequeControl(){
     head.innerHTML='<div><b>Controle de cheques</b><small>Confira números faltantes por banco sem carregar listas extensas.</small></div>';
     root.prepend(head);
   }
-  const search=tab.querySelector('input[placeholder*="Nº ou cliente"],input[placeholder*="cliente"]');
-  if(search&&!search.dataset.phase2Bound){
-    search.dataset.phase2Bound='1';search.removeAttribute('oninput');
-    search.addEventListener('input',function(){try{_chqFbusca=norm(this.value);}catch(e){}phase2FilterChequeRows(this.value);});
-  }
   renderChequeAttention();
 }
 global.phase2ChequeCreateMissing=function(bank,value){
@@ -283,9 +277,7 @@ global.phase2ChequeCreateMissing=function(bank,value){
   bankField.dispatchEvent(new Event('change',{bubbles:true}));
   numField.dispatchEvent(new Event('input',{bubbles:true}));
 };
-function phase2FilterChequeRows(q){q=norm(q);$$('#tab-cheques_compensar tbody tr').forEach(row=>row.hidden=!!q&&!norm(row.textContent).includes(q));}
 if(typeof originalRenderChequeControl==='function')global.renderChequesCompensar=function(){const result=originalRenderChequeControl.apply(this,arguments);setTimeout(cleanChequeControl,0);return result;};
-if(typeof originalChqSetBusca==='function')global.chqSetBusca=function(v){try{_chqFbusca=norm(v);}catch(e){}phase2FilterChequeRows(v);};
 if(typeof originalChqModal==='function')global._chqModal=function(){const r=originalChqModal.apply(this,arguments);setTimeout(enhanceChequeModal,0);return r;};
 function chequeDateToIso(value){
   const s=String(value||'').trim();

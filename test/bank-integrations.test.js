@@ -83,9 +83,11 @@ test('conexão Pluggy, escolha de conta e importação idempotente com paginaç�
 test('integração só usa backend autenticado e não publica dados privados no RTDB do navegador',()=>{
  const endpoint=readFileSync(new URL('../api/banking/integrations.ts',import.meta.url),'utf8');
  assert.match(endpoint,/POST: \{\s*access: 'user'/);assert.doesNotMatch(endpoint,/sameOrigin: 'optional'/);
- const frontend=readFileSync(new URL('../public/modules/banking/bank-integrations-ui.js',import.meta.url),'utf8');
- assert.match(frontend,/root\.firebase\?\.auth/);
- assert.match(frontend,/Bearer /);
+ const frontend=readFileSync(new URL('../web/modules/bank-integrations/ui/BankIntegrationsDialog.tsx',import.meta.url),'utf8');
+ const islands=readFileSync(new URL('../web/erp/islands.tsx',import.meta.url),'utf8');
+ assert.match(islands,/api\.request<IntegrationReply>\('\/api\/banking\/integrations'/);
+ assert.match(readFileSync(new URL('../web/shared/auth/erp-session.ts',import.meta.url),'utf8'),/window\.firebase\?\.auth\(\)\.currentUser/);
+ assert.match(readFileSync(new URL('../web/shared/http/api-client.ts',import.meta.url),'utf8'),/Bearer /);
  assert.doesNotMatch(frontend,/localStorage|sessionStorage/);
  const rules=JSON.parse(readFileSync(new URL('../database.rules.json',import.meta.url),'utf8')).rules;
  assert.equal(rules['.read'],false);
@@ -101,5 +103,6 @@ test('tela de conciliação mantém títulos financeiros e esconde controles esp
  assert.match(js,/data-integration-open/);
  assert.match(js,/\[data-quick-undo\]/);
  const boot=readFileSync(new URL('../public/app/bootstrap.js',import.meta.url),'utf8');
- assert.match(boot,/bank-integrations-ui\.js/);
+ assert.doesNotMatch(boot,/bank-integrations-ui\.js/,'integrações bancárias viraram ilha React');
+ assert.match(readFileSync(new URL('../web/erp/islands.tsx',import.meta.url),'utf8'),/erpBankIntegrationsOpen: openBankIntegrations/);
 });

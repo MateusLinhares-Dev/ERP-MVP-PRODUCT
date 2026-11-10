@@ -10,6 +10,9 @@ import { HelpCenter } from '../modules/help-center/ui/HelpCenter.js';
 import { AuditLogs } from '../modules/engineering/ui/AuditLogs.js';
 import { HelpEditor } from '../modules/engineering/ui/HelpEditor.js';
 import { installErrorTelemetry } from '../shared/observability/telemetry.js';
+import { isValidBankCode } from '../modules/bank-integrations/domain/integration.js';
+import type { IntegrationAction, IntegrationReply } from '../modules/bank-integrations/domain/integration.js';
+import { BankIntegrationsDialog } from '../modules/bank-integrations/ui/BankIntegrationsDialog.js';
 
 const CHEQUE_REPORT = 'adt-cheques-report';
 const roots = new Map<string, Root>();
@@ -185,3 +188,44 @@ async function initializeEngineering(): Promise<void> {
 installErrorTelemetry(erpSessionUser);
 document.addEventListener('erp:user-started', () => queueMicrotask(() => void initializeEngineering()));
 void initializeEngineering();
+
+let integrationDialog: { host: HTMLElement; root: Root } | null = null;
+
+function closeBankIntegrations(): void {
+  const dialog = integrationDialog;
+  integrationDialog = null;
+  if (!dialog) return;
+  dialog.root.unmount();
+  dialog.host.remove();
+}
+
+function openBankIntegrations(bankCode: unknown): void {
+  if (!isValidBankCode(bankCode)) return;
+  closeBankIntegrations();
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  integrationDialog = { host, root };
+  const call = (action: IntegrationAction, fields: Record<string, unknown> = {}) =>
+    api.request<IntegrationReply>('/api/banking/integrations', {
+      method: 'POST',
+      body: { action, bankCode, ...fields },
+    });
+  root.render(
+    <StrictMode>
+      <BankIntegrationsDialog
+        bankCode={bankCode}
+        call={call}
+        confirm={(message) => window.confirm(message)}
+        onClose={closeBankIntegrations}
+        onOpenReconciliation={(code) =>
+          (window as unknown as { erpReconciliationOpen?: (code: string) => void }).erpReconciliationOpen?.(
+            code,
+          )
+        }
+      />
+    </StrictMode>,
+  );
+}
+
+Object.assign(window, { erpBankIntegrationsOpen: openBankIntegrations });
