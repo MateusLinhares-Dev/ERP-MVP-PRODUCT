@@ -256,7 +256,6 @@ async function main() {
     loadClassic('/modules/fiscal/fiscal-stock-origins.js'),
     loadClassic('/modules/finance/advance-actions.js'),
     loadClassic('/modules/finance/supplier-cash-repasses.js'),
-    loadClassic('/modules/engineering/engineering.js'),
   ]);
 
   if (webIslandsEntry) {

@@ -27,9 +27,9 @@ test('Compra de sucata indica duplicados por nome normalizado, sem alterar itens
   assert.match(src,/Confira se a repetição é intencional/);
 });
 test('Artigo de ajuda tem publicação explícita e feedback distinto do rascunho',()=>{
-  const src=read('modules/engineering/engineering.js');
+  const src=readFileSync(new URL('../web/modules/engineering/ui/HelpEditor.tsx',import.meta.url),'utf8');
   assert.match(src,/eng-help-publish/);
-  assert.match(src,/form\.requestSubmit\(\)/);
+  assert.match(src,/onClick=\{\(\) => void save\('published'\)\}/);
   assert.match(src,/Artigo publicado!/);
   assert.match(src,/Rascunho salvo/);
 });
