@@ -20,10 +20,13 @@
     return match?unescapeOfx(match[1]):'';
   }
   function cents(raw){
-    const value=String(raw||'').trim();
-    if(!/^[+-]?\d+(?:[.,]\d{1,2})?$/.test(value))throw new Error('Valor OFX inválido: '+value);
-    const result=ledger.toCents(value.replace(',','.'));
-    if(result===0n||result>999999999999999n||result< -999999999999999n)throw new Error('Valor OFX fora do limite');
+    let value=String(raw||'').trim().replace(/\s/g,'');
+    if(/^[+-]?\d{1,3}(?:\.\d{3})+,\d+$/.test(value))value=value.replace(/\./g,'').replace(',','.');
+    else if(/^[+-]?\d{1,3}(?:,\d{3})+\.\d+$/.test(value))value=value.replace(/,/g,'');
+    else value=value.replace(',','.');
+    if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(value))throw new Error('Valor OFX inválido: '+raw);
+    const result=ledger.toCents(value.startsWith('.')||value.startsWith('-.')||value.startsWith('+.')?value.replace('.','0.'):value);
+    if(result>999999999999999n||result< -999999999999999n)throw new Error('Valor OFX fora do limite');
     return result;
   }
   function date(raw){
@@ -43,6 +46,7 @@
     for(const match of blocks){
       const block=match[1];
       const amount=cents(field(block,'TRNAMT'));
+      if(amount===0n)continue;
       const posted=date(field(block,'DTPOSTED'));
       const description=(field(block,'MEMO')||field(block,'NAME')||'Movimentação bancária').slice(0,240);
       const fitid=field(block,'FITID').slice(0,128);

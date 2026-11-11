@@ -94,11 +94,18 @@
     return {atras:atras, hoje:hoje, prox:prox};
   }
 
+  function _compromissosCalendario(){
+    try{ return typeof window.erpCalendarUpcoming==='function' ? (window.erpCalendarUpcoming()||[]) : null; }catch(e){ return []; }
+  }
   function avisosContar(){
     try{
-      var a=_aniversariantes(), e=_fimExperiencia(), ag=_agendaServicos(), total=0;
+      var a=_aniversariantes(), e=_fimExperiencia(), total=0;
       if(_canRH()) total+=a.hoje.length+e.length;
-      if(_canAfazeres()) total+=ag.hoje.length+ag.atras.length;
+      if(_canAfazeres()){
+        var novos=_compromissosCalendario();
+        if(novos) total+=novos.length;
+        else { var ag=_agendaServicos(); total+=ag.hoje.length+ag.atras.length; }
+      }
       return total;
     }catch(err){ return 0; }
   }
@@ -122,7 +129,7 @@
     var html='<div style="max-width:900px;margin:0 auto;padding:6px 2px">';
     html+='<h2 style="margin:6px 0 14px;color:#1f3864">🔔 Avisos</h2>';
 
-    if(_canAfazeres()){
+    if(_canAfazeres() && !_compromissosCalendario()){
       var ag=_agendaServicos();
       var agBody='';
       if(ag.atras.length){ agBody+='<div style="background:#fdecea;border:1px solid #e6a49a;border-radius:9px;padding:10px 12px;margin-bottom:10px"><div style="font-weight:800;color:#a5281b;margin-bottom:4px">⚠️ Atrasados ('+ag.atras.length+')</div>'+ag.atras.map(function(x){ var d=Math.abs(x.dias); return '<div style="padding:3px 0;font-size:.9rem;color:#7a1d13">• <b>'+esc(x.texto)+'</b> — era pra '+_agBR(x.data)+' (há '+d+' dia'+(d>1?'s':'')+')</div>'; }).join('')+'</div>'; }
@@ -143,14 +150,14 @@
       html+=card('<h3 style="margin:0 0 10px;color:#e67e22">🎂 Aniversários do mês</h3>', anivBody);
 
       var expBody='';
-      if(exp.length){ expBody='<div style="font-size:.9rem">'+exp.map(function(x){ var t=x.dias<0?('venceu há '+Math.abs(x.dias)+' dia(s)'):x.dias===0?'vence HOJE':('faltam '+x.dias+' dia(s)'); var et=x.etapa?' <span style="color:#8e44ad;font-size:.78rem;font-weight:700">('+x.etapa+')</span>':''; return '<div style="padding:4px 0;border-bottom:1px solid #f0f0f0">⏳ <b>'+x.nome+'</b>'+et+' — '+x.data+' ('+t+')</div>'; }).join('')+'</div>'; }
+      if(exp.length){ expBody='<div style="font-size:.9rem">'+exp.map(function(x){ var t=x.dias<0?('venceu há '+Math.abs(x.dias)+' dia(s)'):x.dias===0?'vence HOJE':('faltam '+x.dias+' dia(s)'); var et=x.etapa?' <span style="color:#8e44ad;font-size:.78rem;font-weight:700">('+x.etapa+')</span>':''; return '<div style="padding:4px 0;border-bottom:1px solid #f0f0f0">⏳ <b>'+esc(x.nome)+'</b>'+et+' — '+x.data+' ('+t+')</div>'; }).join('')+'</div>'; }
       else { expBody='<div style="color:#888;font-size:.88rem">Nenhum fim de experiência nos próximos 30 dias.</div>'; }
       html+=card('<h3 style="margin:0 0 10px;color:#8e44ad">⏳ Fim de experiência</h3>', expBody);
     }
 
     if(_canVales()){
       var vtBody='';
-      if(vtList.length){ vtBody+='<div style="font-size:.9rem">'+vtList.map(function(f){ return '<div style="padding:4px 0;border-bottom:1px solid #f0f0f0">🚌 <b>'+f.nome+'</b> — R$ '+_fmtBR(f.valeTransporte)+'/mês</div>'; }).join('')+'</div>'; }
+      if(vtList.length){ vtBody+='<div style="font-size:.9rem">'+vtList.map(function(f){ return '<div style="padding:4px 0;border-bottom:1px solid #f0f0f0">🚌 <b>'+esc(f.nome)+'</b> — R$ '+_fmtBR(f.valeTransporte)+'/mês</div>'; }).join('')+'</div>'; }
       else { vtBody+='<div style="color:#888;font-size:.88rem">Nenhum vale-transporte cadastrado.</div>'; }
       html+=card('<h3 style="margin:0 0 10px;color:#1f6b34">🚌 Vale-transporte</h3>', vtBody);
     }
@@ -211,7 +218,7 @@
       try{ renderDashboard(); }catch(e){}
       try{ cm(); }catch(e){}
       try{ renderAvisos(); }catch(e){}
-      var msg='✅ Vale-transporte de R$ '+_fmtBR(valor)+' salvo para '+f.nome+' e '+criadas+' conta(s) criada(s) no Contas a Pagar.';
+      var msg='✅ Vale-transporte de R$ '+_fmtBR(valor)+' salvo para '+esc(f.nome)+' e '+criadas+' conta(s) criada(s) no Contas a Pagar.';
       try{ showToast(msg,'success'); }catch(e){ alert(msg); }
     }catch(err){ alert('Erro: '+(err&&err.message||err)); }
   };

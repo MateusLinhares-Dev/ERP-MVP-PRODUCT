@@ -387,6 +387,7 @@ async function loadCalendarFresh(){
     calendarEvents=cloud&&typeof cloud==='object'?cloud:{};
     await migrateLegacyAfazeres();
     renderCalendar();
+    refreshAvisos();
     setTimeout(checkCalendarPopups,250);
     return true;
   }catch(error){
@@ -533,7 +534,7 @@ function checkCalendarPopups(){
   const msg=fresh.map(e=>`• ${e.title} — ${toBR(e.date)} (${dateDiff(now,e.date)} dia(s))`).join('\n');
   setTimeout(()=>alert(`🔔 Compromissos próximos\n\n${msg}`),350);
 }
-const legacyAvisos=global.renderAvisos,legacyBadge=global.avisosAtualizarBadge;
+const legacyAvisos=global.renderAvisos;
 function injectCalendarAvisos(){
   const box=$('#tab-avisos');if(!box)return;
   const list=myUpcoming();
@@ -547,7 +548,7 @@ function injectCalendarAvisos(){
 }
 function refreshAvisos(){try{global.avisosAtualizarBadge?.();if($('#tab-avisos')?.classList.contains('active'))global.renderAvisos?.();}catch(e){}}
 if(typeof legacyAvisos==='function')global.renderAvisos=function(){const r=legacyAvisos.apply(this,arguments);setTimeout(injectCalendarAvisos,0);return r;};
-if(typeof legacyBadge==='function')global.avisosAtualizarBadge=function(){const r=legacyBadge.apply(this,arguments);setTimeout(()=>{const el=$('.nav-tab[data-tab="avisos"] .nt-label');if(!el)return;const old=el.querySelector('.p3-aviso-count');const extra=myUpcoming().length;if(!extra){if(old)old.remove();return;}if(old){if(old.textContent!==String(extra))old.textContent=String(extra);return;}const s=document.createElement('span');s.className='p3-aviso-count';s.textContent=String(extra);el.appendChild(document.createTextNode(' '));el.appendChild(s);},0);return r;};
+global.erpCalendarUpcoming=function(){return myUpcoming();};
 
 function chequeSequence(){
   let list=[];try{list=Object.entries(CHQ_CTRL||{}).filter(([id,c])=>c&&!(global._chqDel||{})[id]).map(([,c])=>c);}catch(e){}

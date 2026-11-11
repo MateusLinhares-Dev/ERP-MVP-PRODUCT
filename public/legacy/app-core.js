@@ -6023,9 +6023,15 @@ function _movimentoPertenceAdiantamento(movement){
       (Array.isArray(list)?list:Object.values(list||{})).some(a=>a&&a.movBancoId===movement.id));
   }catch(e){return false;}
 }
+function _bancoMovimentoDoServidor(mov){
+  return Boolean(mov)&&(String(mov.id||'').startsWith('LB-PG-')||Boolean(mov.payableId));
+}
 function _bloquearEdicaoMovimentoAdiantamento(movement){
-  if(!_movimentoPertenceAdiantamento(movement))return false;
-  const msg='Este movimento pertence a um adiantamento. Edite ou exclua o adiantamento em Financeiro → Adiantamentos para manter o banco conciliado.';
+  const pagamento=_bancoMovimentoDoServidor(movement);
+  if(!pagamento&&!_movimentoPertenceAdiantamento(movement))return false;
+  const msg=pagamento
+    ?'Este movimento foi lançado pelo pagamento de uma conta a pagar. Para desfazer, exclua o pagamento no Histórico de pagamentos da conta (🕒) — assim a conta e o banco ficam certos.'
+    :'Este movimento pertence a um adiantamento. Edite ou exclua o adiantamento em Financeiro → Adiantamentos para manter o banco conciliado.';
   if(typeof showToast==='function')showToast(msg,'error',8000);
   else alert(msg);
   return true;
@@ -6879,48 +6885,46 @@ function setFolhaValor(mat,campo,val){
   renderFolha();
 }
 
-function parseDataBR(d){
-  if(!d) return null;
-  try{
-    if(d.includes('/')){const p=d.split('/');return{m:parseInt(p[1]),y:parseInt(p[2])};}
-    if(d.includes('-')){const p=d.split('-');return{m:parseInt(p[1]),y:parseInt(p[0])};}
-  }catch(e){}
-  return null;
-}
-
-function fluxoSumCP(cat, mes, ano){
-  
-  return CONTAS_PAGAR.filter(c=>{
-    if(c.status!=='Pago') return false;
-    const dt=parseDataBR(c.dataPgto||c.lancto);
-    if(!dt||dt.y!==ano||dt.m!==mes) return false;
-    if(cat==='folha') return (c.cat||'').toLowerCase().includes('folha');
-    if(cat==='sucata') return (c.cat||'').toLowerCase().includes('sucata');
-    if(cat==='outros') return !(c.cat||'').toLowerCase().includes('folha')&&!(c.cat||'').toLowerCase().includes('sucata');
-    return false;
-  }).reduce((s,c)=>s+Number(c.valor||0),0);
-}
-
-function fluxoSumCR(mes, ano){
-  
-  return CONTAS_RECEBER.filter(c=>{
-    if(c.status!=='Recebido'&&c.status!=='Pago') return false;
-    const dt=parseDataBR(c.dataReceb||c.data);
-    return dt&&dt.y===ano&&dt.m===mes;
-  }).reduce((s,c)=>s+Number(c.valor||0),0);
-}
-
-function fluxoSumAdt(mes, ano){
-  
-  let total=0;
-  Object.values(ADT_POR_FORN).forEach(lista=>{
-    lista.forEach(a=>{
+function _fluxoTotaisAno(ano, fontes){
+  const meses=()=>Array.from({length:12},()=>0);
+  const totais={vendas:meses(),adiantamentos:meses(),sucata:meses(),folha:meses(),outros:meses()};
+  const mesDe=function(data){
+    const texto=String(data||'').trim();
+    let m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(texto);
+    if(m) return Number(m[3])===ano?Number(m[2]):0;
+    m=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(texto);
+    return m&&Number(m[1])===ano?Number(m[2]):0;
+  };
+  const somar=function(lista,data,valor){
+    const mes=mesDe(data),v=Number(valor);
+    if(mes>=1&&mes<=12&&Number.isFinite(v)&&v) lista[mes-1]=Math.round((lista[mes-1]+v)*100)/100;
+  };
+  const listaDe=function(v){ return Array.isArray(v)?v.filter(Boolean):Object.values(v||{}).filter(Boolean); };
+  listaDe(fontes&&fontes.contasPagar).forEach(function(c){
+    const categoria=String(c.cat||'').toLowerCase();
+    const destino=categoria.includes('folha')?totais.folha:categoria.includes('sucata')?totais.sucata:totais.outros;
+    const pagamentos=listaDe(c.pagamentos);
+    if(pagamentos.length){
+      pagamentos.forEach(function(pg){ somar(destino,pg.data||c.dataPgto||c.lancto,pg.valor); });
+      return;
+    }
+    if(c.status==='Pago') somar(destino,c.dataPgto||c.lancto,c.valor);
+  });
+  listaDe(fontes&&fontes.contasReceber).forEach(function(c){
+    if(c.status==='Recebido'||c.status==='Pago') somar(totais.vendas,c.dataReceb||c.data,c.valor);
+  });
+  Object.values((fontes&&fontes.adiantamentos)||{}).forEach(function(bruto){
+    const lista=listaDe(bruto);
+    const porCod=new Map(lista.filter(function(a){ return a.cod; }).map(function(a){ return [String(a.cod),a]; }));
+    lista.forEach(function(a){
       if(a.forma==='Crédito') return;
-      const dt=parseDataBR(a.data);
-      if(dt&&dt.y===ano&&dt.m===mes) total+=Number(a.valor||0);
+      const parcial=/^Quita[cç][aã]o parcial de (\S+)/i.exec(String(a.obs||''));
+      const origemCod=String(a.adiantamentoOrigem||(parcial?parcial[1]:'')||'');
+      const origem=origemCod&&origemCod!==String(a.cod||'')?porCod.get(origemCod):null;
+      somar(totais.adiantamentos,origem&&origem.data?origem.data:a.data,a.valor);
     });
   });
-  return total;
+  return totais;
 }
 
 function renderFluxo(){
@@ -6931,14 +6935,15 @@ function renderFluxo(){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const mNomes=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
+  const totaisAno=_fluxoTotaisAno(ano,{contasPagar:CONTAS_PAGAR,contasReceber:CONTAS_RECEBER,adiantamentos:ADT_POR_FORN});
   const cats=[
-    {key:'vendas',   lbl:'Vendas de Metais',        tipo:'entrada', fn:(m,y)=>fluxoSumCR(m,y)},
+    {key:'vendas',   lbl:'Vendas de Metais',        tipo:'entrada', fn:(m)=>totaisAno.vendas[m-1]},
     {key:'receb-repasse',lbl:'Dinheiro recebido para repasse',tipo:'entrada',fn:(m,y)=>window.SupplierCashRepasse?.flowTotal(m,y,'entradas')||0},
     {key:'pag-repasse',lbl:'PIX de repasse a fornecedores',tipo:'saida',fn:(m,y)=>window.SupplierCashRepasse?.flowTotal(m,y,'saidas')||0},
-    {key:'sucata',   lbl:'Adiantamentos Forn.',      tipo:'saida',   fn:(m,y)=>fluxoSumAdt(m,y)},
-    {key:'saldo',    lbl:'Saldo Compra Sucata',       tipo:'saida',   fn:(m,y)=>fluxoSumCP('sucata',m,y)},
-    {key:'folha',    lbl:'Folha de Pagamento',        tipo:'saida',   fn:(m,y)=>fluxoSumCP('folha',m,y)},
-    {key:'outros',   lbl:'Outras Despesas',           tipo:'saida',   fn:(m,y)=>fluxoSumCP('outros',m,y)},
+    {key:'sucata',   lbl:'Adiantamentos Forn.',      tipo:'saida',   fn:(m)=>totaisAno.adiantamentos[m-1]},
+    {key:'saldo',    lbl:'Saldo Compra Sucata',       tipo:'saida',   fn:(m)=>totaisAno.sucata[m-1]},
+    {key:'folha',    lbl:'Folha de Pagamento',        tipo:'saida',   fn:(m)=>totaisAno.folha[m-1]},
+    {key:'outros',   lbl:'Outras Despesas',           tipo:'saida',   fn:(m)=>totaisAno.outros[m-1]},
   ];
 
   const data=cats.map(cat=>{
@@ -7950,13 +7955,13 @@ function renderAdtCli(){
       <td style="font-weight:700;color:#1a5c35">R$ ${fmt(a.valor)}</td>
       <td>${a.forma||'—'}</td>
       <td style="font-size:.78rem">${esc(a.vinculo||'—')}</td>
-      <td><span class="b ${a.status==='Aplicado'?'b-pago':'b-pend'}">${a.status}</span></td>
+      <td><span class="b ${a.status==='Aplicado'||a.status==='Quitado'?'b-pago':'b-pend'}">${esc(a.status||'Pendente')}</span></td>
       <td style="font-size:.78rem">${esc(a.obs||'—')}</td>
       <td><button class="btn-edit-danger" onclick="excluirAdtCli('${esc(a.cliNome)}','${a.cod}')" title="Excluir">🗑️</button></td>
     </tr>`).join('');
   }
-  const pend=all.filter(a=>a.status!=='Aplicado');
-  const aplic=all.filter(a=>a.status==='Aplicado');
+  const pend=all.filter(a=>a.status!=='Aplicado'&&a.status!=='Quitado');
+  const aplic=all.filter(a=>a.status==='Aplicado'||a.status==='Quitado');
   const fmt2=v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const k0=document.getElementById('adtcli-kpi-total');
   const k1=document.getElementById('adtcli-kpi-pend');
@@ -7967,6 +7972,11 @@ function renderAdtCli(){
 }
 
 function excluirAdtCli(cliNome,cod){
+  const adt=(ADT_CLI[cliNome]||[]).find(a=>a&&a.cod===cod);
+  if(adt&&((Array.isArray(adt.usos)&&adt.usos.length)||adt.status==='Quitado'||adt.status==='Aplicado')){
+    alert('Este adiantamento já foi usado em venda'+(adt.vinculo?' ('+adt.vinculo+')':'')+'. Para devolver o valor, exclua ou edite a venda. Depois, se precisar, exclua o adiantamento.');
+    return;
+  }
   if(!confirm('Excluir este adiantamento?')) return;
   if(ADT_CLI[cliNome]) ADT_CLI[cliNome]=ADT_CLI[cliNome].filter(a=>a.cod!==cod);
   saveAdtCli(); renderAdtCli();
@@ -8202,7 +8212,7 @@ function sincronizarAdiantamentosBanco(){
 
   paraVincular.forEach(({a,movId})=>{ a.movBancoId=movId; });
   pendentes.forEach(({a,fornCod,descEsperada})=>{
-    const mov=registrarMovBanco(a.bancoNome, a.data?a.data.split('/').reverse().join('-'):'', descEsperada, 'Saida', a.valor);
+    const mov=registrarMovBanco(a.bancoCod||a.bancoNome, a.data?a.data.split('/').reverse().join('-'):'', descEsperada, 'Saida', a.valor);
     if(mov) a.movBancoId=mov.id;
   });
   if(orfaos.length>0){
@@ -8757,8 +8767,10 @@ function _erpBankDirectoryApply(){
     else{
       expected.push({value:'',label:banks.length?'— Selecione o banco —':'Nenhum banco disponível para este perfil'});
       const seen=new Map();
+      const repeated=new Set(banks.map(bank=>bank.banco).filter((name,index,names)=>names.indexOf(name)!==index));
       for(const bank of banks){
         if(mode==='code')expected.push({value:bank.cod,label:bank.banco+' — '+bank.cod});
+        else if(mode==='name'&&repeated.has(bank.banco))expected.push({value:bank.banco+' — '+bank.cod,label:bank.banco+' — '+bank.cod});
         else if(!seen.has(bank.banco)){
           seen.set(bank.banco,true);
           expected.push({value:bank.banco,label:bank.banco});
@@ -17649,6 +17661,52 @@ function renderContasPagar(){
   if(kpis[3]) kpis[3].textContent=fmt2(pagosMes.reduce((s,c)=>s+Number(c.valor||0),0));
 }
 
+function _bancoRemoverMovimento(movId){
+  if(!movId||typeof LANC_BANCO_DB==='undefined') return false;
+  const i=LANC_BANCO_DB.findIndex(function(l){ return l&&l.id===movId; });
+  const mov=i>=0?LANC_BANCO_DB[i]:null;
+  if(i>=0) _syncLancBanco.remover(i);
+  if(String(movId).startsWith('LB-PG-')||_bancoMovimentoDoServidor(mov)){
+    try{ if(window._fbRawDB) window._fbRawDB.ref('erp/lancBanco/'+movId).remove().catch(function(e){ console.warn('lancBanco remove',e); }); }catch(e){ console.warn('lancBanco remove',e); }
+  }
+  try{ saveBancos(); }catch(e){}
+  try{ renderBancos(); }catch(e){}
+  return i>=0;
+}
+function _cpExcluirPagamento(c,pIdx){
+  if(!c||!Array.isArray(c.pagamentos)||!c.pagamentos[pIdx]) return 'Pagamento não encontrado (recarregue e tente de novo).';
+  const p=c.pagamentos[pIdx];
+  if(Number(p.adt||0)>0) return 'Este pagamento usou adiantamento. Para não desfazer a compensação do adiantamento pela metade, peça ajuda ao suporte.';
+  const cash=Math.round(Number(p.valor||0)*100)/100;
+  if(p.movBancoId) _bancoRemoverMovimento(p.movBancoId);
+  if(c.ticket && typeof TICKETS_DB!=='undefined' && TICKETS_DB[c.ticket]){
+    const tk=TICKETS_DB[c.ticket];
+    tk.saldoPagar=Math.round((Number(tk.saldoPagar||0)+cash)*100)/100;
+    tk.status=tk.saldoPagar<=0.01?'Pago':'Parcial';
+  }
+  if(c.status==='Pago'){ c.status='Pendente'; c.dataPgto=''; c.valor=cash; }
+  else c.valor=Math.round(((Number(c.valor)||0)+cash)*100)/100;
+  c.valorPago=Math.max(0,Math.round(((Number(c.valorPago)||0)-cash)*100)/100);
+  if(c.movBancoIdCP && c.movBancoIdCP===p.movBancoId) delete c.movBancoIdCP;
+  c.pagamentos.splice(pIdx,1);
+  c._upd=Date.now();
+  try{ registrarHistorico('Contas a Pagar','Pagamento excluído',(c.cred||c.desc||c.id)+' — R$ '+cash.toLocaleString('pt-BR',{minimumFractionDigits:2})+(c.ticket?' | Ticket '+c.ticket:''),c,{cpId:c.id}); }catch(e){}
+  saveContasPagar(); saveDB();
+  try{renderContasPagar();}catch(e){} try{renderTickets();}catch(e){}
+  try{renderFluxo();}catch(e){} try{renderDashboard();}catch(e){}
+  return '';
+}
+function excluirPagamentoCP(id,pIdx){
+  const c=CONTAS_PAGAR.find(x=>x&&x.id===id);
+  const p=c&&Array.isArray(c.pagamentos)?c.pagamentos[pIdx]:null;
+  if(!p){ showToast('Pagamento não encontrado (recarregue e tente de novo).','error'); return; }
+  if(!confirm('Excluir o pagamento de R$ '+Number(p.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+' ('+(p.data||'sem data')+')?\n\nO valor volta a ser devido e a saída é retirada do extrato do banco.')) return;
+  const erro=_cpExcluirPagamento(c,pIdx);
+  if(erro){ showToast(erro,'error',9000); return; }
+  showToast('Pagamento excluído. Voltou a ser devido.','success');
+  verHistoricoPagamentosCP(id);
+}
+
 function verHistoricoPagamentosCP(id){
   const c=CONTAS_PAGAR.find(x=>x&&x.id===id);
   if(!c){ showToast('Essa conta já não existe mais na lista.','error'); return; }
@@ -17657,26 +17715,31 @@ function verHistoricoPagamentosCP(id){
   const body=document.getElementById('modal-body');
   body.className='modal';
   const linhas=pagamentos.length
-    ? pagamentos.map(p=>
+    ? pagamentos.map((p,i)=>
         '<tr>'
         +'<td>'+esc(p.data||'—')+'</td>'
         +'<td style="text-align:right">'+fmt(p.valor)+'</td>'
         +'<td style="text-align:right">'+(p.adt?fmt(p.adt):'—')+'</td>'
         +'<td>'+esc(p.banco||'—')+'</td>'
         +'<td style="font-size:.78rem;color:#666">'+esc(p.obs||'')+'</td>'
+        +'<td>'+(Number(p.adt||0)>0?'':'<button type="button" class="btn-edit-danger" data-cp-pagamento="'+i+'" title="Excluir este pagamento">Excluir</button>')+'</td>'
         +'</tr>').join('')
-    : '<tr><td colspan="5" style="text-align:center;color:var(--gray);padding:12px">Nenhum pagamento parcial registrado ainda.</td></tr>';
+    : '<tr><td colspan="6" style="text-align:center;color:var(--gray);padding:12px">Nenhum pagamento parcial registrado ainda.</td></tr>';
   body.innerHTML=
     '<h3>🕒 Histórico de Pagamentos</h3>'+
     '<div style="background:#eaf4ef;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:.85rem">'+
       '<b>'+esc(c.desc||c.cred||'')+'</b><br>'+
-      'Saldo atual em aberto: <b>'+fmt(c.valor)+'</b> &nbsp;·&nbsp; Status: <b>'+esc(c.status)+'</b>'+
+      'Saldo atual em aberto: <b>'+fmt(c.status==='Pago'?0:c.valor)+'</b> &nbsp;·&nbsp; Status: <b>'+esc(c.status)+'</b>'+
     '</div>'+
     '<table style="width:100%;border-collapse:collapse;font-size:.82rem"><thead><tr style="text-align:left;border-bottom:2px solid #ddd">'
     +'<th style="padding:4px 6px">Data</th><th style="padding:4px 6px;text-align:right">Valor</th>'
-    +'<th style="padding:4px 6px;text-align:right">Adiant.</th><th style="padding:4px 6px">Banco</th><th style="padding:4px 6px">Obs.</th>'
-    +'</tr></thead><tbody>'+linhas+'</tbody></table>'+
+    +'<th style="padding:4px 6px;text-align:right">Adiant.</th><th style="padding:4px 6px">Banco</th><th style="padding:4px 6px">Obs.</th><th></th>'
+    +'</tr></thead><tbody id="cp-historico-pagamentos">'+linhas+'</tbody></table>'+
     '<div class="modal-ft"><button class="btn-cancel" onclick="cm()">Fechar</button></div>';
+  body.querySelector('#cp-historico-pagamentos').addEventListener('click',event=>{
+    const button=event.target.closest('button[data-cp-pagamento]');
+    if(button) excluirPagamentoCP(id,Number(button.dataset.cpPagamento));
+  });
   document.getElementById('modal-ov').classList.add('open');
 }
 
@@ -18188,14 +18251,24 @@ function salvarEditContaPagar(){
   const statusAntes=c.status;
   const bancoCod=document.getElementById('ecp-banco').value||'';
   const pgto=document.getElementById('ecp-pgto').value;
+  const statusNovo=document.getElementById('ecp-status').value;
+  const historicoPg=Array.isArray(c.pagamentos)?c.pagamentos.filter(Boolean):[];
+  if(statusAntes==='Pago'&&statusNovo!=='Pago'&&historicoPg.length){
+    alert('Esta conta tem pagamentos registrados. Para voltar a ser devida, exclua o pagamento no Histórico de pagamentos (🕒). Assim o saldo do banco e o saldo em aberto ficam certos.');
+    verHistoricoPagamentosCP(c.id);
+    return;
+  }
+  if(!document.getElementById('ecp-empresa')?.value){alert('Selecione a empresa responsável por esta conta.');return;}
+  let removerMovimento=false;
+  if(statusAntes==='Pago'&&statusNovo!=='Pago'&&c.movBancoIdCP&&LANC_BANCO_DB.some(l=>l&&l.id===c.movBancoIdCP)){
+    removerMovimento=confirm('A conta deixa de estar paga. Retirar do extrato do banco a saída lançada no pagamento?');
+  }
   c.desc=document.getElementById('ecp-desc').value.trim();
   c.cred=document.getElementById('ecp-cred').value.trim();
   c.cat=document.getElementById('ecp-cat').value.trim()||'Outros';
   c.bancoCod=bancoCod;
   c.bancoNome=_bancoNomePorCod(bancoCod);
-  const empresaEdit=document.getElementById('ecp-empresa')?.value||'';
-  if(!empresaEdit){alert('Selecione a empresa responsável por esta conta.');return;}
-  c.empresa=empresaEdit;
+  c.empresa=document.getElementById('ecp-empresa').value;
   c.venc=document.getElementById('ecp-venc').value.split('-').reverse().join('/');
   c.valor=parseFloat(document.getElementById('ecp-valor').value)||0;
   c.status=document.getElementById('ecp-status').value;
@@ -18204,9 +18277,17 @@ function salvarEditContaPagar(){
 
   c._upd=Date.now();
 
-  if(c.status==='Pago' && statusAntes!=='Pago' && c.bancoNome && !c.movBancoIdCP && (Number(c.valor)||0)>0){
-    const _movEdit=registrarMovBanco(c.bancoNome, pgto||'', 'Pagto: '+(c.desc||c.cred||''), 'Saida', Number(c.valor)||0);
-    if(_movEdit) c.movBancoIdCP=_movEdit.id;
+  if(removerMovimento){ _bancoRemoverMovimento(c.movBancoIdCP); delete c.movBancoIdCP; }
+  if(c.status==='Pago' && statusAntes!=='Pago' && (Number(c.valor)||0)>0){
+    let _movEdit=null;
+    if((c.bancoCod||c.bancoNome) && !c.movBancoIdCP){
+      _movEdit=registrarMovBanco(c.bancoCod||c.bancoNome, pgto||'', 'Pagto: '+(c.desc||c.cred||''), 'Saida', Number(c.valor)||0);
+      if(_movEdit) c.movBancoIdCP=_movEdit.id;
+    }
+    if(!c.dataPgto) c.dataPgto=new Date().toLocaleDateString('pt-BR');
+    if(!Array.isArray(c.pagamentos)) c.pagamentos=[];
+    c.pagamentos.push({data:c.dataPgto,valor:Number(c.valor)||0,adt:0,banco:c.bancoNome||'',obs:'Baixa pela edição da conta',movBancoId:_movEdit?_movEdit.id:''});
+    c.valorPago=Math.round(((Number(c.valorPago)||0)+(Number(c.valor)||0))*100)/100;
   }
   saveContasPagar(); renderContasPagar();
   try{renderFluxo();}catch(e){}
@@ -18225,10 +18306,12 @@ function salvarEditContaPagar(){
 function registrarMovBanco(bancoNome, dataISO, descricao, tipo, valor){
 
   if(!bancoNome||!valor) return null;
-  const b=BANCOS_DB.find(x=>{
-    const n=x.banco+(x.tipo==='Conta Terceiro'?' ('+x.titular+')':'');
-    return n===bancoNome||x.banco===bancoNome;
-  });
+  const alvo=String(bancoNome);
+  const sufixo=/ — ([^—]+)$/.exec(alvo);
+  const b=BANCOS_DB.find(x=>x.cod===alvo)
+    ||(sufixo?BANCOS_DB.find(x=>x.cod===sufixo[1].trim()):null)
+    ||BANCOS_DB.find(x=>x.tipo==='Conta Terceiro'&&x.banco+' ('+x.titular+')'===alvo)
+    ||BANCOS_DB.find(x=>x.banco===alvo);
   if(!b){ console.warn('Banco nao encontrado:',bancoNome); return null; }
   const dataFmt=dataISO?dataISO.split('-').reverse().join('/')
     :new Date().toLocaleDateString('pt-BR');
@@ -18414,6 +18497,7 @@ async function confirmarPagarCP(modo){
     if(firebase?.auth?.().currentUser?.uid!==user.uid)throw new Error('Sessão alterada. Atualize a página.');
     _cpPendingPayments.delete(id);
     CONTAS_PAGAR[idx]=result.payable;
+    if(result.bankMovement)window.erpBankMovementAdded?.(result.bankMovement);
     if(result.advanceEntries&&result.fornCod)ADT_POR_FORN[result.fornCod]=result.advanceEntries;
     if(result.ticket&&result.ticketKey)TICKETS_DB[result.ticketKey]=result.ticket;
     try{renderContasPagar();}catch(error){console.error('contasPagar.render',error);}
@@ -18722,7 +18806,7 @@ function receberContaRapido(idx){
       '<span style="font-size:.9rem">Valor: <b>R$ '+fmt(c.valor)+'</b></span>'+
       (c.nf?'<span style="font-size:.82rem;color:#555"> &nbsp;·&nbsp; NF: '+esc(c.nf)+'</span>':'')+
     '</div>'+
-    '<input type="hidden" id="rcr-idx" value="'+idx+'">'+
+    '<input type="hidden" id="rcr-idx" value="'+idx+'"><input type="hidden" id="rcr-id" value="'+esc(c.id||'')+'">'+
     '<div class="fg"><label>Data de Recebimento</label><input id="rcr-data" type="date" value="'+hoje+'"></div>'+
     '<div class="fg"><label>Conta Bancária <small style="color:#888">(dinheiro / PIX / transferência)</small></label><select id="rcr-banco"><option value="">— Selecione —</option>'+bancoOpts+'</select></div>'+
     '<div style="border:1.5px solid #e0d0f0;border-radius:10px;padding:10px 12px;margin:8px 0;background:#faf5ff">'+
@@ -18762,8 +18846,10 @@ function _crSomaCheques(){
   if(lbl) lbl.textContent='R$ '+t.toLocaleString('pt-BR',{minimumFractionDigits:2});
 }
 function confirmarReceberCR(){
-  const idx=parseInt(document.getElementById('rcr-idx').value);
-  const c=CONTAS_RECEBER[idx]; if(!c) return;
+  const idAlvo=document.getElementById('rcr-id')?.value||'';
+  const idx=idAlvo?CONTAS_RECEBER.findIndex(x=>x&&x.id===idAlvo):parseInt(document.getElementById('rcr-idx').value);
+  const c=CONTAS_RECEBER[idx]; if(!c){ showToast('Esta conta a receber mudou ou foi excluída. Feche e abra de novo.','error'); return; }
+  if(c.status==='Recebido'){ showToast('Esta conta já foi recebida.','error'); cm(); return; }
   const data=document.getElementById('rcr-data').value;
   const banco=document.getElementById('rcr-banco').value;
   const obs=document.getElementById('rcr-obs').value.trim();
@@ -18814,7 +18900,7 @@ function confirmarReceberCR(){
   saveContasReceber();
   renderContasReceber();
   if(banco && !_antigo){
-    registrarMovBanco(banco, data, 'Recebto: '+esc(c.cli)+(c.nf?' NF '+c.nf:''), 'Entrada', c.valor);
+    registrarMovBanco(banco, data, 'Recebto: '+String(c.cli||'')+(c.nf?' NF '+c.nf:''), 'Entrada', c.valor);
   }
   renderFluxo();
   renderDashboard();
@@ -18999,7 +19085,9 @@ function renderBancos(){
   }
   const ledger=window.erpBankLedger;
   const fmt=v=>ledger?ledger.brl(v):Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const balanceByCode=new Map(BANCOS_DB.map(b=>[b.cod,ledger?ledger.statement({openingBalance:b.saldo||0,bankCode:b.cod,entries:LANC_BANCO_DB}):null]));
+  const entriesByCode=new Map();
+  LANC_BANCO_DB.forEach(entry=>{if(!entry)return;const code=String(entry.bancoCod??'');if(!entriesByCode.has(code))entriesByCode.set(code,[]);entriesByCode.get(code).push(entry);});
+  const balanceByCode=new Map(BANCOS_DB.map(b=>[b.cod,ledger?ledger.statement({openingBalance:b.saldo||0,bankCode:b.cod,entries:entriesByCode.get(String(b.cod??''))||[]}):null]));
   const empCor={}; _cfgFinanceCompanies().forEach(function(n){ empCor[n]=_cfgFinanceCompanyColor(n); });
   if(BANCOS_DB.length===0){
     tbody.innerHTML='<tr><td colspan="11" style="color:var(--gray);text-align:center;padding:20px">Nenhuma conta cadastrada</td></tr>';
@@ -19058,7 +19146,6 @@ function renderBancos(){
   if(kpiSub) kpiSub.textContent=[...balanceByCode.values()].some(value=>value?.hasUnsafeLegacyValues||value?.invalidValues)
     ?'Revise lançamentos antigos fora da precisão ou inválidos':'Saldo consolidado atualizado';
 
-  window._bancosDropdown=BANCOS_DB.map(b=>b.banco+(b.titular&&b.titular!==_empresaPrincipalRazao()?' ('+b.titular+')':''));
 }
 
 function _proximoCodBanco(){
@@ -19297,28 +19384,27 @@ function zerarSaldosBancos(){
 
 window.erpReconciliationSources=function(){
   return {
-    banks:BANCOS_DB.filter(Boolean).map(b=>({cod:String(b.cod||''),name:String(b.banco||'Conta'),account:String(b.conta||'')})),
-    bankEntries:LANC_BANCO_DB.filter(Boolean).map(l=>({id:String(l.id||''),bankCode:String(l.bancoCod||''),date:String(l.data||''),description:String(l.descricao||''),type:String(l.tipo||''),amount:l.valor})),
-    payables:CONTAS_PAGAR.filter(Boolean).map(c=>({id:String(c.id||''),date:String(c.venc||c.lancto||''),description:String(c.desc||c.cred||''),amount:c.valor,status:String(c.status||''),party:String(c.cred||'')})),
-    receivables:CONTAS_RECEBER.filter(Boolean).map(c=>({id:String(c.id||''),date:String(c.venc||c.data||''),description:String(c.desc||c.cli||''),amount:c.valor,status:String(c.status||''),party:String(c.cli||'')}))
+    banks:BANCOS_DB.filter(Boolean).map(b=>({cod:String(b.cod||''),name:String(b.banco||'Conta'),account:String(b.conta||'')}))
   };
 };
+window.erpBankMovementAdded=function(movement){
+  if(!movement||!movement.id||!BANCOS_DB.some(b=>b&&b.cod===movement.bancoCod))return false;
+  const i=LANC_BANCO_DB.findIndex(l=>l&&l.id===movement.id);
+  if(i>=0)LANC_BANCO_DB[i]=movement;else LANC_BANCO_DB.push(movement);
+  try{renderBancos();}catch(e){}
+  return true;
+};
+let _extratoBancoAberto='';
 function verExtratoBanco(cod){
   const banco=BANCOS_DB.find(b=>b.cod===cod);if(!banco)return;
   const ledger=window.erpBankLedger;
   if(!ledger){console.error('Extrato bancário indisponível.');return;}
-  const statement=ledger.statement({openingBalance:banco.saldo,bankCode:cod,entries:LANC_BANCO_DB});
+  const statement=ledger.statement({openingBalance:banco.saldo,bankCode:cod,entries:LANC_BANCO_DB.filter(l=>l&&l.bancoCod===cod)});
   const money=value=>'R$ '+ledger.brl(value);
-  const rows=statement.rows.map(({entry,date,incoming,amount,balance})=>{
-    return '<tr data-date="'+esc(date)+'" data-type="'+(incoming?'entrada':'saida')+'">'+
-      '<td>'+esc(date?date.slice(8,10)+'/'+date.slice(5,7)+'/'+date.slice(0,4):entry.data||'—')+'</td>'+
-      '<td class="erp-ledger-description">'+esc(entry.descricao||'—')+'</td>'+
-      '<td><span class="erp-entry-kind '+(incoming?'is-income':'is-expense')+'">'+(incoming?'Entrada':'Saída')+'</span></td>'+
-      '<td class="erp-money '+(incoming?'is-income':'is-expense')+'">'+(incoming?'+ ':'- ')+money(amount)+'</td>'+
-      '<td class="erp-money">'+money(balance)+'</td>'+
-      '<td class="erp-row-actions"><button type="button" class="btn-edit" data-bank-action="edit" data-id="'+esc(entry.id||'')+'" aria-label="Editar lançamento" title="Editar lançamento">Editar</button>'+ 
-      '<button type="button" class="btn-edit-danger" data-bank-action="delete" data-id="'+esc(entry.id||'')+'" aria-label="Excluir lançamento" title="Excluir lançamento">Excluir</button></td></tr>';
-  }).join('');
+  const normalizar=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  const dataBR=(date,entry)=>date?date.slice(8,10)+'/'+date.slice(5,7)+'/'+date.slice(0,4):String(entry.data||'—');
+  const linhas=statement.rows.map(row=>({...row,texto:normalizar([dataBR(row.date,row.entry),row.entry.descricao,row.incoming?'entrada':'saida',ledger.brl(row.amount)].join(' '))})).reverse();
+  if(_extratoBancoAberto!==cod){_erpReiniciarPagina('extrato-banco');_extratoBancoAberto=cod;}
   const body=document.getElementById('modal-body');
   body.className='modal erp-bank-statement';
   body.style.maxWidth='min(1080px,calc(100vw - 32px))';
@@ -19328,7 +19414,7 @@ function verExtratoBanco(cod){
       '<div><small>Saldo inicial</small><strong>'+money(statement.openingBalance)+'</strong></div>'+
       '<div><small>Entradas</small><strong>'+money(statement.credits)+'</strong></div>'+
       '<div><small>Saídas</small><strong>'+money(statement.debits)+'</strong></div>'+
-      '<div><small>Saldo atual</small><strong>'+money(statement.closingBalance)+'</strong></div></div>'+ 
+      '<div><small>Saldo atual</small><strong>'+money(statement.closingBalance)+'</strong></div></div>'+
     (statement.hasUnsafeLegacyValues?'<p class="erp-ledger-precision-warning" role="status">Existem valores antigos acima do limite de precisão do JavaScript. O extrato soma os valores armazenados sem perder novos centavos, mas os dígitos originais desses registros podem já ter sido arredondados. Revise esses lançamentos.</p>':'')+
     (statement.invalidValues?'<p class="erp-ledger-precision-warning" role="status">Existem '+statement.invalidValues+' valores bancários inválidos. Foram desconsiderados no cálculo; revise os registros.</p>':'')+
     '<details class="erp-statement-entry"><summary>Novo lançamento</summary>'+
@@ -19339,36 +19425,45 @@ function verExtratoBanco(cod){
       '<label>Valor (R$)<input type="number" id="lb-valor" placeholder="0,00" min="0.01" step="0.01"></label>'+
       '<button type="button" class="btn-save" id="erp-bank-add">Registrar</button></div></details>'+
     '<div class="erp-statement-filters">'+
-      '<input type="search" id="erp-bank-search" aria-label="Buscar movimentações" placeholder="Buscar descrição ou data">'+
+      '<input type="search" id="erp-bank-search" aria-label="Buscar movimentações" placeholder="Buscar descrição, data ou valor">'+
       '<select id="erp-bank-kind" aria-label="Tipo de movimentação"><option value="">Todas</option><option value="entrada">Entradas</option><option value="saida">Saídas</option></select>'+
-      '<label>De<input type="date" id="erp-bank-from"></label><label>Até<input type="date" id="erp-bank-to"></label>'+ 
+      '<label>De<input type="date" id="erp-bank-from"></label><label>Até<input type="date" id="erp-bank-to"></label>'+
       '<span id="erp-bank-result-count" aria-live="polite"></span></div>'+
     '<div class="erp-statement-table-wrap"><table class="erp-statement-table">'+
       '<thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Saldo acumulado</th><th>Ações</th></tr></thead>'+
-      '<tbody id="erp-bank-rows">'+(rows||'<tr><td colspan="6" class="erp-statement-empty">Nenhum lançamento para esta conta.</td></tr>')+'</tbody></table></div>'+
+      '<tbody id="erp-bank-rows"></tbody></table></div>'+
     '<div class="modal-ft"><button class="btn-cancel" onclick="cm()">Fechar</button></div>';
   const search=body.querySelector('#erp-bank-search'),kind=body.querySelector('#erp-bank-kind');
   const from=body.querySelector('#erp-bank-from'),to=body.querySelector('#erp-bank-to'),count=body.querySelector('#erp-bank-result-count');
-  const filter=()=>{
-    const query=String(search.value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-    let shown=0;
-    body.querySelectorAll('#erp-bank-rows tr[data-date]').forEach(row=>{
-      const date=row.dataset.date||'';
-      const text=row.textContent.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-      const visible=(!query||text.includes(query))&&(!kind.value||row.dataset.type===kind.value)&&
-        (!from.value||date>=from.value)&&(!to.value||date<=to.value);
-      row.hidden=!visible;if(visible)shown++;
-    });
-    count.textContent=shown+' de '+statement.rows.length+' lançamentos';
+  const tbody=body.querySelector('#erp-bank-rows');
+  const desenhar=()=>{
+    const query=normalizar(search.value);
+    const filtradas=linhas.filter(row=>(!query||row.texto.includes(query))&&(!kind.value||(row.incoming?'entrada':'saida')===kind.value)&&
+      (!from.value||row.date>=from.value)&&(!to.value||(row.date&&row.date<=to.value)));
+    const pagina=_erpPaginarDados('extrato-banco',filtradas,'erp-bank-rows',desenhar);
+    tbody.innerHTML=pagina.length?pagina.map(({entry,date,incoming,amount,balance})=>{
+      const travado=_bancoMovimentoDoServidor(entry)||_movimentoPertenceAdiantamento(entry);
+      return '<tr data-date="'+esc(date)+'" data-type="'+(incoming?'entrada':'saida')+'">'+
+        '<td>'+esc(dataBR(date,entry))+'</td>'+
+        '<td class="erp-ledger-description">'+esc(entry.descricao||'—')+'</td>'+
+        '<td><span class="erp-entry-kind '+(incoming?'is-income':'is-expense')+'">'+(incoming?'Entrada':'Saída')+'</span></td>'+
+        '<td class="erp-money '+(incoming?'is-income':'is-expense')+'">'+(incoming?'+ ':'- ')+money(amount)+'</td>'+
+        '<td class="erp-money">'+money(balance)+'</td>'+
+        '<td class="erp-row-actions">'+(travado
+          ?'<small title="Lançado por um pagamento ou adiantamento. Altere pela tela de origem.">Automático</small>'
+          :'<button type="button" class="btn-edit" data-bank-action="edit" data-id="'+esc(entry.id||'')+'" aria-label="Editar lançamento" title="Editar lançamento">Editar</button>'+
+           '<button type="button" class="btn-edit-danger" data-bank-action="delete" data-id="'+esc(entry.id||'')+'" aria-label="Excluir lançamento" title="Excluir lançamento">Excluir</button>')+'</td></tr>';
+    }).join(''):'<tr><td colspan="6" class="erp-statement-empty">'+(linhas.length?'Nenhum lançamento para os filtros escolhidos.':'Nenhum lançamento para esta conta.')+'</td></tr>';
+    count.textContent=filtradas.length+' de '+linhas.length+' lançamentos';
   };
-  [search,kind,from,to].forEach(element=>element.addEventListener('input',filter));
+  [search,kind,from,to].forEach(element=>element.addEventListener('input',()=>{_erpReiniciarPagina('extrato-banco');desenhar();}));
   body.querySelector('#erp-bank-add').addEventListener('click',()=>salvarLancBanco(cod));
-  body.querySelector('#erp-bank-rows').addEventListener('click',event=>{
+  tbody.addEventListener('click',event=>{
     const button=event.target.closest('button[data-bank-action]');if(!button)return;
     if(button.dataset.bankAction==='edit')editLancBanco(button.dataset.id,cod);
     else if(button.dataset.bankAction==='delete')excluirLancBanco(button.dataset.id,cod);
   });
-  filter();
+  desenhar();
   document.getElementById('modal-ov').classList.add('open');
 }
 
@@ -20093,7 +20188,7 @@ function salvarVenda(){
   if(pagamentos.length>0 && status==='Pago'){
     pagamentos.forEach(p=>{
       if(p.banco && p.forma!=='A prazo' && p.valor>0){
-        try{ registrarMovBanco(p.banco, data, 'Recebto Venda: '+esc(cliente)+(nf?' NF '+nf:''), 'Entrada', p.valor); }catch(e){ console.warn('movBanco',e); }
+        try{ registrarMovBanco(p.banco, data, 'Recebto Venda: '+String(cliente||'')+(nf?' NF '+nf:''), 'Entrada', p.valor); }catch(e){ console.warn('movBanco',e); }
       }
     });
   }
@@ -22368,32 +22463,8 @@ function initDespesas(){
         if(tipo==='pagamento_cp'){
           var _pp=String(id).split('§'); var _cpId=_pp[0]; var _pIdx=parseInt(_pp[1],10);
           var c=CONTAS_PAGAR.find(function(x){return x&&x.id===_cpId;});
-          if(!c||!Array.isArray(c.pagamentos)||!c.pagamentos[_pIdx]){ showToast('Pagamento não encontrado (recarregue e tente de novo).','error'); return; }
-          var p=c.pagamentos[_pIdx];
-          if(Number(p.adt||0)>0){ alert('Este pagamento foi feito junto com ADIANTAMENTO. Pra não bagunçar a conta do adiantamento, esse tipo eu prefiro tratar com você — me chame. (Os pagamentos só em dinheiro/cheque/PIX você já exclui normal.)'); return; }
-          var cash=Number(p.valor||0);
-          
-          if(p.movBancoId && typeof LANC_BANCO_DB!=='undefined'){
-            var _bi=LANC_BANCO_DB.findIndex(function(l){return l&&l.id===p.movBancoId;});
-            if(_bi>=0){ LANC_BANCO_DB.splice(_bi,1); try{saveBancos();}catch(e){} try{renderBancos();}catch(e){} }
-          }
-          
-          if(c.ticket && TICKETS_DB[c.ticket]){
-            var tk=TICKETS_DB[c.ticket];
-            tk.saldoPagar=Number(tk.saldoPagar||0)+cash;
-            tk.status = tk.saldoPagar<=0.01 ? 'Pago' : 'Parcial';
-          }
-          
-          if(c.status==='Pago'){ c.status='Pendente'; c.dataPgto=''; }
-          else { c.valor=(Number(c.valor)||0)+cash; }
-          c.valorPago=Math.max(0,(Number(c.valorPago)||0)-cash);
-          if(c.movBancoIdCP && c.movBancoIdCP===p.movBancoId) delete c.movBancoIdCP;
-          c.pagamentos.splice(_pIdx,1);
-          c._upd=Date.now();
-          try{ registrarHistorico('Contas a Pagar','Pagamento excluído',(c.cred||c.desc||c.id)+' — R$ '+Number(cash).toLocaleString('pt-BR',{minimumFractionDigits:2})+(c.ticket?' | Ticket '+c.ticket:''),c,{cpId:c.id}); }catch(e){}
-          saveContasPagar(); saveDB();
-          try{renderContasPagar();}catch(e){} try{renderTickets();}catch(e){}
-          try{renderFluxo();}catch(e){} try{renderDashboard();}catch(e){}
+          var _erroPg=_cpExcluirPagamento(c,_pIdx);
+          if(_erroPg){ showToast(_erroPg,'error',9000); return; }
           ffRenderFicha(fornCod,(document.getElementById('ff-de')||{}).value||'',(document.getElementById('ff-ate')||{}).value||'');
           showToast('Pagamento excluído. Voltou a ser devido.','success');
           return;

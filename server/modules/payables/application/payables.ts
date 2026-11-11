@@ -574,6 +574,7 @@ export async function payPayable(
     const atomicUpdates: Row = Object.fromEntries(
       Object.entries(updates).map(([field, value]) => ['erp/' + field, value]),
     );
+    atomicUpdates['erp/_ts'] = now();
     atomicUpdates['erpFinancePayableLocks/' + id] = null;
     if (ticketLock) atomicUpdates['erpFinancePayableTicketLocks/' + key(original.ticket)] = null;
     if (supplierLock) atomicUpdates['erpFinanceAdvanceLocks/' + supplier] = null;

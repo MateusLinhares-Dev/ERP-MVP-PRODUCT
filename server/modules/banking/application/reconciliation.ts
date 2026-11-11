@@ -226,6 +226,14 @@ function recordDecision(
   };
 }
 
+async function notifyClients(db: Database): Promise<void> {
+  try {
+    await db.ref('erp/_ts').set(Date.now());
+  } catch {
+    return;
+  }
+}
+
 async function fetchAccount(db: Database, code: string): Promise<Row | undefined> {
   return rows((await db.ref('erp/bancos').get()).val())
     .map(([, bank]) => bank)
@@ -318,7 +326,7 @@ async function createTitle(
     const existing = (await ref.get()).val() as Row | null;
     if (existing?.reconciliationImportId !== incoming)
       throw forbidden('Identificador financeiro em uso', 409);
-  }
+  } else await notifyClients(db);
   return { created: result.committed, id, kind, record: result.committed ? record : (await ref.get()).val() };
 }
 
@@ -363,7 +371,7 @@ async function createBankEntry(
     const existing = (await ref.get()).val() as Row | null;
     if (existing?.reconciliationImportId !== importId)
       throw forbidden('Identificador de movimentação já utilizado', 409);
-  }
+  } else await notifyClients(db);
   return { created: result.committed, id, record: entry };
 }
 

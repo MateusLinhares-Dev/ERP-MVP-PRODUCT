@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { messageOf } from '../../../shared/domain/errors.js';
-import { LOG_LEVELS, auditEvents, eventIdentification, logsCsv, logsQuery } from '../domain/audit-logs.js';
+import {
+  LOG_LEVELS,
+  auditEvents,
+  eventIdentification,
+  logsCsv,
+  logsHint,
+  logsQuery,
+} from '../domain/audit-logs.js';
 import type { AuditEvent, LogFilters } from '../domain/audit-logs.js';
 
 type LogState =
   | { status: 'loading' }
-  | { status: 'ready'; events: AuditEvent[]; nextCursor: string | null }
+  | { status: 'ready'; events: AuditEvent[]; nextCursor: string | null; scanned: number }
   | { status: 'failed'; message: string };
 
 interface AuditLogsProps {
@@ -131,8 +138,8 @@ export function AuditLogs({ load }: AuditLogsProps) {
             <h2>Histórico de eventos</h2>
             <p id="eng-logs-hint">
               {state.status === 'ready'
-                ? `${events.length} evento(s) exibido(s) · consultas limitadas para preservar a performance.`
-                : 'Carregue para consultar'}
+                ? logsHint(events.length, state.scanned, Boolean(state.nextCursor))
+                : 'Consultando...'}
             </p>
           </div>
           <button

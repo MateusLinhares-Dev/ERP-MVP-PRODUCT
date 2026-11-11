@@ -50,10 +50,10 @@ test('OFX sem FITID usa ocorrência na impressão digital para não perder itens
   assert.notEqual(a.fingerprint,b.fingerprint);
 });
 
-test('OFX inválido, zero e números exponenciais não são importados',()=>{
+test('OFX inválido e números exponenciais não são importados; linha zerada é ignorada',()=>{
   const d=domain();
   assert.throws(()=>d.parseOfx('<html></html>'));
-  assert.throws(()=>d.parseOfx(fixture.replace('-1500.40','0.00')));
+  assert.ok(!d.parseOfx(fixture.replace('-1500.40','0.00')).some(row=>row.amountCents==='0'));
   assert.throws(()=>d.parseOfx(fixture.replace('-1500.40','1e999')));
   assert.throws(()=>d.parseOfx(fixture.replace('20261024','20261340')));
 });
@@ -106,4 +106,11 @@ test('A interface integra com Bancos e não cria lançamentos bancários adicion
   assert.doesNotMatch(code,/saveContasPagar\s*\(|saveContasReceber\s*\(|saveBancos\s*\(|LANC_BANCO_DB\.push/);
   assert.match(code,/bankReconciliationImports/);
   assert.match(code,/bankReconciliationEvents/);
+});
+
+test('OFX aceita valores com mais casas decimais, separador de milhar e sinal',()=>{
+  const d=domain();
+  const amounts=['-38.900000','1.234,56','1,234.56','+20','-.5'];
+  const file='<OFX><BANKTRANLIST>'+amounts.map((a,i)=>'<STMTTRN><TRNAMT>'+a+'<DTPOSTED>20261105<FITID>F'+i+'<MEMO>m'+i+'</STMTTRN>').join('')+'</BANKTRANLIST></OFX>';
+  assert.equal(d.parseOfx(file).map(row=>row.amountCents).join(' '),'-3890 123456 123456 2000 -50');
 });
