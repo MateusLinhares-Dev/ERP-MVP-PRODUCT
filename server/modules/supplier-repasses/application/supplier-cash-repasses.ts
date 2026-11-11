@@ -273,7 +273,7 @@ export async function changeSupplierCashRepasse(
     const rowRef = instance.ref('erp/fornecedorRepasses/' + fornCod + '/' + receiptId);
     const [recordSnap, supplierSnap, bankSnap] = await Promise.all([
       rowRef.get(),
-      action === 'receive' ? instance.ref('erp/fornecedores').get() : Promise.resolve(null),
+      instance.ref('erp/fornecedores').get(),
       action === 'pay' ? instance.ref('erp/bancos').get() : Promise.resolve(null),
     ]);
     const stored = recordSnap.val() as RepasseRecord | null;
@@ -327,7 +327,14 @@ export async function changeSupplierCashRepasse(
         data: date.split('-').reverse().join('/'),
         tipo: 'Saida',
         valor: money(amount),
-        descricao: 'Repasse via PIX ao fornecedor ' + fornCod + ' (recebimento ' + receiptId + ')',
+        descricao:
+          'Repasse via PIX ao fornecedor ' +
+          (objects(supplierSnap.val())
+            .filter((supplier) => String(supplier.cod || '') === fornCod)
+            .map((supplier) => clean(supplier.nome, 120))[0] || fornCod) +
+          ' (recebimento ' +
+          receiptId +
+          ')',
       };
       updates['lancBanco/' + movementId] = movement;
       const payment: RepassePayment = {
