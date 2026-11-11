@@ -1083,10 +1083,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canSuppliers"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "fornDeleted": {
@@ -1097,10 +1095,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canSuppliers"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "bancos": {

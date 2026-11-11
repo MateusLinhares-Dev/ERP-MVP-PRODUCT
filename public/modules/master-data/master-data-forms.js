@@ -3,11 +3,8 @@
 
 const legacy={
   openModal:global.om,
-  editSupplier:global.editFornecedor,
   editClient:global.editCliente,
   editEmployee:global.editFuncionario,
-  saveNewSupplier:global.salvarNovoFornecedor,
-  saveSupplier:global.salvarEditFornecedor,
   saveNewClient:global.salvarNovoCliente,
   saveClient:global.salvarEditCliente,
   saveNewEmployee:global.salvarNovoFuncionario,
@@ -64,7 +61,7 @@ function supplierForm(entity){
     field('Nome fantasia',input(prefix+'-fantasia',f.fantasia||f.nomeFantasia||''))+
     field('Código',input('phase4-master-code',editing?f.cod:'Automático','readonly'))+
     field('Tipo de pessoa',select(prefix+'-pessoa',[{value:'PJ',label:'Pessoa Jurídica'},{value:'PF',label:'Pessoa Física'}],p,'onchange="phase4MasterTogglePerson(\''+prefix+'\')"'))+
-    field('Fornecedor desde',input(prefix+'-desde',f.desde||f.dataCadastro||today(),'type="date"'))+
+    field('Fornecedor desde',input(prefix+'-desde',f.desde||f.dataCadastro||(editing?'':today()),'type="date"'))+
     field('CPF',input(prefix+'-cpf',f.cpf||'','class="mask-cpf" placeholder="000.000.000-00"'))+
     field('CNPJ',input(prefix+'-cnpj',f.cnpj||'','class="phase4-master-alnum-cnpj" placeholder="00.000.000/0001-00" inputmode="text" autocomplete="off" oninput="phase4MasterFormatCnpj(this)"'))+
     field('Inscrição Estadual',input(prefix+'-ie',f.ie||''))+
@@ -86,7 +83,7 @@ function clientForm(entity,index){
     field('Nome fantasia',input(prefix+'-fantasia',c.fantasia||c.nomeFantasia||''))+
     field('Código',input('phase4-master-code',editing?(c.cod||''):'Automático','readonly'))+
     field('Tipo de pessoa',select(prefix+'-pessoa',[{value:'PJ',label:'Pessoa Jurídica'},{value:'PF',label:'Pessoa Física'}],p,'onchange="phase4MasterTogglePerson(\''+prefix+'\')"'))+
-    field('Cliente desde',input(prefix+'-desde',c.desde||c.dataCadastro||today(),'type="date"'))+
+    field('Cliente desde',input(prefix+'-desde',c.desde||c.dataCadastro||(editing?'':today()),'type="date"'))+
     field('CPF',input(prefix+'-cpf',c.cpf||'','class="mask-cpf" placeholder="000.000.000-00"'))+
     field('CNPJ',input(prefix+'-cnpj',c.cnpj||'','class="phase4-master-alnum-cnpj" placeholder="00.000.000/0001-00" inputmode="text" autocomplete="off" oninput="phase4MasterFormatCnpj(this)"'))+
     field('Inscrição Estadual',input(prefix+'-ie',c.ie||''))+field('RG',input(prefix+'-rg',c.rg||''))+field('Órgão emissor',input(prefix+'-orgao',c.orgaoEmissor||''))+field('Contribuinte',select(prefix+'-contribuinte',['Não informado','Contribuinte ICMS','Isento','Não contribuinte'],c.contribuinte||'Não informado'));
@@ -305,28 +302,44 @@ function supplierExtras(prefix){
 }
 function clientExtras(prefix){return Object.assign({},supplierExtras(prefix),{limite:parseMoney(val(prefix+'-limite'))});}
 function employeeExtras(prefix){return {rg:val(prefix+'-rg'),pis:val(prefix+'-pis'),ctps:val(prefix+'-ctps'),email:val(prefix+'-email'),telefoneEmergencial:val(prefix+'-emergencia'),cep:val(prefix+'-cep'),uf:val(prefix+'-uf').toUpperCase(),cidade:val(prefix+'-cidade'),rua:val(prefix+'-rua'),num:val(prefix+'-num'),compl:val(prefix+'-compl'),bairro:val(prefix+'-bairro'),sal:parseMoney(val(prefix+'-sal')),valeTransporte:parseMoney(val(prefix+'-vt')),adicional:parseMoney(val(prefix+'-adicional')),abono:parseMoney(val(prefix+'-abono'))};}
-function persistSuppliers(){
-  try{localStorage.setItem('mm_fornecedores_edit',JSON.stringify(FORNECEDORES||[]));}catch(e){}
-  try{if(typeof fbSalvarImediato==='function')fbSalvarImediato();else if(typeof fbSalvar==='function')fbSalvar();}catch(e){}
-  try{renderTabelaFornecedores();populateFornSelects();}catch(e){}
-}
 function persistEmployees(){
   try{localStorage.setItem('mm_funcionarios_edit',JSON.stringify(FUNCIONARIOS||[]));}catch(e){}
   try{if(typeof fbSalvarImediato==='function')fbSalvarImediato();else if(typeof fbSalvar==='function')fbSalvar();}catch(e){}
   try{renderTbFuncionarios();}catch(e){}
 }
 
-if(typeof legacy.saveNewSupplier==='function')global.salvarNovoFornecedor=function(){
-  if(!preparePersonDocument('nf'))return false;
-  const extras=supplierExtras('nf'),before=new Set((FORNECEDORES||[]).map(f=>f.cod));
-  const result=legacy.saveNewSupplier.apply(this,arguments);
-  const entity=(FORNECEDORES||[]).find(f=>!before.has(f.cod));if(entity){Object.assign(entity,extras);persistSuppliers();global.phase4MasterShowList('fornecedor');}
-  return result;
-};
-if(typeof legacy.saveSupplier==='function')global.salvarEditFornecedor=function(){
-  if(!preparePersonDocument('ef'))return false;
-  const code=val('ef-cod'),extras=supplierExtras('ef');const result=legacy.saveSupplier.apply(this,arguments);const entity=supplierByCode(code);if(entity){Object.assign(entity,extras);persistSuppliers();global.phase4MasterShowList('fornecedor');}return result;
-};
+function supplierFields(prefix){
+  const fields={nome:val(prefix+'-nome').toUpperCase(),cpf:val(prefix+'-cpf'),cnpj:val(prefix+'-cnpj'),rg:val(prefix+'-rg'),ie:val(prefix+'-ie'),
+    tel:val(prefix+'-tel'),wpp:val(prefix+'-wpp'),email:val(prefix+'-email'),cep:val(prefix+'-cep'),rua:val(prefix+'-rua'),num:val(prefix+'-num'),
+    compl:val(prefix+'-compl'),bairro:val(prefix+'-bairro'),pix:val(prefix+'-pix'),banco:val(prefix+'-banco'),agencia:val(prefix+'-agencia'),
+    conta:val(prefix+'-conta'),obs:val(prefix+'-obs'),nota:val(prefix+'-nota')};
+  return Object.assign(fields,supplierExtras(prefix));
+}
+let supplierSaving=false;
+async function saveSupplier(prefix){
+  if(supplierSaving)return false;
+  if(!preparePersonDocument(prefix))return false;
+  const fields=supplierFields(prefix);
+  if(!fields.nome){alert('Informe o nome do fornecedor.');document.getElementById(prefix+'-nome')?.focus?.();return false;}
+  if(typeof global.erpSupplierRequest!=='function'){alert('Cadastro indisponível. Atualize a página.');return false;}
+  const code=prefix==='ef'?val('ef-cod'):'';
+  const current=code?supplierByCode(code):null;
+  const button=document.querySelector?.('.phase4-master-save');
+  supplierSaving=true;if(button)button.disabled=true;
+  try{
+    const result=await global.erpSupplierRequest(code
+      ?{action:'update',cod:code,supplier:fields,expectedUpdate:current&&current._upd!=null?current._upd:undefined}
+      :{action:'create',supplier:fields});
+    if(typeof global.showToast==='function')global.showToast(code?'Fornecedor atualizado.':'Fornecedor '+(result.supplier?.cod||'')+' cadastrado.','success');
+    global.phase4MasterShowList('fornecedor');
+    return true;
+  }catch(error){
+    alert('Não foi possível salvar o fornecedor: '+(error?.message||'erro desconhecido'));
+    return false;
+  }finally{supplierSaving=false;if(button)button.disabled=false;}
+}
+global.salvarNovoFornecedor=function(){return saveSupplier('nf');};
+global.salvarEditFornecedor=function(){return saveSupplier('ef');};
 if(typeof legacy.saveNewClient==='function')global.salvarNovoCliente=function(){
   if(!preparePersonDocument('nc'))return false;
   const extras=clientExtras('nc'),before=new Set((CLIENTES||[]).map(c=>c.cod));const bank={banco:val('nc-banco'),agencia:val('nc-agencia'),conta:val('nc-conta'),pix:val('nc-pix')};
@@ -352,7 +365,7 @@ if(typeof legacy.openModal==='function')global.om=function(type){
   if(type==='funcionario'){openEmployee(null,null);return;}
   return legacy.openModal.apply(this,arguments);
 };
-global.editFornecedor=function(code){const entity=supplierByCode(code);if(entity)openSupplier(entity);else if(typeof legacy.editSupplier==='function')legacy.editSupplier.apply(this,arguments);};
+global.editFornecedor=function(code){const entity=supplierByCode(code);if(entity)openSupplier(entity);else if(typeof global.showToast==='function')global.showToast('Fornecedor não encontrado. Atualize a tela.','error');};
 global.editCliente=function(index){const entity=clientByIndex(index);if(entity)openClient(entity,index);else if(typeof legacy.editClient==='function')legacy.editClient.apply(this,arguments);};
 global.editFuncionario=function(mat){const idx=(FUNCIONARIOS||[]).findIndex(f=>String(f.mat||'')===String(mat||''));const entity=idx>=0?FUNCIONARIOS[idx]:null;if(entity)openEmployee(entity,idx);else if(typeof legacy.editEmployee==='function')legacy.editEmployee.apply(this,arguments);};
 
