@@ -48,12 +48,27 @@ export function eventIdentification(event: AuditEvent): string {
   return [event.entityType, event.entityId, event.code].filter(Boolean).join(' / ');
 }
 
-export function auditEvents(raw: unknown): { events: AuditEvent[]; nextCursor: string | null } {
-  const data = raw && typeof raw === 'object' ? (raw as { events?: unknown; nextCursor?: unknown }) : {};
+export function auditEvents(raw: unknown): {
+  events: AuditEvent[];
+  nextCursor: string | null;
+  scanned: number;
+} {
+  const data =
+    raw && typeof raw === 'object'
+      ? (raw as { events?: unknown; nextCursor?: unknown; scanned?: unknown })
+      : {};
   return {
     events: Array.isArray(data.events) ? (data.events as AuditEvent[]) : [],
     nextCursor: typeof data.nextCursor === 'string' && data.nextCursor ? data.nextCursor : null,
+    scanned: Number(data.scanned) || 0,
   };
+}
+
+export function logsHint(found: number, scanned: number, hasMore: boolean): string {
+  if (found) return `${found} evento(s) exibido(s) · ${scanned} registro(s) analisado(s).`;
+  if (hasMore)
+    return `Nenhum evento nos ${scanned} registros mais recentes analisados. Toque em Próxima para continuar procurando.`;
+  return `Nenhum evento encontrado em ${scanned} registro(s).`;
 }
 
 function csvCell(value: unknown): string {

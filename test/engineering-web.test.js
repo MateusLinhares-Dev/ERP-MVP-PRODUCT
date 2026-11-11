@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
-import { auditEvents, eventIdentification, logsCsv, logsQuery } from '../web/modules/engineering/domain/audit-logs.ts';
+import { auditEvents, eventIdentification, logsCsv, logsHint, logsQuery } from '../web/modules/engineering/domain/audit-logs.ts';
 import { articleToForm, filterEditorArticles, formToPayload } from '../web/modules/engineering/domain/help-editor.ts';
 
 test('logs: filtros viram consulta paginada; datas viram milissegundos', () => {
@@ -11,7 +11,10 @@ test('logs: filtros viram consulta paginada; datas viram milissegundos', () => {
   assert.equal(query.get('module'), 'fiscal');
   assert.equal(query.has('level'), false);
   assert.equal(query.get('from'), String(new Date('2026-11-10T08:00').getTime()));
-  assert.deepEqual(auditEvents({ events: [{ ts: 1 }], nextCursor: '' }), { events: [{ ts: 1 }], nextCursor: null });
+  assert.deepEqual(auditEvents({ events: [{ ts: 1 }], nextCursor: '' }), { events: [{ ts: 1 }], nextCursor: null, scanned: 0 });
+  assert.deepEqual(auditEvents({ events: [], nextCursor: 'k9', scanned: '600' }), { events: [], nextCursor: 'k9', scanned: 600 });
+  assert.match(logsHint(0, 6000, true), /Próxima para continuar/);
+  assert.match(logsHint(3, 900, false), /^3 evento\(s\) exibido\(s\) · 900 registro/);
   assert.equal(eventIdentification({ entityType: 'ticket', entityId: 'T1', code: '' }), 'ticket / T1');
 });
 

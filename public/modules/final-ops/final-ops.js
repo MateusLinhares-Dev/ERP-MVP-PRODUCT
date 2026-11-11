@@ -41,8 +41,9 @@ async function checkNotices(){if(!rawAuth())return;try{
  const d=await request('mine'),notices=d.notices||[],widget=$('#mm-training-notice');if(!widget)return;
  const dueContracts=trainingManager?contracts().filter(c=>c?.fim&&daysDiff(c.fim)<=Number(c.remindDays||30)).slice(0,5):[];
  const count=notices.length+dueContracts.length;
- widget.hidden=!count;widget.replaceChildren();
- if(count){const h=document.createElement('strong');h.textContent=count+' aviso(s) de prazos e capacitações';widget.append(h);
+ if(!count){if(!widget.hidden)widget.hidden=true;if(widget.firstChild)widget.replaceChildren();return;}
+ widget.hidden=false;widget.replaceChildren();
+ {const h=document.createElement('strong');h.textContent=count+' aviso(s) de prazos e capacitações';widget.append(h);
  notices.slice(0,5).forEach(n=>{const p=document.createElement('p');p.textContent=n.course+' · '+(n.expiresAt?'Vence '+dateBR(n.expiresAt):n.scheduledAt?'Previsto '+dateBR(n.scheduledAt):'A programar');widget.append(p);});
  dueContracts.forEach(c=>{const p=document.createElement('p');p.textContent='Contrato '+String(c.desc||'')+' · Vencimento '+dateBR(c.fim);widget.append(p);});
  const button=document.createElement('button');button.textContent='Fechar';button.onclick=()=>widget.hidden=true;widget.append(button);
