@@ -444,7 +444,13 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
       else vistos[chave]=i;
     });
     if(!remover_.length) return false;
-    remover_.sort(function(a,b){ return b-a; }).forEach(function(i){ remover(i); });
+    const idsMantidos=new Set();
+    lista.forEach(function(item,i){ if(item&&item.id&&remover_.indexOf(i)<0) idsMantidos.add(item.id); });
+    remover_.sort(function(a,b){ return b-a; }).forEach(function(i){
+      const item=lista[i];
+      if(item&&item.id&&idsMantidos.has(item.id)) lista.splice(i,1);
+      else remover(i);
+    });
     return true;
   }
   function paraObjeto(){
@@ -1271,7 +1277,7 @@ function startApp(username) {
     const b=document.getElementById('btn-nova-compra');
     if(b){ b.onclick=null; b.addEventListener('click',function(e){e.preventDefault();om('compra');}); }
   },100);
-  switchTab(cu.tabs[0]);
+  switchTab((Array.isArray(cu.tabs)&&cu.tabs[0])||'dashboard');
 
   if(cuKey === 'balanceiro'){
     
@@ -10042,37 +10048,6 @@ function abrirBaixaCompraNoFinanceiro(ticketNumero){
   pagarContaRapido(indice,String(conta.id||''));
 }
 
-function marcarCompraPaga(dbKey){
-  var tk=TICKETS_DB[dbKey];
-  if(!tk){ showToast('Ticket não encontrado.','error'); return; }
-  if(Number(tk.saldoPagar||0)<=0.005 && Number(tk.adiantamento||0)>0){
-    showToast('A compra já está coberta por adiantamento. Para alterar os dados, use Editar; não faça nova baixa.','info',6500);
-    return;
-  }
-  var _fmt=function(v){ return Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2}); };
-  if(!confirm('Marcar a compra '+(tk.ticket||'')+' (R$ '+_fmt(tk.totalGeral)+') como PAGA?\n\nUse quando o pagamento JÁ está lançado na Ficha (adiantamento). Não cria pagamento novo e não duplica a Ficha. Dá pra desfazer no ↩️.')) return;
-  
-  tk._pagoUndo={ adiantamento:Number(tk.adiantamento||0), saldoPagar:Number(tk.saldoPagar||0), status:tk.status||'' };
-  tk.adiantamento=0;      
-  tk.saldoPagar=0;
-  tk.status='Pago';
-
-  try{
-    var cps=CONTAS_PAGAR.filter(function(c){ return c && c.ticket===tk.ticket && c.status!=='Pago'; });
-    cps.forEach(function(c){
-      if(!Array.isArray(c.pagamentos)) c.pagamentos=[];
-      c.pagamentos.push({ data:tk.data||'', valor:0, adt:Number(c.valor||0), banco:'', obs:'Coberto por adiantamento (Ficha) — marcado como pago' });
-      c.status='Pago'; c.dataPgto=tk.data||''; c._upd=Date.now();
-    });
-    if(cps.length){ saveContasPagar(); try{ renderContasPagar(); }catch(e){} }
-  }catch(e){}
-  saveDB();
-  try{ registrarHistorico('Compra','Marcada como paga',(tk.fornecedor||'')+' — '+(tk.ticket||'')+' — R$ '+_fmt(tk.totalGeral)+' (coberto pela Ficha)', null, {ticket:tk.ticket}); }catch(e){}
-  try{ renderTickets(); }catch(e){}
-  try{ renderFluxo(); renderDashboard(); }catch(e){}
-  showToast('✅ Compra '+(tk.ticket||'')+' marcada como paga.','success');
-}
-window['marcarCompraPaga']=marcarCompraPaga;
 
 async function desmarcarCompraPaga(dbKey){
   const ticket=TICKETS_DB[dbKey];
@@ -17664,45 +17639,55 @@ function renderContasPagar(){
 function _bancoRemoverMovimento(movId){
   if(!movId||typeof LANC_BANCO_DB==='undefined') return false;
   const i=LANC_BANCO_DB.findIndex(function(l){ return l&&l.id===movId; });
-  const mov=i>=0?LANC_BANCO_DB[i]:null;
   if(i>=0) _syncLancBanco.remover(i);
-  if(String(movId).startsWith('LB-PG-')||_bancoMovimentoDoServidor(mov)){
-    try{ if(window._fbRawDB) window._fbRawDB.ref('erp/lancBanco/'+movId).remove().catch(function(e){ console.warn('lancBanco remove',e); }); }catch(e){ console.warn('lancBanco remove',e); }
-  }
   try{ saveBancos(); }catch(e){}
   try{ renderBancos(); }catch(e){}
   return i>=0;
 }
-function _cpExcluirPagamento(c,pIdx){
+function _cpGravadaPeloServidor(c){
+  if(!c) return false;
+  const tk=String(c.ticket||'').trim();
+  return String(c.id||'').startsWith('CPPO_')||Boolean(tk&&typeof TICKETS_DB!=='undefined'&&TICKETS_DB[tk]&&TICKETS_DB[tk]._purchaseOperationId);
+}
+const _cpExcluindoPagamento=new Set();
+async function _cpExcluirPagamento(c,pIdx){
   if(!c||!Array.isArray(c.pagamentos)||!c.pagamentos[pIdx]) return 'Pagamento não encontrado (recarregue e tente de novo).';
   const p=c.pagamentos[pIdx];
   if(Number(p.adt||0)>0) return 'Este pagamento usou adiantamento. Para não desfazer a compensação do adiantamento pela metade, peça ajuda ao suporte.';
-  const cash=Math.round(Number(p.valor||0)*100)/100;
-  if(p.movBancoId) _bancoRemoverMovimento(p.movBancoId);
-  if(c.ticket && typeof TICKETS_DB!=='undefined' && TICKETS_DB[c.ticket]){
-    const tk=TICKETS_DB[c.ticket];
-    tk.saldoPagar=Math.round((Number(tk.saldoPagar||0)+cash)*100)/100;
-    tk.status=tk.saldoPagar<=0.01?'Pago':'Parcial';
-  }
-  if(c.status==='Pago'){ c.status='Pendente'; c.dataPgto=''; c.valor=cash; }
-  else c.valor=Math.round(((Number(c.valor)||0)+cash)*100)/100;
-  c.valorPago=Math.max(0,Math.round(((Number(c.valorPago)||0)-cash)*100)/100);
-  if(c.movBancoIdCP && c.movBancoIdCP===p.movBancoId) delete c.movBancoIdCP;
-  c.pagamentos.splice(pIdx,1);
-  c._upd=Date.now();
-  try{ registrarHistorico('Contas a Pagar','Pagamento excluído',(c.cred||c.desc||c.id)+' — R$ '+cash.toLocaleString('pt-BR',{minimumFractionDigits:2})+(c.ticket?' | Ticket '+c.ticket:''),c,{cpId:c.id}); }catch(e){}
-  saveContasPagar(); saveDB();
-  try{renderContasPagar();}catch(e){} try{renderTickets();}catch(e){}
-  try{renderFluxo();}catch(e){} try{renderDashboard();}catch(e){}
-  return '';
+  const user=typeof firebase!=='undefined'?firebase.auth().currentUser:null;
+  if(!user) return 'Sessão expirada. Entre novamente.';
+  if(_cpExcluindoPagamento.has(c.id)) return 'A exclusão deste pagamento já está em andamento.';
+  _cpExcluindoPagamento.add(c.id);
+  try{
+    const token=await user.getIdToken();
+    let response;
+    try{
+      response=await fetch('/api/finance/payables-payment',{method:'POST',credentials:'same-origin',
+        headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+        body:JSON.stringify({action:'reverse',operationId:crypto.randomUUID(),payableId:c.id,paymentIndex:pIdx,
+          payment:{data:p.data||'',valor:Number(p.valor||0),movBancoId:p.movBancoId||''},
+          expected:{valor:Number(c.valor),status:c.status,paymentsCount:c.pagamentos.length}})});
+    }catch(e){ return 'Sem resposta do servidor. Atualize a tela e confira a conta antes de tentar de novo.'; }
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||!result.payable) return result.message||'Não foi possível excluir o pagamento.';
+    const idx=_cpIdxPorId(c.id);
+    if(idx>=0) CONTAS_PAGAR[idx]=result.payable;
+    if(result.removedMovementId) _bancoRemoverMovimento(result.removedMovementId);
+    if(result.ticket&&result.ticketKey&&typeof TICKETS_DB!=='undefined') TICKETS_DB[result.ticketKey]=result.ticket;
+    try{ registrarHistorico('Contas a Pagar','Pagamento excluído',(c.cred||c.desc||c.id)+' — R$ '+Number(result.reversedAmount||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+(c.ticket?' | Ticket '+c.ticket:''),result.payable,{cpId:c.id}); }catch(e){}
+    try{renderContasPagar();}catch(e){} try{renderTickets();}catch(e){}
+    try{renderFluxo();}catch(e){} try{renderDashboard();}catch(e){}
+    return '';
+  }finally{ _cpExcluindoPagamento.delete(c.id); }
 }
-function excluirPagamentoCP(id,pIdx){
+async function excluirPagamentoCP(id,pIdx){
   const c=CONTAS_PAGAR.find(x=>x&&x.id===id);
   const p=c&&Array.isArray(c.pagamentos)?c.pagamentos[pIdx]:null;
   if(!p){ showToast('Pagamento não encontrado (recarregue e tente de novo).','error'); return; }
   if(!confirm('Excluir o pagamento de R$ '+Number(p.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+' ('+(p.data||'sem data')+')?\n\nO valor volta a ser devido e a saída é retirada do extrato do banco.')) return;
-  const erro=_cpExcluirPagamento(c,pIdx);
-  if(erro){ showToast(erro,'error',9000); return; }
+  document.querySelectorAll('#cp-historico-pagamentos button').forEach(b=>{b.disabled=true;});
+  const erro=await _cpExcluirPagamento(c,pIdx);
+  if(erro){ showToast(erro,'error',9000); verHistoricoPagamentosCP(id); return; }
   showToast('Pagamento excluído. Voltou a ser devido.','success');
   verHistoricoPagamentosCP(id);
 }
@@ -18196,6 +18181,10 @@ function editContaPagar(idx, id){
   if(id){ const fresh=_cpIdxPorId(id); if(fresh>=0) idx=fresh; }
   const c=CONTAS_PAGAR[idx];
   if(!c) return;
+  if(_cpGravadaPeloServidor(c)){
+    showToast('Esta conta pertence a um pedido de compra. Para mudar valor, vencimento ou parcelas, use Editar no Histórico de compras. Para pagar ou desfazer um pagamento, use Pagar e o Histórico de pagamentos (🕒).','info',9000);
+    return;
+  }
   const vencISO=c.venc.split('/').reverse().join('-');
   const catOpts=c.cat||'';
   const _bcSrc=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB))?BANCOS_DB:[];
@@ -18547,32 +18536,6 @@ function _baixarSaldoTicket(ticketId, valorPago, dataFmt, cpJaTratadoId){
     });
   }
   try{ saveContasPagar(); renderContasPagar(); }catch(e){}
-}
-
-function _aplicarAdiantamentosCP(fornCod, adtAplicar, c, dataFmt){
-  if(!fornCod || !ADT_POR_FORN[fornCod] || adtAplicar<=0) return;
-  let restante=adtAplicar;
-  for(const a of ADT_POR_FORN[fornCod].filter(a=>a.status==='Pendente')){
-    if(restante<=0) break;
-    const vAdt=Number(a.valor);
-    const usado=Math.min(vAdt,restante);
-    if(usado>=vAdt){
-      a.status='Quitado'; a.ticket=a.ticket||c.ticket||'';
-      a.obs=(a.obs?a.obs+' | ':'')+'Compensado em CP '+dataFmt;
-    } else {
-
-      ADT_POR_FORN[fornCod].push({
-        cod:'ADT'+String(Date.now()).slice(-6), data:dataFmt, valor:usado,
-        status:'Quitado', ticket:c.ticket||'', forma:a.forma,
-        bancoCod:a.bancoCod||'', bancoNome:a.bancoNome||'',
-        obs:'Compensação parcial – CP '+dataFmt
-      });
-      a.valor=vAdt-usado;
-    }
-    restante-=usado;
-  }
-
-  try{ _adtSalvarNaNuvem(fornCod); }catch(e){}
 }
 
 function confirmarAcao(msg, onOk, okLabel, okStyle){
@@ -22348,6 +22311,13 @@ function initDespesas(){
         }
         id=realId; fornCod=realForn;
         var _backup=tipoOrBtn; tipoOrBtn=null;
+        if(tipo==='adiantamento'){ _ffAbrirSobreFicha(fornCod,function(){ editAdiantamento(fornCod,id); }); return; }
+        if(tipo==='compra'&&_compraConfirmadaNoServidor(TICKETS_DB[id])){
+          var _fichaModal=document.getElementById('modal-ficha-forn');
+          if(typeof window.phase4PurchaseEditTicket==='function'){ if(_fichaModal) _fichaModal.style.display='none'; window.phase4PurchaseEditTicket(id); }
+          else _avisarCompraDoServidor();
+          return;
+        }
         _ffEditTipo=tipo; _ffEditId=id; _ffEditForn=fornCod;
         var titulo=tipo==='compra'?'Editar Compra / Ticket'
           :tipo==='adiantamento'?'Editar Adiantamento'
@@ -22453,6 +22423,15 @@ function initDespesas(){
       window['ffSalvarEdicao']=ffSalvarEdicao;
 
       function ffExcluirLancamento(tipo, id, fornCod){
+        var _ffDepois=function(){ ffRenderFicha(fornCod,(document.getElementById('ff-de')||{}).value||'',(document.getElementById('ff-ate')||{}).value||''); };
+        if(tipo==='adiantamento'){
+          Promise.resolve(excluirAdiantamento(fornCod,id)).then(_ffDepois,_ffDepois);
+          return;
+        }
+        if(tipo==='compra'&&_compraConfirmadaNoServidor(TICKETS_DB[id])){
+          Promise.resolve(excluirEntradaCompra(id)).then(_ffDepois,_ffDepois);
+          return;
+        }
         var msg = tipo==='compra'?'Excluir este ticket de compra da ficha?'
           :tipo==='adiantamento'?'Excluir este adiantamento da ficha?'
           :tipo==='cheque'?'Excluir este cheque da ficha?'
@@ -22463,10 +22442,11 @@ function initDespesas(){
         if(tipo==='pagamento_cp'){
           var _pp=String(id).split('§'); var _cpId=_pp[0]; var _pIdx=parseInt(_pp[1],10);
           var c=CONTAS_PAGAR.find(function(x){return x&&x.id===_cpId;});
-          var _erroPg=_cpExcluirPagamento(c,_pIdx);
-          if(_erroPg){ showToast(_erroPg,'error',9000); return; }
-          ffRenderFicha(fornCod,(document.getElementById('ff-de')||{}).value||'',(document.getElementById('ff-ate')||{}).value||'');
-          showToast('Pagamento excluído. Voltou a ser devido.','success');
+          _cpExcluirPagamento(c,_pIdx).then(function(_erroPg){
+            if(_erroPg){ showToast(_erroPg,'error',9000); return; }
+            ffRenderFicha(fornCod,(document.getElementById('ff-de')||{}).value||'',(document.getElementById('ff-ate')||{}).value||'');
+            showToast('Pagamento excluído. Voltou a ser devido.','success');
+          });
           return;
         }
         if(tipo==='compra'){
@@ -22535,14 +22515,8 @@ function initDespesas(){
         if(euDevo){
           registrarSaldoDevedor(cod, v);
         } else {
-          if(!ADT_POR_FORN[cod]) ADT_POR_FORN[cod]=[];
-          var hoje=new Date().toLocaleDateString('pt-BR');
-          ADT_POR_FORN[cod].push({ cod:'ADT'+String(Date.now()).slice(-6), data:hoje, valor:v, status:'Pendente', forma:'Saldo inicial', obs:'Saldo inicial — '+nome+' te deve' });
-          try{ saveDB(); }catch(e){}
-          try{ _adtSalvarNaNuvem(cod); }catch(e){}   
-          try{ renderAdiantamentos(); }catch(e){}
-          showToast('Saldo inicial registrado: '+nome+' te deve R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2}),'success');
-          ffRenderFicha(cod,(document.getElementById('ff-de')||{}).value||'',(document.getElementById('ff-ate')||{}).value||'');
+          showToast('O crédito com o fornecedor é registrado como adiantamento. Confira a forma e o banco e salve.','info',8000);
+          _ffAbrirAdiantamentoOficial(cod,{valor:v,obs:'Saldo inicial — '+nome+' te deve'});
         }
       }
       window['ffSaldoInicial']=ffSaldoInicial;
@@ -22556,57 +22530,34 @@ function initDespesas(){
       window['__abrirFichaFornAcao']=__abrirFichaFornAcao;
       window['filtrarTabelaForn']=filtrarTabelaForn;
 
+      function _ffAbrirSobreFicha(cod,abrir){
+        var ficha=document.getElementById('modal-ficha-forn');
+        if(ficha) ficha.style.display='none';
+        abrir();
+        var vigia=setInterval(function(){
+          if(document.querySelector('#modal-ov.open')) return;
+          clearInterval(vigia);
+          if(ficha) ficha.style.display='flex';
+          if(_ffCodAtual===cod) ffRenderFicha(cod,(document.getElementById('ff-de')||{}).value||'',(document.getElementById('ff-ate')||{}).value||'');
+        },600);
+      }
+      function _ffAbrirAdiantamentoOficial(cod,extra){
+        var forn=FORNECEDORES.find(function(f){ return f.cod===cod; });
+        _ffAbrirSobreFicha(cod,function(){ om('adiantamento'); });
+        setTimeout(function(){
+          var busca=document.getElementById('adt-forn-busca'),hid=document.getElementById('adt-forn');
+          if(busca&&forn){ busca.value=_fornRotuloOpcao(forn,getFornAtivos()); _fornBuscaResolverCod('adt-forn-busca','adt-forn'); }
+          if(hid&&!hid.value) hid.value=cod;
+          var valor=document.getElementById('adt-valor'),obs=document.getElementById('adt-obs');
+          if(valor&&extra&&extra.valor) valor.value=Number(extra.valor).toFixed(2).replace('.',',');
+          if(obs&&extra&&extra.obs) obs.value=extra.obs;
+        },80);
+      }
       function ffAbrirLancarAdt(){
         if(!_ffCodAtual){ alert('Abra a ficha de um fornecedor primeiro.'); return; }
-        var box=document.getElementById('ff-lanc-adt'); if(!box) return;
-        var hoje=_hojeISO();
-        var bancos=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB))?BANCOS_DB:[];
-        var bancoOpts='<option value="">— Não sai do banco —</option>'+bancos.map(function(b){return '<option value="'+esc(b.banco)+'">'+esc(b.banco)+'</option>';}).join('');
-        box.innerHTML='<div style="margin:6px 20px 10px;padding:12px 14px;background:#eafaf0;border:1px solid #a5d6a7;border-radius:10px">'
-          +'<div style="font-weight:800;color:#1a5e2a;margin-bottom:8px">➕ Lançar adiantamento / pagamento</div>'
-          +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">'
-          +'<div><label style="font-size:.72rem;font-weight:700;color:#555;display:block">Data</label><input type="date" id="ffla-data" value="'+hoje+'" style="padding:7px;border:1px solid #a5d6a7;border-radius:6px"></div>'
-          +'<div><label style="font-size:.72rem;font-weight:700;color:#555;display:block">Valor R$</label><input type="text" id="ffla-valor" placeholder="0,00" style="width:120px;padding:7px;border:1px solid #a5d6a7;border-radius:6px;text-align:right"></div>'
-          +'<div><label style="font-size:.72rem;font-weight:700;color:#555;display:block">Forma</label><select id="ffla-forma" style="padding:7px;border:1px solid #a5d6a7;border-radius:6px"><option>PIX</option><option>Dinheiro</option><option>Transferência</option><option>Cheque</option></select></div>'
-          +'<div><label style="font-size:.72rem;font-weight:700;color:#555;display:block">Banco (saída)</label><select id="ffla-banco" style="padding:7px;border:1px solid #a5d6a7;border-radius:6px">'+bancoOpts+'</select></div>'
-          +'<div style="flex:1;min-width:140px"><label style="font-size:.72rem;font-weight:700;color:#555;display:block">Obs</label><input type="text" id="ffla-obs" placeholder="Ex: nome de quem recebeu" style="width:100%;padding:7px;border:1px solid #a5d6a7;border-radius:6px;box-sizing:border-box"></div>'
-          +'<button class="btn-save" style="padding:8px 14px" onclick="ffSalvarLancarAdt()">💾 Lançar</button>'
-          +'<button class="btn-cancel" style="padding:8px 14px" onclick="document.getElementById(\'ff-lanc-adt\').innerHTML=\'\'">Cancelar</button>'
-          +'</div></div>';
-        var v=document.getElementById('ffla-valor'); if(v) v.focus();
-      }
-      function ffSalvarLancarAdt(){
-        var cod=_ffCodAtual; if(!cod){ return; }
-        var dataIso=(document.getElementById('ffla-data')||{}).value||'';
-        var raw=(document.getElementById('ffla-valor')||{}).value||'';
-        var s=String(raw).replace(/[^0-9.,]/g,''); if(s.indexOf(',')>=0){ s=s.replace(/\./g,'').replace(',','.'); }
-        var valor=_r2(parseFloat(s)||0);
-        var forma=(document.getElementById('ffla-forma')||{}).value||'PIX';
-        var bancoNome=(document.getElementById('ffla-banco')||{}).value||'';
-        var obs=(document.getElementById('ffla-obs')||{}).value||'';
-        if(!dataIso||valor<=0){ alert('Preencha a data e um valor maior que zero.'); return; }
-        var dataFmt=dataIso.split('-').reverse().join('/');
-        if(!ADT_POR_FORN[cod]) ADT_POR_FORN[cod]=[];
-        var novoCod='ADT'+String(Date.now()).slice(-6);
-        ADT_POR_FORN[cod].push({ cod:novoCod, data:dataFmt, valor:valor, status:'Pendente', forma:forma, bancoNome:(bancoNome||'Não informado'), obs:obs });
-        saveDB();
-        _adtSalvarNaNuvem(cod);   
-        if(bancoNome){
-          try{
-            var forn=FORNECEDORES.find(function(f){return f.cod===cod;});
-            var mov=registrarMovBanco(bancoNome, dataIso, 'Adiantamento: '+(forn?forn.nome:cod), 'Saida', valor);
-            if(mov){ var criado=ADT_POR_FORN[cod].find(function(a){return a.cod===novoCod;}); if(criado){ criado.movBancoId=mov.id; saveDB(); _adtSalvarNaNuvem(cod); } }
-          }catch(e){}
-        }
-        try{ var f2=FORNECEDORES.find(function(f){return f.cod===cod;}); registrarHistorico('Adiantamento','Criado',(f2?f2.nome:cod)+' — R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+' — '+dataFmt+(bancoNome?' — '+bancoNome:''), null, {fornCod:cod, cod:novoCod}); }catch(e){}
-        try{ renderAdiantamentos(); }catch(e){}
-        var box=document.getElementById('ff-lanc-adt'); if(box) box.innerHTML='';
-        ffRenderFicha(cod, (document.getElementById('ff-de')||{}).value||'', (document.getElementById('ff-ate')||{}).value||'');
-        try{ renderFluxo(); renderDashboard(); }catch(e){}
-        showToast('✅ Adiantamento de R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+' lançado na ficha.','success');
+        _ffAbrirAdiantamentoOficial(_ffCodAtual,null);
       }
       window['ffAbrirLancarAdt']=ffAbrirLancarAdt;
-      window['ffSalvarLancarAdt']=ffSalvarLancarAdt;
 
       function fallbackDownload(canvas,forn){
         var a=document.createElement('a');
@@ -28301,6 +28252,7 @@ function _atualizarDicaScroll(tbodyId, dicaId){
 function csAbrirImpureza(dbKey){
   const t=TICKETS_DB[dbKey];
   if(!t){ showToast('Ticket não encontrado.','error'); return; }
+  if(_compraConfirmadaNoServidor(t)){ _avisarCompraDoServidor(); return; }
   _impDbKey=dbKey;
   const modal=document.getElementById('modal-impureza');
   if(!modal) return;
@@ -28381,6 +28333,7 @@ function csFecharImpureza(){
 function csSalvarImpureza(){
   const t=TICKETS_DB[_impDbKey];
   if(!t||!t.itens){ showToast('Erro: ticket não encontrado.','error'); return; }
+  if(_compraConfirmadaNoServidor(t)){ _avisarCompraDoServidor(); csFecharImpureza(); return; }
   let totalKg=0;
   t.itens.forEach((it,i)=>{
     const impEl=document.getElementById('imp-imp-'+i);

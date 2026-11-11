@@ -440,7 +440,7 @@ test('notinha não mostra códigos internos de adiantamento; cheque aparece pelo
 test('histórico: botão de baixa abre a próxima parcela em aberto da compra',()=>{
   const core=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
   const start=core.indexOf('function abrirBaixaCompraNoFinanceiro(');
-  const source=core.slice(start,core.indexOf('function marcarCompraPaga(',start));
+  const source=core.slice(start,core.indexOf('async function desmarcarCompraPaga(',start));
   const calls=[],messages=[];
   const env={CONTAS_PAGAR:[
     {id:'CPPO_T700-1',ticket:'T700',valor:100,status:'Pago',parcela:1,parcelas:3},

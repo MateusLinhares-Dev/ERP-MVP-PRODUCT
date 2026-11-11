@@ -18,7 +18,7 @@ test('Histórico não marca ticket pago localmente; encaminha a conta ao mesmo m
   const calls=[],messages=[];
   const payable={id:'CP-T303',ticket:'T303',valor:50,status:'Pendente'};
   const env={CONTAS_PAGAR:[payable],pagarContaRapido:(idx,id)=>calls.push({idx,id}),showToast:(message)=>messages.push(message)};
-  runInNewContext(fnSource('abrirBaixaCompraNoFinanceiro','function marcarCompraPaga(')+';abrirBaixaCompraNoFinanceiro("T303");',env);
+  runInNewContext(fnSource('abrirBaixaCompraNoFinanceiro','async function desmarcarCompraPaga(')+';abrirBaixaCompraNoFinanceiro("T303");',env);
   assert.deepEqual(calls,[{idx:0,id:'CP-T303'}]);
   assert.equal(payable.status,'Pendente');
   assert.equal(payable.valor,50);
@@ -29,7 +29,7 @@ test('Histórico não dá baixa nem altera dados se a conta não existe ou houve
   for(const contas of [[],[{id:'a',ticket:'T303',valor:20,status:'Pendente'},{id:'b',ticket:'T303',valor:30,status:'Pendente'}]]){
     let opened=0;const messages=[];
     const env={CONTAS_PAGAR:contas,pagarContaRapido:()=>opened++,showToast:(m)=>messages.push(m)};
-    runInNewContext(fnSource('abrirBaixaCompraNoFinanceiro','function marcarCompraPaga(')+';abrirBaixaCompraNoFinanceiro("T303");',env);
+    runInNewContext(fnSource('abrirBaixaCompraNoFinanceiro','async function desmarcarCompraPaga(')+';abrirBaixaCompraNoFinanceiro("T303");',env);
     assert.equal(opened,0);
     assert.equal(messages.length,1);
   }
