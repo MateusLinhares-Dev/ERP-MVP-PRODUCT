@@ -90,6 +90,8 @@ for(const node of nodes){
     '.write':`${auth} && (${writing.join(' || ')})`
   };
 }
+for(const node of ['fornecedores','fornDeleted'])candidate.rules.erp[node]['.write']=false;
+candidate.rules.erp.supplierOperations={'.read':false,'.write':false};
 for(const [node,access] of Object.entries(directNodes)){
   if(candidate.rules.erp[node])throw new Error(`Regra direta duplicada: ${node}`);
   const grant=(perm)=>perm==='admin'?`${auth} && auth.token.admin == true`:`${auth} && auth.token.${perm} == true`;

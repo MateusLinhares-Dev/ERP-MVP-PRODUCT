@@ -80,7 +80,10 @@ test('exclusões comuns seguem acesso do módulo, não papel administrativo',()=
   for(const tab of ['clientes','fornecedores','lista_compras','rod_balanca','compra_sucata'])assert.ok(core.includes("_usuarioPodeOperarModulo('"+tab+"')"),tab);
   assert.match(supplier,/isElaine=\(typeof _usuarioPodeOperarModulo/);
   assert.match(rules.clientesDeletedV2['.write'],/canCustomers/);
-  assert.match(rules.fornecedoresDeletedV2['.write'],/canSuppliers/);
+  assert.equal(rules.fornecedoresDeletedV2['.write'],false);
+  assert.equal(rules.fornecedores['.write'],false);
+  assert.equal(rules.fornDeleted['.write'],false);
+  assert.match(rules.fornecedores['.read'],/canSuppliers/);
   assert.doesNotMatch(rules.clientesDeletedV2['.write'],/auth\.token\.admin/);
   assert.match(storage,/allow delete: if authenticated\(\)\s*&& request\.auth\.token\.canBusinessDocs == true/);
   assert.match(rules.advanceBackups['.write'],/auth\.token\.admin/);
@@ -112,22 +115,30 @@ test('exclusão de cliente só altera a lista após confirmação do Firebase',a
   assert.equal(history,1);
 });
 
-test('exclusão de fornecedor não some da lista quando a regra Firebase rejeita',async()=>{
+test('exclusão de fornecedor só some da lista depois que o servidor confirma',async()=>{
   const {runInNewContext}=await import('node:vm');
-  const start=core.indexOf('async function _fornecedoresMarcarExcluidos('),end=core.indexOf('function editFornecedor(cod)',start);
   const hidden=new Set(),calls=[];
   let deny=true;
-  const context={Set,FORNECEDORES:[{cod:'F670',nome:'Keni'}],FORN_DELETED:hidden,
-    _usuarioPodeOperarModulo:()=>true,confirm:()=>true,alert(){},showToast(){},
-    window:{_fbDB:{ref(){return {update:async payload=>{if(deny)throw Error('permission_denied');calls.push(payload);}};}}},
-    firebase:{auth:()=>({currentUser:{uid:'erp:thais'}})},
-    localStorage:{setItem(){}},renderTabelaFornecedores(){},populateFornSelects(){},atualizarBtnExcluir(){},document:{getElementById:()=>null}
+  const context={Set,JSON,Object,Array,String,Promise,FORNECEDORES:[{cod:'F670',nome:'Keni'},{cod:'F671',nome:'Outro'}],FORN_DELETED:hidden,
+    _usuarioPodeOperarModulo:()=>true,confirm:()=>true,alert(){},showToast(){},CustomEvent:class{},
+    crypto:{randomUUID:()=>'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'},
+    fetch:async(url,init)=>{calls.push([url,JSON.parse(init.body)]);return deny
+      ?{ok:false,json:async()=>({code:'SUPPLIER_HAS_OPEN_FINANCE',message:'Não dá para excluir fornecedor com pendência financeira.'})}
+      :{ok:true,json:async()=>({action:'delete',deleted:['F670']})};},
+    firebase:{auth:()=>({currentUser:{uid:'erp:thais',getIdToken:async()=>'t'}})},
+    localStorage:{setItem(){}},renderTabelaFornecedores(){},populateFornSelects(){},atualizarBtnExcluir(){},
+    document:{getElementById:()=>null,dispatchEvent(){}}
   };
-  runInNewContext(core.slice(core.indexOf('const _erpExclusoesEmAndamento='),core.indexOf('async function excluirCliente(',core.indexOf('const _erpExclusoesEmAndamento=')))+core.slice(start,end)+';this.deleteSupplier=excluirFornecedor;',context);
+  context.window=context;
+  const pick=(from,to)=>core.slice(core.indexOf(from),core.indexOf(to,core.indexOf(from)));
+  runInNewContext(pick('const _erpExclusoesEmAndamento=','async function excluirCliente(')+
+    pick('function _fornAplicarResultado(result){','let TICKETS_DELETED')+
+    pick('async function _fornecedoresMarcarExcluidos(','async function excluirSelecionados(')+
+    pick('async function excluirFornecedor(','function importarFornecedores(')+';this.deleteSupplier=excluirFornecedor;',context);
   await context.deleteSupplier('F670');
   assert.equal(hidden.size,0);
   deny=false;
   await context.deleteSupplier('F670');
   assert.equal(hidden.has('F670'),true);
-  assert.deepEqual(calls.map(c=>Object.keys(c)),[['F670']]);
+  assert.deepEqual(calls.map(([url,body])=>[url,body.action,body.codes]),[['/api/master-data/suppliers','delete',['F670']],['/api/master-data/suppliers','delete',['F670']]]);
 });

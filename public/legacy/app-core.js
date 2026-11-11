@@ -26,33 +26,48 @@ function getFornAtivos(){
 }
 
 function _fornDeletedParaObjeto(){ const obj={}; FORN_DELETED.forEach(function(cod){ obj[cod]=true; }); return obj; }
-let _fornDeletedMigrando=false;
-function _fornDeletedMigrar(){
-  if(_fornDeletedMigrando || !window._fbDB) return;
-  _fornDeletedMigrando=true;
-  try{
-    window._fbDB.ref('erp/fornDeleted').update(_fornDeletedParaObjeto())
-      .then(function(){ console.info('fornDeleted migrado pro formato por-chave na nuvem.'); })
-      .catch(function(e){ console.warn('Falha ao migrar fornDeleted:', e); })
-      .finally(function(){ _fornDeletedMigrando=false; });
-  }catch(e){ _fornDeletedMigrando=false; }
-}
 function _fornDeletedCarregarDeRemoto(remotoBruto){
-  const _nTomb = remotoBruto ? (Array.isArray(remotoBruto)?remotoBruto.length:Object.keys(remotoBruto).length) : 0;
-  if(_nTomb>5000){ console.warn('fornDeleted: '+_nTomb+' IGNORADOS (limite de segurança)'); return; }
-  if(Array.isArray(remotoBruto)){
-    if(!remotoBruto.length) return;
-    remotoBruto.forEach(function(cod){ FORN_DELETED.add(cod); });
-    try{ localStorage.setItem('mm_fornecedores_deleted', JSON.stringify([...FORN_DELETED])); }catch(e){}
-    _fornDeletedMigrar();
-    return;
-  }
-  if(remotoBruto && typeof remotoBruto==='object'){
-    let mudou=false;
-    Object.keys(remotoBruto).forEach(function(cod){ if(remotoBruto[cod] && !FORN_DELETED.has(cod)){ FORN_DELETED.add(cod); mudou=true; } });
-    if(mudou){ try{ localStorage.setItem('mm_fornecedores_deleted', JSON.stringify([...FORN_DELETED])); }catch(e){} }
-  }
+  const codigos=Array.isArray(remotoBruto)?remotoBruto.filter(Boolean).map(String)
+    :remotoBruto&&typeof remotoBruto==='object'?Object.keys(remotoBruto).filter(function(cod){ return remotoBruto[cod]; }):[];
+  if(codigos.length>5000){ console.warn('fornDeleted: '+codigos.length+' IGNORADOS (limite de segurança)'); return; }
+  FORN_DELETED.clear();
+  codigos.forEach(function(cod){ FORN_DELETED.add(cod); });
+  try{ localStorage.setItem('mm_fornecedores_deleted', JSON.stringify(codigos)); }catch(e){}
 }
+function _fornAplicarResultado(result){
+  const gravar=function(f){
+    if(!f||!f.cod) return;
+    const iguais=FORNECEDORES.filter(function(x){ return x&&String(x.cod)===String(f.cod); });
+    if(!iguais.length){ FORNECEDORES.push(Object.assign({},f)); return; }
+    iguais.forEach(function(x){ Object.keys(x).forEach(function(k){ if(!(k in f)) delete x[k]; }); Object.assign(x,f); });
+  };
+  if(result.supplier) gravar(result.supplier);
+  (result.added||[]).forEach(gravar);
+  if(result.action==='delete') (result.deleted||[]).forEach(function(cod){ FORN_DELETED.add(String(cod)); });
+  if(result.action==='restore-all') FORN_DELETED.clear();
+  if(result.action==='set-docs') FORNECEDORES.forEach(function(x){ if(x&&String(x.cod)===String(result.cod)) x.docs=result.docs||[]; });
+  try{ localStorage.setItem('mm_fornecedores_deleted',JSON.stringify([...FORN_DELETED])); }catch(e){}
+  try{ localStorage.setItem('mm_fornecedores_edit',JSON.stringify(FORNECEDORES)); }catch(e){}
+  try{ renderTabelaFornecedores(); }catch(e){}
+  try{ populateFornSelects(); }catch(e){}
+  try{ atualizarBtnExcluir(); }catch(e){}
+  try{ document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'fornecedores'}})); }catch(e){}
+}
+async function _fornApi(payload){
+  const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
+  if(!user) throw new Error('Sessão expirada. Entre novamente.');
+  const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
+  let response;
+  try{
+    response=await fetch('/api/master-data/suppliers',{method:'POST',credentials:'same-origin',
+      headers:{Authorization:'Bearer '+await user.getIdToken(),'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }catch(e){ throw new Error('Sem conexão com o servidor. Confira a internet e tente de novo.'); }
+  const result=await response.json().catch(function(){ return {}; });
+  if(!response.ok){ const error=new Error(result.message||'O servidor não confirmou o cadastro do fornecedor.'); error.code=result.code; throw error; }
+  _fornAplicarResultado(result);
+  return result;
+}
+window.erpSupplierRequest=_fornApi;
 
 let TICKETS_DELETED = new Set();
 
@@ -13340,22 +13355,16 @@ document.addEventListener('input', function(e){
   if(novo!==el.value){ el.value=novo; }
 });
 
-function restaurarFornecedores(){
+async function restaurarFornecedores(){
   if(!_usuarioAtualEhElaine()){ alert('Apenas a Elaine pode restaurar fornecedores.'); return; }
   if(!confirm('Restaurar todos os fornecedores?\nIsso vai trazer de volta todos que foram removidos.')) return;
-  FORN_DELETED.clear();
-  localStorage.removeItem('mm_fornecedores_deleted');
-
-  try{ if(window._fbDB) window._fbDB.ref('erp/fornDeleted').set({}); }catch(e){}
-  
-  _fornFiltroAtual='';
-  renderTabelaFornecedores();
-  
-  const ativosRest=getFornAtivos();
-  populateFornSelects();
-  atualizarBtnExcluir();
-  renderFornInativos();
-  alert('\u2705 '+ativosRest.length+' fornecedores restaurados!');
+  try{
+    const result=await _fornApi({action:'restore-all'});
+    _fornFiltroAtual='';
+    renderTabelaFornecedores();
+    renderFornInativos();
+    alert('✅ '+(result.restored||[]).length+' fornecedor(es) restaurado(s).');
+  }catch(error){ showToast('Não foi possível restaurar: '+error.message,'error',8000); }
 }
 
 function atualizarBtnExcluir(){
@@ -13372,16 +13381,8 @@ function toggleAllForn(checked){
 }
 
 async function _fornecedoresMarcarExcluidos(codes){
-  if(!window._fbDB||!firebase?.auth?.().currentUser)throw new Error('Sessão Firebase indisponível.');
-  const unique=[...new Set(codes.map(x=>String(x||'').trim()))];
-  if(!unique.length||unique.length>200||unique.some(cod=>!/^[a-zA-Z0-9_-]{1,120}$/.test(cod)))throw new Error('Identificadores dos fornecedores inválidos.');
-  await window._fbDB.ref('erp/fornDeleted').update(Object.fromEntries(unique.map(cod=>[cod,true])));
-  unique.forEach(cod=>FORN_DELETED.add(cod));
-  localStorage.setItem('mm_fornecedores_deleted',JSON.stringify([...FORN_DELETED]));
-  renderTabelaFornecedores();
-  populateFornSelects();
+  await _fornApi({action:'delete',codes:[...new Set(codes.map(function(x){ return String(x||'').trim(); }))]});
   const checkAll=document.getElementById('chk-all-forn');if(checkAll)checkAll.checked=false;
-  atualizarBtnExcluir();
 }
 
 async function excluirSelecionados(){
@@ -13409,144 +13410,6 @@ async function excluirFornecedor(cod){
   finally{_erpExclusoesEmAndamento.delete('fornecedor:'+cod);}
 }
 
-function editFornecedor(cod){
-  const f=FORNECEDORES.find(x=>x.cod===cod);
-  if(!f) return;
-  const body=document.getElementById('modal-body');
-  body.className='modal';
-  const v=function(val){return esc(val||'');};
-  body.innerHTML=
-    '<h3>✏️ Editar Fornecedor — '+esc(f.cod)+'</h3>'+
-    '<input type="hidden" id="ef-cod" value="'+esc(f.cod)+'">'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-      '<div class="fg" style="grid-column:1/-1"><label>Nome / Razão Social *</label><input id="ef-nome" value="'+v(f.nome)+'" style="text-transform:uppercase"></div>'+
-      '<div class="fg"><label>CPF</label><input id="ef-cpf" class="mask-cpf" value="'+v(f.cpf)+'" placeholder="000.000.000-00"></div>'+
-      '<div class="fg"><label>CNPJ</label><input id="ef-cnpj" class="mask-cnpj" value="'+v(f.cnpj)+'" placeholder="00.000.000/0000-00"></div>'+
-      '<div class="fg"><label>RG</label><input id="ef-rg" value="'+v(f.rg)+'"></div>'+
-      '<div class="fg"><label>Inscrição Estadual (IE)</label><input id="ef-ie" value="'+v(f.ie)+'"></div>'+
-      '<div class="fg"><label>Telefone</label><input id="ef-tel" value="'+v(f.tel)+'" placeholder="(47) 9 9999-9999"></div>'+
-      '<div class="fg"><label>WhatsApp</label><input id="ef-wpp" value="'+v(f.wpp)+'" placeholder="(47) 9 9999-9999"></div>'+
-      '<div class="fg" style="grid-column:1/-1"><label>E-mail</label><input id="ef-email" type="email" value="'+v(f.email)+'"></div>'+
-    '</div>'+
-    '<p style="margin:10px 0 4px;font-weight:700;color:#1565c0">📍 Endereço</p>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-      '<div class="fg"><label>CEP</label><input id="ef-cep" value="'+v(f.cep)+'" placeholder="00000-000"></div>'+
-      '<div class="fg" style="grid-column:1/-1"><label>Rua / Logradouro</label><input id="ef-rua" value="'+v(f.rua)+'"></div>'+
-      '<div class="fg"><label>Número</label><input id="ef-num" value="'+v(f.num)+'"></div>'+
-      '<div class="fg"><label>Complemento</label><input id="ef-compl" value="'+v(f.compl)+'"></div>'+
-      '<div class="fg"><label>Bairro</label><input id="ef-bairro" value="'+v(f.bairro)+'"></div>'+
-      '<div class="fg"><label>Cidade/UF</label><input id="ef-cidade" value="'+v(f.cidade)+'" placeholder="Joinville/SC"></div>'+
-    '</div>'+
-    '<p style="margin:10px 0 4px;font-weight:700;color:#1565c0">🏦 Dados Bancários / PIX</p>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-      '<div class="fg" style="grid-column:1/-1"><label>Chave PIX</label><input id="ef-pix" value="'+v(f.pix)+'" placeholder="CPF, CNPJ, telefone, e-mail..."></div>'+
-      '<div class="fg" style="grid-column:1/-1"><label>Banco</label><input id="ef-banco" value="'+v(f.banco)+'" placeholder="Nome do banco"></div>'+
-      '<div class="fg"><label>Agência</label><input id="ef-agencia" value="'+v(f.agencia)+'"></div>'+
-      '<div class="fg"><label>Conta</label><input id="ef-conta" value="'+v(f.conta)+'"></div>'+
-    '</div>'+
-    (f.obs?'<div class="fg"><label>Dados bancários (texto antigo)</label><textarea id="ef-obs" rows="2">'+v(f.obs)+'</textarea></div>':'<input type="hidden" id="ef-obs" value="'+v(f.obs)+'">')+
-    '<div class="fg"><label>Observações</label><textarea id="ef-nota" rows="2">'+v(f.nota)+'</textarea></div>'+
-    '<div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarEditFornecedor()">💾 Salvar</button></div>';
-  document.getElementById('modal-ov').classList.add('open');
-}
-
-function salvarEditFornecedor(){
-  const cod=document.getElementById('ef-cod').value;
-  const f=FORNECEDORES.find(x=>x.cod===cod);
-  if(!f) return;
-  const g=id=>(document.getElementById(id)?.value||'').trim();
-  f.nome   = g('ef-nome').toUpperCase();
-  f.cpf    = g('ef-cpf');
-  f.cnpj   = g('ef-cnpj');
-  f.rg     = g('ef-rg');
-  f.ie     = g('ef-ie');
-  f.tel    = g('ef-tel');
-  f.wpp    = g('ef-wpp');
-  f.email  = g('ef-email');
-  f.cep    = g('ef-cep');
-  f.rua    = g('ef-rua');
-  f.num    = g('ef-num');
-  f.compl  = g('ef-compl');
-  f.bairro = g('ef-bairro');
-  f.cidade = g('ef-cidade');
-  f.pix    = g('ef-pix');
-  f.banco  = g('ef-banco');
-  f.agencia= g('ef-agencia');
-  f.conta  = g('ef-conta');
-  f.obs    = g('ef-obs');
-  f.nota   = g('ef-nota');
-  try{
-  localStorage.setItem('mm_fornecedores_edit', JSON.stringify(
-    FORNECEDORES.map(x=>({cod:x.cod,nome:x.nome,cpf:x.cpf,cnpj:x.cnpj,rg:x.rg,ie:x.ie,
-      tel:x.tel,wpp:x.wpp,email:x.email,cep:x.cep,rua:x.rua,num:x.num,compl:x.compl,
-      bairro:x.bairro,cidade:x.cidade,obs:x.obs,nota:x.nota,pix:x.pix,banco:x.banco,agencia:x.agencia,conta:x.conta,docs:x.docs||[]}))
-  ));
-  }catch(cacheError){console.warn('[fornecedores] Cache local cheio; salvamento no Firebase continuará.',cacheError?.name||'StorageError');}
-  try{ fbSalvar(); }catch(e){} 
-  renderTabelaFornecedores();
-  populateFornSelects();
-  document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'fornecedores'}}));
-  cm();
-  alert('✅ Fornecedor atualizado!');
-}
-
-function salvarNovoFornecedor(){
-  const nome=document.getElementById('nf-nome')?.value.trim().toUpperCase();
-  if(!nome){alert('Informe o nome!');return;}
-  const reserved=new Set(FORNECEDORES.map(f=>String(f?.cod||'')));
-  try{FORN_DELETED.forEach(code=>reserved.add(String(code)));}catch(e){}
-  let next=Math.max(0,...[...reserved].map(code=>/^F(\d+)$/.test(code)?Number(code.slice(1)):0))+1;
-  while(reserved.has('F'+String(next).padStart(3,'0')))next++;
-  const cod='F'+String(next).padStart(3,'0');
-  const g=id=>document.getElementById(id)?.value.trim()||'';
-  FORNECEDORES.push({cod,nome,
-    cpf:    g('nf-cpf'),
-    cnpj:   g('nf-cnpj'),
-    rg:     g('nf-rg'),
-    ie:     g('nf-ie'),
-    tel:    g('nf-tel'),
-    wpp:    g('nf-wpp'),
-    email:  g('nf-email'),
-    cep:    g('nf-cep'),
-    rua:    g('nf-rua'),
-    num:    g('nf-num'),
-    compl:  g('nf-compl'),
-    bairro: g('nf-bairro'),
-    cidade: g('nf-cidade'),
-    pix:    g('nf-pix'),
-    banco:  g('nf-banco'),
-    agencia:g('nf-agencia'),
-    conta:  g('nf-conta'),
-    obs:    g('nf-obs'),
-    nota:   g('nf-nota')
-  });
-  if(!PRECOS_FORN_DATA) window.PRECOS_FORN_DATA={};
-  PRECOS_FORN_DATA[cod]={};
-  try{
-  localStorage.setItem('mm_fornecedores_edit', JSON.stringify(
-    FORNECEDORES.map(x=>({cod:x.cod,nome:x.nome,cpf:x.cpf,cnpj:x.cnpj,rg:x.rg,ie:x.ie,
-      tel:x.tel,wpp:x.wpp,email:x.email,cep:x.cep,rua:x.rua,num:x.num,compl:x.compl,
-      bairro:x.bairro,cidade:x.cidade,obs:x.obs,nota:x.nota,pix:x.pix,banco:x.banco,agencia:x.agencia,conta:x.conta,docs:x.docs||[]}))
-  ));
-  }catch(cacheError){console.warn('[fornecedores] Cache local cheio; salvamento no Firebase continuará.',cacheError?.name||'StorageError');}
-  renderTabelaFornecedores();
-  populateFornSelects();
-  document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'fornecedores'}}));
-  try{
-    const item=FORNECEDORES.find(x=>x.cod===cod);
-    if(item&&window.__businessRepository){
-      _syncFornecedores.paraObjeto();
-      window.__businessRepository.upsert('fornecedores',item.id,item)
-        .catch(e=>{console.error('[fornecedores] Falha no cadastro RTDB:',e);try{showToast('Falha ao sincronizar fornecedor. Atualize e confira antes de utilizá-lo.','error',7000);}catch(_){}});
-    }
-  }catch(e){console.warn('[fornecedores] Sincronização:',e);}
-  try{ if(typeof rodPopularPessoaSelect==='function' && (_rodTipoAtual||'compra')==='compra') rodPopularPessoaSelect(); }catch(e){}
-  try{ fbSalvar(); }catch(e){} 
-  cm();
-  alert('✅ Fornecedor '+nome+' cadastrado!');
-}
-
-function _digForn(s){ return String(s||'').replace(/\D/g,''); }
 function importarFornecedores(input){
   const file=input && input.files && input.files[0];
   if(!file){ return; }
@@ -13580,42 +13443,33 @@ function importarFornecedores(input){
         };
         if(col.nome<0 && col.doc<0){ alert('Não encontrei as colunas "Nome" e "Doc (CPF/CNPJ)" na planilha. Confira o cabeçalho.'); return; }
         const rows=aoa.slice(hdr+1);
-        const existDoc=new Set(FORNECEDORES.map(function(f){return _digForn(f.cpf)||_digForn(f.cnpj);}).filter(Boolean));
-        const existNome=new Set(FORNECEDORES.map(function(f){return (f.nome||'').trim().toUpperCase();}).filter(Boolean));
-        let max=0; FORNECEDORES.forEach(function(f){ const m=/^F(\d+)$/.exec(f.cod||''); if(m) max=Math.max(max,parseInt(m[1],10)); });
         const g=function(r,i){ return i>=0?String(r[i]||'').trim():''; };
-        let add=0,dup=0,vazio=0;
+        const lista=[];
+        let vazio=0;
         rows.forEach(function(r){
           const nome=g(r,col.nome).toUpperCase();
           const doc=g(r,col.doc);
           if(!nome && !doc){ vazio++; return; }
-          const dg=_digForn(doc);
-          if(dg && existDoc.has(dg)){ dup++; return; }
-          if(!dg && nome && existNome.has(nome)){ dup++; return; }
-          const isCnpj=dg.length===14;
-          max++; const cod='F'+String(max).padStart(3,'0');
-          const cidade=g(r,col.cidade), uf=g(r,col.uf);
-          FORNECEDORES.push({ cod, nome,
-            cpf: isCnpj?'':doc, cnpj: isCnpj?doc:'', rg:'', ie:'', tel:'', wpp:'', email:'',
-            cep:g(r,col.cep), rua:g(r,col.rua), num:g(r,col.num), compl:'', bairro:g(r,col.bairro),
-            cidade: (cidade+(uf?'/'+uf:'')).trim(),
-            pix:g(r,col.pix), banco:g(r,col.banco), agencia:g(r,col.agencia), conta:g(r,col.conta),
-            obs:g(r,col.obs), nota:'', docs:[] });
-          if(dg) existDoc.add(dg);
-          if(nome) existNome.add(nome);
-          if(typeof PRECOS_FORN_DATA==='object' && PRECOS_FORN_DATA) PRECOS_FORN_DATA[cod]={};
-          add++;
+          const chave=doc.toUpperCase().replace(/[^0-9A-Z]/g,'');
+          const cidade=g(r,col.cidade), uf=g(r,col.uf).toUpperCase().slice(0,2);
+          lista.push({ nome:nome||doc, cpf:chave.length===14?'':doc, cnpj:chave.length===14?doc:'',
+            cep:g(r,col.cep), rua:g(r,col.rua), num:g(r,col.num), bairro:g(r,col.bairro),
+            cidadeNome:cidade, uf:uf, cidade:[cidade,uf].filter(Boolean).join('/'),
+            pix:g(r,col.pix), banco:g(r,col.banco), agencia:g(r,col.agencia), conta:g(r,col.conta), obs:g(r,col.obs) });
         });
-        localStorage.setItem('mm_fornecedores_edit', JSON.stringify(
-          FORNECEDORES.map(function(x){return {cod:x.cod,nome:x.nome,cpf:x.cpf,cnpj:x.cnpj,rg:x.rg,ie:x.ie,
-            tel:x.tel,wpp:x.wpp,email:x.email,cep:x.cep,rua:x.rua,num:x.num,compl:x.compl,
-            bairro:x.bairro,cidade:x.cidade,obs:x.obs,nota:x.nota,pix:x.pix,banco:x.banco,agencia:x.agencia,conta:x.conta,docs:x.docs||[]};})
-        ));
-        try{ fbSalvar(); }catch(_){}
-        try{ renderTabelaFornecedores(); }catch(_){}
-        try{ populateFornSelects(); }catch(_){}
         if(input) input.value='';
-        alert('✅ Importação concluída!\n\n• '+add+' fornecedor(es) novo(s) adicionado(s)\n• '+dup+' já existiam (pulados, sem duplicar)\n• '+vazio+' linha(s) em branco ignorada(s)');
+        if(!lista.length){ alert('Nenhum fornecedor encontrado na planilha.'); return; }
+        (async function(){
+          let add=0,dup=0;const invalidos=[];
+          for(let i=0;i<lista.length;i+=500){
+            const result=await _fornApi({action:'import',suppliers:lista.slice(i,i+500)});
+            (result.added||[]).forEach(function(f){ if(typeof PRECOS_FORN_DATA==='object'&&PRECOS_FORN_DATA&&!PRECOS_FORN_DATA[f.cod]) PRECOS_FORN_DATA[f.cod]={}; });
+            add+=(result.added||[]).length; dup+=Number(result.duplicates||0);
+            (result.invalid||[]).forEach(function(x){ invalidos.push('linha '+(x.row+i)+': '+x.message); });
+          }
+          alert('✅ Importação concluída!\n\n• '+add+' fornecedor(es) novo(s) adicionado(s)\n• '+dup+' já existiam (pulados, sem duplicar)\n• '+vazio+' linha(s) em branco ignorada(s)'+
+            (invalidos.length?'\n• '+invalidos.length+' com erro: '+invalidos.slice(0,5).join('; '):''));
+        })().catch(function(error){ alert('Erro ao importar a planilha: '+error.message); });
       }catch(err){ alert('Erro ao importar a planilha: '+((err&&err.message)||err)); }
     };
     reader.onerror=function(){ alert('Não consegui ler o arquivo.'); };
@@ -14686,12 +14540,8 @@ function fornDocsModal(cod){
   const f=FORNECEDORES.find(x=>x.cod===cod);
   if(!f){showToast('Fornecedor não encontrado.','error');return;}
   _entidadeDocsModal(f, f.nome, function(){
-    localStorage.setItem('mm_fornecedores_edit', JSON.stringify(
-      FORNECEDORES.map(x=>({cod:x.cod,nome:x.nome,cpf:x.cpf,cnpj:x.cnpj,rg:x.rg,ie:x.ie,
-        tel:x.tel,wpp:x.wpp,email:x.email,cep:x.cep,rua:x.rua,num:x.num,compl:x.compl,
-        bairro:x.bairro,cidade:x.cidade,obs:x.obs,nota:x.nota,pix:x.pix,banco:x.banco,agencia:x.agencia,conta:x.conta,docs:x.docs||[]}))
-    ));
-    try{fbSalvar();}catch(e){}
+    _fornApi({action:'set-docs',cod:f.cod,docs:f.docs||[]})
+      .catch(function(error){ showToast('A lista de documentos não foi gravada: '+error.message,'error',8000); });
   });
 }
 

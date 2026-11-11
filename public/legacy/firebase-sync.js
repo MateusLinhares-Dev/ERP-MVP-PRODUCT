@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-11-2100-v225-repasses-react';
+  const _APP_BUILD = '2026-11-12-0000-v226-fornecedores-api';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -854,7 +854,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         almoxaDeleted: [..._syncAlxItens.deletedSet],
         almoxaMovDeleted: [..._syncAlxMov.deletedSet],
         clientesDeleted: [..._syncClientes.deletedSet],
-        fornecedoresDeleted: [..._syncFornecedores.deletedSet],
         bancosDeleted: [..._syncBancos.deletedSet],
         despGrupoDeleted: [..._syncDespGrupo.deletedSet],
         coordNotasDeleted: [..._syncAlxNotas.deletedSet],
@@ -961,8 +960,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       _patchIncremental(dados, 'almoxa', _syncAlxItens.paraObjeto(), _syncAlxItens.deletedSet);
       _patchIncremental(dados, 'almoxaMov', _syncAlxMov.paraObjeto(), _syncAlxMov.deletedSet);
       _patchIncremental(dados, 'clientes', _syncClientes.paraObjeto(), _syncClientes.deletedSet);
-      _patchIncremental(dados, 'fornecedores', _syncFornecedores.paraObjeto(), _syncFornecedores.deletedSet);
-      Object.keys(_fornDeletedParaObjeto()).forEach(function(cod){ dados['fornDeleted/'+cod] = true; });
       if(window.__ERP_BANKS_CLOUD_READY__)
         _patchIncremental(dados, 'bancos', _syncBancos.paraObjeto(), _syncBancos.deletedSet);
       _patchIncremental(dados, 'despGrupo', _syncDespGrupo.paraObjeto(), _syncDespGrupo.deletedSet);

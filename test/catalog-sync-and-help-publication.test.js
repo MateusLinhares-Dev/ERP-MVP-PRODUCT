@@ -11,12 +11,14 @@ test('Agenda admite tanto cliente quanto fornecedor e consulta nomes atuais na a
   assert.match(agenda,/ENTREGA DE MATERIAL/);
   assert.match(agenda,/<select id="agd-novo-servico">/);
 });
-test('Fornecedores publicam atualizações entre módulos e sobrevivem a cache local cheio',()=>{
+test('Fornecedores gravam pelo servidor e publicam atualizações entre módulos',()=>{
   const app=read('legacy/app-core.js');
+  const sync=read('legacy/firebase-sync.js');
   const purchase=read('modules/purchase-order/purchase-order.js');
   assert.match(app,/erp:catalog-updated/);
-  assert.match(app,/Cache local cheio; salvamento no Firebase continuará/);
-  assert.match(app,/__businessRepository\.upsert\('fornecedores'/);
+  assert.match(app,/\/api\/master-data\/suppliers/);
+  assert.doesNotMatch(sync,/_patchIncremental\(dados, 'fornecedores'/);
+  assert.doesNotMatch(sync,/dados\['fornDeleted\/'/);
   assert.match(purchase,/phase4PurchaseRefreshSuppliers/);
 });
 test('Compra de sucata indica duplicados por nome normalizado, sem alterar itens',()=>{

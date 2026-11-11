@@ -175,7 +175,7 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
     - a fila de exclusão de adiantamentos continua em `public/modules/finance/advance-actions.js`, que delega a conferência e aplica o resultado (`applyOrphanResult`).
   - As telas React usam os mesmos ids e classes, então o CSS e os testes de tela continuaram valendo.
 - **Ordem das próximas migrações:**
-  1. Fornecedores. Antes, ele precisa de uma API no servidor, porque hoje grava pelo sincronismo do navegador e a lista em memória (`FORNECEDORES`) é lida por dezenas de telas.
+  1. Fornecedores: a API no servidor já existe (`docs/FORNECEDORES-API.md`), e a tela já grava por ela. Falta a tela em React.
   2. Depois os blocos do `app-core.js`, começando pelos que já têm API no servidor (Contas a Pagar, Adiantamentos, Bancos).
 - **Limpeza feita na etapa 5:**
   - scripts avulsos de incidentes já resolvidos (fornecedor de teste F675, ticket T284, adiantamento excluído);

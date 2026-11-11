@@ -475,11 +475,11 @@
       },
       "fornecedores": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)"
+        ".write": false
       },
       "fornDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)"
+        ".write": false
       },
       "bancos": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)",
@@ -561,6 +561,10 @@
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
         ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
       },
+      "supplierOperations": {
+        ".read": false,
+        ".write": false
+      },
       "listaCompras": {
         ".read": "auth != null && auth.token.erpAccess == true && auth.token.canShoppingList == true",
         ".write": "auth != null && auth.token.erpAccess == true && auth.token.canShoppingList == true"
@@ -620,7 +624,7 @@
       },
       "fornecedoresDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)"
+        ".write": false
       },
       "historicoDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
