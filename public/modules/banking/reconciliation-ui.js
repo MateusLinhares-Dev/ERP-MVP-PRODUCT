@@ -123,13 +123,14 @@ function renderList(){
     const st=itemStatus(e),include=filter==='all'||st===filter||(filter==='pending'&&st==='reversed');
     return include&&(!direction||(direction==='income' ? cents(e.amountCents)>0n : cents(e.amountCents)<0n))&&(!query||(e.description+' '+e.date+' '+e.fitid).toLowerCase().includes(query));
   }).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(a.id).localeCompare(String(b.id)));
-  el.querySelector('[data-list]').innerHTML=entries.map(e=>{
+  const limit=state.listLimit||100;
+  el.querySelector('[data-list]').innerHTML=entries.slice(0,limit).map(e=>{
     const st=itemStatus(e),val=cents(e.amountCents),checked=state.bulk.has(e.id)?'checked':'';
     const hasLink=canUndo(decisions().get(e.id));
     return '<div class="erp-rec-line '+(state.selected===e.id?'active':'')+'"><label class="erp-rec-bulk"><input type="checkbox" data-bulk="'+esc(e.id)+'" '+checked+' aria-label="Selecionar movimento"></label>'+ 
       '<button type="button" class="erp-rec-entry" data-open="'+esc(e.id)+'"><span><time>'+esc(dateBR(e.date))+'</time><em class="erp-rec-status '+esc(st)+'">'+statusLabel(st)+'</em></span><strong class="'+(val<0n?'expense':'income')+'">'+(val<0n?'− ': '+ ')+fmt(val)+'</strong><small>'+esc(e.description)+'</small></button>'+ 
       (hasLink?'<button type="button" class="erp-rec-quick-undo" data-quick-undo="'+esc(e.id)+'" title="Desfazer o estado atual preservando o histórico">'+(st==='archived'?'Reabrir':'Desfazer')+'</button>':'')+'</div>';
-  }).join('')||'<div class="erp-rec-empty">Nenhum movimento encontrado.</div>';
+  }).join('')+(entries.length>limit?'<button type="button" class="erp-rec-show-more" data-more-list>Mostrar mais '+Math.min(100,entries.length-limit)+' de '+(entries.length-limit)+' restantes</button>':'')||'<div class="erp-rec-empty">Nenhum movimento encontrado.</div>';
   el.querySelector('[data-bulk-count]').textContent=state.bulk.size+' selecionado(s)';
   el.querySelector('[data-batch]').disabled=!state.bulk.size||state.busy;
   renderDetail();
@@ -298,7 +299,7 @@ function titleForm(entry){
 async function createBankEntry(entry){
   if(!root.confirm('Registrar esta movimentação no extrato do ERP? Isso afetará o saldo bancário. Não use se ela já estiver registrada.'))return;
   try{
-    const res=await api({action:'create-bank-entry',importId:entry.id,confirm:true});await refreshTargets();
+    const res=await api({action:'create-bank-entry',importId:entry.id,confirm:true});if(res.record)root.erpBankMovementAdded?.(res.record);await refreshTargets();
     notify(res.created?'Movimentação registrada no ERP. Agora vincule o lançamento.':'Esta movimentação já havia sido criada.','ok');renderList();
   }catch(error){notify(error.message,'error');}
 }
@@ -352,15 +353,16 @@ root.erpReconciliationOpen=async function(bankCode){
       '<div class="erp-reconcile-columns"><div class="erp-reconcile-left"><div class="erp-reconcile-pane-head"><h3>Extrato bancário</h3><div class="erp-reconcile-filters"><input name="search" type="search" placeholder="Descrição, data ou ID" aria-label="Buscar movimentos"><select name="direction" aria-label="Movimentação"><option value="">Entradas e saídas</option><option value="income">Recebimentos</option><option value="expense">Pagamentos</option></select><select name="filter" aria-label="Situação"><option value="all">Todos</option><option value="pending">Pendentes</option><option value="partial">Parciais</option><option value="reconciled">Conciliados</option><option value="classified">Classificados</option><option value="archived">Arquivados</option></select></div></div><div class="erp-reconcile-list" data-list></div></div>'+ 
       '<div class="erp-reconcile-right"><div class="erp-reconcile-pane-head"><h3>Lançamentos do ERP</h3><p>Selecione os títulos, ajuste valores e confirme.</p></div><div class="erp-reconcile-detail" data-detail></div></div></div></section>';
     document.body.appendChild(el);
-    const state={el,code,advancedOpen:false,showAllTargets:false,claims:session.claims,imports:{},events:{},state:{decisions:{},audit:{}},legacyDecisions:null,effectiveDecisions:{},snapshotLoaded:false,snapshotSequence:0,snapshotTimer:null,targets:[],selected:'',allocation:{},bulk:new Set(),meta:{category:'',costCenter:'',notes:'',adjustment:'0'},targetQuery:'',initializedDraft:false,unsubscribe:[],busy:false,escape:e=>{if(e.key==='Escape')close();}};
+    const state={el,code,advancedOpen:false,showAllTargets:false,claims:session.claims,imports:{},events:{},state:{decisions:{},audit:{}},legacyDecisions:null,effectiveDecisions:{},snapshotLoaded:false,snapshotSequence:0,snapshotTimer:null,targets:[],selected:'',allocation:{},bulk:new Set(),meta:{category:'',costCenter:'',notes:'',adjustment:'0'},targetQuery:'',initializedDraft:false,unsubscribe:[],busy:false,listLimit:100,escape:e=>{if(e.key==='Escape')close();}};
     workspace=state;document.addEventListener('keydown',state.escape);
     el.querySelector('[data-close]').addEventListener('click',close);
     el.querySelector('[data-integration-open]').addEventListener('click',()=>{const selected=state.code;close();root.erpBankIntegrationsOpen?.(selected);});
     el.addEventListener('click',e=>{if(e.target===el)close();});
-    el.querySelectorAll('[name=search],[name=filter],[name=direction]').forEach(field=>field.addEventListener('input',renderList));
+    el.querySelectorAll('[name=search],[name=filter],[name=direction]').forEach(field=>field.addEventListener('input',()=>{state.listLimit=100;renderList();}));
     el.querySelector('[data-batch]').addEventListener('click',runBatch);
     el.querySelector('[data-refresh]').addEventListener('click',async()=>{try{await refreshTargets();renderList();notify('Títulos atualizados.','ok');}catch(e){notify(e.message,'error');}});
     el.querySelector('[data-list]').addEventListener('click',event=>{
+      if(event.target.closest('[data-more-list]')){state.listLimit=(state.listLimit||100)+100;renderList();return;}
       const undo=event.target.closest('[data-quick-undo]');
       if(undo){
         notify('');

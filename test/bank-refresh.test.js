@@ -86,3 +86,14 @@ test('formulário de edição oferece tipos compatíveis e data ISO para input d
   assert.match(markup,/erpBankLedger\?\.isoDate\(l\.data\)/);
   assert.match(markup,/esc\(l\.descricao\|\|''\)/);
 });
+
+test('movimento lançado pelo pagamento de conta a pagar não pode ser editado nem excluído pelo extrato',()=>{
+  const p=setup();
+  p.context._movimentoPertenceAdiantamento=()=>false;
+  p.entries.push({id:'LB-PG-1-abc',bancoCod:'BC-001',data:'24/10/2026',descricao:'Pagto: Luz',tipo:'Saida',valor:50,payableId:'CP1'});
+  p.context.excluirLancBanco('LB-PG-1-abc','BC-001');
+  p.context.salvarEditLancBanco('LB-PG-1-abc','BC-001');
+  assert.equal(p.entries.length,1);
+  assert.equal(p.entries[0].valor,50);
+  assert.equal(p.snapshot().saves,0);
+});

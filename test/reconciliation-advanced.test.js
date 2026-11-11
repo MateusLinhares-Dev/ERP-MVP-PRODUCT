@@ -12,7 +12,7 @@ function mockDb(){
   const store={erp:{bancos:{b:{cod:'B1',banco:'Banco'},c:{cod:'B2',banco:'Banco 2'}},lancBanco:{},contasPagar:{p1:{id:'p1',valor:60,desc:'Compra fornecedor',venc:'26/10/2026'},p2:{id:'p2',valor:40,desc:'Compra fornecedor',venc:'26/10/2026'},p3:{id:'p3',valor:100,desc:'Compra fornecedor',venc:'26/10/2026'}},contasReceber:{},bankReconciliationImports:{B1:{i1:imp('i1','-10000'),i2:imp('i2','-5000'),i3:imp('i3','-6000')},B2:{i4:imp('i4','-6000')}},bankReconciliationEvents:{},bankReconciliationState:{}}};
   const get=path=>String(path).split('/').reduce((o,k)=>o?.[k],store);
   const set=(path,val)=>{const keys=String(path).split('/');let obj=store;for(const k of keys.slice(0,-1))obj=obj[k]??={};obj[keys.at(-1)]=val;};
-  return {store,ref(path){return {async get(){return {val:()=>get(path)||null}},async transaction(fn){const prev=get(path)??null,next=fn(prev);if(next===undefined)return {committed:false,snapshot:{val:()=>prev}};set(path,next);return {committed:true,snapshot:{val:()=>next}}}}}};
+  return {store,ref(path){return {async get(){return {val:()=>get(path)||null}},async set(value){set(path,value);},async transaction(fn){const prev=get(path)??null,next=fn(prev);if(next===undefined)return {committed:false,snapshot:{val:()=>prev}};set(path,next);return {committed:true,snapshot:{val:()=>next}}}}}};
 }
 test('centavos exatos sem floats, rejeita plano incompatível e excesso',()=>{
   assert.equal(decimalCents('R$ 1.234,56'),123456n);
@@ -73,6 +73,7 @@ test('criação de lançamento bancário é idempotente e faz apenas uma entrada
   assert.equal(first.created,true);assert.equal(twice.created,false);
   assert.equal(Object.keys(db.store.erp.lancBanco).length,1);
   assert.equal(db.store.erp.lancBanco[first.id].valor,100);
+  assert.equal(typeof db.store.erp._ts,'number');
   await assert.rejects(()=>executeReconciliation({...identity,canBanking:false},data,{db}),/não autorizado/);
 });
 test('estado bancário não é gravável pelo browser e endpoint exige identidade',()=>{
