@@ -76,6 +76,8 @@ interface ChangeReceipt {
   fornCod: string;
   newFornCod: string;
   restoredDeletion?: boolean;
+  cheques?: ChequeRecord[];
+  removedChequeIds?: string[];
 }
 
 const PAYMENT_FORMS = ['PIX', 'TED', 'Dinheiro', 'Cheque', 'Cheque de Terceiro'];
@@ -657,11 +659,10 @@ async function restoreConfirmedDelete(identity: Identity, context: RestoreContex
   }
 }
 
-export async function changeAdvance(
-  identity: Identity,
-  input: Row,
-  { db, now = () => Date.now(), uuid = randomUUID }: AdvanceDeps = {},
-) {
+export async function changeAdvance(identity: Identity, input: Row, deps: AdvanceDeps = {}) {
+  if (input && typeof input === 'object' && !Array.isArray(input) && clean(input.action, 10) === 'cheques')
+    return editAdvanceCheques(identity, input, deps);
+  const { db, now = () => Date.now(), uuid = randomUUID } = deps;
   requireFinance(identity);
   const instance = await resolveDatabase(db);
   if (!input || typeof input !== 'object' || Array.isArray(input))
@@ -965,6 +966,275 @@ export async function changeAdvance(
       targetEntries: newFornCod !== fornCod ? target : null,
       alreadyCommitted: false,
     };
+  } finally {
+    if (!committedAndUnlocked) await releaseAdvanceLocks(locks, owner);
+  }
+}
+
+const sameCheque = (cheque: ChequeRecord, fingerprint: string | undefined): boolean =>
+  Boolean(fingerprint) &&
+  (chequeFingerprint(cheque) === fingerprint ||
+    chequeFingerprint({ ...cheque, s: 'A', cd: '' }) === fingerprint ||
+    chequeFingerprint({ ...cheque, s: 'C', cd: cheque.d || '' }) === fingerprint);
+
+async function editAdvanceCheques(
+  identity: Identity,
+  input: Row,
+  { db, now = () => Date.now(), uuid = randomUUID }: AdvanceDeps,
+) {
+  requireFinance(identity);
+  const instance = await resolveDatabase(db);
+  const fornCod = pathKey(input.fornCod);
+  const adtCod = pathKey(input.adtCod);
+  const operationId = pathKey(input.operationId);
+  if (!/^[a-f\d-]{36}$/i.test(operationId))
+    failure(422, 'INVALID_OPERATION', 'Identificador da operação inválido.');
+  const rows = Array.isArray(input.cheques) ? (input.cheques as unknown[]) : [];
+  const operationKey = operationKeyOf(identity, operationId);
+  const opRef = instance.ref(OPERATIONS_PATH + operationKey);
+  const replay = async () => {
+    const record = (await opRef.get()).val() as StoredOperation | null;
+    if (record?.action !== 'cheques' || record.adtCod !== adtCod || !record.result) return null;
+    return {
+      ...record.result,
+      entries: advanceRecords((await instance.ref('erp/adiantamentos/' + fornCod).get()).val()),
+      targetEntries: null,
+      alreadyCommitted: true,
+    };
+  };
+  const existing = await replay();
+  if (existing) return existing;
+  const keys = [fornCod, GLOBAL_CHEQUES].sort();
+  const owner = uuid();
+  const locks: Reference[] = [];
+  let committedAndUnlocked = false;
+  try {
+    for (const key of keys) {
+      const lockRef = instance.ref('erpFinanceAdvanceLocks/' + key);
+      if (
+        !(await acquireAdvanceLock(lockRef, owner, now, {
+          db: instance,
+          operationKey,
+          fornCod: key,
+          kind: 'change',
+        }))
+      )
+        throw inProgress(
+          'Outra alteração financeira ainda está em processamento. Aguarde alguns segundos.',
+          (await lockRef.get()).val(),
+          now,
+        );
+      locks.push(lockRef);
+    }
+    const again = await replay();
+    if (again) return again;
+    const [sourceSnap, chequesSnap, deletedSnap] = await Promise.all([
+      instance.ref('erp/adiantamentos/' + fornCod).get(),
+      instance.ref('erp/chequesControle').get(),
+      instance.ref('erp/chequesControle_del').get(),
+    ]);
+    const source = advanceRecords(sourceSnap.val());
+    const matches = source.filter((advance) => String(advance.cod) === adtCod);
+    const previous = matches.length === 1 ? matches[0] : undefined;
+    if (!previous)
+      failure(409, 'ADVANCE_CHANGED', 'Adiantamento não encontrado ou duplicado. Atualize os dados.');
+    if (!expectedMatches(previous, input.expected))
+      failure(
+        409,
+        'ADVANCE_CHANGED',
+        'O adiantamento foi alterado por outra sessão. Atualize antes de salvar.',
+      );
+    const forma = String(previous.forma || '');
+    const linked = Array.isArray(previous.chequeIds) ? previous.chequeIds.map(pathKey) : [];
+    if (!CHEQUE_FORMS.includes(forma) || !linked.length)
+      failure(409, 'NOT_CHEQUE_ADVANCE', 'Este adiantamento não tem cheques cadastrados pelo sistema.');
+    const stored = (chequesSnap.val() ?? {}) as Record<string, ChequeRecord | null>;
+    const deleted = (deletedSnap.val() ?? {}) as Record<string, unknown>;
+    const current = new Map<string, ChequeRecord>();
+    for (const chequeId of linked) {
+      const cheque = stored[chequeId];
+      if (
+        !cheque ||
+        cheque.advanceCode !== adtCod ||
+        cheque.fornCod !== fornCod ||
+        !sameCheque(cheque, previous.chequeFingerprints?.[chequeId])
+      ) {
+        failure(
+          409,
+          'CHEQUE_LEDGER_CHANGED',
+          'Cheque vinculado foi alterado. A operação foi bloqueada para evitar divergências.',
+        );
+      }
+      current.set(chequeId, cheque);
+    }
+    const ids = rows.map((row) =>
+      row && typeof row === 'object' && (row as Row).id ? pathKey((row as Row).id) : '',
+    );
+    ids.forEach((chequeId, index) => {
+      if (chequeId && (!current.has(chequeId) || ids.indexOf(chequeId) !== index))
+        failure(422, 'INVALID_CHEQUE', 'Cheque da lista não pertence a este adiantamento.');
+    });
+    const totalCents = rows.reduce<number>(
+      (sum, row) => sum + Math.round(Number((row as Row | null)?.v) * 100 || 0),
+      0,
+    );
+    const date = isoDate(
+      String(previous.data || '')
+        .split('/')
+        .reverse()
+        .join('-'),
+    );
+    const parsed = parseCheques({ cheques: rows }, forma, date, amount(totalCents / 100));
+    const used =
+      Number(previous.valorCompensado || 0) > 0 ||
+      String(previous.status || 'Pendente') !== 'Pendente' ||
+      source.some((advance) => String(advance.adiantamentoOrigem || '') === adtCod);
+    const removedChequeIds = linked.filter((chequeId) => !ids.includes(chequeId));
+    if (used) {
+      const unchangedValues =
+        !removedChequeIds.length &&
+        ids.every((chequeId, index) => {
+          const cheque = chequeId ? current.get(chequeId) : undefined;
+          return (
+            cheque !== undefined &&
+            Math.round(Number(cheque.v) * 100) === Math.round(Number(parsed[index]?.v) * 100)
+          );
+        });
+      if (!unchangedValues)
+        failure(
+          409,
+          'ADVANCE_ALREADY_COMPENSATED',
+          'Este adiantamento já foi usado em compra. Dá para corrigir banco, número, datas e emitente, mas não valores nem incluir ou remover cheques.',
+        );
+    }
+    const cleared = (cheque: ChequeRecord) => cheque.s === 'C';
+    for (const chequeId of removedChequeIds) {
+      const cheque = current.get(chequeId);
+      if (cheque && cleared(cheque))
+        failure(
+          409,
+          'CHEQUE_ALREADY_CLEARED',
+          'O cheque nº ' +
+            clean(cheque.n, 40) +
+            ' já foi compensado. Reabra o cheque em "Cheques a compensar" antes de removê-lo.',
+        );
+    }
+    const registered = new Map<string, ChequeRecord>();
+    for (const [storedId, raw] of Object.entries(stored)) {
+      if (!raw || typeof raw !== 'object' || deleted[storedId] || current.has(storedId) || raw.s === 'X')
+        continue;
+      const identityKey = chequeIdentity(raw.b, raw.n);
+      if (identityKey && !registered.has(identityKey)) registered.set(identityKey, raw);
+    }
+    const updates: Row = {};
+    const nextCheques: ChequeRecord[] = parsed.map((cheque, index) => {
+      const identityKey = chequeIdentity(cheque.b, cheque.n);
+      const other = identityKey ? registered.get(identityKey) : undefined;
+      if (other) {
+        const where = [
+          other.advanceCode ? 'adiantamento ' + clean(other.advanceCode, 60) : '',
+          clean(other.dest, 120),
+        ]
+          .filter(Boolean)
+          .join(', ');
+        failure(
+          409,
+          'CHEQUE_ALREADY_EXISTS',
+          `Cheque ${cheque.b} nº ${cheque.n} já está cadastrado${where ? ' (' + where + ')' : ''}. ` +
+            'O mesmo banco não pode ter dois cheques com o mesmo número.',
+        );
+      }
+      const chequeId = ids[index];
+      const base = chequeId ? current.get(chequeId) : undefined;
+      const supplierName =
+        clean(base?.dest, 240) || clean(current.values().next().value?.dest, 240) || fornCod;
+      const fields = {
+        b: cheque.b,
+        n: cheque.n,
+        v: cheque.v,
+        d: toDisplayDate(cheque.d),
+        venc: cheque.venc ? toDisplayDate(cheque.venc) : '',
+        emitente: cheque.cli,
+        c: cheque.cli ? cheque.cli + ' → ' + supplierName : supplierName,
+      };
+      if (base) {
+        const next: ChequeRecord = { ...base, ...fields };
+        if (
+          cleared(base) &&
+          ['b', 'n', 'v', 'd', 'venc', 'emitente'].some(
+            (field) =>
+              String(base[field as keyof ChequeRecord] ?? '') !==
+              String(next[field as keyof ChequeRecord] ?? ''),
+          )
+        ) {
+          failure(
+            409,
+            'CHEQUE_ALREADY_CLEARED',
+            'O cheque nº ' +
+              clean(base.n, 40) +
+              ' já foi compensado. Reabra o cheque em "Cheques a compensar" antes de corrigi-lo.',
+          );
+        }
+        return next;
+      }
+      const slug =
+        cheque.b
+          .replace(/[^a-zA-Z0-9]/g, '')
+          .slice(0, 8)
+          .toUpperCase() || 'XX';
+      const record: ChequeRecord = {
+        id: 'CC' + slug + cheque.n + '-' + uuid().replace(/-/g, '').slice(0, 12) + '-' + index.toString(36),
+        ...fields,
+        dest: supplierName,
+        cd: '',
+        s: 'A',
+        dc: true,
+        advanceCode: adtCod,
+        fornCod,
+        tipoCheque: forma,
+      };
+      if (previous.empresa) record.origem = clean(previous.empresa, 120);
+      if (String(record.id).length > 100 || stored[String(record.id)])
+        failure(409, 'CHEQUE_ID_CONFLICT', 'Identificador de cheque já utilizado.');
+      return record;
+    });
+    for (const cheque of nextCheques) updates['chequesControle/' + cheque.id] = cheque;
+    for (const chequeId of removedChequeIds) updates['chequesControle/' + chequeId] = null;
+    const changed: AdvanceRecord = {
+      ...previous,
+      chequeIds: nextCheques.map((cheque) => String(cheque.id)),
+      chequeFingerprints: Object.fromEntries(
+        nextCheques.map((cheque) => [String(cheque.id), chequeFingerprint(cheque)]),
+      ),
+    };
+    if (!used) {
+      changed.valor = amount(totalCents / 100);
+      if (changed.valorDisponivel != null) changed.valorDisponivel = changed.valor;
+    }
+    const entries = source.map((advance) => (String(advance.cod) === adtCod ? changed : advance));
+    updates['adiantamentos/' + fornCod] = entries;
+    const receipt: ChangeReceipt = {
+      action: 'cheques',
+      advance: changed,
+      removedCode: null,
+      bankMovement: null,
+      movementRemovedId: '',
+      fornCod,
+      newFornCod: fornCod,
+      cheques: nextCheques,
+      removedChequeIds,
+    };
+    updates['financeAdvanceOperations/' + operationKey] = {
+      action: 'cheques',
+      adtCod,
+      result: receipt,
+      createdAt: new Date(now()).toISOString(),
+      createdBy: clean(identity.erpUser),
+    };
+    updates._ts = now();
+    await commitAdvanceAndRelease(instance, updates, keys, owner, now);
+    committedAndUnlocked = true;
+    return { ...receipt, entries, targetEntries: null, alreadyCommitted: false };
   } finally {
     if (!committedAndUnlocked) await releaseAdvanceLocks(locks, owner);
   }

@@ -208,6 +208,14 @@
 #tab-combustivel_rudnick .cbx-btn-p{background:#1d4933;color:#fff}
 #tab-combustivel_rudnick .cbx-chip{background:#eef4ef;color:#315a3d}
 #tab-caminhoes .tcard{margin-top:12px}
+#tab-caminhoes .kpi-grid{grid-template-columns:repeat(auto-fit,minmax(125px,1fr))}
+#tab-caminhoes .erp-frota-abas{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 12px}
+#tab-caminhoes .erp-frota-abas-botoes{display:flex;flex-wrap:wrap;gap:6px}
+#tab-caminhoes .erp-frota-abas-botoes button{border:1px solid var(--ui-line,#d9e2dc);background:#fff;color:#33503f;border-radius:999px;padding:6px 14px;font-size:.84rem;font-weight:700;cursor:pointer}
+#tab-caminhoes .erp-frota-abas-botoes button span{display:inline-block;min-width:20px;margin-left:4px;padding:0 6px;border-radius:999px;background:#eef4ef;color:#1d4933;font-size:.75rem}
+#tab-caminhoes .erp-frota-abas-botoes button.ativa{background:#1d4933;border-color:#1d4933;color:#fff}
+#tab-caminhoes .erp-frota-abas-botoes button.ativa span{background:#fff;color:#1d4933}
+#tab-caminhoes #frota-busca{min-width:270px;padding:7px 10px;border:1px solid var(--ui-line,#d9e2dc);border-radius:8px;font-size:.85rem}
 
 #tab-coordenacao [id^="coord-stab-btn-"]{background:#fff!important;color:#53665a!important;border-radius:0!important;border-bottom:2px solid transparent!important;font-size:.84rem!important;padding:12px 15px!important}
 #tab-coordenacao [id^="coord-stab-btn-"].is-active{color:#1d4933!important;background:#f3f7f3!important;border-bottom-color:#1d4933!important;font-weight:700!important}
@@ -449,3 +457,8 @@
 .erp-company-row small{font-weight:500;color:#8b5d32}
 .erp-company-row button{flex-shrink:0;padding:7px 12px;border-radius:6px;cursor:pointer;font-size:.78rem}
 @media(max-width:560px){.erp-company-row{align-items:flex-start}.erp-company-row button{padding:7px 8px}}
+
+.erp-cheque-edit-modal .erp-cheque-edit th{text-align:left;padding:6px 4px;font-size:.74rem;color:#53665a}
+.erp-cheque-edit-modal .erp-cheque-edit td{padding:4px}
+.erp-cheque-edit-modal .erp-cheque-edit input{box-sizing:border-box;padding:6px 7px;border:1px solid #cfd8d2;border-radius:6px;font-size:.84rem}
+.erp-cheque-edit-modal .erp-cheque-edit input:disabled{background:#f3f5f4;color:#6b7b70}

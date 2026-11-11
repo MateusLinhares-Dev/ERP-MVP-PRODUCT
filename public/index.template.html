@@ -889,6 +889,7 @@
       <div class="sec-title">Frota e equipamentos</div>
       <div class="kpi-grid">
         <div class="kpi g"><div class="kpi-lbl">Caminhões</div><div class="kpi-val" id="frota-kpi-caminhoes">0</div><div class="kpi-sub" id="frota-sub-caminhoes">—</div></div>
+        <div class="kpi"><div class="kpi-lbl">Implementos</div><div class="kpi-val" id="frota-kpi-implementos">0</div><div class="kpi-sub" id="frota-sub-implementos">—</div></div>
         <div class="kpi"><div class="kpi-lbl">Empilhadeiras</div><div class="kpi-val" id="frota-kpi-empilhadeiras">0</div><div class="kpi-sub" id="frota-sub-empilhadeiras">—</div></div>
         <div class="kpi g"><div class="kpi-lbl">Balanças</div><div class="kpi-val" id="frota-kpi-balancas">0</div><div class="kpi-sub" id="frota-sub-balancas">—</div></div>
         <div class="kpi"><div class="kpi-lbl">Prensas Hidráulicas</div><div class="kpi-val" id="frota-kpi-prensas">0</div><div class="kpi-sub" id="frota-sub-prensas">—</div></div>
@@ -898,8 +899,9 @@
       <div class="tcard">
         <div class="tcard-hdr">
           <div class="tcard-title" id="frota-total-titulo">Frota e Equipamentos (0)</div>
-          <button class="btn-add" onclick="om('veiculo')">+ Novo Veículo</button>
+          <button class="btn-add" id="frota-btn-novo" onclick="abrirNovoVeiculo()">+ Novo Veículo</button>
         </div>
+        <div class="erp-frota-abas" id="frota-abas" role="tablist" aria-label="Filtrar frota"></div>
         <table>
           <thead><tr><th>ID/Placa</th><th>Descrição/Modelo</th><th>Marca</th><th>Ano</th><th>Cap.</th><th>Status</th><th>Km/Hrs</th><th>Próx. Revisão</th><th>Localização</th><th>Ações</th></tr></thead>
           <tbody id="tb-caminhoes"></tbody>

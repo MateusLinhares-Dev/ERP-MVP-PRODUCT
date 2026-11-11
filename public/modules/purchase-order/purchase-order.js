@@ -2110,7 +2110,8 @@ function printHtml(key,ticket){
   const advanceRows=printAppliedAdvances(key,ticket,advance);
   const advanceDetails=advance>0
     ?'<section class="print-section applied-advances"><h2>Adiantamentos e abatimentos desta compra</h2>'+
-      '<table class="installments"><thead><tr><th>Data</th><th>Origem</th><th>Forma</th><th>Valor do adiantamento</th><th>Valor aplicado</th></tr></thead><tbody>'+
+      '<table class="installments"><colgroup><col class="col-date"><col class="col-origin"><col class="col-form"><col class="col-money"><col class="col-money"></colgroup>'+
+      '<thead><tr><th>Data</th><th>Origem</th><th>Forma</th><th>Valor do adiantamento</th><th>Valor aplicado</th></tr></thead><tbody>'+
       advanceRows.map(function(row){return '<tr><td>'+esc(row.date?dateBR(row.date):'—')+'</td>'+
         '<td>'+esc(row.kind)+'</td><td>'+esc(printPaymentForm(row))+'</td>'+
         '<td class="numeric">'+(row.original==null?'—':'R$ '+money(row.original))+'</td>'+
@@ -2118,7 +2119,7 @@ function printHtml(key,ticket){
       '<tr class="advance-total"><th colspan="4">Total abatido no fechamento</th><td class="numeric">R$ '+money(advance)+'</td></tr>'+
       '</tbody></table></section>':'';
   const laterPayments=finance.payments.length
-    ?'<section class="print-section payment-history"><h2>Pagamentos registrados após o pedido</h2><table class="installments">'+
+    ?'<section class="print-section payment-history"><h2>Pagamentos registrados após o pedido</h2><table class="installments"><colgroup><col class="col-date"><col class="col-operation"><col class="col-money"></colgroup>'+
       '<thead><tr><th>Data</th><th>Operação</th><th>Valor</th></tr></thead><tbody>'+
       finance.payments.map(function(p){return '<tr><td>'+esc(dateBR(p.date))+'</td><td>'+esc(p.description)+
         (p.details?' · '+esc(p.details):'')+'</td><td class="numeric">R$ '+money(p.amount)+'</td></tr>';}).join('')+
@@ -2159,7 +2160,7 @@ function printHtml(key,ticket){
       '<table class="items"><colgroup><col class="col-description"><col class="col-quantity"><col class="col-unit-price"><col class="col-total"></colgroup>'+
       '<thead><tr><th>Descrição do material</th><th>Quantidade (kg)</th><th>Valor unitário</th><th>Valor total</th></tr></thead><tbody>'+itemRows+'</tbody></table>'+
       '<table class="print-totals" aria-label="Totais da compra"><tbody>'+totals+'</tbody></table></section>'+paymentSummary+advanceDetails+laterPayments+
-    '<section class="print-section"><h2>Parcelas</h2><table class="installments"><thead><tr><th>Dias</th><th>Data Vencimento</th><th>Valor</th><th>Forma</th><th>Observações</th></tr></thead><tbody>'+installments+'</tbody></table></section>'+
+    '<section class="print-section installment-plan"><h2>Parcelas</h2><table class="installments"><colgroup><col class="col-days"><col class="col-date"><col class="col-money"><col class="col-form"><col class="col-notes"></colgroup><thead><tr><th>Dias</th><th>Data Vencimento</th><th>Valor</th><th>Forma</th><th>Observações</th></tr></thead><tbody>'+installments+'</tbody></table></section>'+
     '<section class="print-section order-notes"><h2>Observações</h2><div class="notes">'+esc(orderNotes)+'</div></section>'+
   '</main>';
 }
@@ -2207,7 +2208,14 @@ function printCss(){
     .print-totals th{font-weight:700}
     .print-totals td{min-width:75px}
     .print-totals .grand th,.print-totals .grand td{border-top:1px solid #555;font-weight:800}
-    .installments th:nth-child(1){width:12%}.installments th:nth-child(2){width:28%}.installments th:nth-child(3){width:22%}
+    .installments col.col-days{width:8%}
+    .installments col.col-date{width:16%}
+    .installments col.col-money{width:19%}
+    .installment-plan col.col-form{width:17%}
+    .installment-plan col.col-notes{width:40%}
+    .applied-advances col.col-origin{width:17%}
+    .applied-advances col.col-form{width:29%}
+    .payment-history col.col-operation{width:65%}
     .payment-totals{width:62%;margin-left:auto;border-collapse:collapse;font-size:13px}
     .payment-totals th,.payment-totals td{border-bottom:1px solid #dedede;padding:4px 6px}
     .payment-totals th{text-align:left;font-weight:500}
@@ -2217,15 +2225,9 @@ function printCss(){
     .payment-totals .due{border-top:1px solid #555;font-weight:800}
     .payment-totals .due th{font-weight:800}
     .applied-advances{margin-top:14px}
-    .applied-advances .installments th:first-child{width:19%}
-    .applied-advances .installments th:nth-child(2){width:21%}
-    .applied-advances .installments th:nth-child(3){width:40%}
-    .applied-advances .installments th:last-child{width:20%}
     .applied-advances .advance-total{background:#f4f8f5;font-weight:700}
     .applied-advances .advance-total th{text-align:right}
     .payment-history{margin-top:14px}
-    .payment-history .installments th:first-child{width:24%}
-    .payment-history .installments th:last-child{width:24%}
     .payment-history .installments td:nth-child(2){overflow-wrap:anywhere}
     .notes{min-height:42px;border:1px solid #555;padding:7px;white-space:pre-wrap;overflow-wrap:anywhere}
     .print-actions{text-align:center;margin:18px 0 25px}
