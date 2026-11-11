@@ -165,10 +165,18 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
   - Central de Ajuda (`web/modules/help-center/`). O antigo `public/modules/help-center/help-center.js` foi removido. O `final-ops.js` continua chamando `window.ERPHelpCenter.render(host)`, que agora monta a tela React.
   - Engenharia (`web/modules/engineering/`): logs de auditoria e editor da Central de Ajuda. O menu é criado pela ilha só para a conta técnica. A captura de erros da tela foi para `web/shared/observability/telemetry.ts`. O antigo `public/modules/engineering/engineering.js` foi removido.
   - Integrações bancárias (`web/modules/bank-integrations/`): janela de configuração do Pluggy. A função `window.erpBankIntegrationsOpen(bankCode)`, usada pela tela de Bancos e pela Conciliação, abre a versão React. O antigo `public/modules/banking/bank-integrations-ui.js` foi removido.
+  - Repasses de caixa a fornecedor (`web/modules/supplier-repasses/`, ligado em `web/erp/supplier-repasses.tsx`):
+    - janela "Dinheiro recebido / Valor a repassar", quadro em Contas a Pagar e indicador na Ficha do fornecedor;
+    - `window.SupplierCashRepasse` (`flowTotal`, `refreshSummary`, `openForSupplier`) continua com a mesma interface para o fluxo de caixa;
+    - a saída de banco do PIX entra no saldo na hora (`erpBankMovementAdded`) e aparece como "Automático" no extrato;
+    - o antigo `public/modules/finance/supplier-cash-repasses.js` foi removido.
+  - Conferência de adiantamento órfão (`web/modules/advance-review/`, ligado em `web/erp/advance-review.tsx`):
+    - a janela "Conferir pagamento do adiantamento" é React (`window.ERPAdvanceReview.review`);
+    - a fila de exclusão de adiantamentos continua em `public/modules/finance/advance-actions.js`, que delega a conferência e aplica o resultado (`applyOrphanResult`).
   - As telas React usam os mesmos ids e classes, então o CSS e os testes de tela continuaram valendo.
 - **Ordem das próximas migrações:**
-  1. Primeiro as telas que só usam APIs do servidor: Repasses de caixa a fornecedor, Recuperação de adiantamentos órfãos.
-  2. Depois Fornecedores. Antes, ele precisa de uma API no servidor, porque hoje grava pelo sincronismo do navegador e a lista em memória (`FORNECEDORES`) é lida por dezenas de telas.
+  1. Fornecedores. Antes, ele precisa de uma API no servidor, porque hoje grava pelo sincronismo do navegador e a lista em memória (`FORNECEDORES`) é lida por dezenas de telas.
+  2. Depois os blocos do `app-core.js`, começando pelos que já têm API no servidor (Contas a Pagar, Adiantamentos, Bancos).
 - **Limpeza feita na etapa 5:**
   - scripts avulsos de incidentes já resolvidos (fornecedor de teste F675, ticket T284, adiantamento excluído);
   - migrações únicas já aplicadas (`migrate:auth`, `migrate:storage`);

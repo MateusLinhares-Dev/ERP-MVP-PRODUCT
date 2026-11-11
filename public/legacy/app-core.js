@@ -6102,12 +6102,14 @@ function _movimentoPertenceAdiantamento(movement){
   }catch(e){return false;}
 }
 function _bancoMovimentoDoServidor(mov){
-  return Boolean(mov)&&(String(mov.id||'').startsWith('LB-PG-')||Boolean(mov.payableId));
+  return Boolean(mov)&&(/^LB-(PG|REP)-/.test(String(mov.id||''))||Boolean(mov.payableId));
 }
 function _bloquearEdicaoMovimentoAdiantamento(movement){
   const pagamento=_bancoMovimentoDoServidor(movement);
   if(!pagamento&&!_movimentoPertenceAdiantamento(movement))return false;
-  const msg=pagamento
+  const msg=pagamento&&/^LB-REP-/.test(String(movement.id||''))
+    ?'Este movimento foi lançado pelo PIX de repasse a fornecedor (Ficha do fornecedor → Dinheiro recebido / Valor a repassar). Ele não pode ser alterado pelo extrato.'
+    :pagamento
     ?'Este movimento foi lançado pelo pagamento de uma conta a pagar. Para desfazer, exclua o pagamento no Histórico de pagamentos da conta (🕒) — assim a conta e o banco ficam certos.'
     :'Este movimento pertence a um adiantamento. Edite ou exclua o adiantamento em Financeiro → Adiantamentos para manter o banco conciliado.';
   if(typeof showToast==='function')showToast(msg,'error',8000);
@@ -7884,7 +7886,7 @@ function fcRenderResumo(){
     const sc=t.saldo>0.009?'color:#c0392b;font-weight:700':(t.saldo<-0.009?'color:#1a5e2a;font-weight:700':'font-weight:700');
     const semCadastro=!_fcClientesAtivos().includes(c);
     return '<tr>'+
-      '<td style="font-weight:700;cursor:pointer;color:#1a5e2a" onclick="fcSetAba(\'extrato\');fcSelecionarCliente(\''+esc(c).replace(/'/g,"\\'")+'\')">'+(semCadastro?'⚠️ Histórico sem cadastro: ':'')+esc(c)+'</td>'+
+      '<td style="font-weight:700;cursor:pointer;color:#1a5e2a" onclick="fcSetAba(\'extrato\');fcSelecionarCliente('+_jsArg(c)+')">'+(semCadastro?'⚠️ Histórico sem cadastro: ':'')+esc(c)+'</td>'+
       '<td style="text-align:right">'+Number(t.kg).toLocaleString('pt-BR',{minimumFractionDigits:1})+'</td>'+
       '<td style="text-align:right;color:#c0392b">'+_fcMoneyFmt(t.deb)+'</td>'+
       '<td style="text-align:right;color:#1a5e2a">'+_fcMoneyFmt(t.cred)+'</td>'+
@@ -8035,7 +8037,7 @@ function renderAdtCli(){
       <td style="font-size:.78rem">${esc(a.vinculo||'—')}</td>
       <td><span class="b ${a.status==='Aplicado'||a.status==='Quitado'?'b-pago':'b-pend'}">${esc(a.status||'Pendente')}</span></td>
       <td style="font-size:.78rem">${esc(a.obs||'—')}</td>
-      <td><button class="btn-edit-danger" onclick="excluirAdtCli('${esc(a.cliNome)}','${a.cod}')" title="Excluir">🗑️</button></td>
+      <td><button class="btn-edit-danger" onclick="excluirAdtCli(${_jsArg(a.cliNome)},'${a.cod}')" title="Excluir">🗑️</button></td>
     </tr>`).join('');
   }
   const pend=all.filter(a=>a.status!=='Aplicado'&&a.status!=='Quitado');
@@ -8119,9 +8121,9 @@ function renderChequesCli(){
       <td>${stHtml}</td>
       <td style="font-size:.78rem">${esc(c.obs||'—')}</td>
       <td style="white-space:nowrap">
-        <button onclick="editarChequeCli('${esc(c.cliNome)}','${esc(c.num)}')" class="btn-edit" style="font-size:.72rem" title="Editar cheque">✏️</button>
-        <button onclick="alterarStatusChequeCli('${esc(c.cliNome)}','${esc(c.num)}')" class="btn-edit" style="font-size:.72rem" title="Alterar status">🔄</button>
-        <button onclick="excluirChequeCli('${esc(c.cliNome)}','${esc(c.num)}')" class="btn-edit-danger" title="Excluir">🗑️</button>
+        <button onclick="editarChequeCli(${_jsArg(c.cliNome)},${_jsArg(c.num)})" class="btn-edit" style="font-size:.72rem" title="Editar cheque">✏️</button>
+        <button onclick="alterarStatusChequeCli(${_jsArg(c.cliNome)},${_jsArg(c.num)})" class="btn-edit" style="font-size:.72rem" title="Alterar status">🔄</button>
+        <button onclick="excluirChequeCli(${_jsArg(c.cliNome)},${_jsArg(c.num)})" class="btn-edit-danger" title="Excluir">🗑️</button>
       </td>
     </tr>`;
   }).join('');
@@ -8177,7 +8179,7 @@ function editarChequeCli(cliNome,num){
     '</div>'+
     '<div class="modal-ft" style="margin-top:14px">'+
       '<button class="btn-cancel" onclick="document.getElementById(\'modal-edit-cheqcli\').remove()">Cancelar</button>'+
-      '<button class="btn-save" onclick="salvarEdicaoChequeCli(\''+esc(cliNome).replace(/'/g,"\\'")+'\',\''+esc(c.num).replace(/'/g,"\\'")+'\')">💾 Salvar</button>'+
+      '<button class="btn-save" onclick="salvarEdicaoChequeCli('+_jsArg(cliNome)+','+_jsArg(c.num)+')">💾 Salvar</button>'+
     '</div>';
   ov.appendChild(box); document.body.appendChild(ov);
 }
@@ -13253,6 +13255,7 @@ async function excluirCliente(idx){
   finally{_erpExclusoesEmAndamento.delete('cliente:'+id);}
 }
 
+function _jsArg(v){ return esc(JSON.stringify(String(v==null?'':v))); }
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function _parseValorBR(v){
@@ -13664,18 +13667,20 @@ function funcSubTab(aba){
 }
 
 function _funcRow(x){
+  const status=String(x.status||'Ativo');
+  const sal=Number(x.sal);
   return '<tr>'+
-    '<td>'+x.mat+'</td><td><b>'+esc(x.nome)+'</b></td>'+
-    '<td><span class="b b-'+x.status.toLowerCase()+'">'+x.status+'</span></td>'+
+    '<td>'+esc(x.mat)+'</td><td><b>'+esc(x.nome)+'</b></td>'+
+    '<td><span class="b b-'+esc(status.toLowerCase())+'">'+esc(status)+'</span></td>'+
     '<td>'+esc(x.cargo)+'</td>'+
-    '<td>R$ '+Number(x.sal).toLocaleString('pt-BR',{minimumFractionDigits:2})+'</td>'+
+    '<td>'+(x.sal!==''&&x.sal!=null&&Number.isFinite(sal)?'R$ '+sal.toLocaleString('pt-BR',{minimumFractionDigits:2}):'—')+'</td>'+
     '<td>'+esc(x.empresa||'—')+'</td>'+
     '<td style="font-size:.78rem">'+esc(x.cpf||'—')+'</td>'+
     '<td style="white-space:nowrap">'+
-    '<button class="btn-edit" onclick="editFuncionario(&#39;'+x.mat+'&#39;)">✏️</button> '+
-    '<button class="btn-edit" onclick="funcDocsModal(\''+x.mat+'\')" title="Documentos" style="background:#0277bd;color:#fff">📄 Docs</button> '+
-    '<button class="btn-edit" onclick="toggleInativarFunc(&#39;'+x.mat+'&#39;)" style="background:'+(x.status==='Inativo'?'#27ae60':'#e67e22')+'" title="'+(x.status==='Inativo'?'Reativar':'Inativar')+'">'+(x.status==='Inativo'?'▶️ Reativar':'⏸️ Inativar')+'</button> '+
-    '<button class="btn-edit-danger" onclick="excluirFuncionario(&#39;'+x.mat+'&#39;)" title="Excluir">🗑️</button>'+
+    '<button class="btn-edit" onclick="editFuncionario('+_jsArg(x.mat)+')">✏️</button> '+
+    '<button class="btn-edit" onclick="funcDocsModal('+_jsArg(x.mat)+')" title="Documentos" style="background:#0277bd;color:#fff">📄 Docs</button> '+
+    '<button class="btn-edit" onclick="toggleInativarFunc('+_jsArg(x.mat)+')" style="background:'+(x.status==='Inativo'?'#27ae60':'#e67e22')+'" title="'+(x.status==='Inativo'?'Reativar':'Inativar')+'">'+(x.status==='Inativo'?'▶️ Reativar':'⏸️ Inativar')+'</button> '+
+    '<button class="btn-edit-danger" onclick="excluirFuncionario('+_jsArg(x.mat)+')" title="Excluir">🗑️</button>'+
     '</td></tr>';
 }
 
@@ -15295,7 +15300,7 @@ function renderChequesCompensar(){
     h+='<div style="display:flex;flex-wrap:wrap;gap:10px;margin:4px 0 16px">';
     cardBancos.forEach(function(b){
       var cor=_cfgChequeBankColor(b);
-      h+='<div onclick="chqVerBanco(\''+esc(b)+'\')" title="Ver todos os cheques deste banco em ordem" style="background:#fff;border:1px solid #eee;border-top:4px solid '+cor+';border-radius:10px;padding:9px 14px;min-width:180px;cursor:pointer">'+
+      h+='<div onclick="chqVerBanco('+_jsArg(b)+')" title="Ver todos os cheques deste banco em ordem" style="background:#fff;border:1px solid #eee;border-top:4px solid '+cor+';border-radius:10px;padding:9px 14px;min-width:180px;cursor:pointer">'+
          '<div style="font-size:.74rem;font-weight:800;color:'+cor+';text-transform:uppercase;margin-bottom:5px">'+esc(b)+'</div>'+
          '<div style="display:flex;justify-content:space-between;gap:12px;font-size:.79rem"><span style="color:#e67e22;font-weight:700">🟠 A descontar</span><b>'+_chqFmt(abBanco[b].av)+'</b></div>'+
          '<div style="font-size:.67rem;color:#bbb;text-align:right;margin-bottom:4px">'+abBanco[b].aq+' cheque(s)</div>'+
@@ -16422,7 +16427,7 @@ function renderFrota(){
   tbC.innerHTML=linhas.map(({v,i})=>{
     const stCls=v.status==='Ativo'?'b-ativo':v.status==='Manutenção'?'b-pend':'b-zerado';
     return '<tr>'+
-      '<td onclick="frotaFicha(&#39;'+esc(v.id)+'&#39;)" style="cursor:pointer" title="Abrir a ficha completa"><b style="color:#1a5c35;text-decoration:underline">'+esc(v.id)+'</b><br><small style="color:var(--gray)">'+esc(v.tipo)+'</small></td>'+
+      '<td onclick="frotaFicha('+_jsArg(v.id)+')" style="cursor:pointer" title="Abrir a ficha completa"><b style="color:#1a5c35;text-decoration:underline">'+esc(v.id)+'</b><br><small style="color:var(--gray)">'+esc(v.tipo)+'</small></td>'+
       '<td>'+esc(v.desc)+'</td>'+
       '<td>'+esc(v.marca)+'</td>'+
       '<td>'+esc(v.ano)+'</td>'+
@@ -16432,10 +16437,10 @@ function renderFrota(){
       '<td>'+esc(v.revisao)+'</td>'+
       '<td>'+esc(v.local)+'</td>'+
       '<td style="white-space:nowrap">'+
-      '<button class="btn-save" onclick="frotaFicha(&#39;'+v.id+'&#39;)" style="margin-right:4px;padding:5px 12px">📂 Abrir</button>'+
+      '<button class="btn-save" onclick="frotaFicha('+_jsArg(v.id)+')" style="margin-right:4px;padding:5px 12px">📂 Abrir</button>'+
       '<button class="btn-edit" onclick="editVeiculo('+i+')" style="margin-right:4px">✏️ Editar</button>'+
       '<button class="btn-edit" style="background:#e3f2fd;border-color:#0277bd;color:#01579b;margin-right:4px" onclick="frotaDocsModal('+i+')" title="Documentos e fotos do veículo">📎 Docs/Fotos'+((v.docs&&v.docs.length)?' ('+v.docs.length+')':'')+'</button>'+
-      '<button class="btn-edit" style="background:#fff8e1;border-color:#f0a500;color:#856404;margin-right:4px" onclick="frotaAbrirManutencoes(&#39;'+v.id+'&#39;)">🔧 Manutenção</button>'+
+      '<button class="btn-edit" style="background:#fff8e1;border-color:#f0a500;color:#856404;margin-right:4px" onclick="frotaAbrirManutencoes('+_jsArg(v.id)+')">🔧 Manutenção</button>'+
       '<button class="btn-edit-danger" onclick="excluirVeiculo('+i+')" title="Excluir da frota">🗑️</button>'+
       '</td>'+
     '</tr>';
@@ -16848,7 +16853,7 @@ function frotaFicha(veiId){
     '</div>'+
     '<div id="ff-manutencoes" style="display:flex;align-items:center;gap:10px;margin:4px 0 6px;scroll-margin-top:78px">'+
       '<b style="font-size:1.1rem">🔧 Histórico de manutenções</b>'+
-      '<button class="btn-add" style="margin-left:auto" onclick="abrirNovaManutencao(\''+esc(v.id)+'\')">+ Nova Manutenção</button>'+
+      '<button class="btn-add" style="margin-left:auto" onclick="abrirNovaManutencao('+_jsArg(v.id)+')">+ Nova Manutenção</button>'+
     '</div>'+
     hManut+
     '<div style="margin-top:24px"><b style="font-size:1.1rem">📎 Documentos e fotos ('+docs.length+')</b> <span style="color:#888;font-size:.8rem">— pra abrir ou adicionar, use o botão Docs/Fotos lá em cima</span></div>'+
@@ -17712,19 +17717,19 @@ function renderContasPagar(){
       const idAttr=c.id||'';
       const marcado=idAttr && _cpSelecionados.has(idAttr) ? 'checked' : '';
       rows.push('<tr style="'+(atrasado?'background:#fff8f8':'')+'">'
-        +'<td>'+(idAttr?'<input type="checkbox" class="cp-row-check" value="'+esc(idAttr)+'" '+marcado+' onchange="cpMarcarUm(\''+esc(idAttr)+'\', this.checked)">':'')+'</td>'
+        +'<td>'+(idAttr?'<input type="checkbox" class="cp-row-check" value="'+esc(idAttr)+'" '+marcado+' onchange="cpMarcarUm('+_jsArg(idAttr)+', this.checked)">':'')+'</td>'
         +'<td>'+esc(c.cred||'—')+'</td>'
         +'<td><b>'+esc(c.desc)+'</b>'+(c.formaPrevista&&c.status!=='Pago'?'<br><span style="font-size:.72rem;color:var(--gray)">Forma prevista: '+esc(c.formaPrevista)+'</span>':'')+'</td>'
         +'<td style="font-size:.78rem">'+esc(c.bancoNome||'—')+(function(){var _e=_cpEmpresa(c);return _e?'<br><span style="font-size:.68rem;font-weight:700;color:'+_cfgFinanceCompanyColor(_e)+'">'+esc(_e)+'</span>':'';})()+'</td>'
         +'<td>'+fmtDate(c.venc)+'</td>'
         +'<td style="font-weight:800;text-align:right">R$ '+fmt(c.valor)+'</td>'
         +'<td><span class="b '+stCls+'"'+stStyle+'>'+stTxt+'</span>'
-        +(temHistPgto?' <button onclick="verHistoricoPagamentosCP(\''+esc(idAttr)+'\')" title="Ver histórico de pagamentos desta conta" style="border:none;background:transparent;cursor:pointer;font-size:.85rem;vertical-align:middle">🕒</button>':'')
+        +(temHistPgto?' <button onclick="verHistoricoPagamentosCP('+_jsArg(idAttr)+')" title="Ver histórico de pagamentos desta conta" style="border:none;background:transparent;cursor:pointer;font-size:.85rem;vertical-align:middle">🕒</button>':'')
         +'</td>'
         +'<td style="white-space:nowrap;display:flex;gap:4px;align-items:center">'
-        +'<button class="btn-edit" onclick="editContaPagar('+idx+',\''+esc(idAttr)+'\')" title="Editar">✏️</button>'
-        +(c.status!=='Pago'?'<button class="btn-edit" style="background:#27ae60;color:#fff;font-size:.75rem" onclick="pagarContaRapido('+idx+',\''+esc(idAttr)+'\')">✅ Pagar</button>':'')
-        +'<button onclick="excluirContaPagar('+idx+',\''+esc(idAttr)+'\')" title="Excluir" style="background:#e74c3c;color:#fff;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:.8rem">🗑</button>'
+        +'<button class="btn-edit" onclick="editContaPagar('+idx+','+_jsArg(idAttr)+')" title="Editar">✏️</button>'
+        +(c.status!=='Pago'?'<button class="btn-edit" style="background:#27ae60;color:#fff;font-size:.75rem" onclick="pagarContaRapido('+idx+','+_jsArg(idAttr)+')">✅ Pagar</button>':'')
+        +'<button onclick="excluirContaPagar('+idx+','+_jsArg(idAttr)+')" title="Excluir" style="background:#e74c3c;color:#fff;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:.8rem">🗑</button>'
         +'</td></tr>');
     });
   }
@@ -18369,7 +18374,7 @@ function editContaPagar(idx, id){
     '<div class="fg"><label>Data Pagamento</label><input id="ecp-pgto" type="date" value="'+(c.dataPgto?c.dataPgto.split('/').reverse().join('-'):'')+'"></div>'+
     '<div class="fg"><label>Obs.</label><input id="ecp-obs" value="'+esc(c.obs||'')+'"></div>'+
     '<div class="modal-ft">'+
-    '<button class="btn-edit-danger" onclick="excluirContaPagar('+idx+',\''+esc(c.id||'')+'\')">🗑️ Excluir</button>'+
+    '<button class="btn-edit-danger" onclick="excluirContaPagar('+idx+','+_jsArg(c.id||'')+')">🗑️ Excluir</button>'+
     '<button class="btn-cancel" onclick="cm()">Cancelar</button>'+
     '<button class="btn-save" onclick="salvarEditContaPagar()">💾 Salvar</button></div>';
   _ovE.classList.add('open');
@@ -18725,7 +18730,7 @@ function excluirContaPagar(idx, id){
       <div style="font-size:1rem;font-weight:800;color:#1a3a2a;margin-bottom:8px">🗑️ Excluir Parcela</div>
       <div style="font-size:.88rem;color:#555;margin-bottom:18px">Esta conta faz parte de um lançamento com <b>${irmãs.length+1} parcelas</b>. O que deseja fazer?</div>
       <div style="display:flex;flex-direction:column;gap:9px">
-        <button onclick="cpExcluirApenas(${idx},'${esc(idAlvo)}')" style="background:#f5f5f5;color:#333;border:2px solid #ddd;border-radius:9px;padding:11px 14px;text-align:left;cursor:pointer;font-size:.87rem;font-weight:600">
+        <button onclick="cpExcluirApenas(${idx},${_jsArg(idAlvo)})" style="background:#f5f5f5;color:#333;border:2px solid #ddd;border-radius:9px;padding:11px 14px;text-align:left;cursor:pointer;font-size:.87rem;font-weight:600">
           📌 Excluir só <b>esta parcela</b>
         </button>
         ${irmãsPendentes.length>0?`<button onclick="cpExcluirPendentes('${grupoId}',${idx})" style="background:#fff3e0;color:#e65100;border:2px solid #ffcc80;border-radius:9px;padding:11px 14px;text-align:left;cursor:pointer;font-size:.87rem;font-weight:600">
@@ -22531,16 +22536,7 @@ function initDespesas(){
         var valor=parseFloat((document.getElementById('ffe-valor')||{}).value)||0;
         var status=(document.getElementById('ffe-status')||{}).value||'';
         var obs=(document.getElementById('ffe-obs')||{}).value||'';
-        if(_ffEditTipo==='adiantamento'&&ADT_POR_FORN[_ffEditForn]){
-          var adt=ADT_POR_FORN[_ffEditForn].find(function(a){return a.cod===_ffEditId;});
-          if(adt){
-            if(data) adt.data=data;
-            if(valor>0) adt.valor=valor;
-            if(status) adt.status=status;
-            adt.obs=obs;
-          }
-          saveDB(); renderAdiantamentos();
-        } else if(_ffEditTipo==='cheque'&&CHEQUES_POR_FORN[_ffEditForn]){
+        if(_ffEditTipo==='cheque'&&CHEQUES_POR_FORN[_ffEditForn]){
           var num=(document.getElementById('ffe-num')||{}).value||'';
           var ch=CHEQUES_POR_FORN[_ffEditForn].find(function(x){return (x.cod||x.num)===_ffEditId;});
           if(ch){
@@ -22579,7 +22575,6 @@ function initDespesas(){
           return;
         }
         var msg = tipo==='compra'?'Excluir este ticket de compra da ficha?'
-          :tipo==='adiantamento'?'Excluir este adiantamento da ficha?'
           :tipo==='cheque'?'Excluir este cheque da ficha?'
           :tipo==='saldo_devedor_pendente'?'Cancelar o saldo devedor registrado?'
           :tipo==='pagamento_cp'?'Excluir este PAGAMENTO? O valor volta a ser devido, sai do saldo do banco e o saldo do ticket é corrigido.'
@@ -22606,14 +22601,6 @@ function initDespesas(){
           try{renderEstoque();}catch(e){}
           try{renderDashboard();}catch(e){}
           showToast('Ticket excluído.','success');
-        } else if(tipo==='adiantamento'){
-          if(ADT_POR_FORN[fornCod]){
-            ADT_POR_FORN[fornCod]=ADT_POR_FORN[fornCod].filter(function(a){return a.cod!==id;});
-          }
-          saveDB();
-          try{ delete window._ADT_PENDENTES[fornCod+'::'+id]; }catch(e){}
-          _adtSalvarNaNuvem(fornCod);   
-          renderAdiantamentos();
         } else if(tipo==='cheque'){
           if(CHEQUES_POR_FORN[fornCod]){
             CHEQUES_POR_FORN[fornCod]=CHEQUES_POR_FORN[fornCod].filter(function(ch){return (ch.cod||ch.num)!==id;});
@@ -25220,7 +25207,7 @@ function csRenderPesagens(){
           <div>${pesRows}</div>
         </div>
         <button class="btn-save" style="min-width:160px;padding:12px 18px;font-size:.9rem"
-          onclick="csAbrirLancamento('${esc(nome)}')">
+          onclick="csAbrirLancamento(${_jsArg(nome)})">
           💰 Lançar Preços →
         </button>
       </div>
@@ -25387,7 +25374,7 @@ function csCarregarForn(forceName){
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid #ddd">
         <button class="btn-cancel" onclick="csTab('pesagens')">← Voltar</button>
-        <button class="btn-save" style="min-width:220px;font-size:.95rem;padding:11px 18px" onclick="csConfirmarEntrada('${esc(fornNome)}')">
+        <button class="btn-save" style="min-width:220px;font-size:.95rem;padding:11px 18px" onclick="csConfirmarEntrada(${_jsArg(fornNome)})">
           ✅ Confirmar Entrada
         </button>
       </div>
@@ -27654,7 +27641,7 @@ function coordFuncRender(){
 
       <div style="margin-bottom:8px">
         <label style="font-size:.72rem;font-weight:700;color:#555;text-transform:uppercase;display:block;margin-bottom:3px">Status</label>
-        <select onchange="coordFuncSalvarAv('${esc(f.mat)}',this.value)" style="width:100%;padding:6px;border:1.5px solid ${cor.bord};border-radius:6px;font-size:.82rem;background:#fff">
+        <select onchange="coordFuncSalvarAv(${_jsArg(f.mat)},this.value)" style="width:100%;padding:6px;border:1.5px solid ${cor.bord};border-radius:6px;font-size:.82rem;background:#fff">
           <option value="bom"${av==='bom'?' selected':''}>🟢 Bom desempenho</option>
           <option value="atencao"${av==='atencao'?' selected':''}>🟡 Requer atenção</option>
           <option value="critico"${av==='critico'?' selected':''}>🔴 Situação crítica</option>
@@ -27670,8 +27657,8 @@ function coordFuncRender(){
       ${obs.atualizadoEm?`<div style="font-size:.72rem;color:#aaa;margin-bottom:6px">Atualizado em ${(obs.atualizadoEm||'').split('-').reverse().join('/')} por ${esc(obs.atualizadoPor||'?')}</div>`:''}
 
       <div style="display:flex;gap:6px;margin-top:4px">
-        <button onclick="coordFuncSalvarObs('${esc(f.mat)}')" style="flex:1;padding:6px;background:#1565c0;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:.8rem">💾 Salvar</button>
-        <button onclick="coordImprimirFuncionario('${esc(f.mat)}')" style="padding:6px 12px;background:#2e7d32;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:.8rem">🖨️</button>
+        <button onclick="coordFuncSalvarObs(${_jsArg(f.mat)})" style="flex:1;padding:6px;background:#1565c0;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:.8rem">💾 Salvar</button>
+        <button onclick="coordImprimirFuncionario(${_jsArg(f.mat)})" style="padding:6px 12px;background:#2e7d32;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:.8rem">🖨️</button>
       </div>
     </div>`;
   }).join('');
@@ -28047,7 +28034,7 @@ function chatRenderConvs(){
     const convId='dm_'+[cu?cu.name:'',u.name].sort().join('__');
     const ativo=_chatConvAtiva===convId;
     const ini=(u.name||'?')[0].toUpperCase();
-    html+=`<div onclick="chatAbrirConv('${convId}','${esc(u.name)}')" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #eee;background:${ativo?'#e8f5e9':'#fff'};font-size:.83rem;display:flex;gap:8px;align-items:center">
+    html+=`<div onclick="chatAbrirConv('${convId}',${_jsArg(u.name)})" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #eee;background:${ativo?'#e8f5e9':'#fff'};font-size:.83rem;display:flex;gap:8px;align-items:center">
       <div style="width:30px;height:30px;border-radius:50%;background:#1a3a2a;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.78rem;flex-shrink:0">${ini}</div>
       <div style="overflow:hidden"><div style="font-weight:700;color:#1a3a2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.name)}</div><div style="font-size:.68rem;color:#888">${esc(u.role||'')}</div></div>
     </div>`;

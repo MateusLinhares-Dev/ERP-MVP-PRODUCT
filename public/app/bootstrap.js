@@ -172,6 +172,7 @@ async function main() {
   loadStyle('/modules/banking/reconciliation.css');
   loadStyle('/modules/banking/bank-integrations.css');
   loadStyle('/modules/finance/advance-cheque-report.css');
+  loadStyle('/modules/finance/advance-review.css');
   loadStyle('/modules/weighing/road-weighing-flow.css');
   loadStyle('/modules/pricing/purchase-price-table.css');
   loadStyle('/modules/phase1/phase1-purchase.css');
@@ -254,7 +255,6 @@ async function main() {
     loadClassic('/modules/final-ops/final-ops.js'),
     loadClassic('/modules/fiscal/fiscal-stock-origins.js'),
     loadClassic('/modules/finance/advance-actions.js'),
-    loadClassic('/modules/finance/supplier-cash-repasses.js'),
   ]);
 
   if (webIslandsEntry) {

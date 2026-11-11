@@ -1,0 +1,15 @@
+.erp-orphan-review-overlay{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:18px}
+.erp-orphan-review{background:#fff;color:#1f352b;width:min(100%,550px);max-height:92vh;overflow:auto;border-radius:12px;padding:22px;box-sizing:border-box;box-shadow:0 16px 48px #0005;font:14px/1.5 Arial,sans-serif}
+.erp-orphan-review h2{margin:0 0 8px;font-size:20px}
+.erp-orphan-review-box{background:#f3f7f4;padding:12px;border-radius:8px;margin-bottom:14px}
+.erp-orphan-review-box p{margin:6px 0 0;font-size:13px}
+.erp-orphan-review-field{display:block;font-weight:650;margin:10px 0 6px}
+.erp-orphan-review-field select,.erp-orphan-review-field textarea,.erp-orphan-review-reference{display:block;width:100%;box-sizing:border-box;margin-top:8px;padding:10px;border:1px solid #9eafa5;border-radius:7px;font:inherit;font-weight:400}
+.erp-orphan-review-field textarea{min-height:75px}
+.erp-orphan-review-guidance{font-size:13px;margin:12px 0}
+.erp-orphan-review-check{display:flex;gap:10px;align-items:flex-start;margin:12px 0;font-size:13px}
+.erp-orphan-review-feedback{font-size:13px;color:#a12b22;min-height:18px}
+.erp-orphan-review-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.erp-orphan-review-actions button{padding:10px 14px;border:1px solid #a8b7ae;background:#fff;border-radius:7px;cursor:pointer}
+.erp-orphan-review-actions button.primary{background:#17563e;color:#fff;border:0}
+.erp-orphan-review-actions button:disabled{opacity:.45;cursor:not-allowed}

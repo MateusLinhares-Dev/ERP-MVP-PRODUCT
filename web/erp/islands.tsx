@@ -13,6 +13,8 @@ import { installErrorTelemetry } from '../shared/observability/telemetry.js';
 import { isValidBankCode } from '../modules/bank-integrations/domain/integration.js';
 import type { IntegrationAction, IntegrationReply } from '../modules/bank-integrations/domain/integration.js';
 import { BankIntegrationsDialog } from '../modules/bank-integrations/ui/BankIntegrationsDialog.js';
+import { installSupplierRepasses } from './supplier-repasses.js';
+import { installAdvanceReview } from './advance-review.js';
 
 const CHEQUE_REPORT = 'adt-cheques-report';
 const roots = new Map<string, Root>();
@@ -229,3 +231,6 @@ function openBankIntegrations(bankCode: unknown): void {
 }
 
 Object.assign(window, { erpBankIntegrationsOpen: openBankIntegrations });
+
+installSupplierRepasses(api);
+installAdvanceReview(api);
