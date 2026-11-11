@@ -4100,9 +4100,9 @@ const FORMS={
     <div class="fg"><label>Vinculado ao Ticket</label><input id="adt-ticket" placeholder="T004"></div>
     <div class="fg"><label>Observação <span style="font-weight:400;color:#888;font-size:.8rem">(ex: pago em nome de outra pessoa)</span></label><input id="adt-obs" placeholder="Ex: Pago em nome de outra pessoa"></div>
     <div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarAdiantamento()">💾 Salvar</button></div>`,
-  veiculo:`<h3>🚛 Novo Veículo</h3>
-    <div class="fg"><label>Tipo</label><select id="nv-tipo"><option>Caminhão</option><option>Empilhadeira</option><option>Máquina</option><option>Balança</option><option>Prensa Hidráulica</option><option>Moedor de Alumínio</option><option>Retroescavadeira</option><option>Carro</option><option>Outros</option></select></div>
-    <div class="fg"><label>Placa / ID</label><input id="nv-id" placeholder="CAM-011"></div>
+  veiculo:`<h3 id="nv-titulo">🚛 Novo Veículo</h3>
+    <div class="fg"><label>Tipo</label><select id="nv-tipo"><optgroup label="Veículos"><option>Caminhão</option><option>Carro</option></optgroup><optgroup label="Implementos"><option>Carreta</option><option>Carretinha</option><option>Semirreboque</option><option>Garra</option><option>Outro implemento</option></optgroup><optgroup label="Equipamentos"><option>Empilhadeira</option><option>Máquina</option><option>Balança</option><option>Prensa Hidráulica</option><option>Moedor de Alumínio</option><option>Retroescavadeira</option><option>Outros</option></optgroup></select></div>
+    <div class="fg"><label>Placa / ID <span style="font-weight:400;color:#888;font-size:.78rem">(sem placa, como a garra? use um nome, ex.: GARRA-01)</span></label><input id="nv-id" placeholder="CAM-011"></div>
     <div class="fg"><label>Descrição / Modelo</label><input id="nv-desc" placeholder="Volvo FH 460"></div>
     <div class="fg"><label>Marca</label><input id="nv-marca" placeholder="Volvo"></div>
     <div class="fg"><label>Ano</label><input id="nv-ano" type="number" placeholder="2020"></div>
@@ -5826,11 +5826,83 @@ async function restaurarSnapshot(dataKey){
   }
 }
 
+function _adtTemChequesDoSistema(a){
+  return Boolean(a)&&['Cheque','Cheque de Terceiro'].includes(a.forma)&&Array.isArray(a.chequeIds)&&a.chequeIds.length>0;
+}
+async function editarChequesAdiantamento(fornCod, adtCod){
+  const a=(ADT_POR_FORN[fornCod]||[]).find(x=>x&&x.cod===adtCod);
+  if(!_adtTemChequesDoSistema(a)){ showToast('Este adiantamento não tem cheques cadastrados pelo sistema.','error'); return; }
+  const db=window._fbDB;
+  if(!db){ showToast('Firebase não conectado.','error'); return; }
+  om('editAdiantamento');
+  const body=document.getElementById('modal-body');
+  if(!body) return;
+  body.innerHTML='<h3>✏️ Corrigir cheques</h3><p>Carregando cheques...</p>';
+  let cheques=[];
+  try{ cheques=await Promise.all(a.chequeIds.map(id=>db.ref('erp/chequesControle/'+id).once('value').then(snap=>snap.val()))); }
+  catch(e){ body.innerHTML='<h3>✏️ Corrigir cheques</h3><p>Não foi possível carregar os cheques: '+esc(e.message||'')+'</p><div class="modal-ft"><button class="btn-cancel" onclick="cm()">Fechar</button></div>'; return; }
+  if(cheques.some(c=>!c)){ body.innerHTML='<h3>✏️ Corrigir cheques</h3><p>Algum cheque deste adiantamento não foi encontrado em Cheques a compensar. Peça ajuda ao suporte antes de alterar.</p><div class="modal-ft"><button class="btn-cancel" onclick="cm()">Fechar</button></div>'; return; }
+  const usado=Number(a.valorCompensado||0)>0||String(a.status||'Pendente')!=='Pendente'||(ADT_POR_FORN[fornCod]||[]).some(x=>x&&x.adiantamentoOrigem===adtCod);
+  const terceiro=a.forma==='Cheque de Terceiro';
+  const iso=d=>/^\d{2}\/\d{2}\/\d{4}$/.test(String(d||''))?String(d).split('/').reverse().join('-'):'';
+  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const nomeForn=(FORNECEDORES.find(f=>f.cod===fornCod)||{}).nome||fornCod;
+  const linha=c=>{
+    const comp=c&&c.s==='C';
+    const bloq=comp?' disabled':'';
+    const bloqValor=(comp||usado)?' disabled':'';
+    return '<tr data-id="'+esc(c?c.id:'')+'"'+(comp?' data-compensado="1"':'')+'>'+
+      '<td><input data-f="b" list="ea-chq-bancos" value="'+esc(c?c.b:'')+'"'+bloq+' style="width:100%"></td>'+
+      '<td><input data-f="n" value="'+esc(c?c.n:'')+'"'+bloq+' style="width:100%"></td>'+
+      '<td><input data-f="v" type="number" step="0.01" min="0.01" value="'+(c?Number(c.v).toFixed(2):'')+'"'+bloqValor+' style="width:100%"></td>'+
+      '<td><input data-f="d" type="date" value="'+esc(c?iso(c.d):_hojeISO())+'"'+bloq+' style="width:100%"></td>'+
+      '<td><input data-f="venc" type="date" value="'+esc(c?iso(c.venc):'')+'"'+bloq+' style="width:100%"></td>'+
+      '<td><input data-f="cli" value="'+esc(c?(c.emitente||''):'')+'"'+bloq+' placeholder="'+(terceiro?'Obrigatório':'Opcional')+'" style="width:100%"></td>'+
+      '<td>'+(comp?'<small title="Cheque já compensado. Reabra em Cheques a compensar para corrigir.">Compensado</small>':(usado?'':'<button type="button" class="btn-edit-danger" data-remove title="Remover este cheque">✕</button>'))+'</td></tr>';
+  };
+  body.className='modal erp-cheque-edit-modal';
+  body.style.maxWidth='min(1040px,calc(100vw - 32px))';
+  body.style.width='100%';
+  body.innerHTML='<h3>✏️ Corrigir cheques — '+esc(nomeForn)+'</h3>'+
+    '<p style="font-size:.82rem;color:#555;margin:4px 0 10px">Adiantamento '+esc(adtCod)+' · '+esc(a.data||'')+' · '+esc(a.forma)+'. '+
+    (usado?'Este adiantamento já foi usado em compra: dá para corrigir banco, número, datas e emitente, mas não valores.':'O valor do adiantamento passa a ser a soma dos cheques.')+'</p>'+
+    '<datalist id="ea-chq-bancos">'+_cfgChequeBankNames().map(b=>'<option value="'+esc(b)+'">').join('')+'</datalist>'+
+    '<div style="overflow-x:auto"><table class="erp-cheque-edit" style="width:100%;min-width:860px;font-size:.84rem;border-collapse:collapse;table-layout:fixed">'+
+    '<colgroup><col style="width:17%"><col style="width:12%"><col style="width:14%"><col style="width:17%"><col style="width:17%"><col style="width:17%"><col style="width:6%"></colgroup>'+
+    '<thead><tr><th>Banco</th><th>Nº</th><th>Valor R$</th><th>Emissão</th><th>Bom para</th><th>Emitente</th><th></th></tr></thead>'+
+    '<tbody id="ea-chq-rows">'+cheques.map(linha).join('')+'</tbody></table></div>'+
+    (usado?'':'<button type="button" class="btn-edit" id="ea-chq-add" style="margin-top:8px">+ Adicionar cheque</button>')+
+    '<p id="ea-chq-total" style="font-weight:700;margin:10px 0 0"></p>'+
+    '<div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" id="ea-chq-save">💾 Salvar cheques</button></div>';
+  const tbody=body.querySelector('#ea-chq-rows');
+  const total=()=>{ const t=[...tbody.querySelectorAll('input[data-f="v"]')].reduce((s,i)=>s+(Number(i.value)||0),0); body.querySelector('#ea-chq-total').textContent='Total: R$ '+fmt(t)+(usado?'':' (valor atual do adiantamento: R$ '+fmt(a.valor)+')'); };
+  tbody.addEventListener('input',total);
+  tbody.addEventListener('click',e=>{ const b=e.target.closest('button[data-remove]'); if(b){ b.closest('tr').remove(); total(); } });
+  body.querySelector('#ea-chq-add')?.addEventListener('click',()=>{ tbody.insertAdjacentHTML('beforeend',linha(null)); total(); });
+  total();
+  const button=body.querySelector('#ea-chq-save');
+  button.addEventListener('click',async()=>{
+    const rows=[...tbody.querySelectorAll('tr')].map(tr=>{
+      const f=k=>(tr.querySelector('[data-f="'+k+'"]')?.value||'').trim();
+      return {id:tr.dataset.id||undefined,b:f('b'),n:f('n'),v:Math.round(Number(f('v'))*100)/100,d:f('d'),venc:f('venc'),cli:f('cli')};
+    });
+    if(!rows.length){ showToast('O adiantamento precisa de pelo menos um cheque. Para tirar todos, exclua o adiantamento.','error',7000); return; }
+    const ruim=rows.findIndex(r=>!r.b||!/^[a-zA-Z0-9_-]{1,40}$/.test(r.n)||!(r.v>0)||!r.d||(terceiro&&!r.cli));
+    if(ruim>=0){ showToast('Confira a linha '+(ruim+1)+': banco, número (só letras e números), valor, emissão'+(terceiro?' e emitente':'')+'.','error',7000); return; }
+    try{
+      await _adtCommitTransacional({action:'cheques',fornCod,adtCod,expected:a,cheques:rows},button);
+      try{ registrarHistorico('Adiantamento','Cheques corrigidos',nomeForn+' '+adtCod+' — '+rows.length+' cheque(s)',a,{fornCod,cod:adtCod}); }catch(e){}
+      cm();
+      showToast('Cheques corrigidos e gravados no Firebase.','success');
+    }catch(error){ showToast('Não foi possível corrigir: '+error.message,'error',9000); }
+  });
+}
 function editAdiantamento(fornCod, adtCod){
   try{ adtCorrigeEmpresa(); }catch(_){}
   const lista=ADT_POR_FORN[fornCod]||[];
   const a=lista.find(x=>x.cod===adtCod);
   if(!a){alert('Adiantamento não encontrado.');return;}
+  if(_adtTemChequesDoSistema(a)){ editarChequesAdiantamento(fornCod,adtCod); return; }
   const fmt=v=>_numFinito(v,0).toFixed(2).replace('.',',');
   om('editAdiantamento');
   const body=document.getElementById('modal-body');
@@ -15640,7 +15712,17 @@ function chqCorrigirAcredi(){
   r.update(batch).then(function(){ showToast(cfg.successText||'✔ Correção aplicada.','success',8000); }).catch(function(e){ showToast('Erro: '+e.message,'error'); });
 }
 function chqNovo(){ _chqModal(null); }
-function chqEditar(id){ _chqModal(id); }
+function chqEditar(id){
+  var c=CHQ_CTRL[id];
+  if(c&&c.advanceCode){
+    var fornCod=c.fornCod&&(ADT_POR_FORN[c.fornCod]||[]).some(function(a){ return a&&a.cod===c.advanceCode; })?c.fornCod
+      :Object.keys(ADT_POR_FORN||{}).find(function(k){ return (ADT_POR_FORN[k]||[]).some(function(a){ return a&&a.cod===c.advanceCode; }); });
+    if(!fornCod){ showToast('Este cheque pertence ao adiantamento '+c.advanceCode+', que não foi encontrado. Abra Adiantamentos e atualize.','error',8000); return; }
+    editarChequesAdiantamento(fornCod,c.advanceCode);
+    return;
+  }
+  _chqModal(id);
+}
 function chqFecharModal(){ var ov=document.getElementById('chq-modal-ov'); if(ov) ov.style.display='none'; }
 
 function chqRemessa(){
@@ -16252,6 +16334,15 @@ function _popularBalancasFrota(){
   });
 }
 function _frotaAtualizarKpis(){
+  const implementos=FROTA_DB.filter(function(v){return v&&_frotaGrupo(v.tipo)==='implementos';});
+  const implVal=document.getElementById('frota-kpi-implementos');
+  const implSub=document.getElementById('frota-sub-implementos');
+  if(implVal) implVal.textContent=String(implementos.length);
+  if(implSub){
+    const porTipo={};
+    implementos.forEach(function(v){ porTipo[v.tipo]=(porTipo[v.tipo]||0)+1; });
+    implSub.textContent=Object.keys(porTipo).map(function(t){ return porTipo[t]+' '+t.toLowerCase(); }).join(' · ')||'—';
+  }
   const grupos=[
     ['Caminhão','frota-kpi-caminhoes','frota-sub-caminhoes'],
     ['Empilhadeira','frota-kpi-empilhadeiras','frota-sub-empilhadeiras'],
@@ -16274,20 +16365,64 @@ function _frotaAtualizarKpis(){
   if(manutSub) manutSub.textContent=_frotaResumoIds(manut);
   if(titulo) titulo.textContent='Frota e Equipamentos ('+FROTA_DB.length+')';
 }
+let _frotaAba=(function(){ try{ return localStorage.getItem('mm_frota_aba')||'todos'; }catch(e){ return 'todos'; } })();
+let _frotaBusca='';
+function frotaSetAba(aba){
+  _frotaAba=['todos','veiculos','implementos','equipamentos'].includes(aba)?aba:'todos';
+  try{ localStorage.setItem('mm_frota_aba',_frotaAba); }catch(e){}
+  renderFrota();
+}
+function _frotaRenderAbas(){
+  const box=document.getElementById('frota-abas');
+  if(!box) return;
+  const contar=function(id){ return FROTA_DB.filter(function(v){ return v&&(id==='todos'||_frotaGrupo(v.tipo)===id); }).length; };
+  const abas=[['todos','Todos'],['veiculos','🚚 Veículos'],['implementos','🛻 Implementos'],['equipamentos','⚙️ Equipamentos']];
+  if(!box.dataset.pronto){
+    box.innerHTML='<div class="erp-frota-abas-botoes"></div><input type="search" id="frota-busca" placeholder="Buscar na frota" aria-label="Buscar na frota">';
+    box.querySelector('.erp-frota-abas-botoes').addEventListener('click',function(e){ const b=e.target.closest('button[data-aba]'); if(b) frotaSetAba(b.dataset.aba); });
+    box.querySelector('#frota-busca').addEventListener('input',function(e){ _frotaBusca=e.target.value; renderFrota(); });
+    box.dataset.pronto='1';
+  }
+  box.querySelector('.erp-frota-abas-botoes').innerHTML=abas.map(function(a){
+    return '<button type="button" role="tab" data-aba="'+a[0]+'" aria-selected="'+(a[0]===_frotaAba)+'" class="'+(a[0]===_frotaAba?'ativa':'')+'">'+a[1]+' <span>'+contar(a[0])+'</span></button>';
+  }).join('');
+  const novo=document.getElementById('frota-btn-novo');
+  if(novo) novo.textContent=_frotaAba==='implementos'?'+ Novo Implemento':_frotaAba==='equipamentos'?'+ Novo Equipamento':'+ Novo Veículo';
+}
+function abrirNovoVeiculo(){
+  om('veiculo');
+  const tipo=document.getElementById('nv-tipo');
+  const padrao=_frotaAba==='implementos'?'Carreta':_frotaAba==='equipamentos'?'Empilhadeira':'Caminhão';
+  if(tipo) tipo.innerHTML=_frotaTipoOpts(padrao);
+  const titulo=document.getElementById('nv-titulo');
+  if(titulo) titulo.textContent=_frotaAba==='implementos'?'🛻 Novo Implemento':_frotaAba==='equipamentos'?'⚙️ Novo Equipamento':'🚛 Novo Veículo';
+}
 function renderFrota(){
   const tbC=document.getElementById('tb-caminhoes');
   if(!tbC) return;
   _frotaAtualizarKpis();
   _popularBalancasFrota();
   try{ _frotaRenderAlertas(); }catch(e){}
+  _frotaRenderAbas();
   if(!FROTA_DB.length){
     tbC.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--gray);padding:24px">Nenhum veículo ou equipamento cadastrado</td></tr>';
     return;
   }
-  tbC.innerHTML=FROTA_DB.map((v,i)=>{
+  const busca=String(_frotaBusca||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  const linhas=FROTA_DB.map(function(v,i){ return {v:v,i:i}; }).filter(function(x){
+    if(!x.v) return false;
+    if(_frotaAba!=='todos'&&_frotaGrupo(x.v.tipo)!==_frotaAba) return false;
+    if(!busca) return true;
+    return [x.v.id,x.v.tipo,x.v.desc,x.v.marca,x.v.ano,x.v.cap,x.v.local,x.v.status].join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(busca);
+  });
+  if(!linhas.length){
+    tbC.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--gray);padding:24px">'+(busca?'Nada encontrado para a busca.':_frotaAba==='implementos'?'Nenhum implemento cadastrado. Use “+ Novo Implemento”.':'Nenhum item nesta aba.')+'</td></tr>';
+    return;
+  }
+  tbC.innerHTML=linhas.map(({v,i})=>{
     const stCls=v.status==='Ativo'?'b-ativo':v.status==='Manutenção'?'b-pend':'b-zerado';
     return '<tr>'+
-      '<td onclick="frotaFicha(&#39;'+v.id+'&#39;)" style="cursor:pointer" title="Abrir a ficha completa"><b style="color:#1a5c35;text-decoration:underline">'+v.id+'</b><br><small style="color:var(--gray)">'+v.tipo+'</small></td>'+
+      '<td onclick="frotaFicha(&#39;'+esc(v.id)+'&#39;)" style="cursor:pointer" title="Abrir a ficha completa"><b style="color:#1a5c35;text-decoration:underline">'+esc(v.id)+'</b><br><small style="color:var(--gray)">'+esc(v.tipo)+'</small></td>'+
       '<td>'+esc(v.desc)+'</td>'+
       '<td>'+esc(v.marca)+'</td>'+
       '<td>'+esc(v.ano)+'</td>'+
@@ -16307,11 +16442,21 @@ function renderFrota(){
   }).join('');
 }
 
-const FROTA_TIPOS = ['Caminhão','Empilhadeira','Máquina','Balança','Prensa Hidráulica','Moedor de Alumínio','Retroescavadeira','Carro','Outros'];
+const FROTA_GRUPOS = [
+  {id:'veiculos',nome:'Veículos',tipos:['Caminhão','Carro']},
+  {id:'implementos',nome:'Implementos',tipos:['Carreta','Carretinha','Semirreboque','Garra','Outro implemento']},
+  {id:'equipamentos',nome:'Equipamentos',tipos:['Empilhadeira','Máquina','Balança','Prensa Hidráulica','Moedor de Alumínio','Retroescavadeira','Outros']}
+];
+const FROTA_TIPOS = FROTA_GRUPOS.reduce(function(lista,g){ return lista.concat(g.tipos); },[]);
+function _frotaGrupo(tipo){
+  const g=FROTA_GRUPOS.find(function(grupo){ return grupo.tipos.indexOf(String(tipo||''))>=0; });
+  return g?g.id:'equipamentos';
+}
 function _frotaTipoOpts(atual){
-  var lista = FROTA_TIPOS.slice();
-  if(atual && lista.indexOf(atual)<0) lista.unshift(atual); 
-  return lista.map(function(t){ return '<option value="'+esc(t)+'"'+(t===atual?' selected':'')+'>'+esc(t)+'</option>'; }).join('');
+  const extra=atual&&FROTA_TIPOS.indexOf(atual)<0?'<option value="'+esc(atual)+'" selected>'+esc(atual)+'</option>':'';
+  return extra+FROTA_GRUPOS.map(function(g){
+    return '<optgroup label="'+esc(g.nome)+'">'+g.tipos.map(function(t){ return '<option value="'+esc(t)+'"'+(t===atual?' selected':'')+'>'+esc(t)+'</option>'; }).join('')+'</optgroup>';
+  }).join('');
 }
 
 function excluirVeiculo(idx){
@@ -16525,7 +16670,8 @@ function salvarEditVeiculo(){
 
 function salvarNovoVeiculo(){
   const id=document.getElementById('nv-id')?.value.trim();
-  if(!id){alert('Informe o ID/Placa!');return;}
+  if(!id){alert('Informe a placa ou um nome de identificação!');return;}
+  if(FROTA_DB.some(function(v){ return v&&String(v.id||'').trim().toUpperCase()===id.toUpperCase(); })){alert('Já existe um item da frota com a placa/ID '+id+'.');return;}
   FROTA_DB.push({
     id, tipo: document.getElementById('nv-tipo')?.value||'Caminhão',
     desc:  document.getElementById('nv-desc')?.value.trim()||'—',

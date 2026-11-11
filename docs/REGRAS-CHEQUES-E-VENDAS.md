@@ -50,3 +50,26 @@ Regra combinada com a cliente: **só não pode repetir o mesmo banco com o mesmo
   - o mais correto seria lançar a entrada no banco quando o cheque compensa, na conta da empresa onde foi depositado;
   - mudar isso exige combinar o que fazer com as vendas antigas, para não contar em dobro.
 - **Venda salva como "Pago" sem forma de pagamento:** não gera conta a receber. Se depois o valor aumentar na edição, a diferença não vira cobrança.
+
+## Corrigir cheques de adiantamento (11/11/2026)
+
+- **Onde:**
+  - Adiantamentos → ✏️ num adiantamento pago em cheque;
+  - Cheques a compensar → ✏️ num cheque que pertence a um adiantamento.
+  - As duas abrem "Corrigir cheques".
+- **O que dá para fazer:**
+  - corrigir banco, número, valor, emissão, bom para e emitente;
+  - incluir ou remover cheques.
+  - O valor do adiantamento passa a ser a soma dos cheques.
+- **Regras:**
+  - Adiantamento **já usado em compra**: dá para corrigir banco, número, datas e emitente, mas não valores, nem incluir ou remover cheques.
+  - Cheque **compensado** não muda. Antes, reabra o cheque em Cheques a compensar.
+  - Continua valendo: o mesmo banco não pode ter dois cheques com o mesmo número.
+- **Servidor:**
+  - `changeAdvance` com `action: 'cheques'` (`editAdvanceCheques`, em `server/modules/advances/application/advances.ts`), com as mesmas travas dos adiantamentos;
+  - grava numa operação só: os cheques em `chequesControle`, a lista e as impressões digitais no adiantamento, e o valor.
+- **Antes:**
+  - o ✏️ de Cheques a compensar regravava o cheque **sem** o vínculo com o adiantamento (`advanceCode`, `fornCod`, emitente), e o valor do adiantamento não mudava;
+  - depois disso, o adiantamento não podia mais ser alterado nem excluído ("Cheque vinculado foi alterado");
+  - cheques editados assim antes desta versão precisam ser conferidos.
+- Testes: `test/advance-cheque-edit.test.js`.

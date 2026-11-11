@@ -228,3 +228,22 @@ test('notinha mostra saldo devedor remanescente do fornecedor sem confundir com 
   assert.match(html,/Saldo devedor do fornecedor \(adiantamento não utilizado, disponível para próximas compras\)<\/th><td>R\$ 3\.098,65/);
   assert.deepEqual(printedTicket,ticket);
 });
+
+test('notinha: toda tabela tem uma largura para cada coluna e as larguras somam 100%', () => {
+  const ticket = { ...base, totalProdutos: 64099.5, totalGeral: 64099.5, adiantamento: 64099.5, saldoPagar: 0 };
+  const advances = { F1: [{ cod: 'A1', data: '22/10/2026', valor: 5900.5, valorOriginal: 70000, valorCompensado: 64099.5, status: 'Pendente', forma: 'PIX', ticketOrigem: 'T827763' }] };
+  const { html } = makePrint(ticket, [], advances);
+  const tables = [...html.matchAll(/<table class="(items|installments)">([\s\S]*?)<\/table>/g)];
+  assert.ok(tables.length >= 2);
+  for (const [, , inner] of tables) {
+    const cols = [...inner.matchAll(/<col class="([^"]+)">/g)].map((m) => m[1]);
+    const heads = (/<thead>([\s\S]*?)<\/thead>/.exec(inner)?.[1].match(/<th>/g) || []).length;
+    assert.equal(cols.length, heads, 'colunas sem largura: ' + inner.slice(0, 120));
+  }
+  const width = (selector) => Number(new RegExp(selector.replace(/[.]/g, '\\.') + '\\{width:(\\d+)%\\}').exec(html)?.[1]);
+  const sum = (list) => list.reduce((total, selector) => total + width(selector), 0);
+  assert.equal(sum(['.installments col.col-date', '.applied-advances col.col-origin', '.applied-advances col.col-form', '.installments col.col-money', '.installments col.col-money']), 100);
+  assert.equal(sum(['.installments col.col-days', '.installments col.col-date', '.installments col.col-money', '.installment-plan col.col-form', '.installment-plan col.col-notes']), 100);
+  assert.equal(sum(['.installments col.col-date', '.payment-history col.col-operation', '.installments col.col-money']), 100);
+  assert.doesNotMatch(html, /installments th:nth-child|th:first-child\{width|th:last-child\{width/);
+});
