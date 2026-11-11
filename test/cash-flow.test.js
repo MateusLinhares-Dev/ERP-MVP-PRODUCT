@@ -84,62 +84,32 @@ test('fluxo: conta paga sem histórico usa a data de pagamento; outro ano não e
   assert.equal(totals.vendas[10], 1500);
 });
 
-function undoContext({ payable, movements, tickets = {} }) {
-  const removedCloud = [];
+test('sincronização: mesmo registro em duas chaves não some ao limpar duplicados', () => {
+  const start = core.indexOf('function _criarSincroniaPorChave(nome, lista, prefixoId){');
+  const end = core.indexOf('\n}\n', start) + 3;
+  const storage = new Map();
   const context = {
-    Math, Number, Date, String, Array, Boolean,
-    CONTAS_PAGAR: [payable],
-    LANC_BANCO_DB: movements,
-    TICKETS_DB: tickets,
-    _syncLancBanco: { remover(index) { movements.splice(index, 1); } },
-    window: { _fbRawDB: { ref: (path) => ({ remove: () => { removedCloud.push(path); return Promise.resolve(); } }) } },
-    saveBancos() {}, renderBancos() {}, saveContasPagar() {}, saveDB() {}, renderContasPagar() {}, renderTickets() {}, renderFluxo() {}, renderDashboard() {}, registrarHistorico() {},
-    console,
+    localStorage: { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, String(v)), removeItem: (k) => storage.delete(k) },
+    window: {}, console, JSON, Set, Map, Object, Array, String, Number, Math, Date, Boolean,
+    _idsDeArrayOuObjeto: (v) => (Array.isArray(v) ? v : v && typeof v === 'object' ? Object.keys(v) : []),
   };
-  runInNewContext(
-    slice('function _bancoRemoverMovimento(movId){', 'function excluirPagamentoCP(id,pIdx){') +
-      slice('function _bancoMovimentoDoServidor(mov){', 'function _bloquearEdicaoMovimentoAdiantamento(movement){') +
-      ';this.undo=_cpExcluirPagamento;',
-    context,
-  );
-  return { context, removedCloud };
-}
+  runInNewContext(core.slice(start, end) + ';this.make=_criarSincroniaPorChave;', context);
+  const lista = [];
+  const sync = context.make('fornecedores', lista, 'FR');
+  sync.carregarDeRemoto({ f1: { cod: 'F1', nome: 'JOAO' }, FRX1: null }, true);
+  const id = lista[0].id;
+  sync.carregarDeRemoto({ f1: { cod: 'F1', nome: 'JOAO' }, [id]: { cod: 'F1', nome: 'JOAO', id } }, true);
+  assert.equal(lista.length, 2);
+  assert.equal(sync.limparDuplicatasExatas(), true);
+  assert.equal(lista.length, 1);
+  assert.equal(sync.deletedSet.has(id), false);
+  sync.carregarDeRemoto({ f1: { cod: 'F1', nome: 'JOAO' }, [id]: { cod: 'F1', nome: 'JOAO', id } }, true);
+  assert.ok(lista.length >= 1, 'o fornecedor continua na lista depois de recarregar');
 
-test('excluir pagamento de conta já paga deixa em aberto só o valor do pagamento excluído', () => {
-  const payable = {
-    id: 'CP1', ticket: 'T1', status: 'Pago', valor: 700, valorPago: 1000, dataPgto: '05/11/2026', movBancoIdCP: 'LB-PG-2-b',
-    pagamentos: [
-      { data: '20/10/2026', valor: 300, adt: 0, movBancoId: 'LB-PG-1-a' },
-      { data: '05/11/2026', valor: 700, adt: 0, movBancoId: 'LB-PG-2-b' },
-    ],
-  };
-  const movements = [
-    { id: 'LB-PG-1-a', valor: 300, payableId: 'CP1' },
-    { id: 'LB-PG-2-b', valor: 700, payableId: 'CP1' },
-  ];
-  const tickets = { T1: { saldoPagar: 0, status: 'Pago' } };
-  const { context, removedCloud } = undoContext({ payable, movements, tickets });
-  assert.equal(context.undo(payable, 0), '');
-  assert.equal(payable.status, 'Pendente');
-  assert.equal(payable.valor, 300);
-  assert.equal(payable.valorPago, 700);
-  assert.equal(payable.pagamentos.length, 1);
-  assert.equal(payable.movBancoIdCP, 'LB-PG-2-b');
-  assert.deepEqual(movements.map((m) => m.id), ['LB-PG-2-b']);
-  assert.deepEqual(removedCloud, ['erp/lancBanco/LB-PG-1-a']);
-  assert.equal(tickets.T1.saldoPagar, 300);
-  assert.equal(tickets.T1.status, 'Parcial');
-});
-
-test('excluir pagamento parcial soma o valor de volta ao saldo; pagamento com adiantamento é recusado', () => {
-  const payable = {
-    id: 'CP2', status: 'Pendente', valor: 600, valorPago: 400,
-    pagamentos: [{ data: '12/11/2026', valor: 400, adt: 0 }, { data: '13/11/2026', valor: 0, adt: 100 }],
-  };
-  const { context } = undoContext({ payable, movements: [] });
-  assert.match(context.undo(payable, 1), /adiantamento/);
-  assert.equal(context.undo(payable, 0), '');
-  assert.equal(payable.valor, 1000);
-  assert.equal(payable.valorPago, 0);
-  assert.match(context.undo(payable, 5), /não encontrado/);
+  const outra = [];
+  const vendas = context.make('vendas', outra, 'VD');
+  vendas.carregarDeRemoto({ A: { id: 'A', v: 1 }, B: { id: 'B', v: 1 } }, true);
+  vendas.limparDuplicatasExatas();
+  assert.equal(outra.length, 1);
+  assert.equal(vendas.deletedSet.has('B'), true, 'duplicata com outro id continua sendo marcada como excluída');
 });

@@ -31,14 +31,13 @@ O cálculo é feito em uma passada só, e não mais 48 passadas por ano.
   - antes, editar ou excluir esse lançamento só mudava a tela: ele voltava ao recarregar, e a conta continuava paga;
   - para desfazer, use o Histórico de pagamentos da conta.
 - **Histórico de pagamentos (🕒):**
-  - cada pagamento tem o botão "Excluir";
-  - a conta volta a ficar devida, a saída sai do extrato e o saldo do ticket é corrigido;
-  - excluir pela Ficha do fornecedor usa a mesma rotina.
-- **Correção no "excluir pagamento":**
-  - numa conta já quitada, ao excluir um dos pagamentos, ela voltava com o valor errado;
-  - por exemplo, com pagamentos de 300 e de 700, excluir o de 300 deixava 700 em aberto;
-  - agora fica em aberto só o valor do pagamento excluído.
-- **Pagamento excluído no Firebase:** a saída de um pagamento feito pelo servidor (`LB-PG-…`) agora também é apagada no Firebase. Antes, ela voltava ao recarregar.
+  - cada pagamento tem o botão "Excluir", e excluir pela Ficha do fornecedor usa a mesma rotina;
+  - a exclusão é feita **no servidor** (`reversePayablePayment`, no mesmo endpoint do pagamento, com `action: 'reverse'`);
+  - numa única gravação: a conta volta a ficar devida, a saída sai do extrato (com marca de exclusão para as outras telas), o saldo do ticket é corrigido e as telas abertas são avisadas;
+  - antes (11/11, primeira versão), a exclusão era feita na tela e, nas contas de compra (`CPPO_…`), não era gravada: o pagamento voltava depois do F5;
+  - numa conta já quitada com pagamentos de 300 e de 700, excluir o de 300 deixa em aberto só os 300;
+  - a operação é recusada se a conta mudou em outra tela, se o pagamento não confere, se usou adiantamento ou se o usuário não tem acesso a Contas a Pagar;
+  - repetir a mesma operação não desfaz duas vezes.
 - **Saldo depois de pagar uma conta:**
   - o saldo do banco atualiza na hora;
   - antes, só atualizava ao recarregar o ERP;
@@ -51,6 +50,42 @@ O cálculo é feito em uma passada só, e não mais 48 passadas por ano.
   - uma conta já recebida não é recebida de novo.
 - **Adiantamento de cliente já usado em venda** não pode ser excluído. Primeiro exclua ou edite a venda.
 - **Descrições de lançamentos** com caracteres especiais (`&`, `<`) são gravadas como digitadas, e não mais como código HTML.
+
+## Dados que só o servidor grava
+
+A sincronização da tela antiga **não grava** alguns dados, porque eles pertencem ao servidor:
+- todos os adiantamentos;
+- tickets de compra confirmados (`_purchaseOperationId`);
+- contas de compra (`CPPO_…`) e contas ligadas a esses tickets;
+- saídas de pagamento (`LB-PG-…`) e de adiantamento.
+
+Qualquer botão que mude esses dados só na tela parece funcionar, mas volta ao recarregar. Foram corrigidos:
+
+| Onde | Antes | Agora |
+|---|---|---|
+| Contas a Pagar → 🕒 → Excluir pagamento | Voltava depois do F5 nas contas de compra | Feito no servidor |
+| Contas a Pagar → Editar conta de compra | Mudava só na tela | Avisa para usar Editar no Histórico de compras |
+| Ficha do fornecedor → ➕ Lançar adiantamento | Criava só na tela, e o banco também não gravava | Abre o formulário oficial de adiantamento, já com o fornecedor |
+| Ficha do fornecedor → Saldo inicial "ele te deve" | Criava adiantamento só na tela | Abre o formulário oficial de adiantamento com o valor |
+| Ficha do fornecedor → Editar ou excluir adiantamento | Mudava só na tela | Usa a edição e a exclusão do servidor |
+| Ficha do fornecedor → Editar compra confirmada | Mudava só na tela | Abre a edição do pedido |
+| Ficha do fornecedor → Excluir compra confirmada | Apagava só o ticket e deixava a conta de compra no servidor | Usa a exclusão segura do pedido, que confere pagamentos e devolve adiantamentos |
+| Impureza em compra confirmada | Mudava só na tela | Avisa para usar Editar no Histórico de compras |
+| Formulário de adiantamento aberto pela Ficha | Ficava atrás da janela da Ficha | A Ficha se esconde e volta ao fechar |
+
+Também foi removido código sem uso: "marcar compra paga" (sem botão) e `_aplicarAdiantamentosCP` (sem chamadas).
+
+## Sincronização: fornecedor (ou outro registro) sumindo
+
+- **O que acontecia:** quando o mesmo registro estava gravado em duas chaves no Firebase (uma antiga sem `id` e outra nova), a limpeza de duplicados marcava o `id` como excluído. Como os dois têm o mesmo `id`, **os dois sumiam** da tela, e a marca de exclusão podia ir para as outras telas.
+- **Agora:** a cópia é retirada da lista sem marcar o `id` que continua em uso.
+- Vale para todas as listas sincronizadas (fornecedores, vendas, contas a receber, lançamentos etc.).
+- Teste: `test/cash-flow.test.js`.
+
+## Inicialização
+
+- Ao restaurar a sessão depois do F5, a falta da lista de telas do usuário quebrava a abertura (`cu.tabs[0]`).
+- Agora abre o Início.
 
 ## Conciliação
 
@@ -79,11 +114,13 @@ O cálculo é feito em uma passada só, e não mais 48 passadas por ano.
 ## Testes
 
 - Testes automáticos:
-  - `test/cash-flow-and-payment-undo.test.js`: fluxo e exclusão de pagamento;
+  - `test/cash-flow.test.js`: fluxo e limpeza de duplicados;
+  - `test/payable-payment-reversal.test.js`: exclusão de pagamento pelo servidor, com o SDK real do Firebase sobre o banco simulado;
   - `test/bank-refresh.test.js`: lançamento automático protegido;
   - `test/bank-reconciliation.test.js`: OFX;
   - `test/reconciliation-advanced.test.js`: aviso às outras telas.
-- Teste de tela: 36 verificações com as funções reais do servidor (conciliação e pagamento), sobre o banco simulado:
+- Teste de tela de Contas a Pagar: 15 verificações, com compra criada pelo servidor, pagamento parcial, exclusão no 🕒, **F5** e adiantamento pela Ficha.
+- Teste de tela de Bancos: 38 verificações com as funções reais do servidor (conciliação, pagamento e exclusão), sobre o banco simulado, terminando com **F5**:
   - saldos;
   - extrato paginado;
   - lançar, editar e excluir;
