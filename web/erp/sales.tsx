@@ -4,10 +4,16 @@ import type { Root } from 'react-dom/client';
 import { todayISO } from '../shared/domain/dates.js';
 import { ORDER_PRINT_CSS, openPrintWindow, orderDocumentHtml } from '../shared/print/order-print.js';
 import type { OrderCompany } from '../shared/print/order-print.js';
-import type { BankOption, SaleCommit } from '../modules/sales/domain/sale-order.js';
+import type { BankOption, SaleOrder } from '../../server/modules/sales/domain/sale-order.js';
+import { messageOf } from '../shared/domain/errors.js';
+
+interface SaleReply {
+  sale?: { id?: unknown; nf?: unknown; total?: unknown };
+  receivables?: unknown[];
+}
 import { saleDocument } from '../modules/sales/domain/sale-document.js';
-import { isRaw } from '../modules/sales/domain/sales.js';
-import type { Raw, SalesData } from '../modules/sales/domain/sales.js';
+import { isRaw } from '../../server/modules/sales/domain/sales.js';
+import type { Raw, SalesData } from '../../server/modules/sales/domain/sales.js';
 import { SalesWorkspace } from '../modules/sales/ui/SalesWorkspace.js';
 import type { SalesCommand, SalesController } from '../modules/sales/ui/SalesWorkspace.js';
 import type { ClientOption, SalesPort } from '../modules/sales/ui/ports.js';
@@ -31,11 +37,11 @@ interface SalesBridge {
   loadBanks(): Promise<unknown>;
   priceOf(client: string, material: string): number;
   stockOf(material: string, saleId: string): number | null;
-  commit(commit: SaleCommit): unknown;
-  remove(saleId: string): boolean;
-  markPaid(saleId: string): void;
-  reopen(saleId: string): void;
-  archiveWeighing(ticket: string): boolean;
+  save(order: SaleOrder, expectedUpdate?: number): Promise<SaleReply>;
+  remove(saleId: string): Promise<boolean>;
+  markPaid(saleId: string): Promise<boolean>;
+  reopen(saleId: string): Promise<boolean>;
+  archiveWeighing(ticket: string): Promise<unknown>;
   client(name: string): Raw | null;
   company(): Omit<OrderCompany, 'logo'>;
 }
@@ -139,8 +145,16 @@ export function installSales(): void {
         const value = source.stockOf(material, saleId);
         return value == null || !Number.isFinite(Number(value)) ? null : Number(value);
       },
-      save: (commit) => {
-        source.commit(commit);
+      save: async (order, expectedUpdate) => {
+        const reply = await source.save(order, expectedUpdate);
+        return {
+          sale: {
+            id: String(reply.sale?.id ?? ''),
+            nf: String(reply.sale?.nf ?? ''),
+            total: Number(reply.sale?.total ?? 0),
+          },
+          receivables: Array.isArray(reply.receivables) ? reply.receivables.length : 0,
+        };
       },
       remove: (saleId) => source.remove(saleId),
       markPaid: (saleId) => source.markPaid(saleId),
@@ -172,14 +186,22 @@ export function installSales(): void {
           notify('O navegador bloqueou a janela de impressão. Libere pop-ups para este site.', 'error');
       },
       printRomaneio: (ticket) => legacy().rodImprimirRomaneio?.(ticket),
-      archiveWeighing: (ticket) => {
+      archiveWeighing: async (ticket) => {
         if (
           !window.confirm(
             'Tirar esta pesagem da fila? Use quando a venda dela já foi lançada de outro jeito.',
           )
         )
           return;
-        if (source.archiveWeighing(ticket)) notify('Pesagem tirada da fila de vendas.', 'info');
+        try {
+          await source.archiveWeighing(ticket);
+          notify('Pesagem tirada da fila de vendas.', 'info');
+        } catch (error) {
+          notify(
+            'Não foi possível tirar a pesagem da fila: ' + messageOf(error, 'erro desconhecido'),
+            'error',
+          );
+        }
       },
       notify,
       confirm: (message) => window.confirm(message),

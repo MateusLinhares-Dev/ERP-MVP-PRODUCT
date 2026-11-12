@@ -33,14 +33,23 @@ Tela React em `web/modules/sales/`, montada na aba **Vendas** por `web/erp/sales
 
 Usa a regra antiga (`excluirVenda`): devolve adiantamentos e cheques ao cliente, apaga as contas a receber da venda e, agora, devolve a pesagem para "Pesagens a fechar".
 
-## Gravação
+## Gravação (servidor)
 
-A ilha monta um comando completo (`buildCommit` em `domain/sale-order.ts`):
+Tudo passa por `POST /api/finance/sales` (`server/modules/sales`), com permissão `canSales`:
 
-- venda (`erp/vendas/<id>`), contas a receber novas/alteradas/removidas;
-- abatimentos usados, movimentos de banco e pesagens ligadas/desligadas.
+| Ação | O que faz |
+|---|---|
+| `save` | Recebe o **pedido** (cliente, itens, parcelas, abatimentos escolhidos, pesagens). O servidor relê do banco o que já foi recebido, os adiantamentos e cheques do cliente, as contas bancárias e as pesagens; valida com a mesma regra da tela (`server/modules/sales/domain`) e grava numa operação só: venda, contas a receber (novas, alteradas e removidas), adiantamentos/cheques usados, lançamentos de banco (`LB-VD-…`, ligados à conta a receber por `movBancoId`) e o vínculo com a pesagem. Número `V0001`… vem de `salesNumberSeq`. |
+| `delete` | Devolve adiantamentos e cheques, apaga as contas a receber e os lançamentos de banco que a venda criou e solta a pesagem. |
+| `mark-paid` / `reopen` | Baixa ou reabre as parcelas (não mexe em adiantamento/cheque). Reabrir desfaz o lançamento de banco ligado. |
+| `archive-weighing` | "✓ Já lançada": tira a pesagem da fila. |
 
-O `app-core.js` só aplica esse comando (`window.erpSalesBridge.commit`) e grava pela sincronização do navegador, como antes. O próximo passo da migração é executar esse mesmo comando numa API no servidor.
+- **Trava:** cada operação segura a venda e o cliente (`erpSalesLocks`) por até 2 minutos; uma segunda tela recebe "Outra operação desta venda ou deste cliente está em andamento".
+- **Conflito:** editar uma venda que mudou em outra tela (`atualizadoEm` diferente) é recusado.
+- **Repetição:** cada chamada leva um `operationId`; repetir a mesma devolve o resultado guardado (`salesOperations`), sem gravar de novo.
+- **Exclusões** gravam `vendasDeletedV2`, `contasReceberDeletedV2` e `lancBancoDeletedV2`, para uma tela aberta não trazer de volta o que foi apagado.
+- **Regras do Firebase:** `vendas`, `vendasDeleted` e `vendasDeletedV2` só pelo servidor; `contasReceber` ganhou índice por `vendaId` e `cli`. A sincronização do navegador não grava mais vendas e ignora os lançamentos `LB-VD-`.
+- O vínculo com a pesagem agora funciona também para quem tem Vendas e não tem Compras (antes o navegador não tinha permissão de gravar na pesagem).
 
 ## Impressão
 

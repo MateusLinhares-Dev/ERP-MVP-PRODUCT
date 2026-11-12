@@ -4,13 +4,12 @@ import {
   addWeighing,
   balanceInstallments,
   blankOrder,
-  buildCommit,
   orderFromSale,
   priceItems,
   stockIssues,
   validateOrder,
-} from '../domain/sale-order.js';
-import type { SaleOrder } from '../domain/sale-order.js';
+} from '../../../../server/modules/sales/domain/sale-order.js';
+import type { SaleOrder } from '../../../../server/modules/sales/domain/sale-order.js';
 import {
   EMPTY_FILTER,
   clientCredits,
@@ -18,8 +17,8 @@ import {
   saleRows,
   salesKpis,
   splitWeighings,
-} from '../domain/sales.js';
-import type { HistoryFilter, SalesData } from '../domain/sales.js';
+} from '../../../../server/modules/sales/domain/sales.js';
+import type { HistoryFilter, SalesData } from '../../../../server/modules/sales/domain/sales.js';
 import { PendingWeighings } from './PendingWeighings.js';
 import { SaleHistory } from './SaleHistory.js';
 import { SaleOrderForm } from './SaleOrderForm.js';
@@ -45,12 +44,6 @@ interface SalesWorkspaceProps {
 
 const money = (value: number): string => 'R$ ' + formatAmount(value);
 const plural = (count: number, word: string): string => `${count} ${word}${count === 1 ? '' : 's'}`;
-
-let saleSequence = 0;
-const newId = (prefix: string): string =>
-  prefix === 'VD-'
-    ? `VD-${Date.now()}${++saleSequence % 10}`
-    : `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
 export function SalesWorkspace({ data, port, controller }: SalesWorkspaceProps) {
   const today = port.today();
@@ -158,7 +151,7 @@ export function SalesWorkspace({ data, port, controller }: SalesWorkspaceProps) 
     setTab(queue.recent.length ? 'pesagens' : 'historico');
   };
 
-  const save = () => {
+  const save = async () => {
     if (!order || saving) return;
     const message = validateOrder(order, credits);
     if (message) {
@@ -195,29 +188,23 @@ export function SalesWorkspace({ data, port, controller }: SalesWorkspaceProps) 
       return;
     setSaving(true);
     try {
-      const commit = buildCommit(order, {
-        data: dataRef.current,
-        credits,
-        banks: port.banks,
-        today: port.today(),
-        now: Date.now(),
-        user: port.user,
-        newId,
-      });
-      port.save(commit);
-      const id = String(commit.sale.id);
+      const previous = order.saleId
+        ? dataRef.current.sales.find((sale) => String(sale.id ?? '') === order.saleId)
+        : undefined;
+      const reply = await port.save(
+        order,
+        previous?.atualizadoEm != null ? Number(previous.atualizadoEm) : undefined,
+      );
       dirty.current = false;
       setOrder(null);
-      setHighlight(id);
+      setHighlight(reply.sale.id);
       setFilter(EMPTY_FILTER);
       setTab('historico');
       port.notify(
-        (order.saleId ? 'Venda atualizada. ' : 'Venda salva. ') +
+        (order.saleId ? 'Venda atualizada. ' : `Venda ${reply.sale.nf || ''} salva. `) +
           'Total ' +
-          money(Number(commit.sale.total)) +
-          (commit.upsertReceivables.length
-            ? ` · ${plural(commit.upsertReceivables.length, 'lançamento')} em Contas a Receber.`
-            : '.'),
+          money(reply.sale.total) +
+          (reply.receivables ? ` · ${plural(reply.receivables, 'lançamento')} em Contas a Receber.` : '.'),
         'success',
       );
     } catch (failure) {
@@ -234,7 +221,7 @@ export function SalesWorkspace({ data, port, controller }: SalesWorkspaceProps) 
       port.notify('Feche o pedido aberto antes de excluir esta venda.', 'error');
       return;
     }
-    port.remove(saleId);
+    void port.remove(saleId);
   };
 
   const tabButton = (id: SalesTab, label: string) => (
@@ -310,7 +297,7 @@ export function SalesWorkspace({ data, port, controller }: SalesWorkspaceProps) 
           canOperate={port.canOperate}
           onOpen={openWeighing}
           onRomaneio={port.printRomaneio}
-          onArchive={port.archiveWeighing}
+          onArchive={(key) => void port.archiveWeighing(key)}
         />
       </div>
       <div hidden={tab !== 'lancamento'} id="vendas-lancamento">

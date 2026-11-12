@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCondition, splitPlan } from '../web/modules/sales/domain/installments.ts';
+import { parseCondition, splitPlan } from '../server/modules/sales/domain/installments.ts';
 import {
   clientCredits,
   filterSales,
@@ -10,7 +10,7 @@ import {
   salesKpis,
   EMPTY_FILTER,
   splitWeighings,
-} from '../web/modules/sales/domain/sales.ts';
+} from '../server/modules/sales/domain/sales.ts';
 import {
   addInstallment,
   addWeighing,
@@ -26,7 +26,7 @@ import {
   removeWeighing,
   stockIssues,
   validateOrder,
-} from '../web/modules/sales/domain/sale-order.ts';
+} from '../server/modules/sales/domain/sale-order.ts';
 
 const TODAY = '2026-11-12';
 let counter = 0;

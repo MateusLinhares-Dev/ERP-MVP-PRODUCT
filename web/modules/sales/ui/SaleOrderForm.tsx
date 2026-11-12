@@ -17,10 +17,14 @@ import {
   priceItems,
   removeWeighing,
   stockIssues,
-} from '../domain/sale-order.js';
-import type { OrderInstallment, OrderItem, SaleOrder } from '../domain/sale-order.js';
-import { pendingWeighings } from '../domain/sales.js';
-import type { ClientCredit, SalesData } from '../domain/sales.js';
+} from '../../../../server/modules/sales/domain/sale-order.js';
+import type {
+  OrderInstallment,
+  OrderItem,
+  SaleOrder,
+} from '../../../../server/modules/sales/domain/sale-order.js';
+import { pendingWeighings } from '../../../../server/modules/sales/domain/sales.js';
+import type { ClientCredit, SalesData } from '../../../../server/modules/sales/domain/sales.js';
 import type { SalesPort } from './ports.js';
 
 interface SaleOrderFormProps {

@@ -1,6 +1,6 @@
 import { daysBetween, toISODate } from '../../../shared/domain/dates.js';
 import { fromCents, toCents } from '../../../shared/domain/money.js';
-import { foldAccents } from '../../../shared/domain/text.js';
+import { foldAccents } from '../../../shared/domain/fold.js';
 
 export type Raw = Record<string, unknown>;
 

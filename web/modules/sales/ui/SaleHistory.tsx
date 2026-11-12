@@ -3,8 +3,8 @@ import { toBRDate } from '../../../shared/domain/dates.js';
 import { formatAmount, formatQuantity } from '../../../shared/domain/money.js';
 import { escapeHtml } from '../../../shared/print/order-print.js';
 import { Pager, pageOf } from '../../../shared/ui/Pager.js';
-import { EMPTY_FILTER, filterSales, summarize } from '../domain/sales.js';
-import type { HistoryFilter, SaleRow, StatusFilter } from '../domain/sales.js';
+import { EMPTY_FILTER, filterSales, summarize } from '../../../../server/modules/sales/domain/sales.js';
+import type { HistoryFilter, SaleRow, StatusFilter } from '../../../../server/modules/sales/domain/sales.js';
 import type { SalesPort } from './ports.js';
 
 interface SaleHistoryProps {
@@ -233,7 +233,7 @@ export function SaleHistory({ rows, filter, onFilter, highlight, port, onEdit, o
                           type="button"
                           className="erp-sale-reopen"
                           title="Reabrir (voltar a pendente)"
-                          onClick={() => port.reopen(row.id)}
+                          onClick={() => void port.reopen(row.id)}
                         >
                           ↩ Reabrir
                         </button>
@@ -242,7 +242,7 @@ export function SaleHistory({ rows, filter, onFilter, highlight, port, onEdit, o
                           type="button"
                           className="erp-sale-paid"
                           title="Marcar como recebida"
-                          onClick={() => port.markPaid(row.id)}
+                          onClick={() => void port.markPaid(row.id)}
                         >
                           ✔ Pago
                         </button>

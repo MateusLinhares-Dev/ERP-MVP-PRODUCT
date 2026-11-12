@@ -1,8 +1,16 @@
 import { daysBetween, toBRDate, toISODate } from '../../../shared/domain/dates.js';
 import { formatAmount, formatQuantity } from '../../../shared/domain/money.js';
 import type { OrderCompany, OrderDocument } from '../../../shared/print/order-print.js';
-import { RECEIVED, amount, isRaw, itemQuantity, receivablesOf, saleRow, text } from './sales.js';
-import type { Raw, SalesData } from './sales.js';
+import {
+  RECEIVED,
+  amount,
+  isRaw,
+  itemQuantity,
+  receivablesOf,
+  saleRow,
+  text,
+} from '../../../../server/modules/sales/domain/sales.js';
+import type { Raw, SalesData } from '../../../../server/modules/sales/domain/sales.js';
 
 export function clientLines(client: Raw | null): string[] {
   if (!client) return [];

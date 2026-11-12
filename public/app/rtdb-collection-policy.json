@@ -449,10 +449,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canSales"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "valesDeleted": {
@@ -941,10 +939,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canSales"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "vales": {

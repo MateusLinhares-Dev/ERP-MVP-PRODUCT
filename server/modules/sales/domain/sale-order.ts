@@ -1,7 +1,7 @@
 import { parseDecimal, toFieldText } from '../../../shared/domain/decimal.js';
 import { isISODate, toBRDate, toISODate } from '../../../shared/domain/dates.js';
 import { formatAmount, fromCents, toCents } from '../../../shared/domain/money.js';
-import { nameKey } from '../../../shared/domain/text.js';
+import { nameKey } from '../../../shared/domain/fold.js';
 import { MAX_INSTALLMENTS, parseCondition, planSize, splitPlan } from './installments.js';
 import { RECEIVED, amount, isRaw, planCredits, receivablesOf, text, weighingItems } from './sales.js';
 import type { ClientCredit, CreditUse, Raw, SalesData } from './sales.js';
