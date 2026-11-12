@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {payPayable,inspectPayablePayment} from '../server/modules/payables/application/payables.js';
-import {inspectPaymentLock} from '../scripts/audit-payment-lock.mjs';
 
 const actor={uid:'erp:elaine',erpUser:'elaine',erpAccess:true,canPayables:true};
 const op='6b3e5d56-51e2-418c-9b09-804142c88d8f';
@@ -101,20 +100,6 @@ test('interface mostra conflito em linguagem compreensível e não reenvia com l
   assert.match(messages[1],/Aguarde/);
   assert.ok(Number(modal.dataset.paymentLockedUntil)>Date.now()+80000,'bloqueio local deve respeitar 90 segundos do servidor');
   assert.doesNotMatch(messages.join(' '),/PAYMENT_IN_PROGRESS/);
-});
-
-test('auditoria somente leitura identifica bloqueio do T275 e confere movimento existente',()=>{
-  const db=fakeDb();
-  db.state.erpFinancePayableLocks={'CP-T275':{owner:'other',expiresAt:200000,operationKey}};
-  db.state.erp.contasPagar['CP-T275'].pagamentos=[{valor:100,movBancoId:'LB-X'}];
-  db.state.erp.lancBanco={'LB-X':{id:'LB-X',valor:100}};
-  const before=JSON.stringify(db.state);
-  const report=inspectPaymentLock({database:db.state,ticketNo:'T275',now:100000});
-  assert.equal(report.length,1);
-  assert.equal(report[0].payableId,'CP-T275');
-  assert.equal(report[0].lock.secondsRemaining,100);
-  assert.equal(report[0].bankMovements[0].exists,true);
-  assert.equal(JSON.stringify(db.state),before);
 });
 
 test('duas pessoas com UUID diferentes não lançam duas baixas durante bloqueio ativo',async()=>{

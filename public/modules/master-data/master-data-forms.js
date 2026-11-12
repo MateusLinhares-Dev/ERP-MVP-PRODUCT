@@ -3,7 +3,6 @@
 
 const legacy={
   openModal:global.om,
-  editClient:global.editCliente,
   editEmployee:global.editFuncionario,
   saveNewEmployee:global.salvarNovoFuncionario,
   saveEmployee:global.salvarEditFuncionario
@@ -31,41 +30,10 @@ function section(title,subtitle,content){return '<section class="phase4-master-s
 function top(title,subtitle,saveCall,extra=''){
   return '<div class="phase4-master-head"><div><h2>'+title+'</h2><p>'+subtitle+'</p></div><div class="phase4-master-actions">'+extra+'<button type="button" class="phase4-master-outline" onclick="cm()">Cancelar</button><button type="button" class="phase4-master-save" onclick="'+saveCall+'">Salvar</button></div></div>';
 }
-function personOptions(value){return select('unused-person',[{value:'PJ',label:'Pessoa Jurídica'},{value:'PF',label:'Pessoa Física'}],value);}
-function clientByIndex(index){try{return CLIENTES?.[Number(index)]||null;}catch(e){return null;}}
 function employeeByMat(mat){try{return (FUNCIONARIOS||[]).find(f=>String(f.mat||'')===String(mat||''))||null;}catch(e){return null;}}
 function employeeOptions(current){
   try{return _cfgEmployeeCompanyOptionsHtml(current||'');}catch(e){return '<option value="">— Selecione —</option>'+(current?'<option selected>'+esc(current)+'</option>':'');}
 }
-function normalizeCityUf(entity){
-  const combined=String(entity?.cidade||'');
-  const parts=combined.split('/');
-  return {city:String(entity?.cidadeNome||parts[0]||''),uf:String(entity?.uf||parts[1]||'')};
-}
-function bankButton(kind,key,name){
-  if(!key)return '<span class="phase4-master-bank-hint">Salve o cadastro para liberar múltiplas contas bancárias.</span>';
-  const jsArg=value=>esc(JSON.stringify(String(value||'')));
-  return '<button type="button" class="phase4-master-secondary" onclick="phase3OpenPartyBanks('+jsArg(kind)+','+jsArg(key)+','+jsArg(name)+')">🏦 Gerenciar contas bancárias</button>';
-}
-
-function clientForm(entity,index){
-  const c=entity||{};const editing=!!entity;const prefix=editing?'ec':'nc';const p=c.personType||((c.cnpj||'')?'PJ':'PF');const loc=normalizeCityUf(c);const save=editing?'salvarEditCliente()':'salvarNovoCliente()';
-  const extra='';
-  const identification=(editing?'<input type="hidden" id="ec-idx" value="'+Number(index)+'">':'')+
-    field('Nome / Razão Social *',input(prefix+'-nome',c.nome||'','class="mask-upper"'),'span-2')+
-    field('Nome fantasia',input(prefix+'-fantasia',c.fantasia||c.nomeFantasia||''))+
-    field('Código',input('phase4-master-code',editing?(c.cod||''):'Automático','readonly'))+
-    field('Tipo de pessoa',select(prefix+'-pessoa',[{value:'PJ',label:'Pessoa Jurídica'},{value:'PF',label:'Pessoa Física'}],p,'onchange="phase4MasterTogglePerson(\''+prefix+'\')"'))+
-    field('Cliente desde',input(prefix+'-desde',c.desde||c.dataCadastro||(editing?'':today()),'type="date"'))+
-    field('CPF',input(prefix+'-cpf',c.cpf||'','class="mask-cpf" placeholder="000.000.000-00"'))+
-    field('CNPJ',input(prefix+'-cnpj',c.cnpj||'','class="phase4-master-alnum-cnpj" placeholder="00.000.000/0001-00" inputmode="text" autocomplete="off" oninput="phase4MasterFormatCnpj(this)"'))+
-    field('Inscrição Estadual',input(prefix+'-ie',c.ie||''))+field('RG',input(prefix+'-rg',c.rg||''))+field('Órgão emissor',input(prefix+'-orgao',c.orgaoEmissor||''))+field('Contribuinte',select(prefix+'-contribuinte',['Não informado','Contribuinte ICMS','Isento','Não contribuinte'],c.contribuinte||'Não informado'));
-  const contact=field('Telefone',input(prefix+'-tel',c.tel||'','class="mask-tel"'))+field('WhatsApp',input(prefix+'-wpp',c.wpp||'','class="mask-tel"'))+field('E-mail',input(prefix+'-email',c.email||'','type="email"'),'span-2');
-  const address=field('CEP',input(prefix+'-cep',c.cep||''))+field('UF',input(prefix+'-uf',loc.uf,'maxlength="2" class="mask-upper"'))+field('Cidade',input(prefix+'-cidade-nome',loc.city),'span-2')+field('Rua / Logradouro',input(prefix+'-rua',c.rua||''),'span-2')+field('Número',input(prefix+'-num',c.num||''))+field('Complemento',input(prefix+'-compl',c.compl||''))+field('Bairro',input(prefix+'-bairro',c.bairro||''),'span-2')+'<input type="hidden" id="'+prefix+'-cidade" value="'+esc(c.cidade||'')+'">';
-  const finance=field('Limite de crédito R$',input(prefix+'-limite',c.limite?Number(c.limite).toLocaleString('pt-BR',{minimumFractionDigits:2}):'','inputmode="decimal" placeholder="0,00"'))+field('Chave PIX',input(prefix+'-pix',c.pix||''))+field('Banco principal',input(prefix+'-banco',c.banco||''))+field('Agência',input(prefix+'-agencia',c.agencia||''))+field('Conta',input(prefix+'-conta',c.conta||''))+'<div class="phase4-master-bank-action">'+bankButton('cliente',editing?(c.cod||('C'+String(Number(index)+1).padStart(3,'0'))):'',c.nome||'Cliente')+'</div>'+(editing?'<input type="hidden" id="ec-obs" value="'+esc(c.obs||'')+'">':'<input type="hidden" id="nc-obs" value="">')+field('Observações','<textarea id="'+prefix+'-nota" rows="3">'+esc(c.nota||'')+'</textarea>','span-2');
-  return top(editing?'Editar cliente':'Novo cliente','Cadastro comercial usado em vendas, preços, contas a receber e documentos.',save,extra)+section('Dados cadastrais','Identificação principal do cliente.',identification)+section('Contato','Canais comerciais e financeiros.',contact)+section('Endereço','Endereço principal do cliente.',address)+section('Financeiro','Crédito e contas bancárias do cliente.',finance)+'<div class="phase4-master-bottom"><button type="button" class="phase4-master-outline" onclick="cm()">Cancelar</button><button type="button" class="phase4-master-save" onclick="'+save+'">Salvar</button></div>';
-}
-
 function employeeForm(entity,index){
   const f=entity||{};const editing=!!entity;const prefix=editing?'efn':'nfu';const save=editing?'salvarEditFuncionario()':'salvarNovoFuncionario()';
   const statuses=['Ativo','Inativo','Férias','Afastado'];
@@ -155,20 +123,6 @@ function navigateToParty(kind){
   ensurePartyShell(kind);
   return true;
 }
-function inlinePartyForm(kind,entity,index){
-  if(!navigateToParty(kind))return;
-  const shell=ensurePartyShell(kind);
-  const body=shell?.querySelector('.phase4-master-inline-editor');
-  if(!body)return;
-  editingParty=kind;
-  const markup=clientForm(entity,index);
-  body.innerHTML=markup.replaceAll('onclick="cm()"','onclick="phase4MasterCancel()"');
-  updatePartyShell(kind,'form');
-  global.phase4MasterTogglePerson(entity?'ec':'nc');
-  body.querySelector('input:not([type=hidden])')?.focus({preventScroll:true});
-  shell.scrollIntoView({block:'start',behavior:'auto'});
-}
-function openClient(entity,index){inlinePartyForm('cliente',entity,index);}
 function openEmployee(entity,index){const body=modal();body.innerHTML=employeeForm(entity,index);if(entity){try{_efnLembretes=Array.isArray(entity.lembretes)?entity.lembretes.map(l=>({t:l.t||'',d:l.d||'',a:l.a!=null?l.a:5})):[];_efnRenderLembretes();}catch(e){}}}
 
 global.phase4MasterGo=function(tab){
@@ -183,9 +137,7 @@ global.phase4MasterShowList=function(kind){
   try{if(kind==='cliente'&&typeof renderClientes==='function')renderClientes();
     if(kind==='fornecedor'&&typeof renderTabelaFornecedores==='function')renderTabelaFornecedores();}catch(e){console.warn('[master-data] lista',e);}
 };
-global.phase4MasterCreate=function(kind){
-  if(kind==='cliente')openClient(null,null);
-};
+global.phase4MasterCreate=function(){};
 global.phase4MasterCancel=function(){
   if(editingParty)global.phase4MasterShowList(editingParty);
 };
@@ -195,83 +147,6 @@ function initPartyShells(){
 }
 document.addEventListener('erp:ready',initPartyShells);
 
-global.phase4MasterTogglePerson=function(prefix){
-  const type=val(prefix+'-pessoa');
-  const cpfInput=document.getElementById(prefix+'-cpf');
-  const cnpjInput=document.getElementById(prefix+'-cnpj');
-  if(type!=='PF'&&type!=='PJ')return;
-  for(const [element,inactive] of [[cpfInput,type==='PJ'],[cnpjInput,type==='PF']]){
-    if(!element)continue;
-    element.disabled=inactive;
-    element.setAttribute('aria-disabled',String(inactive));
-    element.closest('.phase4-master-field')?.classList.toggle('phase4-master-muted',inactive);
-  }
-};
-
-global.phase4MasterFormatCnpj=function(element){
-  if(!element)return;
-  const raw=String(element.value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,14);
-  const root=raw.slice(0,12),dv=raw.slice(12).replace(/\D/g,'').slice(0,2);
-  let formatted=root.slice(0,2);
-  if(root.length>2)formatted+='.'+root.slice(2,5);
-  if(root.length>5)formatted+='.'+root.slice(5,8);
-  if(root.length>8)formatted+='/'+root.slice(8,12);
-  if(dv)formatted+='-'+dv;
-  element.value=formatted;
-};
-function validCpf(value){
-  const digits=String(value||'').replace(/\D/g,'');
-  if(digits.length!==11||/^(\d)\1{10}$/.test(digits))return false;
-  for(let size=9;size<=10;size++){
-    let sum=0;
-    for(let i=0;i<size;i++)sum+=Number(digits[i])*(size+1-i);
-    const check=(sum*10)%11;
-    if((check===10?0:check)!==Number(digits[size]))return false;
-  }
-  return true;
-}
-function validCnpj(value){
-  const raw=String(value||'').toUpperCase().replace(/[.\/\-\s]/g,'');
-  if(!/^[0-9A-Z]{12}\d{2}$/.test(raw)||/^(.)\1{13}$/.test(raw))return false;
-  const checksum=(part,weights)=>{
-    const sum=weights.reduce((acc,weight,index)=>acc+(part.charCodeAt(index)-48)*weight,0);
-    const rem=sum%11;
-    return rem<2?0:11-rem;
-  };
-  const root=raw.slice(0,12);
-  const first=checksum(root,[5,4,3,2,9,8,7,6,5,4,3,2]);
-  const second=checksum(root+first,[6,5,4,3,2,9,8,7,6,5,4,3,2]);
-  return raw.slice(12)===String(first)+String(second);
-}
-function preparePersonDocument(prefix){
-  const person=document.getElementById(prefix+'-pessoa');
-  if(!person)return true;
-  const type=person.value;
-  if(type!=='PF'&&type!=='PJ')return false;
-  const active=document.getElementById(prefix+(type==='PF'?'-cpf':'-cnpj'));
-  const inactive=document.getElementById(prefix+(type==='PF'?'-cnpj':'-cpf'));
-  const docType=type==='PF'?'CPF':'CNPJ';
-  if(!active||!inactive)return false;
-  const data=String(active.value||'').trim();
-  if(data&&!(type==='PF'?validCpf(data):validCnpj(data))){
-    alert(docType+' inválido. Confira os dígitos antes de salvar.');
-    active.focus();
-    return false;
-  }
-  if(String(inactive.value||'').trim()){
-    const outdated=type==='PF'?'CNPJ':'CPF';
-    if(!confirm('Este cadastro contém '+outdated+' preenchido, mas está marcado como '+(type==='PF'?'Pessoa Física':'Pessoa Jurídica')+'. Ao salvar, o '+outdated+' será removido. Deseja continuar?'))return false;
-    inactive.value='';
-  }
-  return true;
-}
-
-function partyExtras(prefix){
-  const city=val(prefix+'-cidade-nome'),uf=val(prefix+'-uf').toUpperCase();
-  const combined=[city,uf].filter(Boolean).join('/');const hidden=document.getElementById(prefix+'-cidade');if(hidden)hidden.value=combined;
-  return {fantasia:val(prefix+'-fantasia'),nomeFantasia:val(prefix+'-fantasia'),personType:val(prefix+'-pessoa'),desde:val(prefix+'-desde'),dataCadastro:val(prefix+'-desde'),orgaoEmissor:val(prefix+'-orgao'),contribuinte:val(prefix+'-contribuinte'),uf,cidadeNome:city,cidade:combined};
-}
-function clientExtras(prefix){return Object.assign({},partyExtras(prefix),{limite:parseMoney(val(prefix+'-limite'))});}
 function employeeExtras(prefix){return {rg:val(prefix+'-rg'),pis:val(prefix+'-pis'),ctps:val(prefix+'-ctps'),email:val(prefix+'-email'),telefoneEmergencial:val(prefix+'-emergencia'),cep:val(prefix+'-cep'),uf:val(prefix+'-uf').toUpperCase(),cidade:val(prefix+'-cidade'),rua:val(prefix+'-rua'),num:val(prefix+'-num'),compl:val(prefix+'-compl'),bairro:val(prefix+'-bairro'),sal:parseMoney(val(prefix+'-sal')),valeTransporte:parseMoney(val(prefix+'-vt')),adicional:parseMoney(val(prefix+'-adicional')),abono:parseMoney(val(prefix+'-abono'))};}
 function persistEmployees(){
   try{localStorage.setItem('mm_funcionarios_edit',JSON.stringify(FUNCIONARIOS||[]));}catch(e){}
@@ -279,14 +154,6 @@ function persistEmployees(){
   try{renderTbFuncionarios();}catch(e){}
 }
 
-function saveClientForm(prefix){
-  if(!preparePersonDocument(prefix))return false;
-  const extras=Object.assign(clientExtras(prefix),{banco:val(prefix+'-banco'),agencia:val(prefix+'-agencia'),conta:val(prefix+'-conta'),pix:val(prefix+'-pix')});
-  if(typeof global._cliSalvarFormulario!=='function')return false;
-  return global._cliSalvarFormulario(prefix,extras).then(result=>{if(result)global.phase4MasterShowList('cliente');return result;});
-}
-global.salvarNovoCliente=function(){return saveClientForm('nc');};
-global.salvarEditCliente=function(){return saveClientForm('ec');};
 if(typeof legacy.saveNewEmployee==='function')global.salvarNovoFuncionario=function(){
   const extras=employeeExtras('nfu'),before=new Set((FUNCIONARIOS||[]).map(f=>f.mat));const result=legacy.saveNewEmployee.apply(this,arguments);const entity=(FUNCIONARIOS||[]).find(f=>!before.has(f.mat));if(entity){Object.assign(entity,extras);persistEmployees();}return result;
 };
@@ -294,14 +161,10 @@ if(typeof legacy.saveEmployee==='function')global.salvarEditFuncionario=function
   const idx=Number(document.getElementById('efn-idx')?.value),extras=employeeExtras('efn');const result=legacy.saveEmployee.apply(this,arguments);const entity=FUNCIONARIOS?.[idx];if(entity){Object.assign(entity,extras);persistEmployees();}return result;
 };
 
-function clientBankHidden(entity,prefix){return entity;}
-
 if(typeof legacy.openModal==='function')global.om=function(type){
-  if(type==='cliente'){openClient(null,null);return;}
   if(type==='funcionario'){openEmployee(null,null);return;}
   return legacy.openModal.apply(this,arguments);
 };
-global.editCliente=function(index){const entity=clientByIndex(index);if(entity)openClient(entity,index);else if(typeof legacy.editClient==='function')legacy.editClient.apply(this,arguments);};
 global.editFuncionario=function(mat){const idx=(FUNCIONARIOS||[]).findIndex(f=>String(f.mat||'')===String(mat||''));const entity=idx>=0?FUNCIONARIOS[idx]:null;if(entity)openEmployee(entity,idx);else if(typeof legacy.editEmployee==='function')legacy.editEmployee.apply(this,arguments);};
 
 global.__MASTER_DATA_FORMS_READY__=true;

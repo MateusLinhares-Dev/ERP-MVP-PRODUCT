@@ -1,10 +1,8 @@
 (function(global){
 'use strict';
-const original={renderClientes:global.renderClientes,openFicha:global.abrirFichaCli,renderFicha:global.fcRenderFicha};
+const original={openFicha:global.abrirFichaCli,renderFicha:global.fcRenderFicha};
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 try{global._matEfetivoEstoque=function(material){return String(material||'').trim();};}catch(e){}
-function addClientFichaButtons(){const body=document.getElementById('tb-clientes-list');if(!body)return;Array.from(body.rows).forEach(row=>{if(row.querySelector('.phase1-client-ficha'))return;const name=String(row.cells?.[1]?.textContent||'').trim();const cell=row.cells?.[row.cells.length-1];if(!name||!cell)return;cell.insertAdjacentHTML('afterbegin',`<button class="phase1-client-ficha" data-client="${esc(name)}" title="Abrir Ficha Financeira">📋 Ficha</button> `);cell.querySelector('.phase1-client-ficha').onclick=function(){if(typeof abrirFichaCli==='function')abrirFichaCli(this.dataset.client);};});}
-if(typeof original.renderClientes==='function')global.renderClientes=function(){const result=original.renderClientes.apply(this,arguments);setTimeout(addClientFichaButtons,0);return result;};
 function removeForbiddenFichaActions(){document.querySelectorAll('#tab-fin_clientes button,[id*="fc-"] button').forEach(button=>{const code=button.getAttribute('onclick')||'';if(/fcQuitarSaldo|fcSaldoAnteriorModal|fcJuntarAbrir/.test(code))button.remove();});}
 function ensureFichaTools(){const card=document.getElementById('fc-extrato-card');if(!card||document.getElementById('phase1-ficha-tools'))return;const title=card.querySelector('div');const bar=document.createElement('div');bar.id='phase1-ficha-tools';bar.className='phase1-ficha-tools';bar.innerHTML=`<label>De <input type="date" id="phase1-ficha-de"></label><label>Até <input type="date" id="phase1-ficha-ate"></label><button onclick="phase1FichaFiltrar()">🔎 Aplicar período</button><button onclick="phase1FichaPdf()">📄 PDF</button><button class="whatsapp" onclick="phase1FichaShare()">📱 WhatsApp</button>`;title.insertAdjacentElement('afterend',bar);}
 function parseDateText(value){const m=String(value||'').match(/(\d{2})\/(\d{2})\/(\d{4})/);return m?`${m[3]}-${m[2]}-${m[1]}`:'';}

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { formOf, supplierRows } from '../modules/suppliers/domain/suppliers.js';
-import { SupplierFormView } from '../modules/suppliers/ui/SupplierFormView.js';
+import { PartyFormView, SUPPLIER_KIND } from '../shared/ui/PartyFormView.js';
 import { SupplierList } from '../modules/suppliers/ui/SupplierList.js';
 
 interface SupplierReply {
@@ -152,7 +152,8 @@ export function installSuppliers(): void {
     if (!editor) return;
     render(
       editor,
-      <SupplierFormView
+      <PartyFormView
+        kind={SUPPLIER_KIND}
         key={code || 'novo-' + Date.now()}
         code={code}
         initial={formOf(entity, today())}

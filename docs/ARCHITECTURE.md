@@ -45,7 +45,7 @@ vite.config.ts            Build das telas React para dist/ (chamado por scripts/
 test/                     Testes (node:test, executados via tsx)
 ```
 
-Módulos: `access` (login, usuários, permissões), `audit`, `company` (empresas e configuração), `suppliers`, `purchases`, `advances`, `payables`, `supplier-repasses`, `banking`, `quick-entry`, `agenda`, `training`, `help`, `fiscal`, `snapshots`.
+Módulos: `access` (login, usuários, permissões), `audit`, `company` (empresas e configuração), `suppliers`, `customers`, `purchases`, `advances`, `payables`, `supplier-repasses`, `banking`, `quick-entry`, `agenda`, `training`, `help`, `fiscal`, `snapshots`.
 
 ## Regra de dependência
 
@@ -190,16 +190,19 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
   - **CSS das telas React:** o Vite gera `dist/web/erp-islands-<hash>.css` e o `build.mjs` grava a lista em `webIslandsStyles` no `bootstrap.js`, que carrega o CSS antes das ilhas. O `verify-deployment-artifacts.mjs` reprova o deploy sem esse arquivo.
   - As telas React usam os mesmos ids e classes, então o CSS e os testes de tela continuaram valendo.
   - **Cuidado ao migrar:** scripts antigos que rodam a cada mudança na tela (`apply()` do phase1/phase2/phase3) podem inserir ou remover elementos dentro do contêiner da ilha. O React quebra ("insertBefore") e a tela some. Antes de montar uma ilha, procure no `public/` quem mexe naquele contêiner (`removeByText`, `decorate...`, `tableSearch`) e tire o contêiner dessas rotinas.
-  - Clientes: cadastro gravado pelo servidor (`server/modules/customers`, `api/master-data/customers.ts`, detalhes em `docs/CLIENTES-API.md`). Trocar o nome leva o histórico junto. A tela ainda é a antiga, chamando a API.
+  - Clientes (`web/modules/customers/`, ligado em `web/erp/customers.tsx`): lista em `#clientes-app` e formulário no editor da casca de cadastros, gravando pela API `master-data/customers` (detalhes em `docs/CLIENTES-API.md`). Trocar o nome leva o histórico junto.
+  - **Cadastro de pessoa comum:** `web/shared/domain/party.ts` (campos, validação de CPF/CNPJ, envio) e `web/shared/ui/PartyFormView.tsx` (formulário) servem Fornecedores e Clientes; o cliente tem a mais o limite de crédito.
 - **Ordem das próximas migrações:**
-  1. Tela de Clientes em React, no mesmo molde de Fornecedores (tirar antes os injetores de botões em `tb-clientes-list`: `addBankButtons` do phase1-usability, `addClientFichaButtons` do phase1-commercial e `decoratePartyBanks` do phase3).
-  2. API de vendas: levar o comando de `erpSalesBridge.commit` para `server/modules/sales` (venda, contas a receber, abatimentos e pesagens numa transação) e travar `vendas` nas regras do Firebase.
-  3. Depois os blocos do `app-core.js`, começando pelos que já têm API no servidor (Contas a Pagar, Adiantamentos, Bancos).
+  1. API de vendas: levar o comando de `erpSalesBridge.commit` para `server/modules/sales` (venda, contas a receber, abatimentos e pesagens numa transação) e travar `vendas` nas regras do Firebase.
+  2. Depois os blocos do `app-core.js`, começando pelos que já têm API no servidor (Contas a Pagar, Adiantamentos, Bancos).
 - **Limpeza feita na etapa 5:**
   - scripts avulsos de incidentes já resolvidos (fornecedor de teste F675, ticket T284, adiantamento excluído);
   - migrações únicas já aplicadas (`migrate:auth`, `migrate:storage`);
   - `SHA256SUMS.txt` desatualizado e arquivos `:Zone.Identifier` do Windows;
-  - `bootstrap-admin.json`, que tinha o hash de senha da administradora e não era usado.
+  - `bootstrap-admin.json`, que tinha o hash de senha da administradora e não era usado;
+  - ferramentas de auditoria de incidentes (`audit-*.mjs`, `access-inventory.mjs`, `diagnose-emulator.mjs`), que liam cópias exportadas do banco para investigar casos já resolvidos;
+  - documentos de fases e incidentes encerrados (guias de homologação das fases 1–3, mapas de correção, notas de incidente e as entregas antigas da conciliação). As regras que ainda valem foram para `BANCOS-CONCILIACAO-FLUXO.md`; deploy, variáveis e Docker ficaram só em `DEPLOY.md`.
+- **Testes de texto do código antigo** (phase1/2/3, v30): saem junto com cada módulo quando ele vira React, como aconteceu com Vendas, Fornecedores e Clientes.
 
 Para migrar uma tela:
 

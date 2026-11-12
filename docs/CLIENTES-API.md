@@ -25,9 +25,9 @@ Precisa de `erpAccess` e `canCustomers`. Toda chamada leva um `operationId` (UUI
 
 ## Tela
 
-O ERP antigo chama a API por `window.erpCustomerRequest` (`_cliApi` no `app-core.js`) e aplica o resultado na memória (`_cliAplicarResultado`), inclusive a troca de nome nas vendas, contas a receber e ficha. Passam pela API:
+A lista e o formulário são React (`web/modules/customers/`, `web/erp/customers.tsx`). Tudo passa por `window.erpCustomerRequest` (`_cliApi` no `app-core.js`), que aplica o resultado na memória (`_cliAplicarResultado`), inclusive a troca de nome nas vendas, contas a receber e ficha. Passam pela API:
 
-- cadastro e edição (casca de cadastros);
+- cadastro, edição e exclusão (tela React);
 - novo cliente dentro de Contas a Receber e da Agenda;
 - exclusão, documentos e contas bancárias do cliente;
 - "Juntar clientes" da Ficha.

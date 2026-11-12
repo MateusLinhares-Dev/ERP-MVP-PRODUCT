@@ -124,6 +124,7 @@ async function _cliApi(payload){
   return result;
 }
 window.erpCustomerRequest=_cliApi;
+window.erpCustomersList=function(){ return CLIENTES; };
 
 let TICKETS_DELETED = new Set();
 
@@ -3948,31 +3949,6 @@ const FORMS={
       <datalist id="nfd-cat-list"><option>Aluguel</option><option>Energia</option><option>Água</option><option>Internet/Telefone</option><option>Frete</option><option>Combustível</option><option>Manutenção</option><option>Serviços Terceiros</option><option>Contabilidade</option><option>Seguro</option><option>Imposto / FGTS</option><option>Outros</option></datalist></div>
     <div class="fg"><label>Obs / Dados Bancários</label><textarea id="nfd-obs" rows="2" placeholder="Chave PIX, banco, conta..."></textarea></div>
     <div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarNovoFornecedorDespesa()">💾 Salvar</button></div>`,
-  cliente:`<h3>👥 Novo Cliente</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="fg" style="grid-column:1/-1"><label>Nome / Razão Social *</label><input id="nc-nome" placeholder="Nome completo" style="text-transform:uppercase"></div>
-      <div class="fg"><label>CPF</label><input id="nc-cpf" class="mask-cpf" placeholder="000.000.000-00"></div>
-      <div class="fg"><label>CNPJ</label><input id="nc-cnpj" class="mask-cnpj" placeholder="00.000.000/0001-00"></div>
-      <div class="fg"><label>RG</label><input id="nc-rg" placeholder="00.000.000-0"></div>
-      <div class="fg"><label>Inscrição Estadual (IE)</label><input id="nc-ie" placeholder="000.000.000.000"></div>
-      <div class="fg"><label>Telefone</label><input id="nc-tel" placeholder="(47) 9 9999-9999"></div>
-      <div class="fg"><label>WhatsApp</label><input id="nc-wpp" placeholder="(47) 9 9999-9999"></div>
-      <div class="fg" style="grid-column:1/-1"><label>E-mail</label><input id="nc-email" type="email" placeholder="email@empresa.com"></div>
-      <div class="fg"><label>Limite de Crédito R$</label><input id="nc-limite" type="number" min="0" step="0.01" placeholder="0,00"></div>
-    </div>
-    <div style="font-size:.78rem;font-weight:800;color:#6a0dad;margin:10px 0 6px">📍 ENDEREÇO</div>
-    <div style="display:grid;grid-template-columns:1fr 3fr;gap:10px">
-      <div class="fg"><label>CEP</label><input id="nc-cep" placeholder="00000-000"></div>
-      <div class="fg"><label>Rua / Logradouro</label><input id="nc-rua" placeholder="Rua, Av., Estrada..."></div>
-      <div class="fg"><label>Número</label><input id="nc-num" placeholder="123"></div>
-      <div class="fg"><label>Complemento</label><input id="nc-compl" placeholder="Apto, Sala, Galpão..."></div>
-      <div class="fg"><label>Bairro</label><input id="nc-bairro" placeholder="Centro"></div>
-      <div class="fg"><label>Cidade/UF</label><input id="nc-cidade" placeholder="Joinville/SC"></div>
-    </div>
-    <div style="font-size:.78rem;font-weight:800;color:#6a0dad;margin:10px 0 6px">🏦 DADOS BANCÁRIOS / PIX</div>
-    <div class="fg"><textarea id="nc-obs" rows="2" placeholder="Banco, agência, conta, chave PIX..."></textarea></div>
-    <div class="fg"><label>Observações</label><textarea id="nc-nota" rows="2" placeholder="Outras informações relevantes..."></textarea></div>
-    <div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarNovoCliente()">💾 Salvar</button></div>`,
   adiantamento_cli:`<h3>👤 Adiantamento de Cliente</h3>
     <div class="fg"><label>Cliente</label><select id="adtcli-cli"><option value="">— Selecione o cliente —</option></select></div>
     <div class="fg"><label>Data</label><input id="adtcli-data" type="date" value="${_hojeISO()}"></div>
@@ -12936,62 +12912,7 @@ async function compartilharImagemPrecosCli(){
   }
 }
 
-let _cliFiltroAtual='';
-
-function filtrarTabelaCli(val){
-  _cliFiltroAtual=(val!==undefined)?val:(document.getElementById('cli-busca-nome')?.value||'');
-  _erpReiniciarPagina('clientes');
-  renderClientes();
-}
-
-function renderClientes(){
-
-  try{ if(_syncClientes.limparDuplicatasExatas()){ try{fbSalvar();}catch(e){} } }catch(e){}
-  const tbody=document.getElementById('tb-clientes-list');
-  if(!tbody) return;
-  const v=(_cliFiltroAtual||'').toLowerCase().trim();
-  const lista=(v
-    ? CLIENTES.filter((c,i)=>((c.cod||'C'+String(i+1).padStart(3,'0'))+' '+(c.nome||'')+' '+(c.cidade||'')+' '+(c.cnpj||'')+' '+(c.cpf||'')).toLowerCase().includes(v))
-    : CLIENTES.slice()).sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{sensitivity:'base'}));
-  if(!lista.length){
-    _erpPaginarDados('clientes',[], 'tb-clientes-list',renderClientes);
-    tbody.innerHTML='<tr><td colspan="7" style="color:var(--gray);text-align:center;padding:20px">'+(v?'Nenhum cliente encontrado para "'+esc(v)+'"':'Nenhum cliente cadastrado ainda')+'</td></tr>';
-    return;
-  }
-  const _isEl=_usuarioPodeOperarModulo('clientes');
-  const pagina=_erpPaginarDados('clientes',lista,'tb-clientes-list',renderClientes);
-  tbody.innerHTML=pagina.map((c,i)=>{
-    const realIdx=CLIENTES.indexOf(c);
-    return '<tr>'+
-      '<td>'+(c.cod||'C'+String(realIdx+1).padStart(3,'0'))+'</td>'+
-      '<td><b>'+esc(c.nome)+'</b></td>'+
-      '<td>'+esc(c.cnpj||c.cpf||'—')+'</td>'+
-      '<td>'+esc(c.tel||'—')+'</td>'+
-      '<td>'+esc(c.email||'—')+'</td>'+
-      '<td>'+esc(c.cidade||'—')+'</td>'+
-      '<td style="white-space:nowrap">'+
-        '<button class="btn-edit" onclick="editCliente('+realIdx+')">✏️ Editar</button> '+
-        '<button class="btn-edit" onclick="cliDocsModal('+realIdx+')" title="Documentos" style="background:#0277bd;color:#fff">📄 Docs</button>'+
-        (_isEl?' <button class="btn-edit-danger" onclick="excluirCliente('+realIdx+')" title="Excluir cliente">🗑️</button>':'')+
-      '</td>'+
-    '</tr>';
-  }).join('');
-}
-
-const _erpExclusoesEmAndamento=new Set();
-async function excluirCliente(idx){
-  if(!_usuarioPodeOperarModulo('clientes')){alert('Sem acesso ao módulo Clientes.');return;}
-  const c=CLIENTES[idx];if(!c)return;
-  if(!confirm('Excluir o cliente "'+(c.nome||'')+'"?\n\nAs vendas e contas a receber continuam no histórico.'))return;
-  if(_erpExclusoesEmAndamento.has('cliente:'+c.id))return;
-  _erpExclusoesEmAndamento.add('cliente:'+c.id);
-  try{
-    await _cliApi({action:'delete',ids:[String(c.id||'')]});
-    try{registrarHistorico('Cliente','Excluído','Cliente removido: '+(c.nome||''),{...c},{cod:c.cod||''});}catch(e){}
-    showToast('Cliente excluído e confirmado no servidor.','success');
-  }catch(error){showToast('Não foi possível excluir o cliente: '+error.message,'error',9000);}
-  finally{_erpExclusoesEmAndamento.delete('cliente:'+c.id);}
-}
+function renderClientes(){}
 
 function _jsArg(v){ return esc(JSON.stringify(String(v==null?'':v))); }
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -14222,67 +14143,6 @@ function cliDocsModal(idx){
       .catch(function(error){ showToast('A lista de documentos não foi gravada: '+error.message,'error',8000); });
   });
 }
-
-function editCliente(idx){
-  const c=CLIENTES[idx];
-  if(!c) return;
-  const body=document.getElementById('modal-body');
-  body.className='modal';
-  const v=function(val){return esc(val||'');};
-  body.innerHTML=
-    '<h3>✏️ Editar Cliente — '+(c.cod||'C'+String(idx+1).padStart(3,'0'))+'</h3>'+
-    '<input type="hidden" id="ec-idx" value="'+idx+'">'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-      '<div class="fg" style="grid-column:1/-1"><label>Nome / Razão Social *</label><input id="ec-nome" value="'+v(c.nome)+'" style="text-transform:uppercase"></div>'+
-      '<div class="fg"><label>CPF</label><input id="ec-cpf" class="mask-cpf" value="'+v(c.cpf)+'" placeholder="000.000.000-00"></div>'+
-      '<div class="fg"><label>CNPJ</label><input id="ec-cnpj" class="mask-cnpj" value="'+v(c.cnpj)+'" placeholder="00.000.000/0001-00"></div>'+
-      '<div class="fg"><label>RG</label><input id="ec-rg" value="'+v(c.rg)+'"></div>'+
-      '<div class="fg"><label>Inscrição Estadual (IE)</label><input id="ec-ie" value="'+v(c.ie)+'"></div>'+
-      '<div class="fg"><label>Telefone</label><input id="ec-tel" value="'+v(c.tel)+'" placeholder="(47) 9 9999-9999"></div>'+
-      '<div class="fg"><label>WhatsApp</label><input id="ec-wpp" value="'+v(c.wpp)+'" placeholder="(47) 9 9999-9999"></div>'+
-      '<div class="fg" style="grid-column:1/-1"><label>E-mail</label><input id="ec-email" type="email" value="'+v(c.email)+'"></div>'+
-      '<div class="fg"><label>Limite de Crédito R$</label><input id="ec-limite" type="number" min="0" step="0.01" value="'+(c.limite||0)+'"></div>'+
-    '</div>'+
-    '<p style="margin:10px 0 4px;font-weight:700;color:#6a0dad">📍 Endereço</p>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-      '<div class="fg"><label>CEP</label><input id="ec-cep" value="'+v(c.cep)+'" placeholder="00000-000"></div>'+
-      '<div class="fg" style="grid-column:1/-1"><label>Rua / Logradouro</label><input id="ec-rua" value="'+v(c.rua)+'"></div>'+
-      '<div class="fg"><label>Número</label><input id="ec-num" value="'+v(c.num)+'"></div>'+
-      '<div class="fg"><label>Complemento</label><input id="ec-compl" value="'+v(c.compl)+'"></div>'+
-      '<div class="fg"><label>Bairro</label><input id="ec-bairro" value="'+v(c.bairro)+'"></div>'+
-      '<div class="fg"><label>Cidade/UF</label><input id="ec-cidade" value="'+v(c.cidade)+'" placeholder="Joinville/SC"></div>'+
-    '</div>'+
-    '<p style="margin:10px 0 4px;font-weight:700;color:#6a0dad">🏦 Dados Bancários / PIX</p>'+
-    '<div class="fg"><textarea id="ec-obs" rows="2" placeholder="Banco, agência, conta, PIX...">'+v(c.obs)+'</textarea></div>'+
-    '<div class="fg"><label>Observações</label><textarea id="ec-nota" rows="2">'+v(c.nota)+'</textarea></div>'+
-    '<div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarEditCliente()">💾 Salvar</button></div>';
-  document.getElementById('modal-ov').classList.add('open');
-}
-
-function _cliCamposFormulario(prefixo){
-  const g=function(id){ return (document.getElementById(prefixo+'-'+id)?.value||'').trim(); };
-  return {nome:g('nome').toUpperCase(), cpf:g('cpf'), cnpj:g('cnpj'), rg:g('rg'), ie:g('ie'), tel:g('tel'), wpp:g('wpp'),
-    email:g('email'), limite:parseFloat(g('limite'))||0, cep:g('cep'), rua:g('rua'), num:g('num'), compl:g('compl'),
-    bairro:g('bairro'), cidade:g('cidade'), obs:g('obs'), nota:g('nota')};
-}
-async function _cliSalvarFormulario(prefixo, extras){
-  const campos=Object.assign(_cliCamposFormulario(prefixo), extras||{});
-  if(!campos.nome){ showToast('Informe o nome do cliente.','error'); return null; }
-  const idx=prefixo==='ec'?parseInt(document.getElementById('ec-idx')?.value):-1;
-  const atual=idx>=0?CLIENTES[idx]:null;
-  if(prefixo==='ec'&&!atual){ showToast('Cliente não encontrado. Atualize a tela.','error'); return null; }
-  try{
-    const result=await _cliApi(atual
-      ? {action:'update',id:String(atual.id||''),customer:campos,expectedUpdate:atual._upd!=null?Number(atual._upd):undefined}
-      : {action:'create',customer:campos});
-    try{ cm(); }catch(e){}
-    const movidos=result.renamed&&result.renamed.moved;
-    showToast(atual?('Cliente atualizado.'+(movidos?' O nome também foi trocado em: '+movidos+'.':'')):'Cliente cadastrado ('+String(result.customer&&result.customer.cod||'')+').','success',movidos?8000:4000);
-    return result;
-  }catch(error){ showToast('Cliente não salvo: '+error.message,'error',9000); return null; }
-}
-function salvarEditCliente(){ return _cliSalvarFormulario('ec'); }
-function salvarNovoCliente(){ return _cliSalvarFormulario('nc'); }
 
 let ESTOQUE_DB = {};
 METAIS.forEach(m => {

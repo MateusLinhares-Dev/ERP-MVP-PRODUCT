@@ -1,24 +1,23 @@
-# Segurança aplicada — v9
+# Segurança
 
-- Firebase Authentication é a sessão/autorização do navegador.
-- O login legado por senha é preservado, mas a senha é enviada somente ao endpoint serverless.
-- Senhas são armazenadas como scrypt + salt em `erpAuth/users`; esse nó tem leitura/escrita negadas ao cliente.
-- Custom Tokens são emitidos somente no servidor com claims mínimas (`erpAccess`, `erpUser`, `admin`).
-- Administração usa `admin=true`; nenhum username especial concede privilégio.
-- Rate limit server-side usa identificador de IP protegido por HMAC.
-- Service account existe somente no ambiente server-side (`FIREBASE_SERVICE_ACCOUNT_B64`).
-- Realtime Database começa com deny-by-default e exige `erpAccess` para `erp`.
-- `erp/users` e `erp/usersDeleted` não aceitam escrita do navegador; gestão ocorre via Admin SDK/API.
-- Storage exige autenticação/claim e limita tamanho/MIME dos arquivos novos.
-- O bundle público não contém CPFs/funcionários, contas bancárias iniciais, tickets de demonstração, hashes ou credenciais do cliente.
+## Login e permissões
 
-## Separação de configuração
+- O login por senha vai só para a API (`/api/auth/login`). As senhas ficam como scrypt + salt em `erpAuth/users`, que o navegador não lê nem grava.
+- O servidor emite um Custom Token do Firebase com as permissões do perfil (`erpAccess`, `admin` e uma por módulo: `canPurchasing`, `canSales`, `canCustomers`...). Nenhum nome de usuário dá privilégio especial.
+- O limite de tentativas de login usa o IP protegido por HMAC (`LOGIN_RATE_LIMIT_SECRET`).
 
-Configuração pública necessária para manter a mesma identidade visual é filtrada por `/api/public-config`. O endpoint não expõe service account, hashes, claims ou segredos. Configuração completa de negócio é lida pelo cliente autenticado de `erp/config` sob Security Rules.
+## Firebase
 
-## Compatibilidade inevitável
+- O Realtime Database nega tudo por padrão. Cada coleção de `erp` tem regra própria de leitura e escrita por permissão, gerada por `npm run generate:rules:candidate` (`scripts/generate-granular-database-rules.mjs`). O mesmo script gera `public/app/rtdb-collection-policy.json`, que diz à sincronização do navegador o que ela pode gravar.
+- Dados que só o servidor grava ficam com `.write: false` (ex.: `fornecedores`, `clientes`, adiantamentos, compras e pagamentos feitos pela API). Mudar esses dados na tela sem passar pela API some no F5.
+- `FIREBASE_SERVICE_ACCOUNT_B64` existe só nas variáveis de servidor da Vercel. Nunca no navegador nem no repositório.
+- Storage exige login e permissão, e limita tamanho e tipo dos arquivos.
 
-A UI legado ainda usa handlers inline, então a CSP mantém `unsafe-inline` enquanto a camada de apresentação não for migrada. Essa dívida é deliberada para não transformar uma refatoração de infraestrutura em uma reescrita funcional.
+## Publicação
 
-## Atualização v22
-Os controles de hardening da entrega atual estão documentados em `SECURITY_V22.md`. Para preservar o legado, a v22 não reivindica RBAC granular de leitura em todo RTDB: o loader ainda hidrata `erp` de forma ampla para uma sessão autenticada. Escritas críticas, Storage, navegação e APIs foram endurecidos sem alterar a UI/regra funcional.
+- `npm run check:release` roda tipos, lint, testes, build, a varredura de segredos no `dist/` e a conferência de `vercel.json`/`.vercelignore`.
+- Regras novas do Firebase vão **depois** do código publicado e de todos recarregarem o ERP (`npm run deploy:rules:hml` / `prod`).
+
+## Dívida conhecida
+
+A tela antiga usa `onclick` no HTML, então a CSP ainda permite `unsafe-inline`. Isso sai quando as telas antigas terminarem de virar React.

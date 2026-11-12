@@ -9,7 +9,7 @@ const prod = fs.readFileSync('.env.production.example','utf8');
 const ignore = fs.readFileSync('.vercelignore','utf8');
 const configApi = fs.readFileSync('api/config.ts','utf8');
 const runtime = fs.readFileSync('server/shared/config/runtime-security.ts','utf8');
-const guide = fs.readFileSync('docs/DEPLOY_LOCAL_HML_PROD_V30.md','utf8');
+const guide = fs.readFileSync('docs/DEPLOY.md','utf8');
 const verifier = fs.readFileSync('scripts/verify-deployment-artifacts.mjs','utf8');
 
 test('v30 fixes Node 24 and Vercel build uses dist',()=>{
@@ -86,7 +86,7 @@ test('v30 Compra Sucata never treats missing financial totals as paid/NaN',()=>{
 });
 
 test('v30 contains reproducible Docker local environment without changing cloud architecture',()=>{
-  for(const file of ['Dockerfile','compose.yaml','firebase.docker.json','.dockerignore','docs/DOCKER_LOCAL_V30.md']){
+  for(const file of ['Dockerfile','compose.yaml','firebase.docker.json','.dockerignore','docs/DEPLOY.md']){
     assert.equal(fs.existsSync(file),true,file);
   }
   const dockerfile=fs.readFileSync('Dockerfile','utf8');

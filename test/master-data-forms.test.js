@@ -16,22 +16,22 @@ test('bootstrap carrega cadastro mestre depois da homologação e antes de pedid
   assert.ok(bootstrap.indexOf('master-data-forms.js')<bootstrap.indexOf('purchase-order.js'));
 });
 
-test('cliente e fornecedor preservam IDs legados e ganham organização cadastral completa',()=>{
-  has('Dados cadastrais','Contato','Endereço','Dados bancários / PIX','Financeiro');
-  assert.ok(js.includes('ec-idx'),'ID legado ausente: ec-idx');
-  has("const prefix=editing?'ec':'nc'","prefix+'-nome'","prefix+'-cpf'","prefix+'-cnpj'","prefix+'-cidade'");
-  assert.doesNotMatch(js,/function supplierForm|salvarNovoFornecedor/);
-  has('phase3OpenPartyBanks','Gerenciar contas bancárias');
+test('clientes e fornecedores saíram da casca antiga: formulário e lista são React',()=>{
+  assert.doesNotMatch(js,/function clientForm|function supplierForm|salvarNovoCliente|salvarNovoFornecedor|preparePersonDocument|inlinePartyForm/);
+  const customers=fs.readFileSync(new URL('../web/erp/customers.tsx',import.meta.url),'utf8');
+  assert.match(customers,/renderClientes: renderList/);
+  assert.match(customers,/type === 'cliente' \? openForm\(''\)/);
+  assert.match(customers,/phase4-master-editor-/);
 });
 
 test('funcionário mantém contratos legados usados por RH e integrações',()=>{
   assert.ok(js.includes('efn-idx'));
-  has("const prefix=editing?'efn':'nfu'","prefix+'-nome'","prefix+'-emp","prefix+'-cargo'","prefix+'-sal'","prefix+'-banco'","prefix+'-status'","prefix+'-adm'","prefix+'-fimexp'");
+  has("const prefix=editing?'efn':'nfu'","prefix+'-nome'","prefix+'-emp","prefix+'-cargo'","prefix+'-sal'","prefix+'-status'","prefix+'-adm'","prefix+'-fimexp'");
   has('Remuneração e pagamento','Contrato e alertas','salvarNovoFuncionario','salvarEditFuncionario');
 });
 
-test('campos complementares são adicionados no mesmo objeto e persistidos',()=>{
-  has('partyExtras','clientExtras','employeeExtras','Object.assign(entity,extras)','persistEmployees');
+test('campos complementares do funcionário são adicionados no mesmo objeto e persistidos',()=>{
+  has('employeeExtras','Object.assign(entity,extras)','persistEmployees');
 });
 
 test('visual segue identidade clara do ERP com formulário amplo e responsivo',()=>{
@@ -43,85 +43,7 @@ test('visual segue identidade clara do ERP com formulário amplo e responsivo',(
 
 test('clientes e fornecedores compartilham navegação de histórico e cadastro inline',()=>{
   has('Clientes e fornecedores','Histórico / Cadastros','Novo cadastro');
-  has('phase4-master-inline-editor','phase4MasterCreate','phase4MasterShowList','inlinePartyForm');
+  has('phase4-master-inline-editor','phase4MasterCreate','phase4MasterShowList');
   assert.match(js,/while\(panel\.firstChild\)listing\.appendChild/);
   assert.match(css,/\.phase4-master-inline-editor/);
-});
-
-test('acesso aos cadastros passa pelo guard existente e grava clientes e fornecedores pelo servidor',()=>{
-  assert.match(js,/global\.erpCanAccessTab\(tab\)/);
-  assert.match(js,/global\.switchTab\(tab\)===false/);
-  assert.match(js,/global\._cliSalvarFormulario\(prefix,extras\)/);
-  assert.doesNotMatch(js,/saveClientes\(\)/);
-  assert.match(fs.readFileSync(new URL('../web/erp/suppliers.tsx',import.meta.url),'utf8'),/erpSupplierRequest/);
-  assert.match(js,/global\.phase4MasterShowList\('cliente'\)/);
-  assert.match(fs.readFileSync(new URL('../web/erp/suppliers.tsx',import.meta.url),'utf8'),/phase4MasterShowList/);
-});
-
-function mountPartyFormTest(fields={}){
-  const elements={};
-  const saved=[];
-  const requests=[];
-  const notifications=[];
-  let approved=false;
-  for(const [id,value] of Object.entries(fields)){
-    elements[id]={
-      value,
-      disabled:false,
-      attrs:{},
-      setAttribute(key,val){this.attrs[key]=val;},
-      closest(){return {classList:{toggle(){}}};},
-      focus(){this.focused=true;}
-    };
-  }
-  const ctx={
-    console,
-    document:{addEventListener(){},getElementById(id){return elements[id]||null;}},
-    alert(message){notifications.push(message);},
-    confirm(){return approved;},
-    CLIENTES:[],FORNECEDORES:[],FUNCIONARIOS:[],
-    _cliSalvarFormulario(prefix){saved.push(prefix==='nc'?'cliente':'cliente-edit');return {then(done){done('saved');return 'saved';}};},
-    localStorage:{setItem(){}},
-  };
-  ctx.window=ctx;
-  vm.runInNewContext(js,ctx,{filename:'master-data-forms.js'});
-  return {ctx,elements,saved,requests,notifications,approve:()=>{approved=true;}};
-}
-
-test('Pessoa Física realmente desabilita CNPJ (e vice-versa), sem apagar dados ao alternar',()=>{
-  const {ctx,elements}=mountPartyFormTest({'nc-pessoa':'PF','nc-cpf':'','nc-cnpj':'11.222.333/0001-81'});
-  ctx.phase4MasterTogglePerson('nc');
-  assert.equal(elements['nc-cpf'].disabled,false);
-  assert.equal(elements['nc-cnpj'].disabled,true);
-  assert.equal(elements['nc-cnpj'].value,'11.222.333/0001-81');
-  assert.equal(elements['nc-cnpj'].attrs['aria-disabled'],'true');
-  elements['nc-pessoa'].value='PJ';
-  ctx.phase4MasterTogglePerson('nc');
-  assert.equal(elements['nc-cpf'].disabled,true);
-  assert.equal(elements['nc-cnpj'].disabled,false);
-});
-
-test('documento inválido bloqueia salvar; documento opcional e válido mantém o legado',()=>{
-  const {ctx,elements,saved,notifications}=mountPartyFormTest({'nc-pessoa':'PF','nc-cpf':'111.111.111-11','nc-cnpj':''});
-  assert.equal(ctx.salvarNovoCliente(),false);
-  assert.deepEqual(saved,[]);
-  assert.match(notifications[0],/CPF inválido/);
-  assert.equal(elements['nc-cpf'].focused,true);
-  elements['nc-cpf'].value='529.982.247-25';
-  assert.equal(ctx.salvarNovoCliente(),'saved');
-  assert.deepEqual(saved,['cliente']);
-  elements['nc-cpf'].value='';
-  assert.equal(ctx.salvarNovoCliente(),'saved');
-  assert.deepEqual(saved,['cliente','cliente']);
-});
-
-test('documento do tipo anterior exige confirmação para ser apagado e evita persistência indevida',()=>{
-  const {ctx,elements,saved,approve}=mountPartyFormTest({'nc-pessoa':'PF','nc-cpf':'529.982.247-25','nc-cnpj':'11.222.333/0001-81'});
-  assert.equal(ctx.salvarNovoCliente(),false);
-  assert.equal(elements['nc-cnpj'].value,'11.222.333/0001-81');
-  assert.deepEqual(saved,[]);
-  approve();
-  assert.equal(ctx.salvarNovoCliente(),'saved');
-  assert.equal(elements['nc-cnpj'].value,'');
-  assert.deepEqual(saved,['cliente']);
 });

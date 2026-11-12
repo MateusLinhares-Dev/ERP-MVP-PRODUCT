@@ -782,20 +782,7 @@
 
         <div class="tab-panel" id="tab-clientes">
       <div class="sec-title">👥 Clientes</div>
-      <div class="tcard">
-        <div class="tcard-hdr">
-          <div class="tcard-title">Cadastro de Clientes</div>
-          <button onclick="abrirFichaCli(null)" style="padding:5px 12px;background:#8e44ad;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.8rem;font-weight:700;margin-right:6px">📋 Ficha Financeira</button>
-          <button class="btn-add" onclick="om('cliente')">+ Novo Cliente</button>
-        </div>
-        <div style="padding:6px 0 10px">
-          <input id="cli-busca-nome" type="text" oninput="filtrarTabelaCli(this.value)" placeholder="🔍 Filtrar por nome, cidade, CNPJ..." style="width:100%;max-width:400px;padding:8px 12px;border:1.5px solid #8e44ad;border-radius:7px;font-size:.88rem">
-        </div>
-        <table>
-          <thead><tr><th>Cód.</th><th>Nome / Razão Social</th><th>CPF/CNPJ</th><th>Telefone</th><th>E-mail</th><th>Cidade/UF</th><th>Ações</th></tr></thead>
-          <tbody id="tb-clientes-list"></tbody>
-        </table>
-      </div>
+      <div id="clientes-app"><div class="tcard"><p style="padding:16px">Carregando clientes...</p></div></div>
     </div>
 
         <div class="tab-panel" id="tab-vendas">

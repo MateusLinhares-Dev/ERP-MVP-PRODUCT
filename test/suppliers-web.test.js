@@ -97,5 +97,5 @@ test('tela antiga de fornecedores saiu do app-core, supplier-compat e master-dat
   const island = readFileSync(new URL('../web/erp/suppliers.tsx', import.meta.url), 'utf8');
   assert.match(island, /renderTabelaFornecedores: renderList/);
   assert.match(island, /type === 'fornecedor' \? openForm\(''\)/);
-  assert.ok(existsSync(new URL('../web/modules/suppliers/ui/SupplierFormView.tsx', import.meta.url)));
+  assert.ok(existsSync(new URL('../web/shared/ui/PartyFormView.tsx', import.meta.url)));
 });

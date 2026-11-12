@@ -78,6 +78,6 @@ test('Matriz: cursos inativos são filtrados, preservados no histórico e podem 
 });
 
 test('Clientes: abertura de contas reutiliza editor multibanco completo',()=>{
- const src=read('public/modules/phase1/phase1-usability.js');
- assert.match(src,/global\.phase3OpenPartyBanks/);
+ const src=read('web/erp/customers.tsx');
+ assert.match(src,/phase3OpenPartyBanks\?\.\('cliente'/);
 });

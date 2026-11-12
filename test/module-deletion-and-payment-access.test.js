@@ -77,7 +77,8 @@ test('falha ou concorrência rejeita sem duplicar a baixa',async()=>{
 
 test('exclusões comuns seguem acesso do módulo, não papel administrativo',()=>{
   assert.match(core,/function _usuarioPodeOperarModulo\(tab\)/);
-  for(const tab of ['clientes','lista_compras','rod_balanca','compra_sucata'])assert.ok(core.includes("_usuarioPodeOperarModulo('"+tab+"')"),tab);
+  for(const tab of ['lista_compras','rod_balanca','compra_sucata'])assert.ok(core.includes("_usuarioPodeOperarModulo('"+tab+"')"),tab);
+  assert.match(readFileSync(new URL('../web/erp/customers.tsx',import.meta.url),'utf8'),/_usuarioPodeOperarModulo\?\.\(TAB\)/);
   assert.match(readFileSync(new URL('../web/erp/suppliers.tsx',import.meta.url),'utf8'),/_usuarioPodeOperarModulo\?\.\(TAB\)/);
   assert.equal(rules.clientes['.write'],false);
   assert.equal(rules.clientesDeleted['.write'],false);
@@ -88,28 +89,6 @@ test('exclusões comuns seguem acesso do módulo, não papel administrativo',()=
   assert.match(rules.fornecedores['.read'],/canSuppliers/);
   assert.match(storage,/allow delete: if authenticated\(\)\s*&& request\.auth\.token\.canBusinessDocs == true/);
   assert.match(rules.advanceBackups['.write'],/auth\.token\.admin/);
-});
-
-test('exclusão de cliente passa pelo servidor e só registra histórico depois da confirmação',async()=>{
-  const {runInNewContext}=await import('node:vm');
-  const section=core.slice(core.indexOf('const _erpExclusoesEmAndamento='),core.indexOf('function _jsArg(',core.indexOf('const _erpExclusoesEmAndamento=')));
-  const local=[{id:'CL-1',cod:'C001',nome:'Cliente Um'}],calls=[],toasts=[];
-  let deny=true,history=0;
-  const context={CLIENTES:local,Set,_usuarioPodeOperarModulo:()=>true,confirm:()=>true,alert(){},showToast(message){toasts.push(message);},
-    _cliApi:async payload=>{calls.push(payload);if(deny)throw new Error('Não dá para excluir cliente com pendência financeira');local.splice(0,1);return {action:'delete',deleted:['CL-1']};},
-    registrarHistorico(){history++;}
-  };
-  runInNewContext(section+';this.deleteCustomer=excluirCliente;',context);
-  await context.deleteCustomer(0);
-  assert.equal(local.length,1);
-  assert.equal(history,0);
-  assert.match(toasts[0],/pendência financeira/);
-  deny=false;
-  await context.deleteCustomer(0);
-  assert.equal(local.length,0);
-  assert.equal(history,1);
-  assert.deepEqual(JSON.parse(JSON.stringify(calls[1])),{action:'delete',ids:['CL-1']});
-  assert.doesNotMatch(section,/_fbDB|clientesDeleted/,'não grava direto no Firebase');
 });
 
 test('exclusão de fornecedor só some da lista depois que o servidor confirma',async()=>{

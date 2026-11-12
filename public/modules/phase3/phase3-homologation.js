@@ -103,7 +103,7 @@ global.phase3ResolveTicketKey=resolveTicketKey;
 global.phase3EnsureTicketKey=ensureTicketKey;
 
 let partyBanks={};
-async function loadPartyBanks(){if(!store)return;try{partyBanks=await store.load('partyBanks',{});decoratePartyBanks();}catch(error){console.warn('Contas de fornecedores indisponíveis:',error.message);}}
+async function loadPartyBanks(){if(!store)return;try{partyBanks=await store.load('partyBanks',{});}catch(error){console.warn('Contas de fornecedores indisponíveis:',error.message);}}
 function partyEntity(kind,key){try{return kind==='fornecedor'?(FORNECEDORES||[]).find(x=>String(x.cod)===String(key)):(CLIENTES||[]).find((x,i)=>String(x.cod||('C'+String(i+1).padStart(3,'0')))===String(key));}catch(e){return null;}}
 function bankKey(kind,key){return `${kind}-${key}`;}
 function hasCanonicalBankList(kind,key){return Object.prototype.hasOwnProperty.call(partyBanks,bankKey(kind,key)) && Array.isArray(partyBanks[bankKey(kind,key)]);}
@@ -122,7 +122,6 @@ function bankList(kind,key){
     holderName:entity.nome,holderDocument:entity.cnpj||entity.cpf});
   return [primary].filter(p=>p.bank||p.agency||p.account||p.pix);
 }
-function decoratePartyBanks(){[['#tb-clientes-list','cliente']].forEach(([sel,kind])=>{const body=$(sel);if(!body)return;Array.from(body.rows||[]).forEach(row=>{if(row.querySelector('.phase1-party-bank-btn')||row.querySelector('.phase3-bank-btn'))return;const key=String(row.cells?.[kind==='fornecedor'?1:0]?.textContent||'').trim();const name=String(row.cells?.[kind==='fornecedor'?2:1]?.textContent||'').trim();const cell=row.cells?.[row.cells.length-1];if(!key||!name||!cell)return;const b=document.createElement('button');b.className='phase3-bank-btn';b.type='button';b.textContent='🏦 Bancos';b.onclick=e=>{e.stopPropagation();phase3OpenPartyBanks(kind,key,name);};cell.prepend(b);});});}
 global.phase3OpenPartyBanks=function(kind,key,name){
   const list=bankList(kind,key);
   $('#phase3-bank-ov')?.remove();
@@ -1000,7 +999,7 @@ function fixCoordination(){
   if(type&&type.options.length<5)type.innerHTML='<option value="reuniao">Reunião</option><option value="dds">DDS — Diálogo Diário de Segurança</option><option value="treinamento">Treinamento</option><option value="inspecao">Inspeção / Segurança</option><option value="outro">Outro</option>';
 }
 
-function apply(){captureTicketMappings();decoratePartyBanks();fixPriceSearches();decorateCheque();enhanceAdvanceTickets();reconcileKnownLinkedAdvances();bindPayableRange();fixPayableToday();fixOperationalEmployees();patchMaintenanceModal();bindMaintFilter();removeCasaGloria();fixCoordination();decorateReceivables();hideLegacyCalendarUi();const owner=$('#phase2-owner-bills');if(owner&&owner.offsetParent!==null&&owner.dataset.p3owner!=='1')renderOwnerBillsV3();if($('#tab-afazeres')&&!$('#phase3-calendar'))renderCalendar();}
+function apply(){captureTicketMappings();fixPriceSearches();decorateCheque();enhanceAdvanceTickets();reconcileKnownLinkedAdvances();bindPayableRange();fixPayableToday();fixOperationalEmployees();patchMaintenanceModal();bindMaintFilter();removeCasaGloria();fixCoordination();decorateReceivables();hideLegacyCalendarUi();const owner=$('#phase2-owner-bills');if(owner&&owner.offsetParent!==null&&owner.dataset.p3owner!=='1')renderOwnerBillsV3();if($('#tab-afazeres')&&!$('#phase3-calendar'))renderCalendar();}
 if(global.Phase1Dom)global.Phase1Dom.register(apply);else setInterval(apply,1200);
 const legacySwitchTabPhase3=global.switchTab;
 if(typeof legacySwitchTabPhase3==='function')global.switchTab=function(tabId){
