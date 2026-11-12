@@ -48,10 +48,11 @@ test('clientes e fornecedores compartilham navegação de histórico e cadastro 
   assert.match(css,/\.phase4-master-inline-editor/);
 });
 
-test('acesso aos cadastros passa pelo guard existente e persiste via salvamento legado',()=>{
+test('acesso aos cadastros passa pelo guard existente e grava clientes e fornecedores pelo servidor',()=>{
   assert.match(js,/global\.erpCanAccessTab\(tab\)/);
   assert.match(js,/global\.switchTab\(tab\)===false/);
-  assert.match(js,/legacy\.saveNewClient\.apply/);
+  assert.match(js,/global\._cliSalvarFormulario\(prefix,extras\)/);
+  assert.doesNotMatch(js,/saveClientes\(\)/);
   assert.match(fs.readFileSync(new URL('../web/erp/suppliers.tsx',import.meta.url),'utf8'),/erpSupplierRequest/);
   assert.match(js,/global\.phase4MasterShowList\('cliente'\)/);
   assert.match(fs.readFileSync(new URL('../web/erp/suppliers.tsx',import.meta.url),'utf8'),/phase4MasterShowList/);
@@ -79,8 +80,7 @@ function mountPartyFormTest(fields={}){
     alert(message){notifications.push(message);},
     confirm(){return approved;},
     CLIENTES:[],FORNECEDORES:[],FUNCIONARIOS:[],
-    salvarNovoCliente(){saved.push('cliente');return 'saved';},
-    salvarEditCliente(){saved.push('cliente-edit');return 'saved';},
+    _cliSalvarFormulario(prefix){saved.push(prefix==='nc'?'cliente':'cliente-edit');return {then(done){done('saved');return 'saved';}};},
     localStorage:{setItem(){}},
   };
   ctx.window=ctx;

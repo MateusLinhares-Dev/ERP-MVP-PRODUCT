@@ -575,10 +575,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canCustomers"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "fornecedoresDeleted": {
@@ -1069,10 +1067,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canCustomers"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "fornecedores": {

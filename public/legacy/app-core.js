@@ -68,6 +68,63 @@ async function _fornApi(payload){
 }
 window.erpSupplierRequest=_fornApi;
 
+function _cliNomeChave(s){ return String(s||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' '); }
+function _cliRenomearLocal(de, para){
+  const alvo=_cliNomeChave(de);
+  if(!alvo||!para) return;
+  const igual=function(v){ return typeof v==='string'&&v.trim()!==''&&_cliNomeChave(v)===alvo; };
+  try{ (VENDAS_DB||[]).forEach(function(v){ if(v&&igual(v.cliente)) v.cliente=para; }); }catch(e){}
+  try{ (CONTAS_RECEBER||[]).forEach(function(c){ if(c&&igual(c.cli)) c.cli=para; }); }catch(e){}
+  try{ Object.values(TICKETS_DB||{}).forEach(function(t){ if(!t||t.tipo!=='venda') return; ['cliente','fornecedor','fornecedorNome'].forEach(function(k){ if(igual(t[k])) t[k]=para; }); }); }catch(e){}
+  const listas=[[ADT_CLI],[CHEQUES_CLI]];
+  try{ listas.push([FC_LANC]); }catch(e){}
+  listas.forEach(function(par){
+    const mapa=par[0]; if(!mapa) return;
+    Object.keys(mapa).forEach(function(k){ if(k!==para&&_cliNomeChave(k)===alvo){ mapa[para]=(mapa[para]||[]).concat(mapa[k]||[]); delete mapa[k]; } });
+  });
+  try{ Object.keys(FC_SALDO_INI||{}).forEach(function(k){ if(k!==para&&_cliNomeChave(k)===alvo){ const o=FC_SALDO_INI[k]||{}, d=FC_SALDO_INI[para]; if(d) d.valor=Math.round(((Number(d.valor)||0)+(Number(o.valor)||0))*100)/100; else FC_SALDO_INI[para]={valor:Number(o.valor)||0,data:o.data||''}; delete FC_SALDO_INI[k]; } }); }catch(e){}
+  try{ Object.keys(PRECOS_CLI_DATA||{}).forEach(function(k){ if(k!==para&&_cliNomeChave(k)===alvo){ PRECOS_CLI_DATA[para]=Object.assign({},PRECOS_CLI_DATA[k]||{},PRECOS_CLI_DATA[para]||{}); delete PRECOS_CLI_DATA[k]; } }); }catch(e){}
+}
+function _cliAplicarResultado(result){
+  const gravar=function(c){
+    if(!c||!(c.id||c.cod)) return;
+    const id=String(c.id||c.cod);
+    const atual=CLIENTES.find(function(x){ return x&&String(x.id||'')===id; });
+    if(!atual){ CLIENTES.push(Object.assign({},c)); return; }
+    Object.keys(atual).forEach(function(k){ if(!(k in c)) delete atual[k]; });
+    Object.assign(atual,c);
+  };
+  if(result.customer) gravar(result.customer);
+  if(result.renamed) _cliRenomearLocal(result.renamed.from, result.renamed.to);
+  if(result.action==='set-docs') CLIENTES.forEach(function(x){ if(x&&String(x.id||'')===String(result.key)) x.docs=result.docs||[]; });
+  (result.deleted||[]).forEach(function(id){
+    const i=CLIENTES.findIndex(function(x){ return x&&String(x.id||'')===String(id); });
+    if(i>=0) _syncClientes.remover(i);
+  });
+  try{ localStorage.setItem('mm_clientes',JSON.stringify(CLIENTES)); }catch(e){}
+  try{ renderClientes(); }catch(e){}
+  try{ populatePrecosCliSel(); }catch(e){}
+  try{ popularCrCliList(); }catch(e){}
+  try{ _popularClientesSel(); }catch(e){}
+  if(result.renamed){ try{ renderVendas(); }catch(e){} try{ renderContasReceber(); }catch(e){} try{ renderFichaCliente(); }catch(e){} }
+  try{ document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'clientes'}})); }catch(e){}
+}
+async function _cliApi(payload){
+  const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
+  if(!user) throw new Error('Sessão expirada. Entre novamente.');
+  const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
+  let response;
+  try{
+    response=await fetch('/api/master-data/customers',{method:'POST',credentials:'same-origin',
+      headers:{Authorization:'Bearer '+await user.getIdToken(),'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }catch(e){ throw new Error('Sem conexão com o servidor. Confira a internet e tente de novo.'); }
+  const result=await response.json().catch(function(){ return {}; });
+  if(!response.ok){ const error=new Error(result.message||'O servidor não confirmou o cadastro do cliente.'); error.code=result.code; throw error; }
+  _cliAplicarResultado(result);
+  return result;
+}
+window.erpCustomerRequest=_cliApi;
+
 let TICKETS_DELETED = new Set();
 
 let _ticketsSnapJSON = {};
@@ -1432,20 +1489,18 @@ function popularCrCliList(){
   if(!dl) return;
   dl.innerHTML=CLIENTES.slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{sensitivity:'base'})).map(c=>`<option value="${esc(c.nome)}">`).join('');
 }
-function salvarNovoCrCliInline(){
+async function salvarNovoCrCliInline(){
   const nome=(document.getElementById('cr-nc-nome')?.value||'').trim();
   if(!nome){alert('Informe o nome do cliente!');return;}
-  const cod='C'+String(CLIENTES.length+1).padStart(3,'0');
-  CLIENTES.push({
-    cod, nome,
-    tel:    document.getElementById('cr-nc-tel')?.value.trim()||'',
-    cidade: document.getElementById('cr-nc-cidade')?.value.trim()||'',
-    cnpj:'', email:'', limite:0, obs:''
-  });
-  saveClientes();
+  let result;
+  try{
+    result=await _cliApi({action:'create',customer:{nome,
+      tel:    document.getElementById('cr-nc-tel')?.value.trim()||'',
+      cidade: document.getElementById('cr-nc-cidade')?.value.trim()||''}});
+  }catch(error){ showToast('Cliente não cadastrado: '+error.message,'error',8000); return; }
   popularCrCliList();
   const inp=document.getElementById('cr-cli');
-  if(inp) inp.value=nome;
+  if(inp) inp.value=String(result.customer&&result.customer.nome||nome);
   ['cr-nc-nome','cr-nc-tel','cr-nc-cidade'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('cr-novo-cli-box').style.display='none';
   showToast('✅ Cliente "'+nome+'" cadastrado e selecionado!','success');
@@ -12590,11 +12645,7 @@ let CLIENTES = [];
 
 const _syncClientes = _criarSincroniaPorChave('clientes', CLIENTES, 'CL');
 function saveClientes(){
-  try{
-    const obj=_syncClientes.paraObjeto();
-    if(window.__businessRepository) window.__businessRepository.upsertMany('clientes',obj).catch(e=>console.warn('clientes RTDB:',e));
-    if(typeof fbSalvarImediato==='function') fbSalvarImediato(); else if(typeof fbSalvar==='function') fbSalvar();
-  }catch(e){ console.warn('saveClientes:',e); }
+  try{ localStorage.setItem('mm_clientes',JSON.stringify(CLIENTES)); }catch(e){}
   try{ if(typeof rodPopularPessoaSelect==='function' && (_rodTipoAtual||'compra')==='venda') rodPopularPessoaSelect(); }catch(e){}
   document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'clientes'}}));
 }
@@ -12932,24 +12983,14 @@ async function excluirCliente(idx){
   if(!_usuarioPodeOperarModulo('clientes')){alert('Sem acesso ao módulo Clientes.');return;}
   const c=CLIENTES[idx];if(!c)return;
   if(!confirm('Excluir o cliente "'+(c.nome||'')+'"?\n\nAs vendas e contas a receber continuam no histórico.'))return;
-  const registro={...c},id=c.id||_syncClientes.paraObjeto()&&c.id;
-  if(!id||!window._fbDB||!firebase?.auth?.().currentUser){showToast('Conecte-se ao Firebase para excluir o cliente.','error');return;}
-  if(_erpExclusoesEmAndamento.has('cliente:'+id))return;
-  _erpExclusoesEmAndamento.add('cliente:'+id);
+  if(_erpExclusoesEmAndamento.has('cliente:'+c.id))return;
+  _erpExclusoesEmAndamento.add('cliente:'+c.id);
   try{
-    if(!/^[a-zA-Z0-9_-]{1,120}$/.test(String(id)))throw new Error('Identificador do cliente inválido.');
-    const existing=await window._fbDB.ref('erp/clientes/'+id).once('value');
-    if(!existing.val())throw new Error('Cliente não existe mais na nuvem. Atualize a lista.');
-    await window._fbDB.ref('erp').update({['clientes/'+id]:null,['clientesDeleted/'+id]:true});
-    _syncClientes.remover(CLIENTES.indexOf(c));
-    try{localStorage.setItem('mm_clientes',JSON.stringify(CLIENTES));}catch(e){}
-    renderClientes();
-    try{populatePrecosCliSel();}catch(e){}
-    try{registrarHistorico('Cliente','Excluído','Cliente removido: '+(c.nome||''),registro,{cod:c.cod||''});}catch(e){}
-    document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'clientes'}}));
-    showToast('Cliente excluído e confirmado no Firebase.','success');
-  }catch(error){showToast('Não foi possível excluir o cliente: '+error.message,'error');}
-  finally{_erpExclusoesEmAndamento.delete('cliente:'+id);}
+    await _cliApi({action:'delete',ids:[String(c.id||'')]});
+    try{registrarHistorico('Cliente','Excluído','Cliente removido: '+(c.nome||''),{...c},{cod:c.cod||''});}catch(e){}
+    showToast('Cliente excluído e confirmado no servidor.','success');
+  }catch(error){showToast('Não foi possível excluir o cliente: '+error.message,'error',9000);}
+  finally{_erpExclusoesEmAndamento.delete('cliente:'+c.id);}
 }
 
 function _jsArg(v){ return esc(JSON.stringify(String(v==null?'':v))); }
@@ -14149,13 +14190,13 @@ function _migrarDocsEntidadesParaNuvem(cb){
       const id=d.id||('de_'+Date.now()+'_'+Math.floor(Math.random()*100000)); d.id=id;
       const b64=d.base64;
       window._fbDB.ref('erp/empresaDocs/'+id).set(b64)
-        .then(function(){ delete d.base64; d._nuvem=true; if(reg.tipo==='forn') mudouF=true; else mudouC=true; })
+        .then(function(){ delete d.base64; d._nuvem=true; if(reg.tipo==='forn') mudouF=true; else { mudouC=true; reg.mudou=true; } })
         .catch(function(e){ console.warn('migração documento entidade:',e); })
         .finally(function(){
           pend--;
           if(pend===0){
             if(mudouF){ try{ fbSalvar(); }catch(e){} }
-            if(mudouC){ try{ saveClientes(); }catch(e){} }
+            if(mudouC) entidades.forEach(function(reg){ if(reg.tipo==='cli'&&reg.mudou&&reg.e.id) _cliApi({action:'set-docs',id:String(reg.e.id),docs:reg.e.docs||[]}).catch(function(e){ console.warn('documentos do cliente:',e); }); });
             cb&&cb(mudouF||mudouC);
           }
         });
@@ -14177,7 +14218,8 @@ function cliDocsModal(idx){
   const c=CLIENTES[idx];
   if(!c){showToast('Cliente não encontrado.','error');return;}
   _entidadeDocsModal(c, c.nome, function(){
-    try{saveClientes();}catch(e){}
+    _cliApi({action:'set-docs',id:String(c.id||''),docs:c.docs||[]})
+      .catch(function(error){ showToast('A lista de documentos não foi gravada: '+error.message,'error',8000); });
   });
 }
 
@@ -14217,56 +14259,30 @@ function editCliente(idx){
   document.getElementById('modal-ov').classList.add('open');
 }
 
-function salvarEditCliente(){
-  const idx=parseInt(document.getElementById('ec-idx').value);
-  const g=id=>(document.getElementById(id)?.value||'').trim();
-  CLIENTES[idx]={...CLIENTES[idx],
-    nome:   g('ec-nome').toUpperCase(),
-    cpf:    g('ec-cpf'),
-    cnpj:   g('ec-cnpj'),
-    rg:     g('ec-rg'),
-    ie:     g('ec-ie'),
-    tel:    g('ec-tel'),
-    wpp:    g('ec-wpp'),
-    email:  g('ec-email'),
-    limite: parseFloat(g('ec-limite'))||0,
-    cep:    g('ec-cep'),
-    rua:    g('ec-rua'),
-    num:    g('ec-num'),
-    compl:  g('ec-compl'),
-    bairro: g('ec-bairro'),
-    cidade: g('ec-cidade'),
-    obs:    g('ec-obs'),
-    nota:   g('ec-nota')
-  };
-  saveClientes(); renderClientes(); populatePrecosCliSel(); cm(); alert('✅ Cliente atualizado!');
+function _cliCamposFormulario(prefixo){
+  const g=function(id){ return (document.getElementById(prefixo+'-'+id)?.value||'').trim(); };
+  return {nome:g('nome').toUpperCase(), cpf:g('cpf'), cnpj:g('cnpj'), rg:g('rg'), ie:g('ie'), tel:g('tel'), wpp:g('wpp'),
+    email:g('email'), limite:parseFloat(g('limite'))||0, cep:g('cep'), rua:g('rua'), num:g('num'), compl:g('compl'),
+    bairro:g('bairro'), cidade:g('cidade'), obs:g('obs'), nota:g('nota')};
 }
-
-function salvarNovoCliente(){
-  const nome=(document.getElementById('nc-nome')?.value||'').trim().toUpperCase();
-  if(!nome){alert('Informe o nome!');return;}
-  const cod='C'+String(CLIENTES.length+1).padStart(3,'0');
-  const g=id=>(document.getElementById(id)?.value||'').trim();
-  CLIENTES.push({cod,nome,
-    cpf:    g('nc-cpf'),
-    cnpj:   g('nc-cnpj'),
-    rg:     g('nc-rg'),
-    ie:     g('nc-ie'),
-    tel:    g('nc-tel'),
-    wpp:    g('nc-wpp'),
-    email:  g('nc-email'),
-    limite: parseFloat(g('nc-limite'))||0,
-    cep:    g('nc-cep'),
-    rua:    g('nc-rua'),
-    num:    g('nc-num'),
-    compl:  g('nc-compl'),
-    bairro: g('nc-bairro'),
-    cidade: g('nc-cidade'),
-    obs:    g('nc-obs'),
-    nota:   g('nc-nota')
-  });
-  saveClientes(); renderClientes(); populatePrecosCliSel(); cm(); alert('✅ Cliente cadastrado!');
+async function _cliSalvarFormulario(prefixo, extras){
+  const campos=Object.assign(_cliCamposFormulario(prefixo), extras||{});
+  if(!campos.nome){ showToast('Informe o nome do cliente.','error'); return null; }
+  const idx=prefixo==='ec'?parseInt(document.getElementById('ec-idx')?.value):-1;
+  const atual=idx>=0?CLIENTES[idx]:null;
+  if(prefixo==='ec'&&!atual){ showToast('Cliente não encontrado. Atualize a tela.','error'); return null; }
+  try{
+    const result=await _cliApi(atual
+      ? {action:'update',id:String(atual.id||''),customer:campos,expectedUpdate:atual._upd!=null?Number(atual._upd):undefined}
+      : {action:'create',customer:campos});
+    try{ cm(); }catch(e){}
+    const movidos=result.renamed&&result.renamed.moved;
+    showToast(atual?('Cliente atualizado.'+(movidos?' O nome também foi trocado em: '+movidos+'.':'')):'Cliente cadastrado ('+String(result.customer&&result.customer.cod||'')+').','success',movidos?8000:4000);
+    return result;
+  }catch(error){ showToast('Cliente não salvo: '+error.message,'error',9000); return null; }
 }
+function salvarEditCliente(){ return _cliSalvarFormulario('ec'); }
+function salvarNovoCliente(){ return _cliSalvarFormulario('nc'); }
 
 let ESTOQUE_DB = {};
 METAIS.forEach(m => {
@@ -18295,11 +18311,12 @@ function renderContasReceber(){
     tbody.innerHTML='<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum lançamento ainda</td></tr>';
     return;
   }
-  const sorted=[...CONTAS_RECEBER].sort((a,b)=>a.venc.localeCompare(b.venc));
+  const sorted=[...CONTAS_RECEBER].filter(Boolean).sort((a,b)=>_toISOcr(a.venc).localeCompare(_toISOcr(b.venc)));
   const pagina=_erpPaginarDados('contas-receber',sorted,'tb-contas-receber',renderContasReceber,{searchable:true,placeholder:'Pesquisar conta, cliente, NF ou observação...',text:c=>[c.cli,c.nf,c.obs,c.venc,c.forma].join(' ')});
   tbody.innerHTML=pagina.map((c)=>{
     const idx=CONTAS_RECEBER.indexOf(c);
-    const atrasado=c.status==='Pendente'&&c.venc<hoje;
+    const _vencISO=_toISOcr(c.venc);
+    const atrasado=c.status==='Pendente'&&Boolean(_vencISO)&&_vencISO<hoje;
     const stCls=c.status==='Recebido'?'b-pago':atrasado?'b-pend':'b-zerado';
     return '<tr style="'+(atrasado?'background:#fff5f5':'')+'">'
       +'<td>'+fmtDate(c.data)+'</td><td>'+esc(c.nf||'—')+'</td>'
@@ -18492,7 +18509,8 @@ function confirmarReceberCR(){
   saveContasReceber();
   renderContasReceber();
   if(banco && !_antigo){
-    registrarMovBanco(banco, data, 'Recebto: '+String(c.cli||'')+(c.nf?' NF '+c.nf:''), 'Entrada', c.valor);
+    const mov=registrarMovBanco(banco, data, 'Recebto: '+String(c.cli||'')+(c.nf?' NF '+c.nf:''), 'Entrada', c.valor);
+    if(mov&&mov.id){ c.movBancoId=mov.id; saveContasReceber(); }
   }
   renderFluxo();
   renderDashboard();
@@ -19192,24 +19210,46 @@ function marcarVendaPaga(idx){
 }
 window['marcarVendaPaga']=marcarVendaPaga;
 
+function _vendaDesfazerMovBanco(cr){
+  const id=cr&&cr.movBancoId;
+  if(!id) return false;
+  delete cr.movBancoId;
+  const i=LANC_BANCO_DB.findIndex(function(l){ return l&&l.id===id; });
+  if(i<0) return false;
+  _syncLancBanco.remover(i);
+  return true;
+}
+function _vendaRecebimentosNoBanco(v){
+  return CONTAS_RECEBER.filter(function(cr){
+    return cr&&cr.vendaId===v.id&&cr.status==='Recebido'&&cr.forma!=='Adiantamento'&&cr.forma!=='Cheque'&&(cr.movBancoId||(cr.banco&&cr.banco!=='—'));
+  });
+}
+function _vendaAvisoBancoManual(lista){
+  const fmt=function(x){ return Number(x||0).toLocaleString('pt-BR',{minimumFractionDigits:2}); };
+  const manuais=lista.filter(function(cr){ return !cr.movBancoId; });
+  return manuais.length?' Confira o extrato: '+manuais.map(function(cr){ return String(cr.banco)+' R$ '+fmt(cr.valor); }).join(', ')+' continua lançado no banco (lançamento antigo, sem vínculo).':'';
+}
 function reabrirVenda(idx){
   const v=VENDAS_DB[idx]; if(!v) return;
-  if(!confirm('Reabrir a venda de '+v.cliente+'? Ela volta a ficar pendente.')) return;
+  const noBanco=_vendaRecebimentosNoBanco(v);
+  if(!confirm('Reabrir a venda de '+v.cliente+'? Ela volta a ficar pendente.'+(noBanco.length?'\nOs recebimentos que esta venda lançou no banco serão desfeitos.':''))) return;
   v.status='Pendente';
-  
-  let mexeuCR=false;
+  const aviso=_vendaAvisoBancoManual(noBanco);
+  let mexeuCR=false, desfeitos=0;
   CONTAS_RECEBER.forEach(function(cr){
     if(cr.vendaId===v.id && cr.status==='Recebido' && cr.forma!=='Adiantamento' && cr.forma!=='Cheque'){
+      if(_vendaDesfazerMovBanco(cr)) desfeitos++;
       cr.status='Pendente'; cr.dataReceb=''; mexeuCR=true;
     }
   });
   saveVendas();
   if(mexeuCR){ try{ saveContasReceber(); }catch(e){} try{ renderContasReceber(); }catch(e){} }
+  if(desfeitos){ try{ saveBancos(); }catch(e){} try{ renderBancos(); }catch(e){} }
   renderVendas();
   try{renderFluxo();}catch(e){}
   try{renderDashboard();}catch(e){}
   try{renderContasReceber();}catch(e){}
-  showToast('Venda reaberta (pendente).','info');
+  showToast('Venda reaberta (pendente).'+(desfeitos?' '+desfeitos+' lançamento(s) de banco desfeito(s).':'')+aviso,aviso?'error':'info',aviso?10000:4000);
 }
 window['reabrirVenda']=reabrirVenda;
 
@@ -19226,8 +19266,10 @@ function excluirVenda(btnOrIdx){
   if(isNaN(idx)||idx<0||idx>=VENDAS_DB.length){alert('Venda não encontrada.');return;}
   var v=VENDAS_DB[idx];
   if(!v){alert('Venda não encontrada.');return;}
-  var conf='Excluir venda de '+v.cliente+' — R$ '+Number(v.total||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+'?\nEsta ação não pode ser desfeita.';
+  var noBanco=_vendaRecebimentosNoBanco(v);
+  var conf='Excluir venda de '+v.cliente+' — R$ '+Number(v.total||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+'?\nEsta ação não pode ser desfeita.'+(noBanco.length?'\nOs recebimentos que esta venda lançou no banco também serão desfeitos.':'');
   if(!confirm(conf)) return;
+  var avisoBanco=_vendaAvisoBancoManual(noBanco), desfeitosBanco=0;
   var abatimentosDevolvidos=0;
   try{ abatimentosDevolvidos=_vendaRestaurarAbatimentos(v); }catch(e){ console.warn('[vendas] devolver abatimentos',e); }
   _syncVendas.remover(idx);
@@ -19239,16 +19281,20 @@ function excluirVenda(btnOrIdx){
     var cr=CONTAS_RECEBER[i];
     var matchById=vid&&cr.vendaId===vid;
     var matchByData=!cr.vendaId&&cr.cli===v.cliente&&Math.abs(Number(cr.valor)-Number(v.total))<0.01&&cr.data===v.data;
-    if(matchById||matchByData) _syncContasReceber.remover(i);
+    if(matchById||matchByData){
+      if(_vendaDesfazerMovBanco(cr)) desfeitosBanco++;
+      _syncContasReceber.remover(i);
+    }
   }
   if(CONTAS_RECEBER.length!==crAntes){ saveContasReceber(); renderContasReceber(); }
+  if(desfeitosBanco){ try{ saveBancos(); }catch(e){} try{ renderBancos(); }catch(e){} }
   renderVendas();
   renderContasReceber();
   renderEstoque();
   try{renderFluxo();}catch(e){}
   try{renderDashboard();}catch(e){}
   cm();
-  showToast('Venda excluída com sucesso.'+(abatimentosDevolvidos?' '+abatimentosDevolvidos+' adiantamento(s)/cheque(s) voltaram a ficar disponíveis para o cliente.':''),'success');
+  showToast('Venda excluída com sucesso.'+(abatimentosDevolvidos?' '+abatimentosDevolvidos+' adiantamento(s)/cheque(s) voltaram a ficar disponíveis para o cliente.':'')+(desfeitosBanco?' '+desfeitosBanco+' lançamento(s) de banco desfeito(s).':'')+avisoBanco,avisoBanco?'error':'success',avisoBanco?10000:4000);
 }
 window['excluirVenda']=excluirVenda;
 
@@ -19395,7 +19441,11 @@ function _vendaGravarPedido(cmd){
   const corte=String((cfgMov&&cfgMov.cutoffDate)||'').trim();
   (cmd.bankMovements||[]).forEach(function(m){
     if(corte&&String(m.date||'')<corte) return;
-    try{ registrarMovBanco(m.bank, m.date, m.description, 'Entrada', m.amount); }catch(e){ console.warn('[vendas] movimento de banco',e); }
+    try{
+      const mov=registrarMovBanco(m.bank, m.date, m.description, 'Entrada', m.amount);
+      const cr=mov&&m.receivableId?CONTAS_RECEBER.find(function(c){ return c&&c.id===m.receivableId; }):null;
+      if(cr) cr.movBancoId=mov.id;
+    }catch(e){ console.warn('[vendas] movimento de banco',e); }
   });
   saveVendas();
   saveContasReceber();
@@ -20934,37 +20984,18 @@ function initDespesas(){
         if(!origem){ showToast('Escolha o cliente que vai ser juntado.','info'); return; }
         if(_fcNorm(origem)===_fcNorm(destino)){ showToast('Não dá pra juntar o cliente com ele mesmo.','info'); return; }
         if(!confirm('Juntar "'+origem+'" DENTRO de "'+destino+'"?\n\nTodos os lançamentos de "'+origem+'" (vendas, cheques, adiantamentos, recebimentos, lançamentos) passam pra "'+destino+'", e "'+origem+'" some da lista de clientes.\n\nNada é apagado — só muda de cliente. Confirmar?')) return;
-        var no=_fcNorm(origem);
-        var movV=0, movCR=0;
-        
-        try{ (VENDAS_DB||[]).forEach(function(v){ if(v && _fcNorm(v.cliente)===no){ v.cliente=destino; movV++; } }); }catch(e){}
-        
-        try{ (CONTAS_RECEBER||[]).forEach(function(c){ if(c && _fcNorm(c.cli)===no){ c.cli=destino; movCR++; } }); }catch(e){}
-        
-        try{ Object.keys(ADT_CLI||{}).forEach(function(k){ if(_fcNorm(k)===no){ ADT_CLI[destino]=(ADT_CLI[destino]||[]).concat(ADT_CLI[k]||[]); if(k!==destino) delete ADT_CLI[k]; } }); }catch(e){}
-        
-        try{ Object.keys(CHEQUES_CLI||{}).forEach(function(k){ if(_fcNorm(k)===no){ CHEQUES_CLI[destino]=(CHEQUES_CLI[destino]||[]).concat(CHEQUES_CLI[k]||[]); if(k!==destino) delete CHEQUES_CLI[k]; } }); }catch(e){}
-        
-        try{ Object.keys(FC_LANC||{}).forEach(function(k){ if(_fcNorm(k)===no){ FC_LANC[destino]=(FC_LANC[destino]||[]).concat(FC_LANC[k]||[]); if(k!==destino) delete FC_LANC[k]; } }); }catch(e){}
-        
-        try{ Object.keys(FC_SALDO_INI||{}).forEach(function(k){ if(_fcNorm(k)===no && k!==destino){ var o=FC_SALDO_INI[k]||{}; var d=FC_SALDO_INI[destino]; if(d){ d.valor=(Number(d.valor)||0)+(Number(o.valor)||0); } else { FC_SALDO_INI[destino]={valor:Number(o.valor)||0, data:o.data||''}; } delete FC_SALDO_INI[k]; } }); }catch(e){}
-        
-        try{
-          var idx=(CLIENTES||[]).findIndex(function(c){ return c && _fcNorm(c.nome)===no; });
-          if(idx>=0){ try{ _syncClientes.remover(idx); }catch(e){ CLIENTES.splice(idx,1); } }
-        }catch(e){}
-        
-        try{ saveVendas(); }catch(e){}
-        try{ saveContasReceber(); }catch(e){}
-        try{ saveAdtCli(); }catch(e){}
-        try{ saveChequesCli(); }catch(e){}
-        try{ saveFcLanc(); }catch(e){}
-        try{ saveClientes(); }catch(e){}
-        try{ registrarHistorico('Cliente','Juntado','Cliente "'+origem+'" juntado dentro de "'+destino+'"',{origem:origem,destino:destino},{}); }catch(e){}
-        document.getElementById('modal-fc-juntar').style.display='none';
-        try{ fcRenderChips(); }catch(e){}
-        try{ fcReRender(); }catch(e){}
-        showToast('Pronto! "'+origem+'" foi juntado em "'+destino+'". ('+movV+' vendas + '+movCR+' recebimentos movidos)','success');
+        var achar=function(nome){ return (CLIENTES||[]).find(function(c){ return c && _fcNorm(c.nome)===_fcNorm(nome); })||null; };
+        var principal=achar(destino), juntado=achar(origem);
+        if(!principal){ showToast('Cadastre "'+destino+'" em Clientes antes de juntar.','error',7000); return; }
+        _cliApi(juntado?{action:'merge',from:String(juntado.id||''),into:String(principal.id||'')}:{action:'merge',fromName:origem,into:String(principal.id||'')})
+          .then(function(result){
+            try{ registrarHistorico('Cliente','Juntado','Cliente "'+origem+'" juntado dentro de "'+destino+'"',{origem:origem,destino:destino},{}); }catch(e){}
+            document.getElementById('modal-fc-juntar').style.display='none';
+            try{ fcRenderChips(); }catch(e){}
+            try{ fcReRender(); }catch(e){}
+            showToast('Pronto! "'+origem+'" foi juntado em "'+destino+'".'+(result.renamed&&result.renamed.moved?' Movido: '+result.renamed.moved+'.':''),'success',7000);
+          })
+          .catch(function(error){ showToast('Não foi possível juntar: '+error.message,'error',9000); });
       }
       function fcSaldoAnteriorModal(){
         if(!_fcCliAtual){ showToast('Selecione um cliente primeiro.','info'); return; }

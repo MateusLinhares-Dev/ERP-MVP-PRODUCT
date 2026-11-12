@@ -52,7 +52,7 @@ export function saleDocument(
   const extras = amount(sale.acrescimo);
   const number = text(sale.nf) || row.id;
   const date = row.date;
-  const linked = receivablesOf(data, row.id);
+  const linked = receivablesOf(data, sale);
   const credits = linked.filter(
     (cr) => text(cr.status) === RECEIVED && /^(Adiantamento|Cheque)$/.test(text(cr.forma)),
   );

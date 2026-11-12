@@ -166,6 +166,23 @@ export function SalesWorkspace({ data, port, controller }: SalesWorkspaceProps) 
       port.notify(message, 'error');
       return;
     }
+    const number = order.number.trim().toLocaleUpperCase('pt-BR');
+    const repeated = number
+      ? dataRef.current.sales.find(
+          (sale) =>
+            String(sale.id ?? '') !== order.saleId &&
+            String(sale.nf ?? '')
+              .trim()
+              .toLocaleUpperCase('pt-BR') === number,
+        )
+      : undefined;
+    if (
+      repeated &&
+      !port.confirm(
+        `Já existe a venda ${order.number.trim()} para ${String(repeated.cliente ?? '')}. Salvar com o mesmo número mesmo assim?`,
+      )
+    )
+      return;
     const issues = stockIssues(order, (material) => port.stockOf(material, order.saleId));
     if (
       issues.length &&
@@ -277,7 +294,7 @@ export function SalesWorkspace({ data, port, controller }: SalesWorkspaceProps) 
           'pesagens',
           `📦 Pesagens a fechar${queue.recent.length ? ` (${queue.recent.length})` : ''}`,
         )}
-        {tabButton('lancamento', '💰 Lançamento')}
+        {port.canOperate || order ? tabButton('lancamento', '💰 Lançamento') : null}
         {tabButton('historico', '📋 Histórico')}
         {port.canOperate ? (
           <button type="button" className="btn-add erp-sales-new" onClick={() => openNew()}>

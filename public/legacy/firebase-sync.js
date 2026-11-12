@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-12-1400-v228-vendas-react';
+  const _APP_BUILD = '2026-11-12-1800-v229-clientes-api';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -853,7 +853,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         manutencaoDeleted: [..._syncManutencao.deletedSet],
         almoxaDeleted: [..._syncAlxItens.deletedSet],
         almoxaMovDeleted: [..._syncAlxMov.deletedSet],
-        clientesDeleted: [..._syncClientes.deletedSet],
         bancosDeleted: [..._syncBancos.deletedSet],
         despGrupoDeleted: [..._syncDespGrupo.deletedSet],
         coordNotasDeleted: [..._syncAlxNotas.deletedSet],
@@ -959,7 +958,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       _patchIncremental(dados, 'manutencao', _syncManutencao.paraObjeto(), _syncManutencao.deletedSet);
       _patchIncremental(dados, 'almoxa', _syncAlxItens.paraObjeto(), _syncAlxItens.deletedSet);
       _patchIncremental(dados, 'almoxaMov', _syncAlxMov.paraObjeto(), _syncAlxMov.deletedSet);
-      _patchIncremental(dados, 'clientes', _syncClientes.paraObjeto(), _syncClientes.deletedSet);
       if(window.__ERP_BANKS_CLOUD_READY__)
         _patchIncremental(dados, 'bancos', _syncBancos.paraObjeto(), _syncBancos.deletedSet);
       _patchIncremental(dados, 'despGrupo', _syncDespGrupo.paraObjeto(), _syncDespGrupo.deletedSet);

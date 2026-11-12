@@ -16,7 +16,7 @@ function bankHarness({saved, failSave = false} = {}) {
    banco: 'NUBANK', pix: 'PIX-ANTIGO',
    contas: [{ banco: 'NUBANK', pix: 'PIX-ANTIGO' }]
  };
- const errors=[], savedOps=[], notices=[];
+ const errors=[], savedOps=[], notices=[], requests=[];
  let renderCount = 0;
  const rows = [{inputs:[{dataset:{f:'bank'},value:'ITAU'}, {dataset:{f:'agency'},value:'8413'}, {dataset:{f:'account'},value:'23655'}, {dataset:{f:'pix'},value:'PIX-ATUAL'}, {dataset:{f:'holderName'},value:'NOME DO TITULAR'}, {dataset:{f:'holderDocument'},value:'12345678900'}]}];
  const saveButton = {disabled:false,isConnected:true};
@@ -39,12 +39,12 @@ function bankHarness({saved, failSave = false} = {}) {
        if(failSave)throw new Error('permission_denied');
      }
    },
-   window:{renderTabelaFornecedores(){renderCount++;}}
+   window:{renderTabelaFornecedores(){renderCount++;},async erpSupplierRequest(payload){requests.push(payload);Object.assign(supplier,payload.supplier);return {action:'update',supplier};}}
  };
  context.global=context.window;
  vm.createContext(context);
  vm.runInContext(bankSource + '\nglobal.__testLoadPartyBanks=loadPartyBanks;',context);
- return {context,supplier,rows,saveButton,notices,errors,savedOps,get renders(){return renderCount;}};
+ return {context,supplier,rows,saveButton,notices,errors,savedOps,requests,get renders(){return renderCount;}};
 }
 
 function supplierHarness(api){
@@ -106,6 +106,7 @@ test('salvar nova conta confirma antes de atualizar estado e contador',async()=>
  assert.equal(h.savedOps[0][1],'fornecedor-F008');
  assert.equal(h.context.window.ERPPartyBanks.list('fornecedor','F008')[0].bank,'ITAU');
  assert.equal(h.supplier.banco,'ITAU');
+ assert.deepEqual(JSON.parse(JSON.stringify(h.requests)),[{action:'update',cod:'F008',supplier:{banco:'ITAU',agencia:'8413',conta:'23655',pix:'PIX-ATUAL'}}]);
  assert.equal(h.renders,1);
  assert.equal(h.notices.at(-1).type,'success');
 });
@@ -116,6 +117,7 @@ test('erro Firebase mantém contas antigas e não informa sucesso',async()=>{
  await h.context.window.phase3BankSave('fornecedor','F008');
  assert.equal(h.context.window.ERPPartyBanks.list('fornecedor','F008')[0].bank,'NUBANK');
  assert.equal(h.supplier.banco,'NUBANK');
+ assert.equal(h.requests.length,0);
  assert.equal(h.renders,0);
  assert.equal(h.notices.at(-1).type,'error');
  assert.equal(h.saveButton.disabled,false);

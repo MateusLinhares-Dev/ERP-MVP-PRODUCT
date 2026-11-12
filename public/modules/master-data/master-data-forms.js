@@ -5,8 +5,6 @@ const legacy={
   openModal:global.om,
   editClient:global.editCliente,
   editEmployee:global.editFuncionario,
-  saveNewClient:global.salvarNovoCliente,
-  saveClient:global.salvarEditCliente,
   saveNewEmployee:global.salvarNovoFuncionario,
   saveEmployee:global.salvarEditFuncionario
 };
@@ -281,16 +279,14 @@ function persistEmployees(){
   try{renderTbFuncionarios();}catch(e){}
 }
 
-if(typeof legacy.saveNewClient==='function')global.salvarNovoCliente=function(){
-  if(!preparePersonDocument('nc'))return false;
-  const extras=clientExtras('nc'),before=new Set((CLIENTES||[]).map(c=>c.cod));const bank={banco:val('nc-banco'),agencia:val('nc-agencia'),conta:val('nc-conta'),pix:val('nc-pix')};
-  const result=legacy.saveNewClient.apply(this,arguments);const entity=(CLIENTES||[]).find(c=>!before.has(c.cod));if(entity){Object.assign(entity,extras,bank);try{saveClientes();}catch(e){}global.phase4MasterShowList('cliente');}return result;
-};
-if(typeof legacy.saveClient==='function')global.salvarEditCliente=function(){
-  if(!preparePersonDocument('ec'))return false;
-  const idx=Number(document.getElementById('ec-idx')?.value),extras=clientExtras('ec'),bank={banco:val('ec-banco'),agencia:val('ec-agencia'),conta:val('ec-conta'),pix:val('ec-pix')};
-  const result=legacy.saveClient.apply(this,arguments);const entity=CLIENTES?.[idx];if(entity){Object.assign(entity,extras,bank);try{saveClientes();}catch(e){}global.phase4MasterShowList('cliente');}return result;
-};
+function saveClientForm(prefix){
+  if(!preparePersonDocument(prefix))return false;
+  const extras=Object.assign(clientExtras(prefix),{banco:val(prefix+'-banco'),agencia:val(prefix+'-agencia'),conta:val(prefix+'-conta'),pix:val(prefix+'-pix')});
+  if(typeof global._cliSalvarFormulario!=='function')return false;
+  return global._cliSalvarFormulario(prefix,extras).then(result=>{if(result)global.phase4MasterShowList('cliente');return result;});
+}
+global.salvarNovoCliente=function(){return saveClientForm('nc');};
+global.salvarEditCliente=function(){return saveClientForm('ec');};
 if(typeof legacy.saveNewEmployee==='function')global.salvarNovoFuncionario=function(){
   const extras=employeeExtras('nfu'),before=new Set((FUNCIONARIOS||[]).map(f=>f.mat));const result=legacy.saveNewEmployee.apply(this,arguments);const entity=(FUNCIONARIOS||[]).find(f=>!before.has(f.mat));if(entity){Object.assign(entity,extras);persistEmployees();}return result;
 };

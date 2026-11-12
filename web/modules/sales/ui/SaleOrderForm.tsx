@@ -84,6 +84,7 @@ export function SaleOrderForm({
         event.key.toLowerCase() !== 'z'
       )
         return;
+      if (!document.getElementById('erp-sale-items')?.offsetParent) return;
       event.preventDefault();
       update((current) => ({ ...current, items: [...current.items, blankItem()] }));
     };

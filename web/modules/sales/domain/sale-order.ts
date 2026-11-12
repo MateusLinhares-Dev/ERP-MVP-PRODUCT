@@ -139,7 +139,7 @@ export function orderFromSale(data: SalesData, sale: Raw, today: string): SaleOr
   const extras = Array.isArray(sale.acrescimos)
     ? sale.acrescimos.filter(isRaw).reduce((sum, row) => sum + amount(row.v), 0)
     : amount(sale.acrescimo);
-  const linked = receivablesOf(data, id);
+  const linked = receivablesOf(data, sale);
   const locked: LockedReceipt[] = [];
   const installments: OrderInstallment[] = [];
   for (const row of linked) {
@@ -475,7 +475,13 @@ export interface SaleCommit {
   upsertReceivables: Raw[];
   removeReceivables: string[];
   creditUses: Array<{ kind: 'advance' | 'cheque'; ref: string; amount: number }>;
-  bankMovements: Array<{ bank: string; date: string; description: string; amount: number }>;
+  bankMovements: Array<{
+    bank: string;
+    date: string;
+    description: string;
+    amount: number;
+    receivableId: string;
+  }>;
   linkWeighings: string[];
   unlinkWeighings: string[];
 }
@@ -517,7 +523,7 @@ export function buildCommit(order: SaleOrder, context: CommitContext): SaleCommi
       return record;
     });
 
-  const linked = previous ? receivablesOf(data, id) : [];
+  const linked = previous ? receivablesOf(data, previous) : [];
   const upsert: Raw[] = [];
   const keep = new Set<string>();
   const creditUses = balance.uses.map((use) => ({
@@ -548,9 +554,10 @@ export function buildCommit(order: SaleOrder, context: CommitContext): SaleCommi
     const old = row.receivableId ? linked.find((item) => text(item.id) === row.receivableId) : undefined;
     const value = fromCents(toCents(numberOf(row.amount)));
     const bank = methodNeedsBank(row.method) ? row.bank : '';
+    const receivableId = old ? text(old.id) : context.newId('CR');
     const record: Raw = {
       ...(old ?? {}),
-      id: old ? text(old.id) : context.newId('CR'),
+      id: receivableId,
       data: saleDate,
       cli: client,
       nf: number,
@@ -572,10 +579,12 @@ export function buildCommit(order: SaleOrder, context: CommitContext): SaleCommi
         date: receiptDate,
         description: 'Recebto Venda: ' + client + (number ? ' NF ' + number : ''),
         amount: value,
+        receivableId,
       });
   }
   for (const old of linked) {
-    if (text(old.status) === RECEIVED && text(old.nf) !== number) upsert.push({ ...old, nf: number });
+    if (text(old.status) === RECEIVED && (text(old.nf) !== number || text(old.vendaId) !== id))
+      upsert.push({ ...old, nf: number, vendaId: id });
   }
   const removeReceivables = linked
     .filter((old) => text(old.status) !== RECEIVED && !keep.has(text(old.id)))

@@ -329,7 +329,7 @@
       },
       "clientesDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCustomers == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCustomers == true)"
+        ".write": false
       },
       "fornecedoresDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
@@ -395,7 +395,10 @@
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
         "$ticketId": {
           ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true) && ((newData.exists() && !root.child('erp/ticketsDeletedV2').child($ticketId).exists()) || (!newData.exists() && !data.exists() && root.child('erp/ticketsDeletedV2').child($ticketId).exists()) || (!newData.exists() && data.exists() && data.child('_consolidado').val() != true && !data.child('_purchaseOperationId').exists()))"
-        }
+        },
+        ".indexOn": [
+          "tipo"
+        ]
       },
       "historico": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
@@ -471,7 +474,7 @@
       },
       "clientes": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCustomers == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCustomers == true)"
+        ".write": false
       },
       "fornecedores": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSuppliers == true)",
@@ -565,6 +568,10 @@
         ".read": false,
         ".write": false
       },
+      "customerOperations": {
+        ".read": false,
+        ".write": false
+      },
       "listaCompras": {
         ".read": "auth != null && auth.token.erpAccess == true && auth.token.canShoppingList == true",
         ".write": "auth != null && auth.token.erpAccess == true && auth.token.canShoppingList == true"
@@ -640,7 +647,7 @@
       },
       "clientesDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCustomers == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canCustomers == true)"
+        ".write": false
       },
       "frotaDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
