@@ -98,7 +98,7 @@ test('seletores novos e existentes em outros módulos recebem lista pelo mesmo c
     assert.equal(item.disabled,false,item.id);
     assert.ok(item.options.length>=3,item.id);
   }
-  assert.equal(recebimento.options[1].value,'Banco & Cia');
+  assert.equal(recebimento.options[1].value,'BC-03','baixa de conta a receber manda o código do banco para o servidor');
   assert.equal(cheque.options.some(item=>item.value==='Cheque de terceiro'),true);
   assert.equal(seq.options.some(item=>item.value==='Cheque de terceiro'),true);
   assert.equal(venda.options[1].value,'BC-03');

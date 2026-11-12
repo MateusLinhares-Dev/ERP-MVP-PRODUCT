@@ -5,12 +5,8 @@ import { businessTodayISO } from '../../../shared/domain/business-date.js';
 import { toBRDate } from '../../../shared/domain/dates.js';
 import { nameKey } from '../../../shared/domain/person.js';
 import { fail } from '../../../shared/errors/app-error.js';
-import {
-  acquireLease,
-  releaseLeases,
-  runTransaction,
-  type LeaseEntry,
-} from '../../../shared/firebase/rtdb-transaction.js';
+import { customerLockPath, withLocks as lockAll } from '../../../shared/firebase/locks.js';
+import { runTransaction } from '../../../shared/firebase/rtdb-transaction.js';
 import { applyCredits, listOf, restoreCredits } from '../domain/sale-credits.js';
 import { orderInput, validId } from '../domain/sale-input.js';
 import { buildCommit, methodNeedsBank, orderFromSale, validateOrder } from '../domain/sale-order.js';
@@ -31,16 +27,7 @@ const CREDIT_FORMS = new Set(['Adiantamento', 'Cheque']);
 
 const clean = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
-function hash(value: string): string {
-  let result = 0x811c9dc5;
-  for (const char of value) {
-    result ^= char.codePointAt(0) ?? 0;
-    result = Math.imul(result, 0x01000193) >>> 0;
-  }
-  return result.toString(36);
-}
-
-const clientLock = (client: unknown): string => 'erpSalesLocks/c-' + hash(nameKey(client));
+const clientLock = customerLockPath;
 const saleLock = (id: string): string => 'erpSalesLocks/v-' + id;
 
 async function database(db?: Database): Promise<Database> {
@@ -89,30 +76,19 @@ function bankOptions(raw: unknown): BankOption[] {
     .filter((bank) => bank.cod);
 }
 
-async function withLocks<T>(context: Context, paths: string[], work: () => Promise<T>): Promise<T> {
-  const owner = context.uuid();
-  const held: (LeaseEntry & { path: string })[] = [];
-  try {
-    for (const path of [...new Set(paths)]) {
-      const ref = context.db.ref(path);
-      const acquired = await acquireLease(ref, owner, {
-        now: context.now,
-        ttlMs: 120000,
-        meta: { kind: 'sale' },
-      });
-      if (!acquired)
-        fail(
-          409,
-          'SALE_IN_PROGRESS',
-          'Outra operação desta venda ou deste cliente está em andamento. Aguarde alguns segundos e tente de novo.',
-        );
-      held.push({ ref, path });
-    }
-    return await work();
-  } finally {
-    await releaseLeases(held, owner, { label: 'sale.lock.release' });
-  }
-}
+const withLocks = <T>(context: Context, paths: string[], work: () => Promise<T>): Promise<T> =>
+  lockAll(
+    context.db,
+    paths,
+    {
+      now: context.now,
+      uuid: context.uuid,
+      code: 'SALE_IN_PROGRESS',
+      message:
+        'Outra operação desta venda ou deste cliente está em andamento. Aguarde alguns segundos e tente de novo.',
+    },
+    work,
+  );
 
 async function allocateNumber(db: Database): Promise<string> {
   const ref = db.ref('erp/salesNumberSeq');

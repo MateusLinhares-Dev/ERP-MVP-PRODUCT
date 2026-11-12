@@ -45,7 +45,7 @@ vite.config.ts            Build das telas React para dist/ (chamado por scripts/
 test/                     Testes (node:test, executados via tsx)
 ```
 
-Módulos: `access` (login, usuários, permissões), `audit`, `company` (empresas e configuração), `suppliers`, `customers`, `sales`, `purchases`, `advances`, `payables`, `supplier-repasses`, `banking`, `quick-entry`, `agenda`, `training`, `help`, `fiscal`, `snapshots`.
+Módulos: `access` (login, usuários, permissões), `audit`, `company` (empresas e configuração), `suppliers`, `customers`, `sales`, `receivables`, `purchases`, `advances`, `payables`, `supplier-repasses`, `banking`, `quick-entry`, `agenda`, `training`, `help`, `fiscal`, `snapshots`.
 
 ## Regra de dependência
 
@@ -193,8 +193,9 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
   - Clientes (`web/modules/customers/`, ligado em `web/erp/customers.tsx`): lista em `#clientes-app` e formulário no editor da casca de cadastros, gravando pela API `master-data/customers` (detalhes em `docs/CLIENTES-API.md`). Trocar o nome leva o histórico junto.
   - **Cadastro de pessoa comum:** `web/shared/domain/party.ts` (campos, validação de CPF/CNPJ, envio) e `web/shared/ui/PartyFormView.tsx` (formulário) servem Fornecedores e Clientes; o cliente tem a mais o limite de crédito.
 - **Regra pura compartilhada:** a tela pode importar de `server/modules/<m>/domain` e `server/shared/domain` (só regra pura, sem Firebase nem Node), para calcular exatamente como o servidor. Vendas usa isso: `web/modules/sales` importa o pedido de `server/modules/sales/domain`, e `web/shared/domain/{dates,money,decimal,text}.ts` só reexportam os de `server/shared/domain`.
+  - Contas a Receber: gravadas pelo servidor (`server/modules/receivables`, `api/finance/receivables.ts`, detalhes em `docs/CONTAS-RECEBER.md`), com estorno de baixa. A tela ainda é a antiga, chamando a API.
 - **Ordem das próximas migrações:**
-  1. Contas a Receber (servidor + tela), que hoje é gravada pelo navegador e pelo servidor ao mesmo tempo.
+  1. Tela de Contas a Receber em React.
   2. Depois os blocos do `app-core.js`, começando pelos que já têm API no servidor (Contas a Pagar, Adiantamentos, Bancos).
 - **Limpeza feita na etapa 5:**
   - scripts avulsos de incidentes já resolvidos (fornecedor de teste F675, ticket T284, adiantamento excluído);

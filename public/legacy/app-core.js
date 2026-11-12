@@ -126,6 +126,46 @@ async function _cliApi(payload){
 window.erpCustomerRequest=_cliApi;
 window.erpCustomersList=function(){ return CLIENTES; };
 
+function _crAplicarResultado(r){
+  if(!r) return;
+  if(r.receivable&&r.receivable.id){
+    const i=CONTAS_RECEBER.findIndex(function(c){ return c&&c.id===r.receivable.id; });
+    if(i>=0) CONTAS_RECEBER[i]=r.receivable; else CONTAS_RECEBER.push(r.receivable);
+  }
+  if(r.action==='delete'){
+    const i=CONTAS_RECEBER.findIndex(function(c){ return c&&c.id===r.id; });
+    if(i>=0) _syncContasReceber.remover(i);
+  }
+  (r.bankMovements||[]).forEach(function(m){ if(m&&m.id&&!LANC_BANCO_DB.some(function(l){ return l&&l.id===m.id; })) LANC_BANCO_DB.push(m); });
+  (r.bankUndone||[]).forEach(function(id){ const i=LANC_BANCO_DB.findIndex(function(l){ return l&&l.id===id; }); if(i>=0) _syncLancBanco.remover(i); });
+  if(r.cheques&&r.cheques.client){
+    if(Array.isArray(r.cheques.list)) CHEQUES_CLI[r.cheques.client]=r.cheques.list;
+    else if(Array.isArray(r.cheques.added)) CHEQUES_CLI[r.cheques.client]=(CHEQUES_CLI[r.cheques.client]||[]).concat(r.cheques.added);
+  }
+  try{ localStorage.setItem('mm_cr',JSON.stringify(CONTAS_RECEBER)); }catch(e){}
+  try{ renderContasReceber(); }catch(e){}
+  try{ renderChequesCli(); }catch(e){}
+  try{ renderBancos(); }catch(e){}
+  try{ renderVendas(); }catch(e){}
+  try{ renderFluxo(); }catch(e){}
+  try{ renderDashboard(); }catch(e){}
+}
+async function _crApi(payload){
+  const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
+  if(!user) throw new Error('Sessão expirada. Entre novamente.');
+  const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
+  let response;
+  try{
+    response=await fetch('/api/finance/receivables',{method:'POST',credentials:'same-origin',
+      headers:{Authorization:'Bearer '+await user.getIdToken(),'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }catch(e){ throw new Error('Sem conexão com o servidor. Confira a internet e tente de novo.'); }
+  const result=await response.json().catch(function(){ return {}; });
+  if(!response.ok){ const error=new Error(result.message||'O servidor não confirmou a conta a receber.'); error.code=result.code; throw error; }
+  _crAplicarResultado(result);
+  return result;
+}
+window.erpReceivablesRequest=_crApi;
+
 let TICKETS_DELETED = new Set();
 
 let _ticketsSnapJSON = {};
@@ -7876,7 +7916,7 @@ function fcLancarPagamento(){
   const ov=document.createElement('div'); ov.className='modal-ov open'; ov.id='modal-ov'; ov.dataset.dynamic='1';
   const bx=document.createElement('div'); bx.id='modal-body'; bx.className='modal';
   ov.appendChild(bx); document.body.appendChild(ov);
-  const bancos=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB)?BANCOS_DB:[]).map(b=>'<option value="'+esc(b.banco)+'">'+esc(b.banco)+'</option>').join('');
+  const bancos=(typeof BANCOS_DB!=='undefined'&&Array.isArray(BANCOS_DB)?BANCOS_DB:[]).map(b=>'<option value="'+esc(b.cod||b.id||'')+'">'+esc(b.banco)+(b.empresa?' — '+esc(b.empresa):'')+'</option>').join('');
   bx.innerHTML='<h3>💵 Pagamento recebido — '+esc(_fcCliente)+'</h3>'+
     '<div style="font-size:.8rem;color:#666;margin-bottom:10px">Use para registrar um pagamento recebido (inclusive quando o cliente do seu cliente paga direto pra sua empresa).</div>'+
     '<div class="fg"><label>Data</label><input id="fcp-data" type="date" value="'+_hojeISO()+'"></div>'+
@@ -7886,20 +7926,15 @@ function fcLancarPagamento(){
     '<div class="fg"><label>Obs.</label><input id="fcp-obs" placeholder="Ex: NF referente, quem pagou..."></div>'+
     '<div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="fcSalvarPagamento()">💾 Salvar Pagamento</button></div>';
 }
-function fcSalvarPagamento(){
+async function fcSalvarPagamento(){
   const valor=parseFloat(document.getElementById('fcp-valor')?.value)||0;
   if(valor<=0){ alert('Informe um valor válido.'); return; }
   const dataISO=document.getElementById('fcp-data')?.value||_hojeISO();
-  const dataBR=dataISO.split('-').reverse().join('/');
-  CONTAS_RECEBER.push({
-    data:dataBR, cli:_fcCliente, nf:'',
-    valor:valor, forma:(document.getElementById('fcp-forma')?.value||'Pagamento'),
-    banco:(document.getElementById('fcp-banco')?.value||''),
-    venc:dataBR, status:'Recebido', dataReceb:dataBR,
-    obs:(document.getElementById('fcp-obs')?.value||'').trim()||'Pagamento avulso'
-  });
-  try{ saveContasReceber(); }catch(e){}
-  try{ renderContasReceber(); }catch(e){}
+  const forma=document.getElementById('fcp-forma')?.value||'Pagamento';
+  try{
+    await _crApi({action:'create',receivable:{cli:_fcCliente,valor:valor,venc:dataISO,forma:forma,obs:(document.getElementById('fcp-obs')?.value||'').trim()||'Pagamento avulso'},
+      received:{date:dataISO,bank:document.getElementById('fcp-banco')?.value||'',method:forma}});
+  }catch(error){ showToast('Pagamento não registrado: '+error.message,'error',9000); return; }
   cm();
   fcSelecionarCliente(_fcCliente,true);
   showToast('✅ Pagamento registrado para '+_fcCliente,'success');
@@ -8727,8 +8762,8 @@ function _adtPopularFornecedoresPermitidos(){
 const _erpBankDirectory={uid:'',ready:false,pending:null,banks:[],error:'',loadedAt:0};
 const _erpBankDirectoryModes={
   'cp-banco':'code','ecp-banco':'code','pcp-banco':'code','adtcli-banco':'code','cr-banco':'code',
-  'ct-banco':'name','cheq-banco':'cheque','adt-seq-banco':'cheque','fcp-banco':'name',
-  'ecr-banco':'name','rcr-banco':'name','ffla-banco':'name','f-banco':'name'
+  'ct-banco':'name','cheq-banco':'cheque','adt-seq-banco':'cheque','fcp-banco':'code',
+  'ecr-banco':'name','rcr-banco':'code','ffla-banco':'name','f-banco':'name'
 };
 const _erpBankDirectorySelector=Object.keys(_erpBankDirectoryModes).map(id=>'select#'+id).concat(['#cheq-rows td:nth-child(4) select','#v-pgto-rows td:nth-child(2) select']).join(',');
 function _erpBankDirectoryUser(){
@@ -16650,7 +16685,7 @@ function saveContasPagar(){
   catch(e){console.warn('[Contas a pagar] Cache local indisponível.',e);}
   if(typeof fbSalvar==='function')fbSalvar();
 }
-function saveContasReceber(){ localStorage.setItem('mm_cr', JSON.stringify(CONTAS_RECEBER)); try{fbSalvar();}catch(e){} }
+function saveContasReceber(){ try{ localStorage.setItem('mm_cr', JSON.stringify(CONTAS_RECEBER)); }catch(e){} }
 function saveContratos(){
   try {
     const cache=CONTRATOS_DB.map(function(c){
@@ -16677,19 +16712,21 @@ function loadContas(){
   }catch(ex){}
 }
 
-function excluirContaReceber(idx){
-  if(idx<0||idx>=CONTAS_RECEBER.length){alert('Lançamento não encontrado.');return;}
-  var cr=CONTAS_RECEBER[idx];
-  var desc='Excluir lançamento de '+esc(cr.cli||'?')+' — R$ '+Number(cr.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+'?\nEsta ação não pode ser desfeita.';
-  if(!confirm(desc)) return;
-  _syncContasReceber.remover(idx);
-  saveContasReceber();
-  renderContasReceber();
-  renderVendas();
-  try{renderFluxo();}catch(e){}
-  try{renderDashboard();}catch(e){}
-  showToast('Lançamento excluído.','success');
+async function excluirContaReceber(idx){
+  const cr=CONTAS_RECEBER[idx];
+  if(!cr){ alert('Lançamento não encontrado.'); return; }
+  if(cr.vendaId){ showToast('Esta conta é de uma venda: exclua ou edite pela venda.','error',7000); return; }
+  if(!confirm('Excluir lançamento de '+(cr.cli||'?')+' — R$ '+Number(cr.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+'?\nEsta ação não pode ser desfeita.'+(cr.movBancoId?'\nO lançamento no banco desta baixa também será desfeito.':''))) return;
+  try{ await _crApi({action:'delete',id:cr.id}); try{ cm(); }catch(e){} showToast('Lançamento excluído.','success'); }
+  catch(error){ showToast('Não foi possível excluir: '+error.message,'error',9000); }
 }
+async function estornarContaReceber(idx){
+  const cr=CONTAS_RECEBER[idx]; if(!cr) return;
+  if(!confirm('Estornar a baixa de '+(cr.cli||'?')+' — R$ '+Number(cr.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+'? Ela volta a ficar pendente.'+(cr.movBancoId?'\nO lançamento no banco também será desfeito.':''))) return;
+  try{ await _crApi({action:'reopen',id:cr.id}); showToast('Baixa estornada.','success'); }
+  catch(error){ showToast('Não foi possível estornar: '+error.message,'error',9000); }
+}
+window['estornarContaReceber']=estornarContaReceber;
 window['excluirContaReceber']=excluirContaReceber;
 
 let _cpFiltroDia = ''; 
@@ -18191,35 +18228,27 @@ function renderContasReceber(){
       +'<td style="white-space:nowrap">'
         +(c.vendaId?'<button class="btn-add" style="padding:3px 8px;font-size:.72rem;margin-right:4px" onclick="verVendaDoCR(this.dataset.id)" data-id="'+c.vendaId+'">🔗 Venda</button>':'')
         +'<button class="btn-edit" onclick="editContaReceber('+idx+')" style="margin-right:4px">✏️</button>'
-        +(c.status!=='Recebido'?'<button class="btn-edit" style="background:#27ae60;color:#fff;font-size:.75rem;margin-right:4px" onclick="receberContaRapido('+idx+')">✅ Receber</button>':'')
+        +(c.status!=='Recebido'?'<button class="btn-edit" style="background:#27ae60;color:#fff;font-size:.75rem;margin-right:4px" onclick="receberContaRapido('+idx+')">✅ Receber</button>':'<button class="btn-edit" style="font-size:.75rem;margin-right:4px" onclick="estornarContaReceber('+idx+')" title="Estornar baixa">↩ Estornar</button>')
         +'<button class="btn-edit-danger" onclick="excluirContaReceber('+idx+')" title="Excluir lançamento">🗑️</button>'
       +'</td>'
     +'</tr>';
   }).join('');
 }
 
-function salvarContaReceber(){
+async function salvarContaReceber(){
   const cli=document.getElementById('cr-cli')?.value.trim();
   const valor=parseFloat(document.getElementById('cr-valor')?.value)||0;
   const venc=document.getElementById('cr-venc')?.value;
   if(!cli||valor<=0||!venc){alert('Preencha cliente, valor e vencimento!');return;}
-  const hoje=_hojeISO().split('-').reverse().join('/');
-  CONTAS_RECEBER.push({
-    data: hoje, cli, nf: document.getElementById('cr-nf')?.value.trim()||'',
-    valor, venc: venc.split('-').reverse().join('/'),
-    status: document.getElementById('cr-status')?.value||'Pendente',
-    dataReceb:'', obs: document.getElementById('cr-obs')?.value.trim()||''
-  });
-  saveContasReceber(); renderContasReceber();
-  try{renderFluxo();}catch(e){}
-  try{renderDashboard();}catch(e){}
-  cm();
-  showToast('Recebimento registrado!','success');
+  try{
+    await _crApi({action:'create',receivable:{cli:cli,nf:document.getElementById('cr-nf')?.value.trim()||'',valor:valor,venc:venc,obs:document.getElementById('cr-obs')?.value.trim()||''}});
+    cm();
+    showToast('Conta a receber lançada!','success');
+  }catch(error){ showToast('Não foi possível lançar: '+error.message,'error',9000); }
 }
 
 function editContaReceber(idx){
   const c=CONTAS_RECEBER[idx]; if(!c) return;
-  const stOpts=['Pendente','Recebido','Atrasado'].map(s=>'<option'+(s===c.status?' selected':'')+'>'+s+'</option>').join('');
   const body=document.getElementById('modal-body');
   body.className='modal';
   body.innerHTML=
@@ -18229,33 +18258,26 @@ function editContaReceber(idx){
     '<div class="fg"><label>NF/Pedido</label><input id="ecr-nf" value="'+esc(c.nf||'')+'"></div>'+
     '<div class="fg"><label>Valor R$</label><input id="ecr-valor" type="number" min="0" step="0.01" value="'+c.valor+'"></div>'+
     '<div class="fg"><label>Vencimento</label><input id="ecr-venc" type="date" value="'+(c.venc?c.venc.split('/').reverse().join('-'):'')+'"></div>'+
-    '<div class="fg"><label>Status</label><select id="ecr-status">'+stOpts+'</select></div>'+
-    '<div class="fg"><label>Banco Recebimento</label><select id="ecr-banco"><option value="">— Selecione —</option>'+(BANCOS_DB||[]).map(b=>{const n=b.banco+(b.tipo==='Conta Terceiro'?' ('+b.titular+')':'');return '<option value="'+esc(n)+'"'+(n===c.banco?' selected':'')+'>'+esc(n)+'</option>';}).join('')+'</select></div>'+
-    '<div class="fg"><label>Data Recebimento</label><input id="ecr-receb" type="date" value="'+(c.dataReceb?c.dataReceb.split('/').reverse().join('-'):'')+'"></div>'+
+    '<div style="font-size:.78rem;color:#666;margin:-4px 0 8px">Situação: <b>'+esc(c.status||'Pendente')+'</b>. Para receber ou estornar, use os botões da lista.</div>'+
     '<div class="fg"><label>Obs.</label><input id="ecr-obs" value="'+esc(c.obs||'')+'"></div>'+
     '<div class="modal-ft">'+
     '<button class="btn-edit-danger" onclick="excluirContaReceber('+idx+')">🗑️ Excluir</button>'+
     '<button class="btn-cancel" onclick="cm()">Cancelar</button>'+
     '<button class="btn-save" onclick="salvarEditContaReceber()">💾 Salvar</button></div>';
   document.getElementById('modal-ov').classList.add('open');
-  const bankSelect=document.getElementById('ecr-banco');
-  if(bankSelect)bankSelect.dataset.erpBankDesired=c.banco||'';
-  _erpBankDirectoryScan();
 }
 
-function salvarEditContaReceber(){
+async function salvarEditContaReceber(){
   const idx=parseInt(document.getElementById('ecr-idx').value);
   const c=CONTAS_RECEBER[idx]; if(!c) return;
-  const receb=document.getElementById('ecr-receb').value;
-  c.cli=document.getElementById('ecr-cli').value.trim();
-  c.nf=document.getElementById('ecr-nf').value.trim();
-  c.valor=parseFloat(document.getElementById('ecr-valor').value)||0;
-  c.venc=document.getElementById('ecr-venc').value.split('-').reverse().join('/');
-  c.status=document.getElementById('ecr-status').value;
-  c.dataReceb=receb?receb.split('-').reverse().join('/'):'';
-
-  c.obs=document.getElementById('ecr-obs').value.trim();
-  saveContasReceber(); renderContasReceber(); renderFluxo(); try{renderDashboard();}catch(e){} cm();
+  const g=function(id){ return (document.getElementById(id)?.value||'').trim(); };
+  const campos={nf:g('ecr-nf'),venc:g('ecr-venc'),obs:g('ecr-obs')};
+  if(!c.vendaId){ campos.cli=g('ecr-cli'); campos.valor=parseFloat(g('ecr-valor'))||0; }
+  try{
+    await _crApi({action:'update',id:c.id,receivable:campos,expectedUpdate:c.atualizadoEm!=null?Number(c.atualizadoEm):undefined});
+    cm();
+    showToast('Conta a receber atualizada.','success');
+  }catch(error){ showToast('Não foi possível salvar: '+error.message,'error',9000); }
 }
 
 function receberContaRapido(idx){
@@ -18265,8 +18287,8 @@ function receberContaRapido(idx){
   body.className='modal';
   const hoje=_hojeISO();
   const bancoOpts=(_erpBankDirectory.ready?_erpBankDirectory.banks:[]).map(b=>{
-    const n=b.banco+(b.tipo==='Conta Terceiro'?' ('+b.titular+')':'');
-    return '<option value="'+esc(n)+'">'+esc(n)+'</option>';
+    const n=b.banco+(b.tipo==='Conta Terceiro'?' ('+b.titular+')':'')+(b.empresa?' — '+b.empresa:'');
+    return '<option value="'+esc(b.cod||'')+'">'+esc(n)+'</option>';
   }).join('');
   body.innerHTML=
     '<h3>✅ Baixar Recebimento</h3>'+
@@ -18314,70 +18336,24 @@ function _crSomaCheques(){
   const lbl=document.getElementById('rcr-cheques-total');
   if(lbl) lbl.textContent='R$ '+t.toLocaleString('pt-BR',{minimumFractionDigits:2});
 }
-function confirmarReceberCR(){
+async function confirmarReceberCR(){
   const idAlvo=document.getElementById('rcr-id')?.value||'';
   const idx=idAlvo?CONTAS_RECEBER.findIndex(x=>x&&x.id===idAlvo):parseInt(document.getElementById('rcr-idx').value);
   const c=CONTAS_RECEBER[idx]; if(!c){ showToast('Esta conta a receber mudou ou foi excluída. Feche e abra de novo.','error'); return; }
   if(c.status==='Recebido'){ showToast('Esta conta já foi recebida.','error'); cm(); return; }
   const data=document.getElementById('rcr-data').value;
-  const banco=document.getElementById('rcr-banco').value;
-  const obs=document.getElementById('rcr-obs').value.trim();
   if(!data){alert('Informe a data de recebimento!');return;}
-  
   const cheques=[];
   document.querySelectorAll('#rcr-cheques-list .rcr-cheque-row').forEach(function(r){
     const num=(r.querySelector('.rcr-ch-num')?.value||'').trim();
-    const bco=(r.querySelector('.rcr-ch-banco')?.value||'').trim();
-    const val=parseFloat(r.querySelector('.rcr-ch-valor')?.value)||0;
-    const bom=r.querySelector('.rcr-ch-bom')?.value||'';
-    if(val>0||num) cheques.push({num:num,banco:bco,valor:val,bom:bom});
+    const valor=parseFloat(r.querySelector('.rcr-ch-valor')?.value)||0;
+    if(valor>0||num) cheques.push({num:num,banco:(r.querySelector('.rcr-ch-banco')?.value||'').trim(),valor:valor,bomPara:r.querySelector('.rcr-ch-bom')?.value||''});
   });
-  const dataFmt=data.split('-').reverse().join('/');
-  c.status='Recebido';
-  c.dataReceb=dataFmt;
-  if(obs) c.obs=obs;
-  if(cheques.length){
-
-    if(typeof CHEQUES_CLI==='undefined') window.CHEQUES_CLI={};
-    if(!CHEQUES_CLI[c.cli]) CHEQUES_CLI[c.cli]=[];
-    let somaCh=0;
-    cheques.forEach(function(ch){
-      somaCh+=Number(ch.valor)||0;
-      CHEQUES_CLI[c.cli].push({
-        num:ch.num, data:dataFmt,
-        bomPara: ch.bom?ch.bom.split('-').reverse().join('/'):'',
-        valor:Number(ch.valor)||0, banco:ch.banco,
-        tipo:'Recebimento', vinculo:(c.nf||''),
-        emitente:c.cli, obs:'Recebimento de conta a receber'+(c.nf?' — NF '+c.nf:''),
-        status:'Pendente', motivoDevolucao:''
-      });
-    });
-    try{ saveChequesCli(); }catch(e){}
-    c.forma='Cheque'; c.banco='';
-    c.obs=((c.obs?c.obs+' | ':'')+cheques.length+' cheque(s) — R$ '+somaCh.toLocaleString('pt-BR',{minimumFractionDigits:2}));
-    saveContasReceber(); renderContasReceber();
-    try{ renderChequesCli(); }catch(e){}
-    renderFluxo(); renderDashboard(); cm();
-    showToast('Recebimento em '+cheques.length+' cheque(s) registrado! Eles estão na aba Cheques do cliente.','success');
-    return;
-  }
-
-  const _cfgMov=_legacyRepairConfig('bankMovement');
-  const _corteMov=String((_cfgMov&&_cfgMov.cutoffDate)||'').trim();
-  const _antigo = Boolean(_corteMov&&data<_corteMov);
-  if(banco) c.banco=banco;
-  saveContasReceber();
-  renderContasReceber();
-  if(banco && !_antigo){
-    const mov=registrarMovBanco(banco, data, 'Recebto: '+String(c.cli||'')+(c.nf?' NF '+c.nf:''), 'Entrada', c.valor);
-    if(mov&&mov.id){ c.movBancoId=mov.id; saveContasReceber(); }
-  }
-  renderFluxo();
-  renderDashboard();
-  cm();
-  showToast(_antigo
-    ? 'Recebimento baixado (data anterior ao início configurado da movimentação bancária — não altera o saldo). R$ '+Number(c.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})
-    : 'Recebimento baixado! R$ '+Number(c.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})+(banco?' | '+banco:''),'success');
+  try{
+    const r=await _crApi({action:'receive',id:c.id,date:data,bank:cheques.length?'':document.getElementById('rcr-banco').value,cheques:cheques,notes:document.getElementById('rcr-obs').value.trim()});
+    cm();
+    showToast(cheques.length?'Recebimento em '+cheques.length+' cheque(s) registrado! Eles estão na aba Cheques do cliente.':(r.bankMovements&&r.bankMovements.length?'Recebimento baixado e lançado no banco.':'Recebimento baixado.'),'success');
+  }catch(error){ showToast('Não foi possível dar baixa: '+error.message,'error',9000); }
 }
 
 let BANCOS_DB = [];

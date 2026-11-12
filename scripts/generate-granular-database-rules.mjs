@@ -90,8 +90,8 @@ for(const node of nodes){
     '.write':`${auth} && (${writing.join(' || ')})`
   };
 }
-for(const node of ['fornecedores','fornDeleted','clientes','clientesDeleted','vendas','vendasDeleted'])candidate.rules.erp[node]['.write']=false;
-for(const node of ['erpSalesLocks','salesOperations','salesNumberSeq'])candidate.rules.erp[node]={'.read':false,'.write':false};
+for(const node of ['fornecedores','fornDeleted','clientes','clientesDeleted','vendas','vendasDeleted','contasReceber','contasReceberDeleted'])candidate.rules.erp[node]['.write']=false;
+for(const node of ['erpSalesLocks','salesOperations','salesNumberSeq','erpReceivableLocks','receivableOperations'])candidate.rules.erp[node]={'.read':false,'.write':false};
 candidate.rules.erp.contasReceber['.indexOn']=['vendaId','cli'];
 candidate.rules.erp.supplierOperations={'.read':false,'.write':false};
 candidate.rules.erp.customerOperations={'.read':false,'.write':false};

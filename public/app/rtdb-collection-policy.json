@@ -419,10 +419,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canFinance"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "afazeresDeleted": {
@@ -909,10 +907,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canFinance"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "afazeres": {
