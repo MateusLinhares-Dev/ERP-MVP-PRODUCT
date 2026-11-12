@@ -66,28 +66,6 @@ function setup() {
   return { context, elements, tbody, fiscalList, suppliers, setQuery:value=>{query=value;} };
 }
 
-test('Fornecedor de COMPRA usa paginação após supplier-compat substituir o renderizador legado',()=>{
-  const {context,elements,tbody,setQuery} = setup();
-  const render = context.window.renderTabelaFornecedores;
-  render();
-  assert.equal((tbody.innerHTML.match(/<tr /g)||[]).length,25);
-  assert.match(tbody.innerHTML,/F0001/);
-  assert.doesNotMatch(tbody.innerHTML,/F1000/);
-  assert.ok(elements.has('erp-list-pager-fornecedores-compra'));
-  const pager = elements.get('erp-list-pager-fornecedores-compra');
-  assert.match(pager.children[0].textContent,/1–25 de 1000/);
-  pager.children[1].children[3].fire('click');
-  assert.equal((tbody.innerHTML.match(/<tr /g)||[]).length,25);
-  assert.match(tbody.innerHTML,/F0026/);
-  assert.doesNotMatch(tbody.innerHTML,/F0001/);
-  setQuery('Encontrado');
-  context.window.ERPListPager.reset('fornecedores-compra');
-  render();
-  assert.equal((tbody.innerHTML.match(/<tr /g)||[]).length,1);
-  assert.match(tbody.innerHTML,/F1000/);
-  assert.match(tbody.innerHTML,/fornAbrirPix|Ficha/);
-});
-
 test('Paginação também funciona para cards do cadastro fiscal, sem depender de uma tabela',()=>{
   const {context,elements,fiscalList} = setup();
   assert.match(fiscalCode, /ERPListPager\?\.slice\('fiscal-cadastros',arr,'p2fis-list',renderFiscalRegistry\)/);

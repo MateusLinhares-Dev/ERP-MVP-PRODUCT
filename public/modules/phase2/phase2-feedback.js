@@ -71,8 +71,6 @@ function removeNumberSpinners(){
 }
 function fixPartyBanks(){
   $$('#tb-fornecedores-list .phase1-party-bank-btn').forEach(b=>b.remove());
-  const supplierTab=$('#tab-fornecedores');
-  if(supplierTab)removeByText(supplierTab,'button',/restaurarfornecedores|restaurar/i);
 }
 
 function rebuildCalendarTools(){

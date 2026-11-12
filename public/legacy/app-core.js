@@ -50,7 +50,6 @@ function _fornAplicarResultado(result){
   try{ localStorage.setItem('mm_fornecedores_edit',JSON.stringify(FORNECEDORES)); }catch(e){}
   try{ renderTabelaFornecedores(); }catch(e){}
   try{ populateFornSelects(); }catch(e){}
-  try{ atualizarBtnExcluir(); }catch(e){}
   try{ document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'fornecedores'}})); }catch(e){}
 }
 async function _fornApi(payload){
@@ -781,85 +780,7 @@ function _erpPaginarDados(key, dados, bodyId, callback, options){
 function _erpReiniciarPagina(key){
   if(typeof ERPListPager!=='undefined' && ERPListPager && typeof ERPListPager.reset==='function') ERPListPager.reset(key);
 }
-let _fornFiltroAtual='';
-
-function _getFornFiltrados(){
-  const normalizar=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-  const v=normalizar(_fornFiltroAtual);
-  
-  const ativos=getFornAtivos().slice().sort(function(a,b){ return String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{sensitivity:'base'}); });
-  if(!v) return ativos;
-  return ativos.filter(function(f){
-    return normalizar((f.cod||'')+' '+(f.nome||'')+' '+(f.cidade||'')).includes(v);
-  });
-}
-
-function renderTabelaFornecedores(){
-
-  try{ if(_syncFornecedores.limparDuplicatasExatas()){ try{fbSalvar();}catch(e){} } }catch(e){}
-  const tbForn=document.getElementById('tb-fornecedores');
-  if(!tbForn) return;
-  const _isEl=_usuarioPodeOperarModulo('fornecedores');
-  const lista=_getFornFiltrados();
-  const pagina=_erpPaginarDados('fornecedores-compra',lista,'tb-fornecedores',renderTabelaFornecedores);
-  tbForn.innerHTML=pagina.map(function(f){
-    const c=esc(f.cod);
-    let r='<tr onclick="fornSelLinha(this)" style="cursor:pointer" title="Clique pra marcar esta linha">';
-    r+='<td style="text-align:center">'+(_isEl?'<input type="checkbox" class="forn-chk" value="'+c+'" onchange="atualizarBtnExcluir()">':'')+'</td>';
-    r+='<td>'+c+'</td>';
-    r+='<td><b>'+esc(f.nome)+'</b></td>';
-    r+='<td>'+esc(f.cpf||'—')+'</td>';
-    r+='<td>'+esc(f.tel||'—')+'</td>';
-    r+='<td>'+esc(f.cidade||'—')+'</td>';
-    var _pt=[];
-    if(f.pix)     _pt.push('PIX: '+f.pix);
-    if(f.banco)   _pt.push(f.banco);
-    if(f.agencia) _pt.push('Ag '+f.agencia);
-    if(f.conta)   _pt.push('C/C '+f.conta);
-    var _bco=_pt.join(' · ');
-    var _obs=String(f.obs||'').replace(/\s*\n+\s*/g,' · ').trim();
-    var _bin=(_bco&&_obs)?(_bco+' | '+_obs):(_bco||_obs||'—');
-    r+='<td style="font-size:.78rem;white-space:nowrap">'+(_bco?'<b style="color:#1a5e2a">🏦 </b>':'')+esc(_bin)+'</td>';
-    r+='<td style="white-space:nowrap">';
-    r+='<button type="button" class="forn-ficha-btn" data-ficha-cod="'+c+'" style="padding:4px 10px;font-size:.78rem;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">&#x1F4CB; Ficha</button>';
-    r+='<button class="btn-edit" onclick="editFornecedor(&#39;'+c+'&#39;)">&#x270F;&#xFE0F;</button>';
-    r+=' <button class="btn-edit" onclick="fornDocsModal(&#39;'+c+'&#39;)" title="Documentos" style="background:#0277bd;color:#fff">&#x1F4C4; Docs</button>';
-    if(_isEl) r+=' <button class="btn-edit-danger" onclick="excluirFornecedor(&#39;'+c+'&#39;)" title="Excluir">&#x1F5D1;&#xFE0F;</button>';
-    r+='</td></tr>';
-    return r;
-  }).join('');
-  const _chkTodas=document.getElementById('chk-all-forn');
-  if(_chkTodas) _chkTodas.checked=false;
-  atualizarBtnExcluir();
-  tbForn.querySelectorAll('.forn-ficha-btn[data-ficha-cod]').forEach(function(btn){
-    btn.addEventListener('click',function(ev){
-      ev.preventDefault();
-      ev.stopPropagation();
-      var cod=this.getAttribute('data-ficha-cod')||'';
-      abrirFichaForn(cod);
-    });
-  });
-}
-
-function fornSelLinha(tr){
-  try{
-    const estava=tr.classList.contains('linha-sel');
-    tr.parentNode.querySelectorAll('tr.linha-sel').forEach(function(x){ x.classList.remove('linha-sel'); });
-    if(!estava) tr.classList.add('linha-sel');
-  }catch(e){}
-}
-(function(){
-  try{
-    const s=document.createElement('style');
-    s.textContent='tr.linha-sel td{background:#ffd54f !important} tr.linha-sel{outline:2px solid #f39c12}';
-    document.head.appendChild(s);
-  }catch(e){}
-})();
-function filtrarTabelaForn(val){
-  _fornFiltroAtual=(val!==undefined)?val:(document.getElementById('forn-busca-nome')?.value||'');
-  _erpReiniciarPagina('fornecedores-compra');
-  renderTabelaFornecedores();
-}
+function renderTabelaFornecedores(){}
 
 const TABS_CFG = {
   dashboard:          {label:'Dashboard',       icon:'📊'},
@@ -7914,7 +7835,7 @@ function fcRenderResumo(){
 }
 
 function _fcPrefill(id,val){ setTimeout(function(){ const e=document.getElementById(id); if(e){ e.value=val; try{ e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true})); }catch(x){} } },120); }
-function fcLancarVenda(){ om('venda'); _fcPrefill('v-cliente',_fcCliente); }
+function fcLancarVenda(){ if(typeof window.erpSalesOpen==='function') return window.erpSalesOpen(_fcCliente||''); showToast('Tela de vendas ainda carregando. Tente de novo em instantes.','info'); }
 function fcLancarAdiantamento(){ om('adiantamento_cli'); _fcPrefill('adtcli-cli',_fcCliente); }
 function fcLancarCheque(){ om('cheque_cli'); _fcPrefill('cheqcli-cli',_fcCliente); }
 function fcLancarPagamento(){
@@ -7957,55 +7878,6 @@ function saveFcLanc(){ try{ localStorage.setItem('mm_fc_lanc', JSON.stringify(FC
 function _popularClientesSel(){
   const opts='<option value="">— Selecione o cliente —</option>'+(CLIENTES||[]).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{sensitivity:'base'})).map(c=>`<option value="${esc(c.nome)}">${esc(c.nome)}</option>`).join('');
   ['adtcli-cli','cheqcli-cli'].forEach(id=>{ const s=document.getElementById(id); if(s) s.innerHTML=opts; });
-}
-
-function _popularClientesVenda(){
-  const dl=document.getElementById('dlist-clientes-venda');
-  if(dl) dl.innerHTML=(CLIENTES||[]).slice().sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR')).map(c=>`<option value="${esc(c.nome)}">`).join('');
-}
-
-function vClienteInfo(){
-  try{ aplicarPrecosClienteVenda(); }catch(e){}
-  const box=document.getElementById('v-cliente-info');
-  if(!box) return;
-  const nome=(document.getElementById('v-cliente')?.value||'').trim();
-  if(!nome){ box.innerHTML=''; return; }
-  const fmt=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const adts=(ADT_CLI[nome]||[]).filter(a=>(a.status||'Pendente')==='Pendente');
-  const totAdt=adts.reduce((s,a)=>s+Number(a.valor||0),0);
-  const chsPend=(CHEQUES_CLI[nome]||[]).filter(c=>{ const st=(c.status||'Pendente'); return st!=='Compensado' && st!=='Devolvido' && st!=='Quitado'; });
-  const totCh=chsPend.reduce((s,c)=>s+Number(c.valor||0),0);
-  if(!adts.length && !chsPend.length){
-    box.innerHTML='<div style="font-size:.8rem;color:#888;background:#f5f5f5;border-radius:8px;padding:6px 10px">Cliente sem adiantamentos ou cheques pendentes.</div>';
-    return;
-  }
-  let html='<div style="background:#e8f5e9;border:1.5px solid #a5d6a7;border-radius:8px;padding:8px 12px;font-size:.82rem;color:#1b5e20">';
-  html+='<b>💰 '+esc(nome)+' já enviou (pendente) — marque o que abater desta venda:</b><br>';
-  (ADT_CLI[nome]||[]).forEach(function(a,i){
-    if((a.status||'Pendente')!=='Pendente') return;
-    html+='<label style="display:block;margin:3px 0;cursor:pointer"><input type="checkbox" class="v-abate-adt" data-idx="'+i+'" onchange="vRecalcAbate()"> Adiantamento '+esc(a.data)+' — <b>R$ '+fmt(a.valor)+'</b>'+(a.forma?' ('+esc(a.forma)+')':'')+'</label>';
-  });
-  (CHEQUES_CLI[nome]||[]).forEach(function(c,i){
-    const st=(c.status||'Pendente'); if(st==='Compensado'||st==='Devolvido'||st==='Quitado') return;
-    html+='<label style="display:block;margin:3px 0;cursor:pointer"><input type="checkbox" class="v-abate-cheq" data-idx="'+i+'" onchange="vRecalcAbate()"> Cheque nº '+esc(c.num||'—')+' bom p/ '+esc(c.bomPara||'—')+' — <b>R$ '+fmt(c.valor)+'</b></label>';
-  });
-  html+='<div style="border-top:1px dashed #a5d6a7;margin-top:5px;padding-top:5px;color:#555">Disponível: <b>R$ '+fmt(totAdt+totCh)+'</b> · Selecionado p/ abater: <b id="v-abate-sel" style="color:#1b5e20">R$ 0,00</b></div>';
-  html+='</div>';
-  box.innerHTML=html;
-}
-
-function vRecalcAbate(){
-  const nome=(document.getElementById('v-cliente')?.value||'').trim();
-  let sel=0;
-  document.querySelectorAll('.v-abate-adt:checked').forEach(function(chk){
-    const a=(ADT_CLI[nome]||[])[Number(chk.dataset.idx)]; if(a) sel+=Number(a.valor||0);
-  });
-  document.querySelectorAll('.v-abate-cheq:checked').forEach(function(chk){
-    const c=(CHEQUES_CLI[nome]||[])[Number(chk.dataset.idx)]; if(c) sel+=Number(c.valor||0);
-  });
-  const el=document.getElementById('v-abate-sel');
-  if(el) el.textContent='R$ '+Number(sel).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  return sel;
 }
 
 function salvarAdiantamentoCli(){
@@ -12468,36 +12340,6 @@ function _coletarExtras(){
 }
 function _somaExtras(){ return _coletarExtras().reduce(function(s,e){ return s+e.v; },0); }
 
-function _vExtraRowHTML(v,obs){
-  const ev=(v===0||v==='')?'':String(v);
-  return '<div class="v-extra-row" style="display:flex;gap:8px;align-items:flex-end;margin-bottom:6px">'
-    +'<div style="width:120px"><label style="font-size:.68rem;font-weight:700;color:#666;display:block">Valor R$</label>'
-      +'<input type="text" class="v-extra-v" value="'+esc(ev)+'" placeholder="0,00" oninput="calcVenda()" style="width:100%;padding:6px;border:1px solid #a5d6a7;border-radius:6px;font-size:.85rem;box-sizing:border-box"></div>'
-    +'<div style="flex:1;min-width:150px"><label style="font-size:.68rem;font-weight:700;color:#666;display:block">Motivo</label>'
-      +'<input type="text" class="v-extra-obs" value="'+esc(obs||'')+'" placeholder="ex: frete" style="width:100%;padding:6px;border:1px solid #a5d6a7;border-radius:6px;font-size:.85rem;box-sizing:border-box"></div>'
-    +'<button type="button" onclick="remVExtraRow(this)" title="Remover este valor extra" style="border:none;background:#fdecea;color:#c0392b;border-radius:6px;padding:7px 10px;cursor:pointer;font-size:.85rem">✕</button>'
-    +'</div>';
-}
-function addVExtraRow(){ const box=document.getElementById('v-extras'); if(box) box.insertAdjacentHTML('beforeend', _vExtraRowHTML('','')); }
-function remVExtraRow(btn){
-  const box=document.getElementById('v-extras'); if(!box) return;
-  const row=btn.closest('.v-extra-row');
-  if(box.querySelectorAll('.v-extra-row').length<=1){ if(row){ const v=row.querySelector('.v-extra-v'), o=row.querySelector('.v-extra-obs'); if(v)v.value=''; if(o)o.value=''; } }
-  else if(row){ row.remove(); }
-  calcVenda();
-}
-function _coletarVExtras(){
-  const out=[];
-  document.querySelectorAll('#v-extras .v-extra-row').forEach(function(row){
-    let s=(row.querySelector('.v-extra-v')?.value||'').trim().replace(/[^0-9.,]/g,'');
-    if(s.indexOf(',')>=0){ s=s.replace(/\./g,'').replace(',','.'); }
-    const v=parseFloat(s)||0;
-    if(v>0){ out.push({v:v, obs:(row.querySelector('.v-extra-obs')?.value||'').trim()}); }
-  });
-  return out;
-}
-function _somaVExtras(){ return _coletarVExtras().reduce(function(s,e){ return s+e.v; },0); }
-
 let _cFornIdx=-1; 
 function _cFornNorm(s){ return (s||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim(); }
 function _cFornLista(){
@@ -12739,166 +12581,6 @@ function _precoClienteVenda(cliente, material){
   const mk=Object.keys(tabela).find(k=>_normalizarNomePrecoCli(k)===_normalizarNomePrecoCli(mat));
   return mk ? Number(tabela[mk]||0) : 0;
 }
-function aplicarPrecoClienteVendaRow(n, force){
-  const row=document.getElementById('vrow-'+n); if(!row) return;
-  const cliente=(document.getElementById('v-cliente')?.value||'').trim();
-  const mat=row.querySelector('select')?.value||'';
-  const inp=document.getElementById('vpr-'+n); if(!inp) return;
-  const atual=parseFloat(inp.value)||0;
-  const preco=_precoClienteVenda(cliente,mat);
-  if(preco>0 && (force || atual<=0)) inp.value=String(preco);
-}
-function aplicarPrecosClienteVenda(){
-  for(let i=1;i<=vendaRowId;i++) aplicarPrecoClienteVendaRow(i,false);
-  try{ calcVenda(); }catch(e){}
-}
-
-function buildVendaForm(){
-  vendaRowId=0;
-  return `
-  <h3>💵 Nova Venda de Material</h3>
-  <div class="mi-header">
-    <div class="fg" style="margin:0"><label>NF / Pedido</label><input id="v-nf" placeholder="NF001"></div>
-    <div class="fg" style="margin:0"><label>Data</label><input id="v-data" type="date" value="${_hojeISO()}"></div>
-    <div class="fg" style="margin:0"><label>Vencimento</label><input id="v-venc" type="date"></div>
-  </div>
-  <div class="mi-header-2">
-    <div class="fg" style="margin:0"><label>Cliente</label>
-      <input id="v-cliente" list="dlist-clientes-venda" placeholder="Digite ou escolha o cliente" autocomplete="off" oninput="vClienteInfo()" onchange="vClienteInfo()">
-      <datalist id="dlist-clientes-venda"></datalist>
-    </div>
-    <div class="fg" style="margin:0"><label>Status Pagamento</label><select id="v-status"><option>Pendente</option><option>Pago</option><option>A prazo</option><option>Permuta</option></select></div>
-  </div>
-  <div id="v-cliente-info" style="margin:2px 0 10px"></div>
-  <hr class="divider">
-  <div style="font-size:.8rem;font-weight:800;color:var(--primary);margin-bottom:8px">📦 ITENS DA VENDA</div>
-  <table class="itens-table">
-    <thead><tr>
-      <th>#</th><th style="min-width:160px">Material</th><th style="min-width:110px">Identificação</th>
-      <th style="min-width:100px">Quantidade (kg)</th><th style="min-width:100px">Preço R$/kg</th>
-      <th style="min-width:110px">Total R$</th>
-      <th style="min-width:90px;color:#27ae60">Estoque Disp.</th><th></th>
-    </tr></thead>
-    <tbody id="venda-rows"></tbody>
-  </table>
-  <button class="btn-add-row" onclick="addVendaRow()">+ Adicionar Item</button>
-  <div style="display:flex;justify-content:flex-end;align-items:flex-end;gap:14px;margin:8px 0;flex-wrap:wrap">
-    <div style="font-size:.82rem;color:#1a5e2a;font-weight:700;margin-right:auto">Total: <b id="v-totalkg">0 kg</b></div>
-    <div style="font-size:.82rem;color:#555">Subtotal: <b id="v-subtotal">R$ 0,00</b></div>
-    <div class="fg" style="margin:0"><label style="font-size:.75rem">Desconto / Devolução</label>
-      <div style="display:flex;gap:4px">
-        <input id="v-desconto" type="number" min="0" step="0.01" placeholder="0,00" value="" oninput="calcVenda()" style="width:110px" title="Desconto no pagamento, % ou valor de material devolvido — abate do total">
-        <select id="v-desconto-tipo" onchange="calcVenda()" style="width:62px;padding:6px 4px;border:1px solid #ccc;border-radius:5px"><option value="R$">R$</option><option value="%">%</option></select>
-      </div>
-    </div>
-    <div style="font-size:.8rem;color:#c0392b">Desconto aplicado: <b id="v-desc-aplicado">R$ 0,00</b></div>
-  </div>
-  <div style="background:#f1f8e9;border:1px solid #a5d6a7;border-radius:8px;padding:10px 13px;margin:8px 0">
-    <label style="font-size:.72rem;font-weight:700;color:#555;display:block;margin-bottom:6px">➕ Valores extras <span style="font-weight:400;color:#999">(opcional — ex: frete, mão de obra…) — somam no total</span></label>
-    <div id="v-extras">${_vExtraRowHTML('','')}</div>
-    <button type="button" onclick="addVExtraRow()" style="margin-top:2px;background:#e8f5e9;border:1px dashed #7cb342;color:#33691e;border-radius:6px;padding:5px 12px;font-size:.8rem;font-weight:700;cursor:pointer">+ Adicionar outro valor extra</button>
-  </div>
-  <div class="total-bar">
-    <span>TOTAL DA VENDA</span>
-    <strong id="v-total">R$ 0,00</strong>
-    <span>${new Date().toLocaleDateString('pt-BR')}</span>
-  </div>
-  <div class="fg"><label>Observações</label><input id="v-obs" placeholder="Observações da venda..."></div>
-  <hr class="divider">
-  <div style="font-size:.8rem;font-weight:800;color:var(--primary);margin-bottom:8px">🏦 RECEBIMENTO (Como será pago)</div>
-  <table style="width:100%;border-collapse:collapse;font-size:.8rem;margin-bottom:6px">
-    <thead><tr style="background:#e8eceb">
-      <th style="padding:5px 8px;text-align:left">Forma</th>
-      <th style="padding:5px 8px;text-align:left">Conta Bancária</th>
-      <th style="padding:5px 8px;text-align:right">Valor R$</th>
-      <th style="padding:5px 8px;text-align:left">Obs.</th>
-      <th style="width:32px"></th>
-    </tr></thead>
-    <tbody id="v-pgto-rows"></tbody>
-  </table>
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-    <button onclick="addVPgtoRow()" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:.78rem;font-weight:700;cursor:pointer">+ Adicionar Conta</button>
-    <div id="v-pgto-saldo-bar" style="font-size:.8rem;display:none">
-      Alocado: <b id="v-pgto-alocado" style="color:var(--primary)">R$ 0,00</b>
-      &nbsp;|&nbsp; Restante: <b id="v-pgto-restante" style="color:var(--danger)">R$ 0,00</b>
-    </div>
-  </div>
-  <div class="modal-ft">
-    <button class="btn-cancel" onclick="cm()">Cancelar</button>
-    <button class="btn-save" onclick="salvarVenda()">💾 Salvar Venda</button>
-  </div>`;
-}
-
-function addVendaRow(){
-  vendaRowId++;
-  const n=vendaRowId;
-
-  try{ if(typeof refreshMetaisGlobals==='function') refreshMetaisGlobals(); }catch(e){}
-  const _optsMat = (typeof METAIS!=='undefined' && METAIS.length)
-    ? METAIS.map(m=>`<option>${m}</option>`).join('')
-    : (METAIS_OPTS||'');
-  const tr=document.createElement('tr');
-  tr.id=`vrow-${n}`;
-  tr.innerHTML=`
-    <td style="text-align:center;font-weight:700;color:var(--gray)">${n}</td>
-    <td><select onchange="aplicarPrecoClienteVendaRow(${n},false);calcVenda();atualizarSaldoVendaRow(${n})">${_optsMat}</select></td>
-    <td><select onchange="calcVenda()">${IDENT_OPTS}</select></td>
-    <td><input type="number" min="0" step="0.1" placeholder="0" id="vqt-${n}" oninput="calcVenda();atualizarSaldoVendaRow(${n})"></td>
-    <td><input type="number" min="0" step="0.01" placeholder="0,00" id="vpr-${n}" oninput="calcVenda()"></td>
-    <td class="td-total" id="vtot-${n}">R$ 0,00</td>
-    <td id="vsaldo-${n}" style="font-size:.78rem;text-align:center;min-width:90px">—</td>
-    <td class="td-rm"><button class="btn-rm-row" onclick="rmRow('vrow-${n}');calcVenda()">✕</button></td>`;
-  document.getElementById('venda-rows').appendChild(tr);
-  aplicarPrecoClienteVendaRow(n,false);
-  calcVenda();
-}
-
-function calcVenda(){
-  let subtotal=0, totalKg=0;
-  for(let i=1;i<=vendaRowId;i++){
-    const qt=parseFloat(document.getElementById(`vqt-${i}`)?.value)||0;
-    const pr=parseFloat(document.getElementById(`vpr-${i}`)?.value)||0;
-    const sub=qt*pr;
-    subtotal+=sub; totalKg+=qt;
-    const el=document.getElementById(`vtot-${i}`);
-    if(el) el.textContent='R$ '+sub.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-  }
-  const kgEl=document.getElementById('v-totalkg');
-  if(kgEl) kgEl.textContent=totalKg.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' kg';
-  const descRaw=parseFloat(document.getElementById('v-desconto')?.value)||0;
-  const tipoDesc=document.getElementById('v-desconto-tipo')?.value||'R$';
-  const descValor=tipoDesc==='%' ? subtotal*descRaw/100 : descRaw;
-  const extrasV=_somaVExtras();
-  const total=Math.max(0, subtotal-descValor+extrasV);
-  const subEl=document.getElementById('v-subtotal');
-  if(subEl) subEl.textContent='R$ '+subtotal.toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const daEl=document.getElementById('v-desc-aplicado');
-  if(daEl) daEl.textContent='R$ '+descValor.toLocaleString('pt-BR',{minimumFractionDigits:2})+(tipoDesc==='%'&&descRaw>0?' ('+descRaw+'%)':'');
-  document.getElementById('v-total').textContent='R$ '+total.toLocaleString('pt-BR',{minimumFractionDigits:2});
-  if(typeof calcVPgto==='function') calcVPgto();
-}
-
-function atualizarSaldoVendaRow(n){
-  const row=document.getElementById('vrow-'+n);
-  if(!row) return;
-  const sel=row.querySelector('select');
-  const mat=sel?sel.value:'';
-  const saldoEl=document.getElementById('vsaldo-'+n);
-  if(!saldoEl) return;
-  if(!mat){ saldoEl.innerHTML='—'; return; }
-  const e=ESTOQUE_DB[mat]||{inicial:0,saidas:0};
-  const entradas=getEntradasMaterial(mat);
-  const saidasAnt=getSaidasMaterial(mat)+Number(e.saidas||0);
-  const saldo=Number(e.inicial||0)+entradas-saidasAnt;
-  const qt=parseFloat(document.getElementById('vqt-'+n)?.value)||0;
-  const excede=qt>saldo&&qt>0;
-  const cor=excede?'#e74c3c':saldo<=0?'#e67e22':'#27ae60';
-  const icone=excede?'❌':saldo<=0?'⚠️':'✅';
-  saldoEl.innerHTML='<span style="color:'+cor+';font-weight:700">'+icone+' '+
-    Number(saldo).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' kg</span>'+
-    (excede?'<br><span style="color:#e74c3c;font-size:.7rem">insuficiente</span>':'');
-}
-
 function rmRow(id){
   const el=document.getElementById(id);
   if(el) el.remove();
@@ -13355,60 +13037,6 @@ document.addEventListener('input', function(e){
   if(novo!==el.value){ el.value=novo; }
 });
 
-async function restaurarFornecedores(){
-  if(!_usuarioAtualEhElaine()){ alert('Apenas a Elaine pode restaurar fornecedores.'); return; }
-  if(!confirm('Restaurar todos os fornecedores?\nIsso vai trazer de volta todos que foram removidos.')) return;
-  try{
-    const result=await _fornApi({action:'restore-all'});
-    _fornFiltroAtual='';
-    renderTabelaFornecedores();
-    renderFornInativos();
-    alert('✅ '+(result.restored||[]).length+' fornecedor(es) restaurado(s).');
-  }catch(error){ showToast('Não foi possível restaurar: '+error.message,'error',8000); }
-}
-
-function atualizarBtnExcluir(){
-  const chks=document.querySelectorAll('.forn-chk:checked');
-  const btn=document.getElementById('btn-excluir-sel');
-  const cnt=document.getElementById('sel-count');
-  if(btn){ btn.style.display=chks.length>0?'inline-block':'none'; }
-  if(cnt) cnt.textContent=chks.length;
-}
-
-function toggleAllForn(checked){
-  document.querySelectorAll('.forn-chk').forEach(c=>c.checked=checked);
-  atualizarBtnExcluir();
-}
-
-async function _fornecedoresMarcarExcluidos(codes){
-  await _fornApi({action:'delete',codes:[...new Set(codes.map(function(x){ return String(x||'').trim(); }))]});
-  const checkAll=document.getElementById('chk-all-forn');if(checkAll)checkAll.checked=false;
-}
-
-async function excluirSelecionados(){
-  if(!_usuarioPodeOperarModulo('fornecedores')){alert('Sem acesso ao módulo Fornecedores.');return;}
-  const chks=[...document.querySelectorAll('.forn-chk:checked')];
-  if(!chks.length)return;
-  const codes=chks.map(c=>c.value).filter(c=>FORNECEDORES.some(f=>f.cod===c));
-  if(codes.length>=getFornAtivos().length){showToast('Não é permitido excluir todos os fornecedores de uma vez.','error');return;}
-  if(!confirm('Excluir '+codes.length+' fornecedor(es) selecionado(s)?'))return;
-  if(_erpExclusoesEmAndamento.has('fornecedores'))return;
-  _erpExclusoesEmAndamento.add('fornecedores');
-  try{await _fornecedoresMarcarExcluidos(codes);showToast('Exclusões confirmadas no Firebase.','success');}
-  catch(error){showToast('Falha ao excluir fornecedores: '+error.message,'error');}
-  finally{_erpExclusoesEmAndamento.delete('fornecedores');}
-}
-
-async function excluirFornecedor(cod){
-  if(!_usuarioPodeOperarModulo('fornecedores')){alert('Sem acesso ao módulo Fornecedores.');return;}
-  const f=FORNECEDORES.find(x=>String(x.cod)===String(cod));if(!f)return;
-  if(!confirm('Excluir fornecedor "'+f.nome+'"?'))return;
-  if(_erpExclusoesEmAndamento.has('fornecedor:'+cod))return;
-  _erpExclusoesEmAndamento.add('fornecedor:'+cod);
-  try{await _fornecedoresMarcarExcluidos([cod]);showToast('Fornecedor excluído e confirmado no Firebase.','success');}
-  catch(error){showToast('Falha ao excluir fornecedor: '+error.message,'error');}
-  finally{_erpExclusoesEmAndamento.delete('fornecedor:'+cod);}
-}
 
 function importarFornecedores(input){
   const file=input && input.files && input.files[0];
@@ -19502,26 +19130,6 @@ function saveVendas(){
 }
 function loadVendas(){  }
 
-function verVendaDoCR(vendaId){
-  const idx=VENDAS_DB.findIndex(v=>v.id===vendaId);
-  if(idx<0){alert('Venda não encontrada (pode ter sido excluída).');return;}
-  
-  const tab=document.querySelector('[data-tab="vendas"]')||document.querySelector('.nav-btn[onclick*="vendas"]');
-  if(tab) tab.click();
-  setTimeout(()=>{
-    const rows=document.querySelectorAll('#tb-vendas-list tr');
-    
-    rows.forEach(r=>r.style.outline='');
-    const total=VENDAS_DB.length;
-    const ri=total-1-idx; 
-    if(rows[ri]){
-      rows[ri].style.outline='3px solid var(--primary)';
-      rows[ri].scrollIntoView({behavior:'smooth',block:'center'});
-      setTimeout(()=>rows[ri].style.outline='',3000);
-    }
-  },200);
-}
-
 function verCRdaVenda(vendaId){
   if(!vendaId){alert('Esta venda não possui lançamentos vinculados.');return;}
   const crList=CONTAS_RECEBER.filter(c=>c.vendaId===vendaId);
@@ -19559,79 +19167,7 @@ function verCRdaVenda(vendaId){
   document.getElementById('modal-ov').classList.add('open');
 }
 
-function renderVendas(){
-  const tbody=document.getElementById('tb-vendas-list');
-  if(!tbody) return;
-  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-  
-  const _toISO_v=d=>{if(!d)return'';const ds=String(d).trim();if(ds.indexOf('/')>=0){const p=ds.split('/');return(p[2]||'0000')+'-'+(p[1]||'01')+'-'+(p[0]||'01');}return ds.slice(0,10);};
-  const _hj=_hojeISO();
-  const _mes=_hj.slice(0,7);
-  
-  const _totGeral=VENDAS_DB.reduce((s,v)=>s+Number(v.total||0),0);
-  
-  const _vMes=VENDAS_DB.filter(v=>_toISO_v(v.data).startsWith(_mes));
-  const _totMes=_vMes.reduce((s,v)=>s+Number(v.total||0),0);
-  
-  const _vendPend=VENDAS_DB.filter(v=>v.status!=='Pago');
-  const _pend=_vendPend.reduce((s,v)=>s+Number(v.total||0),0);
-  
-  const _atras=VENDAS_DB.reduce((s,v)=>{
-    if(v.status==='Pago') return s;
-    const vi=_toISO_v(v.venc);
-    return s+(vi&&vi<_hj?Number(v.total||0):0);
-  },0);
-  
-  const _crPend=CONTAS_RECEBER.reduce((s,cr)=>s+(cr.status==='Pendente'?Number(cr.valor||0):0),0);
-  const _crAtras=CONTAS_RECEBER.reduce((s,cr)=>{const vi=_toISO_v(cr.venc);return s+(cr.status==='Pendente'&&vi&&vi<_hj?Number(cr.valor||0):0);},0);
-  const _pendFinal=_crPend>0?_crPend:_pend;
-  const _atrasFinal=_crAtras>0?_crAtras:_atras;
-  const _sv2=(id,t)=>{const e=document.getElementById(id);if(e)e.textContent=t;};
-  _sv2('kpi-v-mes-val','R$ '+fmt(_totGeral));
-  _sv2('kpi-v-mes-sub',VENDAS_DB.length+' venda'+(VENDAS_DB.length!==1?'s':'')+' cadastrada'+(VENDAS_DB.length!==1?'s':''));
-  _sv2('kpi-v-nf-val','R$ '+fmt(_totMes));
-  _sv2('kpi-v-nf-sub',_vMes.length+' venda'+(VENDAS_DB.length!==1?'s':'')+' este mês');
-  _sv2('kpi-v-pend-val','R$ '+fmt(_pendFinal));
-  _sv2('kpi-v-pend-sub',_vendPend.length+' pendente'+(_vendPend.length!==1?'s':''));
-  _sv2('kpi-v-atras-val','R$ '+fmt(_atrasFinal));
-  
-  if(VENDAS_DB.length===0){
-    _erpPaginarDados('vendas',[],'tb-vendas-list',renderVendas);
-    tbody.innerHTML='<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhuma venda lançada ainda</td></tr>';
-    return;
-  }
-  const pagina=_erpPaginarDados('vendas',[...VENDAS_DB].reverse(),'tb-vendas-list',renderVendas,{searchable:true,placeholder:'Pesquisar venda, cliente, NF ou material...',text:v=>[v.cliente,v.nf,v.data,...(v.itens||[]).map(i=>i.mat)].join(' ')});
-  tbody.innerHTML=pagina.map((v)=>{
-    const idx=VENDAS_DB.indexOf(v);
-    const _pago=v.status==='Pago'||v.status==='Permuta';
-    const stCls=v.status==='Permuta'?'b-pago':(_pago?'b-pago':v.status==='A prazo'?'b-zerado':'b-pend');
-    
-    const _iso=_toISO_v(v.venc);
-    const _atrasada=!_pago && _iso && _iso<_hj;
-    const rowStyle=_pago?'' : (_atrasada?' style="background:#fdecea"':' style="background:#fff8e1"');
-    
-    const btnPago=_pago
-      ? '<button class="btn-edit" style="padding:3px 8px;font-size:.72rem;margin-right:4px;background:#e8f5e9;color:#1a5e2a;border:1px solid #a5d6a7" onclick="reabrirVenda('+idx+')" title="Reabrir (marcar como pendente)">↩ Reabrir</button>'
-      : '<button style="padding:3px 10px;font-size:.72rem;margin-right:4px;background:#27ae60;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700" onclick="marcarVendaPaga('+idx+')" title="Marcar como paga">✔ Pago</button>';
-    return '<tr'+rowStyle+'>'
-      +'<td>'+fmtDate(v.data)+'</td>'
-      +'<td>'+esc(v.nf||'—')+'</td>'
-      +'<td><b>'+esc(v.cliente)+'</b></td>'
-      +'<td style="font-size:.78rem">'+(v.itens||[]).map(i=>i.mat).join(', ')+'</td>'
-      +'<td style="text-align:right">'+(v.itens||[]).reduce((s,i)=>s+Number(i.qt||0),0).toFixed(1)+' kg</td>'
-      +'<td style="font-weight:800;text-align:right">R$ '+fmt(v.total)+'</td>'
-      +'<td>'+esc(fmtDate(v.venc)||'—')+(_atrasada?' <span style="color:#c0392b;font-weight:700;font-size:.7rem">⏰ atrasado</span>':'')+'</td>'
-      +'<td><span class="b '+stCls+'">'+v.status+'</span></td>'
-      +'<td style="white-space:nowrap">'
-        +btnPago
-        +'<button class="btn-add" style="padding:3px 8px;font-size:.72rem;margin-right:4px;background:#8e44ad" onclick="abrirFichaCli(this.dataset.cli)" data-cli="'+esc(v.cliente||'')+'" title="Abrir ficha financeira do cliente">📋 Ficha</button>'
-        +'<button class="btn-add" style="padding:3px 8px;font-size:.72rem;margin-right:4px" onclick="verCRdaVenda(this.dataset.id)" data-id="'+esc(v.id||'')+'" title="Ver Contas a Receber">📥 CR</button>'
-        +'<button class="btn-edit" onclick="editVenda('+idx+')">✏️</button>'
-        +'<button class="btn-edit-danger" onclick="excluirVenda(this)" data-idx="'+idx+'" data-id="'+esc(v.id||'')+'" title="Excluir venda">🗑️</button>'
-      +'</td>'
-    +'</tr>';
-  }).join('');
-}
+function renderVendas(){}
 
 function marcarVendaPaga(idx){
   const v=VENDAS_DB[idx]; if(!v) return;
@@ -19716,205 +19252,6 @@ function excluirVenda(btnOrIdx){
 }
 window['excluirVenda']=excluirVenda;
 
-function vSubTab(tab){
-  var panels=['lancar','hist'];
-  panels.forEach(function(p){
-    var el=document.getElementById('v-panel-'+p);
-    if(el) el.style.display=(p===tab)?'':'none';
-    var btn=document.getElementById('vstab-'+p);
-    if(btn){
-      btn.style.background=p===tab?'#1a5e2a':'#eee';
-      btn.style.color=p===tab?'#fff':'#555';
-    }
-  });
-  if(tab==='hist') renderHistoricoVendas();
-}
-window['vSubTab']=vSubTab;
-
-function _vhToISO(d){
-  if(!d) return '';
-  var s=String(d).trim();
-  if(s.indexOf('/')>=0){var p=s.split('/');return (p[2]||'0000')+'-'+(p[1]||'01')+'-'+(p[0]||'01');}
-  return s.slice(0,10);
-}
-
-function renderHistoricoVendas(){
-  var fmt=function(v){return _numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});};
-  var fmtKg=function(v){return _numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1});};
-  var de=document.getElementById('vh-de')?.value||'';
-  var ate=document.getElementById('vh-ate')?.value||'';
-  var cli=(document.getElementById('vh-cli')?.value||'').toLowerCase().trim();
-  var st=document.getElementById('vh-status')?.value||'';
-
-  var lista=[...VENDAS_DB].sort(function(a,b){
-    return _vhToISO(b.data).localeCompare(_vhToISO(a.data));
-  });
-  
-  lista=lista.filter(function(v){
-    var iso=_vhToISO(v.data);
-    if(de && iso<de) return false;
-    if(ate && iso>ate) return false;
-    if(cli && !(v.cliente||'').toLowerCase().includes(cli)) return false;
-    if(st && v.status!==st) return false;
-    return true;
-  });
-
-  var totalR=lista.reduce(function(s,v){return s+Number(v.total||0);},0);
-  var totalKg=lista.reduce(function(s,v){return s+(v.itens||[]).reduce(function(k,i){return k+Number(i.qt||0);},0);},0);
-  var recebido=lista.reduce(function(s,v){return s+(v.status==='Pago'?Number(v.total||0):0);},0);
-  var pendente=lista.reduce(function(s,v){return s+(v.status!=='Pago'?Number(v.total||0):0);},0);
-
-  var sv=function(id,t){var e=document.getElementById(id);if(e)e.textContent=t;};
-  sv('vh-total-val','R$ '+fmt(totalR));
-  sv('vh-total-sub',lista.length+' venda'+(lista.length!==1?'s':''));
-  sv('vh-kg-val',fmtKg(totalKg)+' kg');
-  sv('vh-receb-val','R$ '+fmt(recebido));
-  sv('vh-pend-val','R$ '+fmt(pendente));
-
-  var titulo='Histórico de Vendas';
-  if(de||ate) titulo+=' ('+( de||'início')+' → '+(ate||'hoje')+')';
-  sv('vh-titulo',titulo);
-
-  var hoje=_hojeISO();
-  var tbody=document.getElementById('tb-hist-vendas');
-  if(!tbody) return;
-
-  if(lista.length===0){
-    tbody.innerHTML='<tr><td colspan="9" style="color:#999;text-align:center;padding:20px">Nenhuma venda encontrada</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML=lista.map(function(v){
-    var _pg=v.status==='Pago'||v.status==='Permuta';
-    var stCls=_pg?'b-pago':v.status==='A prazo'?'b-zerado':'b-pend';
-    var vISO=_vhToISO(v.venc);
-    var atras=!_pg&&vISO&&vISO<hoje;
-    var pgtos=(v.pagamentos&&v.pagamentos.length>0)
-      ?v.pagamentos.map(function(p){return p.forma+(p.banco&&p.banco!=='—'?' / '+p.banco:'')+(p.valor?' R$ '+fmt(p.valor):'');}).join(' | ')
-      :'—';
-    var mats=v.itens.map(function(i){return i.mat;}).join(', ');
-    var kg=v.itens.reduce(function(s,i){return s+Number(i.qt||0);},0);
-    return '<tr style="'+(atras?'background:#fff5f5':'')+'">'
-      +'<td>'+fmtDate(v.data)+'</td>'
-      +'<td>'+(v.nf||'—')+'</td>'
-      +'<td><b>'+esc(v.cliente)+'</b></td>'
-      +'<td style="font-size:.76rem">'+esc(mats)+'</td>'
-      +'<td style="text-align:right">'+fmtKg(kg)+' kg</td>'
-      +'<td style="font-weight:800;text-align:right;color:#1a5e2a">R$ '+fmt(v.total)+'</td>'
-      +'<td>'+(atras?'<span style="color:#e74c3c;font-weight:700">':'')+esc(v.venc||'—')+(atras?'</span>':'')+'</td>'
-      +'<td><span class="b '+stCls+'">'+(atras?'Atrasado':v.status)+'</span></td>'
-      +'<td style="font-size:.74rem">'+esc(pgtos)+'</td>'
-      +'</tr>';
-  }).join('');
-
-  var tfoot=document.getElementById('vh-tfoot');
-  if(tfoot) tfoot.innerHTML='<tr style="background:#e8f5e9;font-weight:700">'
-    +'<td colspan="4" style="padding:6px 8px">TOTAL ('+lista.length+' vendas)</td>'
-    +'<td style="text-align:right">'+fmtKg(totalKg)+' kg</td>'
-    +'<td style="text-align:right;color:#1a5e2a">R$ '+fmt(totalR)+'</td>'
-    +'<td colspan="3"></td></tr>';
-}
-window['renderHistoricoVendas']=renderHistoricoVendas;
-
-function vhLimpar(){
-  var ids=['vh-de','vh-ate','vh-cli','vh-status'];
-  ids.forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
-  renderHistoricoVendas();
-}
-window['vhLimpar']=vhLimpar;
-
-function vhImprimir(){
-  var fmt=function(v){return _numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});};
-  var fmtKg=function(v){return _numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1});};
-  var de=document.getElementById('vh-de')?.value||'';
-  var ate=document.getElementById('vh-ate')?.value||'';
-  var cli=(document.getElementById('vh-cli')?.value||'').toLowerCase().trim();
-  var st=document.getElementById('vh-status')?.value||'';
-
-  var lista=[...VENDAS_DB].sort(function(a,b){return _vhToISO(b.data).localeCompare(_vhToISO(a.data));});
-  lista=lista.filter(function(v){
-    var iso=_vhToISO(v.data);
-    if(de&&iso<de) return false;
-    if(ate&&iso>ate) return false;
-    if(cli&&!(v.cliente||'').toLowerCase().includes(cli)) return false;
-    if(st&&v.status!==st) return false;
-    return true;
-  });
-  var totalR=lista.reduce(function(s,v){return s+Number(v.total||0);},0);
-  var totalKg=lista.reduce(function(s,v){return s+(v.itens||[]).reduce(function(k,i){return k+Number(i.qt||0);},0);},0);
-  var periodo=(de||'início')+' a '+(ate||'hoje');
-  var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Histórico de Vendas</title>'
-    +'<style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px}'
-    +'h1{color:#1a5e2a;margin-bottom:4px;font-size:16px}'
-    +'p{margin:2px 0;color:#555}'
-    +'table{width:100%;border-collapse:collapse;margin-top:14px}'
-    +'th{background:#1a5e2a;color:#fff;padding:6px 8px;text-align:left;font-size:11px}'
-    +'td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px}'
-    +'tr:nth-child(even){background:#f9f9f9}'
-    +'.tot{background:#e8f5e9;font-weight:700}'
-    +'@media print{body{padding:0}}'
-    +'</style></head><body>'
-    +'<h1>📊 Histórico de Vendas — '+esc(_empresaPrincipalRazao())+'</h1>'
-    +'<p>Período: '+periodo+'</p>'
-    +'<p>Total: '+lista.length+' vendas | R$ '+fmt(totalR)+' | '+fmtKg(totalKg)+' kg</p>'
-    +'<table><thead><tr><th>Data</th><th>NF</th><th>Cliente</th><th>Materiais</th><th>Qtde (kg)</th><th>Total R$</th><th>Vencimento</th><th>Status</th></tr></thead><tbody>'
-    +lista.map(function(v){
-      var kg=v.itens.reduce(function(s,i){return s+Number(i.qt||0);},0);
-      return '<tr><td>'+v.data+'</td><td>'+(v.nf||'—')+'</td><td><b>'+v.cliente+'</b></td>'
-        +'<td>'+v.itens.map(function(i){return i.mat;}).join(', ')+'</td>'
-        +'<td style="text-align:right">'+fmtKg(kg)+'</td>'
-        +'<td style="text-align:right;font-weight:700">R$ '+fmt(v.total)+'</td>'
-        +'<td>'+(v.venc||'—')+'</td>'
-        +'<td>'+v.status+'</td></tr>';
-    }).join('')
-    +'</tbody><tfoot><tr class="tot"><td colspan="4">TOTAL ('+lista.length+' vendas)</td>'
-    +'<td style="text-align:right">'+fmtKg(totalKg)+' kg</td>'
-    +'<td style="text-align:right">R$ '+fmt(totalR)+'</td><td colspan="2"></td></tr></tfoot>'
-    +'</table><script>window.onload=function(){window.print();}<\/script></body></html>';
-  var w=window.open('','_blank');
-  if(w){w.document.write(html);w.document.close();}
-}
-window['vhImprimir']=vhImprimir;
-
-const _vBancoOpts=()=>_erpBankDirectory.ready?_erpBankDirectory.banks.map(b=>'<option value="'+esc(b.banco)+'">'+esc(b.banco)+'</option>').join(''):'<option value="">Carregando bancos...</option>';
-
-let vPgtoRowId=0;
-function addVPgtoRow(){
-  vPgtoRowId++;
-  const id='vp'+vPgtoRowId;
-  const tr=document.createElement('tr');
-  tr.id=id;
-  tr.innerHTML=`
-    <td style="padding:3px 4px"><select style="padding:4px 6px;border:1px solid #ccc;border-radius:4px;font-size:.8rem;width:100%">
-      <option>PIX</option><option>Transferência</option><option>Depósito</option><option>Cheque</option><option>Dinheiro</option><option>🔄 Permuta / Material</option><option>A prazo</option>
-    </select></td>
-    <td style="padding:3px 4px"><select style="padding:4px 6px;border:1px solid #ccc;border-radius:4px;font-size:.8rem;width:100%">${_vBancoOpts()}</select></td>
-    <td style="padding:3px 4px"><input type="number" min="0" step="0.01" placeholder="0,00" class="vpgto-val" oninput="calcVPgto()" style="width:90px;padding:4px 6px;border:1px solid #ccc;border-radius:4px;font-size:.8rem"></td>
-    <td style="padding:3px 4px"><input placeholder="obs..." style="width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:4px;font-size:.8rem"></td>
-    <td style="padding:3px 4px;text-align:center"><button onclick="document.getElementById('${id}').remove();calcVPgto()" style="background:#e74c3c;color:#fff;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:.8rem">✕</button></td>
-  `;
-  document.getElementById('v-pgto-rows').appendChild(tr);
-  calcVPgto();
-}
-
-function calcVPgto(){
-  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const totalVenda=parseFloat((document.getElementById('v-total')?.textContent||'0').replace(/[^0-9,]/g,'').replace(',','.'))||0;
-  const inputs=document.querySelectorAll('#v-pgto-rows .vpgto-val');
-  let alocado=0;
-  inputs.forEach(inp=>alocado+=parseFloat(inp.value)||0);
-  const restante=totalVenda-alocado;
-  const bar=document.getElementById('v-pgto-saldo-bar');
-  if(bar&&inputs.length>0){
-    bar.style.display='flex';
-    document.getElementById('v-pgto-alocado').textContent='R$ '+fmt(alocado);
-    const elR=document.getElementById('v-pgto-restante');
-    elR.textContent='R$ '+fmt(Math.abs(restante));
-    elR.style.color=restante<-0.01?'var(--danger)':restante>0.01?'var(--warn,#e67e22)':'var(--success,#27ae60)';
-    if(restante===0) elR.textContent='✅ Quitado';
-  } else if(bar) bar.style.display='none';
-}
-
 function _vendaR2(x){ return Math.round((Number(x)+Number.EPSILON)*100)/100; }
 function _vendaPlanejarAbatimentos(saldo, adiantamentos, cheques){
   const r2=function(x){ return Math.round((Number(x)+Number.EPSILON)*100)/100; };
@@ -19994,428 +19331,146 @@ function _vendaRestaurarAbatimentos(v){
   });
   return restaurados;
 }
-function salvarVenda(){
-  const nf=document.getElementById('v-nf')?.value.trim()||'';
-  const data=document.getElementById('v-data')?.value;
-  const cliente=document.getElementById('v-cliente')?.value.trim();
-  const status=document.getElementById('v-status')?.value||'Pendente';
-  const venc=document.getElementById('v-venc')?.value;
-  const obs=document.getElementById('v-obs')?.value.trim()||'';
-  if(!cliente){showToast('⚠️ Informe o cliente!','error');return;}
-
-  const itens=[];
-  for(let i=1;i<=vendaRowId;i++){
-    const row=document.getElementById('vrow-'+i);
-    if(!row) continue;
-    const sels=row.querySelectorAll('select');
-    const matBase=sels[0]?.value||'';
-    const ident=sels[1]?.value||'';
-    const mat=_matEfetivoEstoque(matBase,ident);
-    const qt=parseFloat(document.getElementById('vqt-'+i)?.value)||0;
-    const pr=parseFloat(document.getElementById('vpr-'+i)?.value)||0;
-    if(qt>0&&!mat){ showToast('⚠️ Escolha o material da linha '+(itens.length+1)+' antes de salvar.','error',7000); return; }
-    if(qt>0){
-      if(mat && !METAIS.includes(mat)) _garantirMetalCadastrado(mat);
-      itens.push({mat,matBase,ident,qt,pr,total:qt*pr});
+function _vendaIdx(id){
+  return VENDAS_DB.findIndex(function(v){ return v&&String(v.id||'')===String(id||''); });
+}
+function _vendaEstoqueDisponivel(mat, vendaId){
+  const nome=String(mat||'').trim();
+  if(!nome) return null;
+  const alvo=_normalizarChaveMaterialEstoque(nome);
+  const chave=Object.keys(ESTOQUE_DB||{}).find(function(k){ return _normalizarChaveMaterialEstoque(k)===alvo; });
+  if(!chave && !(METAIS||[]).some(function(m){ return _normalizarChaveMaterialEstoque(m)===alvo; })) return null;
+  const e=(chave&&ESTOQUE_DB[chave])||{inicial:0,saidas:0};
+  let saidas=getSaidasMaterial(nome)+Number(e.saidas||0);
+  const atual=vendaId?VENDAS_DB.find(function(v){ return v&&v.id===vendaId; }):null;
+  if(atual) (atual.itens||[]).forEach(function(it){ if(_normalizarChaveMaterialEstoque(_materialEfetivoDoItem(it))===alvo) saidas-=Number(it.qt||0); });
+  return Number(e.inicial||0)+getEntradasMaterial(nome)-saidas;
+}
+function _vendaUsosDoPedido(cliente, usos){
+  return (usos||[]).map(function(u){
+    if(u.kind==='cheque'){
+      const c=((CHEQUES_CLI&&CHEQUES_CLI[cliente])||[]).find(function(x){ return String(x.num||'')===String(u.ref); });
+      const st=c&&(c.status||'Pendente');
+      if(!c||st==='Compensado'||st==='Devolvido'||st==='Quitado') throw new Error('O cheque nº '+u.ref+' não está mais disponível. Atualize a tela e confira.');
+      return {tipo:'cheque',item:c,valor:_vendaR2(u.amount)};
     }
-  }
-  if(itens.length===0){showToast('⚠️ Adicione pelo menos um item!','error');return;}
-
-  const qtPorMat={};
-  itens.forEach(it=>{
-    if(!it.mat) return;
-    qtPorMat[it.mat]=(qtPorMat[it.mat]||0)+Number(it.qt);
+    const a=((ADT_CLI&&ADT_CLI[cliente])||[]).find(function(x){ return String(x.cod||'')===String(u.ref); });
+    if(!a||(a.status||'Pendente')!=='Pendente'||Number(a.valor||0)+0.009<Number(u.amount||0)) throw new Error('O adiantamento '+u.ref+' mudou ou já foi usado. Atualize a tela e confira.');
+    return {tipo:'adiantamento',item:a,valor:_vendaR2(u.amount)};
   });
-  const errosEstoque=[];
-  let _avisoEstoque='';
-  Object.entries(qtPorMat).forEach(([mat,qtVenda])=>{
-    const e=ESTOQUE_DB[mat]||{inicial:0,saidas:0};
-    const entradas=getEntradasMaterial(mat);
-    
-    const saidasAnt=getSaidasMaterial(mat)+Number(e.saidas||0);
-    const saldoDisp=Number(e.inicial||0)+entradas-saidasAnt;
-    if(qtVenda>saldoDisp){
-      errosEstoque.push({mat, qtVenda, saldoDisp});
-    }
+}
+function _vendaGravarPedido(cmd){
+  if(!_usuarioPodeOperarModulo('vendas')) throw new Error('Seu perfil pode consultar, mas não lançar vendas.');
+  const venda=cmd&&cmd.sale;
+  if(!venda||!venda.id||!String(venda.cliente||'').trim()) throw new Error('Venda inválida. Atualize a tela.');
+  const usos=_vendaUsosDoPedido(String(venda.cliente), cmd.creditUses);
+  const idx=_vendaIdx(venda.id);
+  if(idx>=0) VENDAS_DB[idx]=venda; else VENDAS_DB.push(venda);
+  (venda.itens||[]).forEach(function(it){ if(it.mat && !METAIS.includes(it.mat)) _garantirMetalCadastrado(it.mat); });
+  (cmd.removeReceivables||[]).forEach(function(id){
+    const i=CONTAS_RECEBER.findIndex(function(c){ return c&&c.id===id; });
+    if(i>=0) _syncContasReceber.remover(i);
   });
-  if(errosEstoque.length>0){
-    const fmt2=v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1});
-    const linhas=errosEstoque.map(e=>
-      '• '+e.mat+': solicitado '+fmt2(e.qtVenda)+' kg | disponível '+fmt2(Math.max(0,e.saldoDisp))+' kg'
-    ).join('\n');
-    _avisoEstoque='⚠️ Estoque insuficiente:<br>'+linhas.replace(/\n/g,'<br>')+'<br>Venda salva com aviso.';
-  }
-
-  const _r2v=x=>Math.round((Number(x)+Number.EPSILON)*100)/100;
-  const subtotal=_r2v(itens.reduce((s,i)=>s+i.total,0));
-  const _descRaw=parseFloat(document.getElementById('v-desconto')?.value)||0;
-  const _descTipo=document.getElementById('v-desconto-tipo')?.value||'R$';
-  const desconto=_r2v(_descTipo==='%' ? subtotal*_descRaw/100 : _descRaw); 
-  const descontoTipo=_descTipo; const descontoInput=_descRaw;
-  const extrasVenda=_coletarVExtras(); 
-  const acrescimoV=_r2v(extrasVenda.reduce(function(s,e){ return s+e.v; },0));
-  const total=Math.max(0, _r2v(subtotal-desconto+acrescimoV));
-  const dataFmt=data?data.split('-').reverse().join('/'):'';
-  const vencFmt=venc?venc.split('-').reverse().join('/'):'';
-
-  const pagamentos=[];
-  document.querySelectorAll('#v-pgto-rows tr').forEach(tr=>{
-    const sels=tr.querySelectorAll('select');
-    const inps=tr.querySelectorAll('input');
-    const forma=sels[0]?.value||'';
-    const banco=sels[1]?.value||'';
-    const valor=parseFloat(inps[0]?.value)||0;
-    const obsP=inps[1]?.value.trim()||'';
-    if(valor>0) pagamentos.push({forma,banco,valor,obs:obsP});
+  (cmd.upsertReceivables||[]).forEach(function(r){
+    const i=CONTAS_RECEBER.findIndex(function(c){ return c&&c.id===r.id; });
+    if(i>=0) CONTAS_RECEBER[i]=r; else CONTAS_RECEBER.push(r);
   });
-
-  const _adtsMarcados=[], _chqsMarcados=[];
-  document.querySelectorAll('.v-abate-adt:checked').forEach(function(chk){
-    const a=(ADT_CLI[cliente]||[])[Number(chk.dataset.idx)];
-    if(a && (a.status||'Pendente')==='Pendente' && Number(a.valor)>0) _adtsMarcados.push(a);
-  });
-  document.querySelectorAll('.v-abate-cheq:checked').forEach(function(chk){
-    const c=(CHEQUES_CLI[cliente]||[])[Number(chk.dataset.idx)];
-    if(c && Number(c.valor)>0) _chqsMarcados.push(c);
-  });
-  const _pagoDireto=pagamentos.reduce(function(s,p){ return s+Number(p.valor||0); },0);
-  const _planoAbate=_vendaPlanejarAbatimentos(_r2v(total-_pagoDireto),_adtsMarcados,_chqsMarcados);
-  if(_planoAbate.erro){ showToast('⚠️ '+_planoAbate.erro,'error',9000); return; }
-  _planoAbate.usos.forEach(function(u){
-    if(u.tipo==='cheque') pagamentos.push({forma:'Cheque', banco:u.item.banco||'', valor:u.valor, obs:'Cheque nº '+(u.item.num||'')+(nf?' — '+nf:'')});
-    else pagamentos.push({forma:'Adiantamento', banco:u.item.bancoNome||'', valor:u.valor, obs:'Adiantamento '+(u.item.cod||'')+(nf?' — '+nf:'')});
-  });
-
-  const vendaId='VD-'+Date.now();
-  const venda={id:vendaId,nf,data:dataFmt,cliente,itens,subtotal,desconto,descontoTipo,descontoInput,acrescimo:acrescimoV||0,acrescimos:extrasVenda.map(function(e){return {v:e.v,obs:e.obs,quando:_hojeISO()};}),total,venc:vencFmt,status,obs,pagamentos};
-  if(_planoAbate.usos.length) venda.abatimentos=_vendaRegistroAbatimentos(_planoAbate.usos);
-  VENDAS_DB.push(venda);
-  saveVendas();
-  renderVendas();
-  renderEstoque();
-
-  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  if(pagamentos.length>0){
-    pagamentos.forEach(p=>{
-      const stP=(p.forma==='Adiantamento'||p.forma==='Cheque')?'Recebido':(p.forma==='A prazo'?'Pendente':((status==='Pago'||status==='Permuta')?'Recebido':'Pendente'));
-      CONTAS_RECEBER.push({
-        data:dataFmt, cli:cliente, nf,
-        valor:p.valor, forma:p.forma, banco:p.banco,
-        venc:vencFmt||dataFmt,
-        status:stP,
-        dataReceb:stP==='Recebido'?dataFmt:'',
-        obs:(p.obs||'')||('Venda'+(nf?' – '+nf:'')),
-        vendaId
-      });
-    });
-    const alocado=pagamentos.reduce((s,p)=>s+p.valor,0);
-    const restante=Math.round((total-alocado)*100)/100;
-    if(restante>0.01){
-      CONTAS_RECEBER.push({
-        data:dataFmt, cli:cliente, nf,
-        valor:restante, forma:'Não alocado', banco:'—',
-        venc:vencFmt||dataFmt, status:'Pendente', dataReceb:'',
-        obs:'Restante não alocado'+(nf?' – '+nf:''),
-        vendaId
-      });
-    }
-  } else if(status==='Permuta'){
-    
-    CONTAS_RECEBER.push({
-      data:dataFmt, cli:cliente, nf,
-      valor:total, forma:'🔄 Permuta', banco:'—',
-      venc:vencFmt||dataFmt, status:'Recebido', dataReceb:dataFmt,
-      obs:'Venda em permuta'+(nf?' – '+nf:''),
-      vendaId
-    });
-  } else if(status!=='Pago'){
-    CONTAS_RECEBER.push({
-      data:dataFmt, cli:cliente, nf,
-      valor:total, forma:'—', banco:'—',
-      venc:vencFmt||dataFmt, status:'Pendente', dataReceb:'',
-      obs:'Venda automática'+(nf?' – '+nf:''),
-      vendaId
-    });
-  }
-  saveContasReceber();
-  
-  if(_planoAbate.usos.length){
-    _vendaAplicarAbatimentos(_planoAbate.usos, nf||vendaId);
+  if(usos.length){
+    _vendaAplicarAbatimentos(usos, venda.nf||venda.id);
     try{ saveAdtCli(); }catch(e){}
     try{ saveChequesCli(); }catch(e){}
-    try{ renderAdtCli(); }catch(e){}
-    try{ renderChequesCli(); }catch(e){}
   }
-  try{ renderContasReceber(); }catch(e){ console.warn('renderCR',e); }
-  try{ renderFichaCliente(); if(typeof fcSelecionarCliente==='function') fcSelecionarCliente(cliente); }catch(e){ console.warn('renderFichaCliente',e); }
-
-  if(pagamentos.length>0 && status==='Pago'){
-    pagamentos.forEach(p=>{
-      if(p.banco && p.forma!=='A prazo' && p.valor>0){
-        try{ registrarMovBanco(p.banco, data, 'Recebto Venda: '+String(cliente||'')+(nf?' NF '+nf:''), 'Entrada', p.valor); }catch(e){ console.warn('movBanco',e); }
-      }
-    });
-  }
-
-  try{ renderVendas(); }catch(e){ console.warn('renderVendas',e); }
-  try{ renderFluxo(); }catch(e){ console.warn('renderFluxo',e); }
-  try{ renderDashboard(); }catch(e){ console.warn('renderDashboard',e); }
-  cm();
-  let msg='Venda salva! Total: R$ '+fmt(total);
-  if(pagamentos.length>0) msg+=' | '+pagamentos.length+' lancamento(s) em Contas a Receber.';
-  else if(status!=='Pago') msg+=' | Lancado em Contas a Receber.';
-  if(_avisoEstoque) showToast(msg+'<br>'+_avisoEstoque,'error',9000);
-  else showToast(msg,'success');
-}
-
-function editVenda(idx){
-  const v=VENDAS_DB[idx]; if(!v) return;
-  const fmt=n=>_numFinito(n,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const stOpts=['Pendente','Pago','A prazo','Permuta'].map(s=>'<option'+(s===v.status?' selected':'')+'>'+s+'</option>').join('');
-  try{ if(typeof refreshMetaisGlobals==='function') refreshMetaisGlobals(); }catch(e){}
-  const body=document.getElementById('modal-body');
-  body.className='modal wide';
-  body.innerHTML=
-    '<h3>✏️ Editar Venda – '+esc(v.nf||v.cliente)+'</h3>'+
-    '<input type="hidden" id="ev-vidx" value="'+idx+'">'+
-    '<div class="mi-header">'+
-    '<div class="fg" style="margin:0"><label>NF/Pedido</label><input id="evv-nf" value="'+esc(v.nf)+'"></div>'+
-    '<div class="fg" style="margin:0"><label>Data</label><input id="evv-data" value="'+esc(v.data)+'"></div>'+
-    '<div class="fg" style="margin:0"><label>Vencimento</label><input id="evv-venc" value="'+esc(v.venc)+'"></div>'+
-    '</div>'+
-    '<div class="mi-header-2">'+
-    '<div class="fg" style="margin:0"><label>Cliente</label><input id="evv-cli" value="'+esc(v.cliente)+'"></div>'+
-    '<div class="fg" style="margin:0"><label>Status</label><select id="evv-status">'+stOpts+'</select></div>'+
-    '</div>'+
-    '<div class="fg"><label>Obs.</label><input id="evv-obs" value="'+esc(v.obs||'')+'"></div>'+
-    '<div style="font-size:.78rem;font-weight:800;color:var(--primary);margin:8px 0 6px">📦 ITENS DA VENDA <span style="font-weight:400;color:#888">(pode editar peso, preço e material)</span></div>'+
-    '<table style="width:100%;border-collapse:collapse;margin:4px 0;font-size:.82rem">'+
-    '<thead><tr style="background:var(--primary);color:#fff"><th style="padding:6px 8px;text-align:left">Material</th><th>Ident.</th><th style="text-align:right">Qtde (kg)</th><th style="text-align:right">Preço R$/kg</th><th style="text-align:right">Total</th><th></th></tr></thead>'+
-    '<tbody id="ev-itens-body"></tbody>'+
-    '</table>'+
-    '<button class="btn-add-row" onclick="evAddItem()" style="margin:4px 0">+ Adicionar Item</button>'+
-    '<div style="display:flex;justify-content:flex-end;align-items:flex-end;gap:14px;margin:8px 0;flex-wrap:wrap">'+
-      '<div style="font-size:.82rem;color:#555">Subtotal: <b id="ev-subtotal">R$ 0,00</b></div>'+
-      '<div class="fg" style="margin:0"><label style="font-size:.75rem">Desconto / Devolução</label><div style="display:flex;gap:4px"><input id="ev-desconto" type="number" min="0" step="0.01" placeholder="0,00" value="'+(v.descontoInput!=null?v.descontoInput:(v.desconto||''))+'" oninput="calcEditVenda()" style="width:100px"><select id="ev-desconto-tipo" onchange="calcEditVenda()" style="width:60px;padding:6px 4px;border:1px solid #ccc;border-radius:5px"><option value="R$"'+((v.descontoTipo||'R$')==='R$'?' selected':'')+'>R$</option><option value="%"'+(v.descontoTipo==='%'?' selected':'')+'>%</option></select></div></div>'+
-      '<div style="font-size:.82rem;color:#c0392b">Desconto: <b id="ev-desc-aplicado">R$ 0,00</b></div>'+
-    '</div>'+
-    '<div style="text-align:right;font-weight:900;font-size:1rem;color:var(--primary);margin-bottom:8px">TOTAL DA VENDA: <span id="ev-total-venda">R$ 0,00</span></div>'+
-    _evAbaterHtml(v)+
-    '<div class="modal-ft">'+
-    '<button class="btn-edit-danger" onclick="excluirVenda('+idx+')">🗑️ Excluir</button>'+
-    '<button class="btn-cancel" onclick="cm()">Cancelar</button>'+
-    '<button class="btn-save" onclick="salvarEditVenda()">💾 Salvar</button></div>';
-  document.getElementById('modal-ov').classList.add('open');
-  _evRowId=0;
-  (v.itens||[]).forEach(function(it){ evAddItem(it); });
-  if(!(v.itens||[]).length) evAddItem();
-  try{ evRecalcAbate(); }catch(e){}
-}
-
-function _evAbaterHtml(v){
-  const fmt=n=>Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const cli=v.cliente||'';
-  const adts=((typeof ADT_CLI!=='undefined'&&ADT_CLI[cli])||[]).filter(a=>(a.status||'Pendente')==='Pendente');
-  const chs=((typeof CHEQUES_CLI!=='undefined'&&CHEQUES_CLI[cli])||[]).filter(c=>{const st=(c.status||'Pendente');return st!=='Compensado'&&st!=='Devolvido'&&st!=='Quitado';});
-  let linhas='';
-  adts.forEach(function(a,i){ linhas+='<label style="display:block;margin:3px 0;cursor:pointer"><input type="checkbox" class="ev-abate-adt" data-idx="'+i+'" onchange="evRecalcAbate()"> Adiantamento '+esc(a.data||'')+' — <b>R$ '+fmt(a.valor)+'</b>'+(a.forma?' ('+esc(a.forma)+')':'')+'</label>'; });
-  chs.forEach(function(c,i){ linhas+='<label style="display:block;margin:3px 0;cursor:pointer"><input type="checkbox" class="ev-abate-cheq" data-idx="'+i+'" onchange="evRecalcAbate()"> Cheque nº '+esc(c.num||'—')+' bom p/ '+esc(c.bomPara||'—')+' — <b>R$ '+fmt(c.valor)+'</b></label>'; });
-  if(!linhas) linhas='<div style="color:#888;font-size:.82rem">Este cliente não tem adiantamentos ou cheques pendentes para abater.</div>';
-  return '<div style="background:#eef4f0;border:1.5px solid #cfe3d6;border-radius:10px;padding:10px 14px;margin:10px 0">'
-    +'<div style="font-weight:800;color:#1a5e2a;margin-bottom:6px">💰 Abater adiantamentos/cheques do cliente</div>'
-    +'<div style="font-size:.8rem;color:#555;margin-bottom:6px">Marque o que já recebeu antes — o sistema abate da venda e mostra só o que ele ainda deve desta carga.</div>'
-    +linhas
-    +'<div style="border-top:1px dashed #a5d6a7;margin-top:8px;padding-top:8px;font-size:.9rem">'
-      +'Abatido: <b id="ev-abatido" style="color:#1a5e2a">R$ 0,00</b> &nbsp;·&nbsp; '
-      +'<span style="font-weight:800">Saldo a receber desta carga: <b id="ev-saldo-carga" style="color:#c0392b">R$ '+fmt(v.total)+'</b></span>'
-    +'</div></div>';
-}
-function evRecalcAbate(){
-  const idx=parseInt(document.getElementById('ev-vidx')?.value);
-  const v=VENDAS_DB[idx]; if(!v) return;
-  const cli=v.cliente||'';
-  const adts=((typeof ADT_CLI!=='undefined'&&ADT_CLI[cli])||[]).filter(a=>(a.status||'Pendente')==='Pendente');
-  const chs=((typeof CHEQUES_CLI!=='undefined'&&CHEQUES_CLI[cli])||[]).filter(c=>{const st=(c.status||'Pendente');return st!=='Compensado'&&st!=='Devolvido'&&st!=='Quitado';});
-  let ab=0;
-  document.querySelectorAll('.ev-abate-adt:checked').forEach(chk=>{ const a=adts[Number(chk.dataset.idx)]; if(a) ab+=Number(a.valor||0); });
-  document.querySelectorAll('.ev-abate-cheq:checked').forEach(chk=>{ const c=chs[Number(chk.dataset.idx)]; if(c) ab+=Number(c.valor||0); });
-  const _tot=(typeof _evTotalAtual==='number'&&_evTotalAtual>0)?_evTotalAtual:Number(v.total||0);
-  const saldo=Math.max(0, _tot-ab);
-  const abEl=document.getElementById('ev-abatido'); if(abEl) abEl.textContent='R$ '+ab.toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const scEl=document.getElementById('ev-saldo-carga'); if(scEl) scEl.textContent='R$ '+saldo.toLocaleString('pt-BR',{minimumFractionDigits:2});
-}
-
-let _evRowId=0, _evTotalAtual=0;
-function evAddItem(item){
-  item=item||{};
-  _evRowId++;
-  const n=_evRowId;
-  try{ if(typeof refreshMetaisGlobals==='function') refreshMetaisGlobals(); }catch(e){}
-  const matAtual = item.mat||'';
-  
-  let listaMat = (typeof METAIS!=='undefined' && METAIS.length) ? METAIS.slice() : [];
-  if(matAtual && listaMat.indexOf(matAtual)<0) listaMat.unshift(matAtual);
-  const optsMat = '<option value=""></option>'+listaMat.map(m=>'<option'+(m===matAtual?' selected':'')+'>'+esc(m)+'</option>').join('');
-  const identAtual = item.ident||'';
-  let listaIdent = (typeof IDENT!=='undefined' && IDENT.length) ? IDENT.slice() : [];
-  if(identAtual && listaIdent.indexOf(identAtual)<0) listaIdent.unshift(identAtual);
-  const optsIdent = '<option value=""></option>'+listaIdent.map(i=>'<option'+(i===identAtual?' selected':'')+'>'+esc(i)+'</option>').join('');
-  const peso = (item.qt!=null?item.qt:(item.pesoLiq!=null?item.pesoLiq:(item.peso!=null?item.peso:'')));
-  const preco = (item.pr!=null?item.pr:(item.preco!=null?item.preco:''));
-  const tr=document.createElement('tr');
-  tr.id='evrow-'+n;
-  tr.innerHTML=
-    '<td style="padding:3px 4px"><select id="evmat-'+n+'" onchange="calcEditVenda()" style="width:100%;min-width:130px">'+optsMat+'</select></td>'+
-    '<td style="padding:3px 4px"><select id="evid-'+n+'" onchange="calcEditVenda()">'+optsIdent+'</select></td>'+
-    '<td style="padding:3px 4px"><input type="number" min="0" step="0.1" id="evqt-'+n+'" value="'+(peso!==''?peso:'')+'" oninput="calcEditVenda()" style="width:90px;text-align:right"></td>'+
-    '<td style="padding:3px 4px"><input type="number" min="0" step="0.01" id="evpr-'+n+'" value="'+(preco!==''?preco:'')+'" oninput="calcEditVenda()" style="width:90px;text-align:right"></td>'+
-    '<td style="padding:3px 8px;text-align:right;font-weight:700" id="evtot-'+n+'">R$ 0,00</td>'+
-    '<td style="padding:3px 4px;text-align:center"><button class="btn-rm-row" onclick="evRemItem('+n+')" style="background:#e74c3c;color:#fff;border:none;border-radius:5px;width:24px;height:24px;cursor:pointer">✕</button></td>';
-  document.getElementById('ev-itens-body').appendChild(tr);
-  calcEditVenda();
-}
-function evRemItem(n){
-  const tr=document.getElementById('evrow-'+n);
-  if(tr && tr.parentNode) tr.parentNode.removeChild(tr);
-  calcEditVenda();
-}
-function calcEditVenda(){
-  let subtotal=0;
-  const body=document.getElementById('ev-itens-body');
-  if(body) body.querySelectorAll('tr').forEach(function(tr){
-    const id=tr.id.replace('evrow-','');
-    const qt=parseFloat(document.getElementById('evqt-'+id)?.value)||0;
-    const pr=parseFloat(document.getElementById('evpr-'+id)?.value)||0;
-    const sub=qt*pr;
-    subtotal+=sub;
-    const tot=document.getElementById('evtot-'+id);
-    if(tot) tot.textContent='R$ '+sub.toLocaleString('pt-BR',{minimumFractionDigits:2});
+  let mexeuPesagem=false;
+  (cmd.linkWeighings||[]).forEach(function(k){
+    const t=TICKETS_DB[k]; if(!t) return;
+    t.vendaId=venda.id; t.vendaRef=venda.nf||venda.id; mexeuPesagem=true;
+    try{ _rodPersistirTicketCritico(k); }catch(e){}
   });
-  const descRaw=parseFloat(document.getElementById('ev-desconto')?.value)||0;
-  const tipoDesc=document.getElementById('ev-desconto-tipo')?.value||'R$';
-  const descValor=tipoDesc==='%' ? subtotal*descRaw/100 : descRaw;
-  const total=Math.max(0, subtotal-descValor);
-  _evTotalAtual=total;
-  const subEl=document.getElementById('ev-subtotal');
-  if(subEl) subEl.textContent='R$ '+subtotal.toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const daEl=document.getElementById('ev-desc-aplicado');
-  if(daEl) daEl.textContent='R$ '+descValor.toLocaleString('pt-BR',{minimumFractionDigits:2})+(tipoDesc==='%'&&descRaw>0?' ('+descRaw+'%)':'');
-  const tvEl=document.getElementById('ev-total-venda');
-  if(tvEl) tvEl.textContent='R$ '+total.toLocaleString('pt-BR',{minimumFractionDigits:2});
-  try{ evRecalcAbate(); }catch(e){}
-}
-
-function salvarEditVenda(){
-  const idx=parseInt(document.getElementById('ev-vidx').value);
-  const v=VENDAS_DB[idx]; if(!v) return;
-  const _semMaterial=[...(document.getElementById('ev-itens-body')?.querySelectorAll('tr')||[])].findIndex(function(tr){
-    const id=tr.id.replace('evrow-','');
-    return (parseFloat(document.getElementById('evqt-'+id)?.value)||0)>0 && !(document.getElementById('evmat-'+id)?.value||'');
+  (cmd.unlinkWeighings||[]).forEach(function(k){
+    const t=TICKETS_DB[k]; if(!t||t.vendaId!==venda.id) return;
+    delete t.vendaId; delete t.vendaRef; mexeuPesagem=true;
+    try{ _rodPersistirTicketCritico(k); }catch(e){}
   });
-  if(_semMaterial>=0){ showToast('⚠️ Escolha o material da linha '+(_semMaterial+1)+' antes de salvar. Nada foi alterado.','error',7000); return; }
-  v.nf=document.getElementById('evv-nf').value.trim();
-  v.data=document.getElementById('evv-data').value;
-  v.venc=document.getElementById('evv-venc').value;
-  v.cliente=document.getElementById('evv-cli').value.trim();
-  v.status=document.getElementById('evv-status').value;
-  v.obs=document.getElementById('evv-obs').value.trim();
-
-  const _novosItens=[];
-  const _body=document.getElementById('ev-itens-body');
-  if(_body) _body.querySelectorAll('tr').forEach(function(tr){
-    const id=tr.id.replace('evrow-','');
-    const mat=document.getElementById('evmat-'+id)?.value||'';
-    const ident=document.getElementById('evid-'+id)?.value||'';
-    const qt=parseFloat(document.getElementById('evqt-'+id)?.value)||0;
-    const pr=parseFloat(document.getElementById('evpr-'+id)?.value)||0;
-    if(mat && qt>0) _novosItens.push({mat,ident,qt,pr,total:qt*pr});
+  const cfgMov=_legacyRepairConfig('bankMovement');
+  const corte=String((cfgMov&&cfgMov.cutoffDate)||'').trim();
+  (cmd.bankMovements||[]).forEach(function(m){
+    if(corte&&String(m.date||'')<corte) return;
+    try{ registrarMovBanco(m.bank, m.date, m.description, 'Entrada', m.amount); }catch(e){ console.warn('[vendas] movimento de banco',e); }
   });
-  if(_novosItens.length){
-    const _r2e=x=>Math.round((Number(x)+Number.EPSILON)*100)/100;
-    _novosItens.forEach(function(it){ it.total=_r2e(it.total); });
-    v.itens=_novosItens;
-    const _sub=_r2e(_novosItens.reduce((s,i)=>s+i.total,0));
-    const _dRaw=parseFloat(document.getElementById('ev-desconto')?.value)||0;
-    const _dTipo=document.getElementById('ev-desconto-tipo')?.value||'R$';
-    const _dVal=_r2e(_dTipo==='%'? _sub*_dRaw/100 : _dRaw);
-    v.subtotal=_sub; v.desconto=_dVal; v.descontoTipo=_dTipo; v.descontoInput=_dRaw;
-    const _totalNovo=Math.max(0,_r2e(_sub-_dVal));
-    const _totalAntigo=Number(v.total||0);
-    v.total=_totalNovo;
-    
-    if(Math.abs(_totalNovo-_totalAntigo)>0.009){
-      let _crPend=null;
-      CONTAS_RECEBER.forEach(function(cr){
-        if(cr.vendaId===v.id && cr.status==='Pendente' && cr.forma!=='Adiantamento' && cr.forma!=='Cheque' && !_crPend) _crPend=cr;
-      });
-      if(_crPend){
-        
-        let _recebido=0;
-        CONTAS_RECEBER.forEach(function(cr){ if(cr.vendaId===v.id && cr.status==='Recebido') _recebido+=Number(cr.valor||0); });
-        const _restante=Math.max(0,_totalNovo-_recebido);
-        _crPend.valor=_restante;
-        if(_restante<=0.009){ _crPend.valor=0; _crPend.status='Recebido'; _crPend.dataReceb=_crPend.dataReceb||v.data; }
-        try{ saveContasReceber(); }catch(e){ console.warn('[vendas] gravar conta a receber da venda editada',e); }
-      }
-    }
-  }
-
-  const cli=v.cliente||'';
-  const _adtsPend=((typeof ADT_CLI!=='undefined'&&ADT_CLI[cli])||[]).filter(a=>(a.status||'Pendente')==='Pendente');
-  const _chsPend=((typeof CHEQUES_CLI!=='undefined'&&CHEQUES_CLI[cli])||[]).filter(c=>{const st=(c.status||'Pendente');return st!=='Compensado'&&st!=='Devolvido'&&st!=='Quitado';});
-  let _abatido=0, _mexeu=false;
-  const _adtsMarcados=[], _chqsMarcados=[];
-  document.querySelectorAll('.ev-abate-adt:checked').forEach(function(chk){ const a=_adtsPend[Number(chk.dataset.idx)]; if(a&&Number(a.valor)>0) _adtsMarcados.push(a); });
-  document.querySelectorAll('.ev-abate-cheq:checked').forEach(function(chk){ const c=_chsPend[Number(chk.dataset.idx)]; if(c&&Number(c.valor)>0) _chqsMarcados.push(c); });
-  if(_adtsMarcados.length||_chqsMarcados.length){
-    let _pendenteVenda=0;
-    CONTAS_RECEBER.forEach(function(cr){ if(cr.vendaId===v.id&&cr.status==='Pendente'&&cr.forma!=='Adiantamento'&&cr.forma!=='Cheque') _pendenteVenda+=Number(cr.valor||0); });
-    const _plano=_vendaPlanejarAbatimentos(_pendenteVenda,_adtsMarcados,_chqsMarcados);
-    if(_plano.erro){
-      showToast('⚠️ Alterações salvas, mas o abatimento não foi aplicado: '+_plano.erro,'error',9000);
-    } else {
-      _plano.usos.forEach(function(u){
-        _abatido+=u.valor;
-        if(u.tipo==='cheque') CONTAS_RECEBER.push({ data:v.data, cli:cli, nf:v.nf||'', valor:u.valor, forma:'Cheque', banco:u.item.banco||'', venc:v.venc||v.data, status:'Recebido', dataReceb:v.data, obs:'Abatido na venda '+(v.nf||'')+' — cheque '+(u.item.num||''), vendaId:v.id });
-        else CONTAS_RECEBER.push({ data:v.data, cli:cli, nf:v.nf||'', valor:u.valor, forma:'Adiantamento', banco:u.item.bancoNome||'', venc:v.venc||v.data, status:'Recebido', dataReceb:v.data, obs:'Abatido na venda '+(v.nf||'')+' — adiant. '+(u.item.cod||''), vendaId:v.id });
-      });
-      _vendaAplicarAbatimentos(_plano.usos, v.nf||v.id);
-      v.abatimentos=(Array.isArray(v.abatimentos)?v.abatimentos:[]).concat(_vendaRegistroAbatimentos(_plano.usos));
-      _mexeu=_plano.usos.length>0;
-    }
-  }
-  
-  if(_abatido>0){
-    let rest=_abatido;
-    CONTAS_RECEBER.forEach(function(cr){
-      if(rest<=0) return;
-      if(cr.vendaId===v.id && cr.status==='Pendente' && cr.forma!=='Adiantamento' && cr.forma!=='Cheque'){
-        const usa=Math.min(rest, Number(cr.valor||0));
-        cr.valor=Number(cr.valor||0)-usa; rest-=usa;
-        if(cr.valor<=0.009){ cr.valor=0; cr.status='Recebido'; cr.dataReceb=v.data; }
-      }
-    });
-  }
-  if(_mexeu){ try{ saveAdtCli(); }catch(e){} try{ saveChequesCli(); }catch(e){} try{ saveContasReceber(); }catch(e){} try{ renderAdtCli(); }catch(e){} try{ renderChequesCli(); }catch(e){} }
-
-  if(v.status==='Permuta'){
-    var _mexeuCR=false;
-    CONTAS_RECEBER.forEach(function(cr){
-      if(cr.vendaId===v.id && cr.status==='Pendente' && cr.forma!=='Adiantamento' && cr.forma!=='Cheque'){
-        cr.status='Recebido'; cr.dataReceb=cr.dataReceb||v.data; cr.forma='🔄 Permuta';
-        cr.obs=(cr.obs?cr.obs+' | ':'')+'Quitado em permuta'; _mexeuCR=true;
-      }
-    });
-    if(_mexeuCR){ try{ saveContasReceber(); }catch(e){} }
-  }
-
-  saveVendas(); renderVendas(); renderEstoque();
-  try{renderFluxo();}catch(e){}
-  try{renderDashboard();}catch(e){}
-  try{renderContasReceber();}catch(e){}
-  cm();
-  showToast('Venda atualizada!','success');
+  saveVendas();
+  saveContasReceber();
+  if(mexeuPesagem){ try{ saveDB(); }catch(e){} }
+  try{ renderContasReceber(); }catch(e){}
+  try{ renderEstoque(); }catch(e){}
+  try{ renderAdtCli(); }catch(e){}
+  try{ renderChequesCli(); }catch(e){}
+  try{ renderFluxo(); }catch(e){}
+  try{ renderDashboard(); }catch(e){}
+  try{ if(mexeuPesagem) renderRodBalanca(); }catch(e){}
+  try{ renderVendas(); }catch(e){}
+  return {id:venda.id};
 }
+function _vendaExcluirPorId(id){
+  const idx=_vendaIdx(id);
+  if(idx<0){ showToast('Venda não encontrada. Atualize a tela.','error'); return false; }
+  excluirVenda(idx);
+  if(_vendaIdx(id)>=0) return false;
+  let mexeu=false;
+  Object.keys(TICKETS_DB).forEach(function(k){
+    const t=TICKETS_DB[k];
+    if(!t||t.vendaId!==id) return;
+    delete t.vendaId; delete t.vendaRef; mexeu=true;
+    try{ _rodPersistirTicketCritico(k); }catch(e){}
+  });
+  if(mexeu){ try{ saveDB(); }catch(e){} try{ renderRodBalanca(); }catch(e){} }
+  try{ renderVendas(); }catch(e){}
+  return true;
+}
+window.erpSalesBridge={
+  snapshot:function(){
+    return {
+      sales:VENDAS_DB, receivables:CONTAS_RECEBER, clientAdvances:ADT_CLI||{}, clientCheques:CHEQUES_CLI||{}, tickets:TICKETS_DB,
+      clients:(CLIENTES||[]).filter(function(c){ return c&&c.nome&&!c.inativo&&c.ativo!==false&&!c._deleted; }).map(function(c){ return {cod:String(c.cod||c.id||''),nome:String(c.nome)}; }).sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR',{sensitivity:'base'}); }),
+      materials:(METAIS||[]).slice()
+    };
+  },
+  canOperate:function(){ return _usuarioPodeOperarModulo('vendas'); },
+  user:function(){ return (typeof cu!=='undefined'&&cu)?String(cu.name||cu.login||''):''; },
+  banks:function(){
+    return {ready:Boolean(_erpBankDirectory.ready), list:(_erpBankDirectory.banks||[]).map(function(b){ return {cod:String(b.cod||''),banco:String(b.banco||''),label:String(b.banco||'')+(b.empresa?' — '+b.empresa:'')}; })};
+  },
+  loadBanks:function(){ return _erpBankDirectoryLoad(); },
+  priceOf:function(cliente, material){ return _precoClienteVenda(cliente, material); },
+  stockOf:_vendaEstoqueDisponivel,
+  commit:_vendaGravarPedido,
+  remove:_vendaExcluirPorId,
+  markPaid:function(id){ const i=_vendaIdx(id); if(i>=0) marcarVendaPaga(i); },
+  reopen:function(id){ const i=_vendaIdx(id); if(i>=0) reabrirVenda(i); },
+  archiveWeighing:function(key){
+    if(!_usuarioPodeOperarModulo('vendas')){ showToast('Seu perfil pode consultar, mas não lançar vendas.','error'); return false; }
+    const t=TICKETS_DB[key];
+    if(!t||t.tipo!=='venda'||t.vendaId) return false;
+    t.vendaArquivada=true;
+    t.vendaArquivadaEm=new Date().toISOString();
+    t.vendaArquivadaPor=(typeof cu!=='undefined'&&cu)?String(cu.name||cu.login||''):'';
+    try{ _rodPersistirTicketCritico(key); }catch(e){}
+    try{ saveDB(); }catch(e){}
+    try{ renderVendas(); }catch(e){}
+    return true;
+  },
+  client:function(nome){
+    const alvo=String(nome||'').trim().toUpperCase();
+    return (CLIENTES||[]).find(function(c){ return c&&String(c.nome||'').trim().toUpperCase()===alvo; })||null;
+  },
+  company:function(){
+    let info={};
+    try{ info=(typeof _empresaPrincipalInfo==='function'?_empresaPrincipalInfo():{})||{}; }catch(e){}
+    let nome='Manuela Metais', razao='';
+    try{ nome=_empresaPrincipalLabel()||nome; }catch(e){}
+    try{ razao=_empresaPrincipalRazao()||''; }catch(e){}
+    return {name:nome, legalName:razao||nome, cnpj:String(info.cnpj||''), address:String(info.endereco||info.enderecoCurto||''), contacts:[info.financeiro,info.escritorio,info.compras].filter(Boolean).join(' · '), email:String(info.email||'')};
+  }
+};
 
 function om(k){
   if(_adtSalvamentoAtivo)return;
@@ -20463,10 +19518,6 @@ function om(k){
     } else if(k==='conta_pagar'){
       body.innerHTML=FORMS['conta_pagar']||'';
       setTimeout(()=>{ try{_erpRefreshCompanySources();}catch(e){} try{atualizarSelectFornDespesa();}catch(e){} try{_populateBancosSelects();}catch(e){} },30);
-    } else if(k==='venda'){
-      let html; try{ html=buildVendaForm(); }catch(e){ showFormError('buildVendaForm: '+e.message); return; }
-      body.innerHTML=html;
-      setTimeout(()=>{ try{addVendaRow();}catch(e){console.error('addVendaRow',e);} try{_popularClientesVenda();}catch(e){} },50);
     } else {
       body.innerHTML=FORMS[k]||'<p>Formulário não encontrado.</p>';
 
@@ -22510,8 +21561,17 @@ function initDespesas(){
       window['ffImprimir']=ffImprimir;
       window['ffWhatsApp']=ffWhatsApp;
       window['abrirFichaForn']=abrirFichaForn;
+      window['abrirFichaFornGeral']=function(){
+        _ffCodAtual=null;
+        var dl=document.getElementById('ff-forn-list');
+        if(dl) dl.innerHTML=(getFornAtivos()||[]).map(function(f){ return '<option value="'+esc(f.nome||'')+'">'; }).join('');
+        ['ff-busca'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+        var info=document.getElementById('ff-forn-info'); if(info) info.style.display='none';
+        var kpis=document.getElementById('ff-kpis'); if(kpis) kpis.innerHTML='';
+        var tb=document.getElementById('ff-tbody'); if(tb) tb.innerHTML='';
+        var modal=document.getElementById('modal-ficha-forn'); if(modal) modal.style.display='flex';
+      };
       window['__abrirFichaFornAcao']=__abrirFichaFornAcao;
-      window['filtrarTabelaForn']=filtrarTabelaForn;
 
       function _ffAbrirSobreFicha(cod,abrir){
         var ficha=document.getElementById('modal-ficha-forn');
@@ -25565,7 +24625,7 @@ function rodRenderHistorico(){
       ?`<span style="background:${isPesandoMat?'#e65100':'#1565c0'};color:#fff;padding:2px 8px;border-radius:8px;font-size:.72rem;font-weight:700">${isPesandoMat?'🚚 Pesando':'⚖️ Pesando'}</span>`
       :isAguard
       ?'<span style="background:#e65100;color:#fff;padding:2px 8px;border-radius:8px;font-size:.72rem;font-weight:700">⏳ Aguard. Saída</span>'
-      :`<span style="background:#2e7d32;color:#fff;padding:2px 8px;border-radius:8px;font-size:.72rem;font-weight:700">✅ ${t.status||'—'}</span>`;
+      :`<span style="background:#2e7d32;color:#fff;padding:2px 8px;border-radius:8px;font-size:.72rem;font-weight:700">✅ ${t.vendaId?'Vendido':(t.status||'—')}</span>`;
     const finBtn=isPesandoMat
       ?`<button onclick="rodSubTab('pesagem');rodEntrarModoMateriais('${k}')" style="background:#e65100;color:#fff;border:none;border-radius:6px;padding:4px 9px;font-size:.75rem;cursor:pointer;font-weight:700">⚖️ Retomar</button>`
       :isPesandoCompra

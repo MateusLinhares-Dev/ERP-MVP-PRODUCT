@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
 const core = readFileSync(new URL('../public/legacy/app-core.js', import.meta.url), 'utf8');
-const helpers = core.slice(core.indexOf('function _vendaR2('), core.indexOf('function salvarVenda(){'));
+const helpers = core.slice(core.indexOf('function _vendaR2('), core.indexOf('function _vendaGravarPedido(cmd){'));
 
 function context(state = {}) {
   const ctx = { ADT_CLI: {}, CHEQUES_CLI: {}, CONTAS_RECEBER: [], ...state };
@@ -81,31 +81,26 @@ test('venda antiga (sem registro de abatimentos) devolve pelo que ficou em Conta
   assert.equal(otherSaleCheque.status, 'Quitado', 'cheque de outra venda não é mexido');
 });
 
-test('salvar, editar e excluir venda usam a regra única de abatimentos', () => {
-  const save = core.slice(core.indexOf('function salvarVenda(){'), core.indexOf('function editVenda(idx){'));
-  assert.match(save, /_vendaPlanejarAbatimentos\(_r2v\(total-_pagoDireto\)/);
-  assert.match(save, /if\(_planoAbate\.erro\)\{ showToast/);
-  assert.match(save, /venda\.abatimentos=_vendaRegistroAbatimentos/);
-  assert.doesNotMatch(save, /valor:Number\(a\.valor\), obs:'Adiantamento/, 'não usa mais o adiantamento inteiro');
-  const edit = core.slice(core.indexOf('function salvarEditVenda(){'), core.indexOf('function salvarEditVenda(){') + 12000);
-  assert.match(edit, /_vendaPlanejarAbatimentos\(_pendenteVenda/);
+test('pedido de venda (tela React) grava pela regra única de abatimentos e exclui pelo código', () => {
+  const save = core.slice(core.indexOf('function _vendaGravarPedido(cmd){'), core.indexOf('function _vendaExcluirPorId('));
+  assert.match(save, /const usos=_vendaUsosDoPedido\(/);
+  assert.match(save, /_vendaAplicarAbatimentos\(usos, venda\.nf\|\|venda\.id\)/);
+  assert.ok(save.indexOf('_vendaUsosDoPedido(') < save.indexOf('VENDAS_DB.push(venda)'), 'confere os abatimentos antes de mudar qualquer dado');
   const remove = core.slice(core.indexOf('function excluirVenda(btnOrIdx){'), core.indexOf("window['excluirVenda']=excluirVenda;"));
   assert.match(remove, /_vendaRestaurarAbatimentos\(v\)/);
   assert.match(remove, /VENDAS_DB\.findIndex\(function\(x\)\{ return x&&x\.id===vid; \}\)/, 'exclui pelo código da venda, não pela posição');
   assert.match(remove, /var matchByData=!cr\.vendaId&&/, 'não apaga contas a receber de outra venda');
+  assert.doesNotMatch(core, /function salvarVenda\(|function salvarEditVenda\(|function buildVendaForm\(/, 'formulário antigo saiu');
 });
 
-test('editar o valor da venda grava a conta a receber ajustada (antes só mudava na memória)', () => {
-  const start = core.indexOf('function salvarEditVenda(){');
-  const edit = core.slice(start, core.indexOf('\nfunction ', start + 10));
-  assert.match(edit, /_crPend\.valor=_restante;[\s\S]{0,200}try\{ saveContasReceber\(\); \}/);
-});
-
-test('venda não salva item sem material (salvar e editar), antes de alterar qualquer dado', () => {
-  const save = core.slice(core.indexOf('function salvarVenda(){'), core.indexOf('function editVenda(idx){'));
-  assert.match(save, /if\(qt>0&&!mat\)\{ showToast\('⚠️ Escolha o material da linha /);
-  const start = core.indexOf('function salvarEditVenda(){');
-  const edit = core.slice(start, core.indexOf('\nfunction ', start + 10));
-  const guard = edit.indexOf('Escolha o material da linha');
-  assert.ok(guard > 0 && guard < edit.indexOf("v.nf=document.getElementById('evv-nf')"), 'checa antes de mudar a venda');
+test('abatimento que mudou desde que a tela abriu não é usado (cheque quitado, adiantamento menor)', () => {
+  const ctx = context({
+    ADT_CLI: { GERDAU: [{ cod: 'ADTC1', valor: 500, status: 'Pendente' }] },
+    CHEQUES_CLI: { GERDAU: [{ num: '10', valor: 300, status: 'Quitado' }, { num: '11', valor: 200, status: 'Pendente' }] },
+  });
+  runInNewContext(core.slice(core.indexOf('function _vendaUsosDoPedido('), core.indexOf('function _vendaGravarPedido(cmd){')), ctx);
+  assert.throws(() => ctx._vendaUsosDoPedido('GERDAU', [{ kind: 'cheque', ref: '10', amount: 300 }]), /cheque nº 10 não está mais disponível/);
+  assert.throws(() => ctx._vendaUsosDoPedido('GERDAU', [{ kind: 'advance', ref: 'ADTC1', amount: 600 }]), /adiantamento ADTC1 mudou/);
+  const usos = ctx._vendaUsosDoPedido('GERDAU', [{ kind: 'cheque', ref: '11', amount: 200 }, { kind: 'advance', ref: 'ADTC1', amount: 120.005 }]);
+  assert.deepEqual(plain(usos.map((u) => [u.tipo, u.valor])), [['cheque', 200], ['adiantamento', 120.01]]);
 });

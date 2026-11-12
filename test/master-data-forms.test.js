@@ -18,8 +18,9 @@ test('bootstrap carrega cadastro mestre depois da homologação e antes de pedid
 
 test('cliente e fornecedor preservam IDs legados e ganham organização cadastral completa',()=>{
   has('Dados cadastrais','Contato','Endereço','Dados bancários / PIX','Financeiro');
-  for(const id of ['ef-cod','ec-idx'])assert.ok(js.includes(id),`ID legado ausente: ${id}`);
-  has("const prefix=editing?'ef':'nf'","const prefix=editing?'ec':'nc'","prefix+'-nome'","prefix+'-cpf'","prefix+'-cnpj'","prefix+'-cidade'");
+  assert.ok(js.includes('ec-idx'),'ID legado ausente: ec-idx');
+  has("const prefix=editing?'ec':'nc'","prefix+'-nome'","prefix+'-cpf'","prefix+'-cnpj'","prefix+'-cidade'");
+  assert.doesNotMatch(js,/function supplierForm|salvarNovoFornecedor/);
   has('phase3OpenPartyBanks','Gerenciar contas bancárias');
 });
 
@@ -30,7 +31,7 @@ test('funcionário mantém contratos legados usados por RH e integrações',()=>
 });
 
 test('campos complementares são adicionados no mesmo objeto e persistidos',()=>{
-  has('supplierExtras','clientExtras','employeeExtras','Object.assign(entity,extras)','supplierFields','persistEmployees');
+  has('partyExtras','clientExtras','employeeExtras','Object.assign(entity,extras)','persistEmployees');
 });
 
 test('visual segue identidade clara do ERP com formulário amplo e responsivo',()=>{
@@ -51,9 +52,9 @@ test('acesso aos cadastros passa pelo guard existente e persiste via salvamento 
   assert.match(js,/global\.erpCanAccessTab\(tab\)/);
   assert.match(js,/global\.switchTab\(tab\)===false/);
   assert.match(js,/legacy\.saveNewClient\.apply/);
-  assert.match(js,/global\.erpSupplierRequest/);
+  assert.match(fs.readFileSync(new URL('../web/erp/suppliers.tsx',import.meta.url),'utf8'),/erpSupplierRequest/);
   assert.match(js,/global\.phase4MasterShowList\('cliente'\)/);
-  assert.match(js,/global\.phase4MasterShowList\('fornecedor'\)/);
+  assert.match(fs.readFileSync(new URL('../web/erp/suppliers.tsx',import.meta.url),'utf8'),/phase4MasterShowList/);
 });
 
 function mountPartyFormTest(fields={}){
@@ -79,8 +80,6 @@ function mountPartyFormTest(fields={}){
     confirm(){return approved;},
     CLIENTES:[],FORNECEDORES:[],FUNCIONARIOS:[],
     salvarNovoCliente(){saved.push('cliente');return 'saved';},
-    erpSupplierRequest:async(payload)=>{saved.push(payload.action==='create'?'fornecedor':'fornecedor-edit');requests.push(payload);return {supplier:{cod:'F001'}};},
-    phase4MasterShowList(){},
     salvarEditCliente(){saved.push('cliente-edit');return 'saved';},
     localStorage:{setItem(){}},
   };
@@ -114,23 +113,6 @@ test('documento inválido bloqueia salvar; documento opcional e válido mantém 
   elements['nc-cpf'].value='';
   assert.equal(ctx.salvarNovoCliente(),'saved');
   assert.deepEqual(saved,['cliente','cliente']);
-});
-
-test('CNPJ numérico e alfanumérico válidos são aceitos e os inválidos bloqueados',async()=>{
-  const {ctx,elements,saved,requests,notifications}=mountPartyFormTest({'nf-pessoa':'PJ','nf-cnpj':'11.222.333/0001-81','nf-cpf':'','nf-nome':'ciclo metais'});
-  assert.equal(await ctx.salvarNovoFornecedor(),true);
-  elements['nf-cnpj'].value='00.000.000/E08G-12';
-  assert.equal(await ctx.salvarNovoFornecedor(),true);
-  elements['nf-cnpj'].value='11.222.333/0001-80';
-  assert.equal(await ctx.salvarNovoFornecedor(),false);
-  assert.equal(saved.length,2);
-  assert.equal(requests[0].supplier.nome,'CICLO METAIS');
-  assert.equal(requests[1].supplier.cnpj,'00.000.000/E08G-12');
-  assert.equal(requests[0].supplier.personType,'PJ');
-  assert.match(notifications.at(-1),/CNPJ inválido/);
-  const formatted={value:'00000000e08g12'};
-  ctx.phase4MasterFormatCnpj(formatted);
-  assert.equal(formatted.value,'00.000.000/E08G-12');
 });
 
 test('documento do tipo anterior exige confirmação para ser apagado e evita persistência indevida',()=>{

@@ -10,8 +10,8 @@ const css=read('legacy/operations-polish.css');
 const bootstrap=read('app/bootstrap.js');
 const template=read('index.template.html');
 
-test('Busca em vendas e estoque filtra apenas as linhas HTML',()=>{
-  assert.match(ui,/tbodyId:'tb-vendas-list'/);
+test('Busca em estoque filtra apenas as linhas HTML; vendas tem a busca da tela React',()=>{
+  assert.doesNotMatch(ui,/tbodyId:'tb-vendas-list'/,'não mexe dentro da tela React de vendas');
   assert.match(ui,/tbodyId:'tb-estoque'/);
   assert.match(ui,/row\.hidden=!match/);
   assert.doesNotMatch(ui,/\b(?:saveDB|fbSalvar|setFolhaValor|CONTAS_PAGAR\.push|FOLHA_DB\[)\s*\(/);

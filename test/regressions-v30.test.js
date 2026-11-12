@@ -150,8 +150,8 @@ test('v30 inventory keeps every material condition as its own stock key',()=>{
   assert.match(appCoreV30,/const IDENT_SEPARA_ESTOQUE = new Set\(IDENT\)/);
   assert.match(appCoreV30,/function _materialEfetivoDoItem\(item\)/);
   assert.match(appCoreV30,/const matEstoque=_matEfetivoEstoque\(mat,id\)/);
-  assert.match(appCoreV30,/const mat=_matEfetivoEstoque\(matBase,ident\)/);
-  assert.match(appCoreV30,/itens\.push\(\{mat,matBase,ident,qt,pr,total:qt\*pr\}\)/);
+  const saleOrder=fs.readFileSync(new URL('../web/modules/sales/domain/sale-order.ts',import.meta.url),'utf8');
+  assert.match(saleOrder,/matBase: item\.material\.trim\(\),\s*ident: item\.ident,/);
 });
 
 test('v30 inventory resolves legacy purchase and sale items by material plus identifier',()=>{

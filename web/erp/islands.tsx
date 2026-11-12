@@ -15,6 +15,8 @@ import type { IntegrationAction, IntegrationReply } from '../modules/bank-integr
 import { BankIntegrationsDialog } from '../modules/bank-integrations/ui/BankIntegrationsDialog.js';
 import { installSupplierRepasses } from './supplier-repasses.js';
 import { installAdvanceReview } from './advance-review.js';
+import { installSuppliers } from './suppliers.js';
+import { installSales } from './sales.js';
 
 const CHEQUE_REPORT = 'adt-cheques-report';
 const roots = new Map<string, Root>();
@@ -234,3 +236,5 @@ Object.assign(window, { erpBankIntegrationsOpen: openBankIntegrations });
 
 installSupplierRepasses(api);
 installAdvanceReview(api);
+installSuppliers();
+installSales();

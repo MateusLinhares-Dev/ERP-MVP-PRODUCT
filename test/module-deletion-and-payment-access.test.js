@@ -77,8 +77,8 @@ test('falha ou concorrência rejeita sem duplicar a baixa',async()=>{
 
 test('exclusões comuns seguem acesso do módulo, não papel administrativo',()=>{
   assert.match(core,/function _usuarioPodeOperarModulo\(tab\)/);
-  for(const tab of ['clientes','fornecedores','lista_compras','rod_balanca','compra_sucata'])assert.ok(core.includes("_usuarioPodeOperarModulo('"+tab+"')"),tab);
-  assert.match(supplier,/isElaine=\(typeof _usuarioPodeOperarModulo/);
+  for(const tab of ['clientes','lista_compras','rod_balanca','compra_sucata'])assert.ok(core.includes("_usuarioPodeOperarModulo('"+tab+"')"),tab);
+  assert.match(readFileSync(new URL('../web/erp/suppliers.tsx',import.meta.url),'utf8'),/_usuarioPodeOperarModulo\?\.\(TAB\)/);
   assert.match(rules.clientesDeletedV2['.write'],/canCustomers/);
   assert.equal(rules.fornecedoresDeletedV2['.write'],false);
   assert.equal(rules.fornecedores['.write'],false);
@@ -133,8 +133,7 @@ test('exclusão de fornecedor só some da lista depois que o servidor confirma',
   const pick=(from,to)=>core.slice(core.indexOf(from),core.indexOf(to,core.indexOf(from)));
   runInNewContext(pick('const _erpExclusoesEmAndamento=','async function excluirCliente(')+
     pick('function _fornAplicarResultado(result){','let TICKETS_DELETED')+
-    pick('async function _fornecedoresMarcarExcluidos(','async function excluirSelecionados(')+
-    pick('async function excluirFornecedor(','function importarFornecedores(')+';this.deleteSupplier=excluirFornecedor;',context);
+    pick('async function _fornApi(payload){','window.erpSupplierRequest=_fornApi;')+';this.deleteSupplier=cod=>_fornApi({action:"delete",codes:[cod]}).catch(()=>false);',context);
   await context.deleteSupplier('F670');
   assert.equal(hidden.size,0);
   deny=false;

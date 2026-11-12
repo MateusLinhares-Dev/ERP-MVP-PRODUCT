@@ -173,10 +173,27 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
   - Conferência de adiantamento órfão (`web/modules/advance-review/`, ligado em `web/erp/advance-review.tsx`):
     - a janela "Conferir pagamento do adiantamento" é React (`window.ERPAdvanceReview.review`);
     - a fila de exclusão de adiantamentos continua em `public/modules/finance/advance-actions.js`, que delega a conferência e aplica o resultado (`applyOrphanResult`).
+  - Fornecedores (`web/modules/suppliers/`, ligado em `web/erp/suppliers.tsx`):
+    - a lista (busca sem acento e sem pontuação, paginação, seleção para excluir vários, botões Ficha, PIX, Bancos e Docs) entra em `#sforn-compra`;
+    - o formulário (PF/PJ, máscaras, validação de CPF/CNPJ inclusive alfanumérico) entra no editor da casca de cadastros (`phase4-master-editor-fornecedores`);
+    - os dois gravam pela API `master-data/suppliers`;
+    - `renderTabelaFornecedores`, `editFornecedor`, `om('fornecedor')` e `phase4MasterCreate('fornecedor')` passaram a abrir a versão React;
+    - saíram do `app-core.js`, `supplier-compat.js` e `master-data-forms.js` a lista e o formulário antigos;
+    - continuam na tela antiga: Ficha do fornecedor, Documentos, Contas bancárias (`phase3OpenPartyBanks`) e Fornecedores de despesa.
+  - Vendas (`web/modules/sales/`, ligado em `web/erp/sales.tsx`), no mesmo layout do Pedido de compra (detalhes em `docs/VENDAS.md`):
+    - abas "Pesagens a fechar" (saídas da Balança Rodoviária), "Lançamento" (pedido de venda na própria aba, sem janela) e "Histórico" (filtros, totais do período, impressão da lista);
+    - regras puras e testadas em `web/modules/sales/domain/` (totais, parcelas, abatimento de adiantamento e cheque, contas a receber de cada parcela, estoque);
+    - a gravação ainda é feita pelo navegador: a ilha monta um comando completo e o `app-core.js` só aplica (`window.erpSalesBridge.commit`). O próximo passo é levar esse comando para uma API no servidor;
+    - impressão do pedido de venda no padrão da notinha (`web/shared/print/order-print.ts`);
+    - saíram do `app-core.js` o modal de venda, a edição em modal, o histórico antigo e o recebimento por linhas; saíram do `phase1-commercial.js` os remendos do modal;
+    - `om('venda')`, `editVenda(i)`, `verVendaDoCR`, `fcLancarVenda` e `renderVendas` passaram a abrir ou redesenhar a versão React.
+  - **CSS das telas React:** o Vite gera `dist/web/erp-islands-<hash>.css` e o `build.mjs` grava a lista em `webIslandsStyles` no `bootstrap.js`, que carrega o CSS antes das ilhas. O `verify-deployment-artifacts.mjs` reprova o deploy sem esse arquivo.
   - As telas React usam os mesmos ids e classes, então o CSS e os testes de tela continuaram valendo.
+  - **Cuidado ao migrar:** scripts antigos que rodam a cada mudança na tela (`apply()` do phase1/phase2/phase3) podem inserir ou remover elementos dentro do contêiner da ilha. O React quebra ("insertBefore") e a tela some. Antes de montar uma ilha, procure no `public/` quem mexe naquele contêiner (`removeByText`, `decorate...`, `tableSearch`) e tire o contêiner dessas rotinas.
 - **Ordem das próximas migrações:**
-  1. Fornecedores: a API no servidor já existe (`docs/FORNECEDORES-API.md`), e a tela já grava por ela. Falta a tela em React.
-  2. Depois os blocos do `app-core.js`, começando pelos que já têm API no servidor (Contas a Pagar, Adiantamentos, Bancos).
+  1. Clientes, no mesmo molde de Fornecedores: primeiro a API, depois a tela.
+  2. API de vendas: levar o comando de `erpSalesBridge.commit` para `server/modules/sales` (venda, contas a receber, abatimentos e pesagens numa transação) e travar `vendas` nas regras do Firebase.
+  3. Depois os blocos do `app-core.js`, começando pelos que já têm API no servidor (Contas a Pagar, Adiantamentos, Bancos).
 - **Limpeza feita na etapa 5:**
   - scripts avulsos de incidentes já resolvidos (fornecedor de teste F675, ticket T284, adiantamento excluído);
   - migrações únicas já aplicadas (`migrate:auth`, `migrate:storage`);

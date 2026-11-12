@@ -53,11 +53,12 @@ test('Agenda usa fluxo simples, cadastro rápido e template homologado do WhatsA
   assert.match(s,/Obrigada    🤝/);
 });
 
-test('Comercial remove identificação operacional, registra adiantamento e simplifica Ficha Financeira',()=>{
+test('Comercial simplifica Ficha Financeira; a venda (com recebimento no ato) está na tela React',()=>{
   const s=read('public/modules/phase1/phase1-commercial.js');
-  assert.match(s,/phase1-v-advance/);
-  assert.match(s,/Adiantamento pago no fechamento da venda/);
-  assert.match(s,/saldoAposAdiantamento/);
+  assert.doesNotMatch(s,/buildVendaForm|salvarVenda|phase1-v-advance/);
+  const sale=read('web/modules/sales/ui/SaleOrderForm.tsx');
+  assert.match(sale,/já recebida/);
+  assert.match(sale,/Adiantamento /);
   assert.match(s,/fcQuitarSaldo\|fcSaldoAnteriorModal\|fcJuntarAbrir/);
   assert.match(s,/phase1FichaPdf/);
   assert.match(s,/phase1FichaShare/);

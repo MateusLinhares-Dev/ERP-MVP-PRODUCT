@@ -136,43 +136,8 @@
     ov.addEventListener('click',function(ev){ if(ev.target===ov) ov.remove(); });
   };
 
-  window.renderTabelaFornecedores = function(){
-    try{ if(typeof _syncFornecedores!=='undefined' && _syncFornecedores.limparDuplicatasExatas()){ try{fbSalvar();}catch(e){} } }catch(e){}
-    var tb=document.getElementById('tb-fornecedores'); if(!tb) return;
-    var isElaine=(typeof _usuarioPodeOperarModulo==='function'&&_usuarioPodeOperarModulo('fornecedores'));
-    var lista=(typeof _getFornFiltrados==='function')?_getFornFiltrados():_activeSuppliers();
-    var visiveis=(window.ERPListPager && typeof window.ERPListPager.slice==='function')
-      ? window.ERPListPager.slice('fornecedores-compra',lista,'tb-fornecedores',window.renderTabelaFornecedores)
-      : lista;
-    tb.innerHTML=visiveis.map(function(f){
-      var c=_safe(f.cod), contas=_accountList(f), pixLabel='💳 PIX'+(contas.length>1?' ('+contas.length+')':'');
-      var r='<tr onclick="fornSelLinha(this)" style="cursor:pointer" title="Clique pra marcar esta linha">';
-      r+='<td style="text-align:center">'+(isElaine?'<input type="checkbox" class="forn-chk" value="'+c+'" onchange="atualizarBtnExcluir()">':'')+'</td>';
-      r+='<td>'+c+'</td>';
-      r+='<td><b>'+_safe(f.nome||'')+'</b></td>';
-      r+='<td>'+_safe(f.cnpj||f.cpf||'—')+'</td>';
-      r+='<td>'+_safe(f.cidade||'—')+'</td>';
-      r+='<td style="white-space:nowrap">';
-      r+='<button type="button" class="forn-ficha-btn" data-ficha-cod="'+c+'" style="padding:4px 10px;font-size:.78rem;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">📋 Ficha</button>';
-      if(contas.length){ r+='<button type="button" onclick="event.stopPropagation();fornAbrirPix(\''+c+'\')" style="padding:4px 10px;font-size:.78rem;background:#159447;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px;font-weight:800">'+pixLabel+'</button>'; }
-      r+='<button class="btn-edit" onclick="event.stopPropagation();editFornecedor(\''+c+'\')">✏️</button>';
-      r+=' <button class="btn-edit" onclick="event.stopPropagation();fornDocsModal(\''+c+'\')" title="Documentos" style="background:#0277bd;color:#fff">📄 Docs</button>';
-      if(isElaine) r+=' <button class="btn-edit-danger" onclick="event.stopPropagation();excluirFornecedor(\''+c+'\')" title="Excluir">🗑️</button>';
-      r+='</td></tr>'; return r;
-    }).join('');
-    var marcarTodos=document.getElementById('chk-all-forn');
-    if(marcarTodos) marcarTodos.checked=false;
-    if(typeof atualizarBtnExcluir==='function') atualizarBtnExcluir();
-    tb.querySelectorAll('.forn-ficha-btn[data-ficha-cod]').forEach(function(btn){
-      btn.addEventListener('click',function(event){
-        event.preventDefault();
-        event.stopPropagation();
-        var cod=this.getAttribute('data-ficha-cod')||'';
-        if(cod && typeof window.abrirFichaForn==='function') window.abrirFichaForn(cod);
-      });
-    });
-    _populatePriceSupplierSelect();
-  };
+  window.fornContas=function(cod){ return _accountList(_supplier(cod)); };
+  window.fornAtualizarSeletorPrecos=function(){ _populatePriceSupplierSelect(); };
 
   var _populateOriginal=window.populateFornSelects;
   if(typeof _populateOriginal==='function'){
@@ -192,7 +157,6 @@
   }
 
   document.addEventListener('erp:ready',function(){
-    try{ window.renderTabelaFornecedores(); }catch(e){}
     try{ _populatePriceSupplierSelect(); }catch(e){}
     setTimeout(function(){ try{ _populatePriceSupplierSelect(); }catch(e){} },750);
   });

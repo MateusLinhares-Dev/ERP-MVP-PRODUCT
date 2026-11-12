@@ -89,7 +89,6 @@
   }
 
   function init(){
-    tableSearch({tabId:'tab-vendas',tbodyId:'tb-vendas-list',label:'Buscar venda, cliente ou material'});
     tableSearch({tabId:'tab-estoque',tbodyId:'tb-estoque',label:'Buscar material ou situação'});
     ledgerFilter({rootId:'tab-fin_clientes',tbodyId:'fc-extrato',options:[['','Todas as movimentações'],['venda','Vendas'],['adiantamento','Adiantamentos'],['cheque','Cheques'],['pagamento','Pagamentos']]});
     ledgerFilter({rootId:'modal-ficha-cli',tbodyId:'fc-tbody',options:[['','Todos os status'],['depósito','Depósitos'],['pago','Pagos'],['pendente','Pendentes']]});
