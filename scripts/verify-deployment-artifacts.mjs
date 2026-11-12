@@ -44,6 +44,12 @@ if (fs.existsSync(builtBootstrap)) {
   if (!/^\/web\/erp-islands-[\w-]+\.js$/.test(islands) || !fs.existsSync(path.join(root, 'dist', islands))) {
     errors.push('bootstrap.js do build não aponta para o pacote das telas React do ERP (/web/erp-islands-*.js).');
   }
+  const styles = /const webIslandsStyles = (\[[^\]]*\]);/.exec(fs.readFileSync(builtBootstrap, 'utf8'))?.[1];
+  let list = null;
+  try { list = JSON.parse(styles || 'null'); } catch { list = null; }
+  if (!Array.isArray(list) || !list.length || list.some((file) => !/^\/web\/[\w.-]+\.css$/.test(file) || !fs.existsSync(path.join(root, 'dist', file)))) {
+    errors.push('bootstrap.js do build não aponta para o CSS das telas React do ERP (/web/*.css).');
+  }
 }
 
 const quickEntryPage = path.join(root, 'dist/rapido/index.html');

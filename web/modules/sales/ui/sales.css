@@ -1,0 +1,338 @@
+.erp-sales {
+  display: grid;
+  gap: 0;
+}
+
+.erp-sales .kpi-grid {
+  margin-bottom: 14px;
+}
+
+.erp-sales-kpi-late {
+  border-left: 3px solid #e74c3c;
+}
+
+.erp-sales-kpi-late .kpi-lbl,
+.erp-sales-kpi-late .kpi-val {
+  color: #e74c3c;
+}
+
+.erp-sales-tabs {
+  display: flex;
+  gap: 0;
+  align-items: flex-end;
+  border-bottom: 2px solid #ddd;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.erp-sales-tabs > button[role='tab'] {
+  padding: 9px 22px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: #fff;
+  color: #999;
+  font-weight: 400;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.erp-sales-tabs > button[role='tab'].active {
+  border-bottom-color: #1a3a2a;
+  color: #1a3a2a;
+  font-weight: 700;
+}
+
+.erp-sales-new {
+  margin-left: auto;
+  margin-bottom: 4px;
+}
+
+.erp-sales-error {
+  padding: 10px 14px;
+  border: 1px solid #f1b4ae;
+  border-radius: 8px;
+  background: #fdecea;
+  color: #8a1f14;
+  font-weight: 700;
+  font-size: 0.84rem;
+}
+
+.erp-sales-hint {
+  display: block;
+  margin-top: 8px;
+  color: #6d7a73;
+  font-size: 0.74rem;
+}
+
+.erp-sale-weighings select {
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px dashed #6c967c;
+  border-radius: 999px;
+  background: #f1f7f3;
+  color: #1d5836;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.erp-sale-weighings b {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.erp-sale-weighings b button {
+  border: 0;
+  background: transparent;
+  color: #9a2a1c;
+  font-weight: 900;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.erp-sale-items .erp-sale-stock {
+  min-width: 118px;
+  white-space: nowrap;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #1f7a45;
+}
+
+.erp-sale-items .erp-sale-stock.empty {
+  color: #c06a10;
+}
+
+.erp-sale-items .erp-sale-stock.short {
+  color: #c0392b;
+}
+
+.erp-sale-locked {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #dfe7e1;
+  border-radius: 8px;
+  background: #f7faf8;
+}
+
+.erp-sale-locked h4 {
+  margin: 0;
+  color: #23372d;
+  font-size: 0.82rem;
+}
+
+.erp-sale-locked-row {
+  cursor: default;
+  background: #fff;
+}
+
+.erp-sale-installments .erp-sale-received {
+  width: 84px;
+  text-align: center;
+}
+
+.erp-sale-installments .erp-sale-received input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  cursor: pointer;
+}
+
+.erp-sales-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 0 0 10px;
+}
+
+.erp-sales-filters label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.erp-sales-filters label span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--gray, #6b7280);
+  text-transform: uppercase;
+}
+
+.erp-sales-filters input,
+.erp-sales-filters select {
+  font-size: 0.82rem;
+  padding: 4px 8px;
+  border: 1px solid var(--border, #dfe5e1);
+  border-radius: 5px;
+}
+
+.erp-sales-filters #vh-cli {
+  min-width: 180px;
+}
+
+.erp-sales-clear,
+.erp-sales-print-list {
+  font-size: 0.78rem;
+  padding: 4px 10px;
+  border: 1px solid var(--border, #dfe5e1);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--gray, #6b7280);
+  cursor: pointer;
+}
+
+.erp-sales-print-list {
+  color: #1d4f7a;
+  border-color: #b7cde0;
+}
+
+.erp-sales-count {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--gray, #6b7280);
+}
+
+.erp-sales-search input {
+  width: 100%;
+  max-width: 460px;
+  padding: 8px 12px;
+  border: 1.5px solid #1a3a2a;
+  border-radius: 7px;
+  font-size: 0.86rem;
+  margin-bottom: 10px;
+}
+
+.erp-sales-totals {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.erp-sales-totals div {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: #f6f8f7;
+}
+
+.erp-sales-totals span {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  color: #7a857f;
+  font-weight: 700;
+}
+
+.erp-sales-totals b {
+  font-size: 0.92rem;
+  color: #24392e;
+}
+
+.erp-sales-totals .due b {
+  color: #c0392b;
+}
+
+.erp-sales-table-wrap {
+  overflow-x: auto;
+}
+
+.erp-sales-table-wrap table {
+  width: 100%;
+}
+
+.erp-sales-table-wrap td.n,
+.erp-sales-table-wrap th:nth-child(n + 5):nth-child(-n + 8) {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.erp-sales-table-wrap tr.erp-sale-open {
+  background: #fff8e1;
+}
+
+.erp-sales-table-wrap tr.erp-sale-overdue {
+  background: #fdecea;
+}
+
+.erp-sales-table-wrap tr.erp-sale-highlight {
+  outline: 3px solid var(--primary, #1a3a2a);
+  outline-offset: -3px;
+}
+
+.erp-sale-materials {
+  font-size: 0.78rem;
+}
+
+.erp-sale-late {
+  color: #c0392b;
+  font-weight: 700;
+  font-size: 0.7rem;
+}
+
+.erp-sale-actions {
+  white-space: nowrap;
+}
+
+.erp-sale-actions button {
+  margin-right: 4px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  border-radius: 5px;
+  cursor: pointer;
+  border: 1px solid #d5ddd8;
+  background: #fff;
+}
+
+.erp-sale-actions .erp-sale-paid {
+  background: #27ae60;
+  color: #fff;
+  border-color: #27ae60;
+  font-weight: 700;
+}
+
+.erp-sale-actions .erp-sale-reopen {
+  background: #e8f5e9;
+  color: #1a5e2a;
+  border-color: #a5d6a7;
+}
+
+.erp-sale-actions .erp-sale-ledger {
+  background: #8e44ad;
+  color: #fff;
+  border-color: #8e44ad;
+}
+
+.erp-sale-actions .erp-sale-cr {
+  background: var(--primary, #1a3a2a);
+  color: #fff;
+  border-color: var(--primary, #1a3a2a);
+}
+
+.erp-sales-empty {
+  color: var(--gray, #6b7280);
+  text-align: center;
+  padding: 20px;
+}
+
+.erp-sales-old-weighings {
+  display: grid;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.erp-sales-old-weighings > button {
+  justify-self: start;
+}
+
+@media (max-width: 900px) {
+  .erp-sales-totals {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .erp-sales-count {
+    margin-left: 0;
+  }
+}

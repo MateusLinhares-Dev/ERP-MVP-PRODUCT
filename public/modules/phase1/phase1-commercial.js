@@ -1,27 +1,8 @@
 (function(global){
 'use strict';
-const original={buildVenda:global.buildVendaForm,addVenda:global.addVendaRow,saveVenda:global.salvarVenda,calcVenda:global.calcVenda,editVenda:global.editVenda,renderClientes:global.renderClientes,openFicha:global.abrirFichaCli,renderFicha:global.fcRenderFicha};
+const original={renderClientes:global.renderClientes,openFicha:global.abrirFichaCli,renderFicha:global.fcRenderFicha};
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 try{global._matEfetivoEstoque=function(material){return String(material||'').trim();};}catch(e){}
-if(typeof original.buildVenda==='function')global.buildVendaForm=function(){
-  let html=String(original.buildVenda.apply(this,arguments));
-  html=html.replace(/<th[^>]*>Identifica(?:ção|cao)<\/th>/i,'');
-  if(!html.includes('id="phase1-v-advance"')&&!html.includes('id="phase1-v-advance"')){
-    html=html.replace(/(<div class="total-bar">[\s\S]*?<\/div>)/,`$1<div class="phase1-sale-advance"><label>💰 Adiantamento pago nesta venda R$</label><input id="phase1-v-advance" inputmode="decimal" placeholder="0,00" oninput="phase1VendaAdvanceUpdate()"><small>Registra o valor como recebido na Ficha Financeira e reduz somente o saldo desta venda.</small><b id="phase1-v-advance-balance"></b></div>`);
-  }
-  return html;
-};
-
-function parseMoney(value){let raw=String(value||'').trim().replace(/[^0-9,.-]/g,'');if(raw.includes(','))raw=raw.replace(/\./g,'').replace(',','.');return Number(raw)||0;}
-function saleTotal(){const raw=String(document.getElementById('v-total')?.textContent||'').replace(/[^0-9.,-]/g,'');return parseMoney(raw);}
-global.phase1VendaAdvanceUpdate=function(){const advance=parseMoney(document.getElementById('phase1-v-advance')?.value),balance=Math.max(0,saleTotal()-advance),el=document.getElementById('phase1-v-advance-balance');if(el)el.textContent=advance>0?`Saldo após adiantamento: R$ ${balance.toLocaleString('pt-BR',{minimumFractionDigits:2})}`:'';};
-if(typeof original.calcVenda==='function')global.calcVenda=function(){const result=original.calcVenda.apply(this,arguments);global.phase1VendaAdvanceUpdate();return result;};
-function injectAdvancePayment(){const advance=parseMoney(document.getElementById('phase1-v-advance')?.value);if(!(advance>0))return 0;const body=document.getElementById('v-pgto-rows');if(!body)return 0;document.getElementById('phase1-v-advance-payment')?.remove();const tr=document.createElement('tr');tr.id='phase1-v-advance-payment';tr.style.display='none';tr.innerHTML=`<td><select><option selected>Adiantamento</option></select></td><td><select><option value="">—</option></select></td><td><input class="vpgto-val" value="${advance}"></td><td><input value="Adiantamento pago no fechamento da venda"></td><td></td>`;body.appendChild(tr);return advance;}
-if(typeof original.saveVenda==='function')global.salvarVenda=function(){let before=0;try{before=VENDAS_DB.length;}catch(e){}const advance=injectAdvancePayment();const result=original.saveVenda.apply(this,arguments);try{if(advance>0&&VENDAS_DB.length>before){const venda=VENDAS_DB[VENDAS_DB.length-1];venda.adiantamentoCliente=advance;venda.saldoAposAdiantamento=Math.max(0,Number(venda.total||0)-advance);if(typeof saveVendas==='function')saveVendas();}}catch(e){console.warn('[phase1] adiantamento venda',e);}return result;};
-if(typeof original.editVenda==='function')global.editVenda=function(){const result=original.editVenda.apply(this,arguments);setTimeout(()=>{document.querySelectorAll('#ev-itens-body tr').forEach(row=>{const selects=row.querySelectorAll('select');if(selects.length>1)selects[1].closest('td')?.remove();});const table=document.getElementById('ev-itens-body')?.closest('table');const headers=table?.querySelectorAll('thead th');if(headers?.length>1)Array.from(headers).find(th=>/Ident/i.test(th.textContent||''))?.remove();},0);return result;};
-
-function stripSaleIdentification(){document.querySelectorAll('#venda-rows tr').forEach(row=>{const selects=row.querySelectorAll('select');if(selects.length>1){const cell=selects[1].closest('td');if(cell)cell.remove();}});}
-if(typeof original.addVenda==='function')global.addVendaRow=function(){const result=original.addVenda.apply(this,arguments);stripSaleIdentification();return result;};
 function addClientFichaButtons(){const body=document.getElementById('tb-clientes-list');if(!body)return;Array.from(body.rows).forEach(row=>{if(row.querySelector('.phase1-client-ficha'))return;const name=String(row.cells?.[1]?.textContent||'').trim();const cell=row.cells?.[row.cells.length-1];if(!name||!cell)return;cell.insertAdjacentHTML('afterbegin',`<button class="phase1-client-ficha" data-client="${esc(name)}" title="Abrir Ficha Financeira">📋 Ficha</button> `);cell.querySelector('.phase1-client-ficha').onclick=function(){if(typeof abrirFichaCli==='function')abrirFichaCli(this.dataset.client);};});}
 if(typeof original.renderClientes==='function')global.renderClientes=function(){const result=original.renderClientes.apply(this,arguments);setTimeout(addClientFichaButtons,0);return result;};
 function removeForbiddenFichaActions(){document.querySelectorAll('#tab-fin_clientes button,[id*="fc-"] button').forEach(button=>{const code=button.getAttribute('onclick')||'';if(/fcQuitarSaldo|fcSaldoAnteriorModal|fcJuntarAbrir/.test(code))button.remove();});}

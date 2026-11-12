@@ -122,7 +122,7 @@ function bankList(kind,key){
     holderName:entity.nome,holderDocument:entity.cnpj||entity.cpf});
   return [primary].filter(p=>p.bank||p.agency||p.account||p.pix);
 }
-function decoratePartyBanks(){[['#tb-fornecedores','fornecedor'],['#tb-clientes-list','cliente']].forEach(([sel,kind])=>{const body=$(sel);if(!body)return;Array.from(body.rows||[]).forEach(row=>{if(row.querySelector('.phase1-party-bank-btn')||row.querySelector('.phase3-bank-btn'))return;const key=String(row.cells?.[kind==='fornecedor'?1:0]?.textContent||'').trim();const name=String(row.cells?.[kind==='fornecedor'?2:1]?.textContent||'').trim();const cell=row.cells?.[row.cells.length-1];if(!key||!name||!cell)return;const b=document.createElement('button');b.className='phase3-bank-btn';b.type='button';b.textContent='🏦 Bancos';b.onclick=e=>{e.stopPropagation();phase3OpenPartyBanks(kind,key,name);};cell.prepend(b);});});}
+function decoratePartyBanks(){[['#tb-clientes-list','cliente']].forEach(([sel,kind])=>{const body=$(sel);if(!body)return;Array.from(body.rows||[]).forEach(row=>{if(row.querySelector('.phase1-party-bank-btn')||row.querySelector('.phase3-bank-btn'))return;const key=String(row.cells?.[kind==='fornecedor'?1:0]?.textContent||'').trim();const name=String(row.cells?.[kind==='fornecedor'?2:1]?.textContent||'').trim();const cell=row.cells?.[row.cells.length-1];if(!key||!name||!cell)return;const b=document.createElement('button');b.className='phase3-bank-btn';b.type='button';b.textContent='🏦 Bancos';b.onclick=e=>{e.stopPropagation();phase3OpenPartyBanks(kind,key,name);};cell.prepend(b);});});}
 global.phase3OpenPartyBanks=function(kind,key,name){
   const list=bankList(kind,key);
   $('#phase3-bank-ov')?.remove();

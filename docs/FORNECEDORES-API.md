@@ -43,6 +43,7 @@ O cadastro de fornecedores passou a ser gravado **só pelo servidor**. Antes, ca
 
 Se as regras forem publicadas antes, uma aba antiga que ainda grava fornecedores terá aquele envio recusado. O envio vai em lote, então os outros dados do mesmo lote também não são gravados.
 
-## Próximo passo
+## Tela em React (12/11/2026)
 
-Tela de Fornecedores em React (lista, busca, cadastro), usando esta API.
+- A lista e o formulário de fornecedores de compra estão em React e usam esta API. Ver `docs/ARCHITECTURE.md`, etapa 5.
+- O botão "Restaurar excluídos" não aparece, como já acontecia antes (o `phase2-feedback.js` o escondia). A ação `restore-all` continua no servidor, para uso do suporte.

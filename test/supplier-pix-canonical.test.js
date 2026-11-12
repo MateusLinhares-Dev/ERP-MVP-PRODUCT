@@ -73,9 +73,7 @@ test('lista multibanco canônica tem prioridade sobre Nubank antigo e evita PIX 
  await context.window.__testLoadPartyBanks();
  assert.equal(context.window.ERPPartyBanks.hasCanonical('fornecedor','F008'),true);
  const rendered=supplierHarness(context.window.ERPPartyBanks);
- rendered.context.window.renderTabelaFornecedores();
- assert.match(rendered.table.innerHTML,/PIX/);
- assert.doesNotMatch(rendered.table.innerHTML,/PIX \(2\)/);
+ assert.equal(rendered.context.window.fornContas('F008').length,1);
  rendered.context.window.fornAbrirPix('F008');
  const html=rendered.nodes.find(node=>node.innerHTML.includes('Contas / PIX'))?.innerHTML||'';
  assert.match(html,/1 conta\(s\) cadastrada\(s\)/);
@@ -88,8 +86,7 @@ test('sem registro canônico mantém a compatibilidade das contas legadas',async
  await context.window.__testLoadPartyBanks();
  assert.equal(context.window.ERPPartyBanks.hasCanonical('fornecedor','F008'),false);
  const rendered=supplierHarness(context.window.ERPPartyBanks);
- rendered.context.window.renderTabelaFornecedores();
- assert.match(rendered.table.innerHTML,/PIX/);
+ assert.ok(rendered.context.window.fornContas('F008').length>=1);
 });
 
 test('lista canônica vazia não ressuscita conta principal legada',async()=>{
@@ -98,8 +95,7 @@ test('lista canônica vazia não ressuscita conta principal legada',async()=>{
  assert.equal(context.window.ERPPartyBanks.hasCanonical('fornecedor','F008'),true);
  assert.equal(context.window.ERPPartyBanks.list('fornecedor','F008').length,0);
  const rendered=supplierHarness(context.window.ERPPartyBanks);
- rendered.context.window.renderTabelaFornecedores();
- assert.doesNotMatch(rendered.table.innerHTML,/>💳 PIX/);
+ assert.equal(rendered.context.window.fornContas('F008').length,0);
 });
 
 test('salvar nova conta confirma antes de atualizar estado e contador',async()=>{

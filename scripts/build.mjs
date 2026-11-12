@@ -35,7 +35,10 @@ const bootstrapPath=path.join(dist,'app','bootstrap.js');
 const bootstrapJs=await fs.readFile(bootstrapPath,'utf8');
 if(!/const assetRevision = '[^']+';/.test(bootstrapJs))throw new Error('assetRevision não encontrado em bootstrap.js');
 if(!bootstrapJs.includes("const webIslandsEntry = '';"))throw new Error('webIslandsEntry não encontrado em bootstrap.js');
+if(!bootstrapJs.includes('const webIslandsStyles = [];'))throw new Error('webIslandsStyles não encontrado em bootstrap.js');
+const islandsStyles=(islandsEntry.css||[]).map(file=>'/'+file);
 await fs.writeFile(bootstrapPath,bootstrapJs
   .replace(/const assetRevision = '([^']+)';/,(_,rev)=>"const assetRevision = '"+rev+'-'+contentRevision+"';")
-  .replace("const webIslandsEntry = '';","const webIslandsEntry = '/"+islandsEntry.file+"';"));
+  .replace("const webIslandsEntry = '';","const webIslandsEntry = '/"+islandsEntry.file+"';")
+  .replace('const webIslandsStyles = [];','const webIslandsStyles = '+JSON.stringify(islandsStyles)+';'));
 console.log('Build estático gerado em dist/ (legado + telas React).');

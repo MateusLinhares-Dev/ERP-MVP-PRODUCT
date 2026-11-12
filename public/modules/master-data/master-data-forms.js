@@ -34,7 +34,6 @@ function top(title,subtitle,saveCall,extra=''){
   return '<div class="phase4-master-head"><div><h2>'+title+'</h2><p>'+subtitle+'</p></div><div class="phase4-master-actions">'+extra+'<button type="button" class="phase4-master-outline" onclick="cm()">Cancelar</button><button type="button" class="phase4-master-save" onclick="'+saveCall+'">Salvar</button></div></div>';
 }
 function personOptions(value){return select('unused-person',[{value:'PJ',label:'Pessoa Jurídica'},{value:'PF',label:'Pessoa Física'}],value);}
-function supplierByCode(code){try{return (FORNECEDORES||[]).find(f=>String(f.cod||'')===String(code||''))||null;}catch(e){return null;}}
 function clientByIndex(index){try{return CLIENTES?.[Number(index)]||null;}catch(e){return null;}}
 function employeeByMat(mat){try{return (FUNCIONARIOS||[]).find(f=>String(f.mat||'')===String(mat||''))||null;}catch(e){return null;}}
 function employeeOptions(current){
@@ -49,30 +48,6 @@ function bankButton(kind,key,name){
   if(!key)return '<span class="phase4-master-bank-hint">Salve o cadastro para liberar múltiplas contas bancárias.</span>';
   const jsArg=value=>esc(JSON.stringify(String(value||'')));
   return '<button type="button" class="phase4-master-secondary" onclick="phase3OpenPartyBanks('+jsArg(kind)+','+jsArg(key)+','+jsArg(name)+')">🏦 Gerenciar contas bancárias</button>';
-}
-
-function supplierForm(entity){
-  const f=entity||{};const editing=!!entity;const p=f.personType||((f.cnpj||'')?'PJ':'PF');const loc=normalizeCityUf(f);const prefix=editing?'ef':'nf';
-  const save=editing?'salvarEditFornecedor()':'salvarNovoFornecedor()';
-  const extra='';
-  const identification=
-    (editing?'<input type="hidden" id="ef-cod" value="'+esc(f.cod)+'">':'')+
-    field('Nome / Razão Social *',input(prefix+'-nome',f.nome||'','class="mask-upper" autocomplete="organization"'),'span-2')+
-    field('Nome fantasia',input(prefix+'-fantasia',f.fantasia||f.nomeFantasia||''))+
-    field('Código',input('phase4-master-code',editing?f.cod:'Automático','readonly'))+
-    field('Tipo de pessoa',select(prefix+'-pessoa',[{value:'PJ',label:'Pessoa Jurídica'},{value:'PF',label:'Pessoa Física'}],p,'onchange="phase4MasterTogglePerson(\''+prefix+'\')"'))+
-    field('Fornecedor desde',input(prefix+'-desde',f.desde||f.dataCadastro||(editing?'':today()),'type="date"'))+
-    field('CPF',input(prefix+'-cpf',f.cpf||'','class="mask-cpf" placeholder="000.000.000-00"'))+
-    field('CNPJ',input(prefix+'-cnpj',f.cnpj||'','class="phase4-master-alnum-cnpj" placeholder="00.000.000/0001-00" inputmode="text" autocomplete="off" oninput="phase4MasterFormatCnpj(this)"'))+
-    field('Inscrição Estadual',input(prefix+'-ie',f.ie||''))+
-    field('RG',input(prefix+'-rg',f.rg||''))+
-    field('Órgão emissor',input(prefix+'-orgao',f.orgaoEmissor||''))+
-    field('Contribuinte',select(prefix+'-contribuinte',['Não informado','Contribuinte ICMS','Isento','Não contribuinte'],f.contribuinte||'Não informado'));
-  const contact=field('Telefone',input(prefix+'-tel',f.tel||'','class="mask-tel"'))+field('WhatsApp',input(prefix+'-wpp',f.wpp||'','class="mask-tel"'))+field('E-mail',input(prefix+'-email',f.email||'','type="email"'),'span-2');
-  const address=field('CEP',input(prefix+'-cep',f.cep||''))+field('UF',input(prefix+'-uf',loc.uf,'maxlength="2" class="mask-upper"'))+field('Cidade',input(prefix+'-cidade-nome',loc.city),'span-2')+field('Rua / Logradouro',input(prefix+'-rua',f.rua||''),'span-2')+field('Número',input(prefix+'-num',f.num||''))+field('Complemento',input(prefix+'-compl',f.compl||''))+field('Bairro',input(prefix+'-bairro',f.bairro||''),'span-2')+'<input type="hidden" id="'+prefix+'-cidade" value="'+esc(f.cidade||'')+'">';
-  const bank=field('Chave PIX',input(prefix+'-pix',f.pix||''),'span-2')+field('Banco principal',input(prefix+'-banco',f.banco||''),'span-2')+field('Agência',input(prefix+'-agencia',f.agencia||''))+field('Conta',input(prefix+'-conta',f.conta||''))+'<div class="phase4-master-bank-action span-2">'+bankButton('fornecedor',editing?f.cod:'',f.nome||'Fornecedor')+'</div>';
-  const obs=(editing?(f.obs?field('Dados bancários antigos','<textarea id="ef-obs" rows="2">'+esc(f.obs||'')+'</textarea>','span-2'):'<input type="hidden" id="ef-obs" value="'+esc(f.obs||'')+'">'):'<input type="hidden" id="nf-obs" value="">')+field('Observações','<textarea id="'+prefix+'-nota" rows="3" placeholder="Informações adicionais...">'+esc(f.nota||'')+'</textarea>','span-2');
-  return top(editing?'Editar fornecedor':'Novo fornecedor','Cadastro comercial usado em compras, preços, financeiro e documentos.',save,extra)+section('Dados cadastrais','Identificação principal do fornecedor.',identification)+section('Contato','Canais usados pela operação e pelo financeiro.',contact)+section('Endereço','Endereço principal do fornecedor.',address)+section('Dados bancários / PIX','A conta principal continua compatível com módulos antigos; contas adicionais ficam no cadastro multibanco.',bank)+section('Observações','Informações complementares que não alteram regras financeiras.',obs)+'<div class="phase4-master-bottom"><button type="button" class="phase4-master-outline" onclick="cm()">Cancelar</button><button type="button" class="phase4-master-save" onclick="'+save+'">Salvar</button></div>';
 }
 
 function clientForm(entity,index){
@@ -188,14 +163,13 @@ function inlinePartyForm(kind,entity,index){
   const body=shell?.querySelector('.phase4-master-inline-editor');
   if(!body)return;
   editingParty=kind;
-  const markup=kind==='fornecedor'?supplierForm(entity):clientForm(entity,index);
+  const markup=clientForm(entity,index);
   body.innerHTML=markup.replaceAll('onclick="cm()"','onclick="phase4MasterCancel()"');
   updatePartyShell(kind,'form');
-  global.phase4MasterTogglePerson(kind==='fornecedor'?(entity?'ef':'nf'):(entity?'ec':'nc'));
+  global.phase4MasterTogglePerson(entity?'ec':'nc');
   body.querySelector('input:not([type=hidden])')?.focus({preventScroll:true});
   shell.scrollIntoView({block:'start',behavior:'auto'});
 }
-function openSupplier(entity){inlinePartyForm('fornecedor',entity);}
 function openClient(entity,index){inlinePartyForm('cliente',entity,index);}
 function openEmployee(entity,index){const body=modal();body.innerHTML=employeeForm(entity,index);if(entity){try{_efnLembretes=Array.isArray(entity.lembretes)?entity.lembretes.map(l=>({t:l.t||'',d:l.d||'',a:l.a!=null?l.a:5})):[];_efnRenderLembretes();}catch(e){}}}
 
@@ -213,7 +187,6 @@ global.phase4MasterShowList=function(kind){
 };
 global.phase4MasterCreate=function(kind){
   if(kind==='cliente')openClient(null,null);
-  else if(kind==='fornecedor')openSupplier(null);
 };
 global.phase4MasterCancel=function(){
   if(editingParty)global.phase4MasterShowList(editingParty);
@@ -295,12 +268,12 @@ function preparePersonDocument(prefix){
   return true;
 }
 
-function supplierExtras(prefix){
+function partyExtras(prefix){
   const city=val(prefix+'-cidade-nome'),uf=val(prefix+'-uf').toUpperCase();
   const combined=[city,uf].filter(Boolean).join('/');const hidden=document.getElementById(prefix+'-cidade');if(hidden)hidden.value=combined;
   return {fantasia:val(prefix+'-fantasia'),nomeFantasia:val(prefix+'-fantasia'),personType:val(prefix+'-pessoa'),desde:val(prefix+'-desde'),dataCadastro:val(prefix+'-desde'),orgaoEmissor:val(prefix+'-orgao'),contribuinte:val(prefix+'-contribuinte'),uf,cidadeNome:city,cidade:combined};
 }
-function clientExtras(prefix){return Object.assign({},supplierExtras(prefix),{limite:parseMoney(val(prefix+'-limite'))});}
+function clientExtras(prefix){return Object.assign({},partyExtras(prefix),{limite:parseMoney(val(prefix+'-limite'))});}
 function employeeExtras(prefix){return {rg:val(prefix+'-rg'),pis:val(prefix+'-pis'),ctps:val(prefix+'-ctps'),email:val(prefix+'-email'),telefoneEmergencial:val(prefix+'-emergencia'),cep:val(prefix+'-cep'),uf:val(prefix+'-uf').toUpperCase(),cidade:val(prefix+'-cidade'),rua:val(prefix+'-rua'),num:val(prefix+'-num'),compl:val(prefix+'-compl'),bairro:val(prefix+'-bairro'),sal:parseMoney(val(prefix+'-sal')),valeTransporte:parseMoney(val(prefix+'-vt')),adicional:parseMoney(val(prefix+'-adicional')),abono:parseMoney(val(prefix+'-abono'))};}
 function persistEmployees(){
   try{localStorage.setItem('mm_funcionarios_edit',JSON.stringify(FUNCIONARIOS||[]));}catch(e){}
@@ -308,38 +281,6 @@ function persistEmployees(){
   try{renderTbFuncionarios();}catch(e){}
 }
 
-function supplierFields(prefix){
-  const fields={nome:val(prefix+'-nome').toUpperCase(),cpf:val(prefix+'-cpf'),cnpj:val(prefix+'-cnpj'),rg:val(prefix+'-rg'),ie:val(prefix+'-ie'),
-    tel:val(prefix+'-tel'),wpp:val(prefix+'-wpp'),email:val(prefix+'-email'),cep:val(prefix+'-cep'),rua:val(prefix+'-rua'),num:val(prefix+'-num'),
-    compl:val(prefix+'-compl'),bairro:val(prefix+'-bairro'),pix:val(prefix+'-pix'),banco:val(prefix+'-banco'),agencia:val(prefix+'-agencia'),
-    conta:val(prefix+'-conta'),obs:val(prefix+'-obs'),nota:val(prefix+'-nota')};
-  return Object.assign(fields,supplierExtras(prefix));
-}
-let supplierSaving=false;
-async function saveSupplier(prefix){
-  if(supplierSaving)return false;
-  if(!preparePersonDocument(prefix))return false;
-  const fields=supplierFields(prefix);
-  if(!fields.nome){alert('Informe o nome do fornecedor.');document.getElementById(prefix+'-nome')?.focus?.();return false;}
-  if(typeof global.erpSupplierRequest!=='function'){alert('Cadastro indisponível. Atualize a página.');return false;}
-  const code=prefix==='ef'?val('ef-cod'):'';
-  const current=code?supplierByCode(code):null;
-  const button=document.querySelector?.('.phase4-master-save');
-  supplierSaving=true;if(button)button.disabled=true;
-  try{
-    const result=await global.erpSupplierRequest(code
-      ?{action:'update',cod:code,supplier:fields,expectedUpdate:current&&current._upd!=null?current._upd:undefined}
-      :{action:'create',supplier:fields});
-    if(typeof global.showToast==='function')global.showToast(code?'Fornecedor atualizado.':'Fornecedor '+(result.supplier?.cod||'')+' cadastrado.','success');
-    global.phase4MasterShowList('fornecedor');
-    return true;
-  }catch(error){
-    alert('Não foi possível salvar o fornecedor: '+(error?.message||'erro desconhecido'));
-    return false;
-  }finally{supplierSaving=false;if(button)button.disabled=false;}
-}
-global.salvarNovoFornecedor=function(){return saveSupplier('nf');};
-global.salvarEditFornecedor=function(){return saveSupplier('ef');};
 if(typeof legacy.saveNewClient==='function')global.salvarNovoCliente=function(){
   if(!preparePersonDocument('nc'))return false;
   const extras=clientExtras('nc'),before=new Set((CLIENTES||[]).map(c=>c.cod));const bank={banco:val('nc-banco'),agencia:val('nc-agencia'),conta:val('nc-conta'),pix:val('nc-pix')};
@@ -360,12 +301,10 @@ if(typeof legacy.saveEmployee==='function')global.salvarEditFuncionario=function
 function clientBankHidden(entity,prefix){return entity;}
 
 if(typeof legacy.openModal==='function')global.om=function(type){
-  if(type==='fornecedor'){openSupplier(null);return;}
   if(type==='cliente'){openClient(null,null);return;}
   if(type==='funcionario'){openEmployee(null,null);return;}
   return legacy.openModal.apply(this,arguments);
 };
-global.editFornecedor=function(code){const entity=supplierByCode(code);if(entity)openSupplier(entity);else if(typeof global.showToast==='function')global.showToast('Fornecedor não encontrado. Atualize a tela.','error');};
 global.editCliente=function(index){const entity=clientByIndex(index);if(entity)openClient(entity,index);else if(typeof legacy.editClient==='function')legacy.editClient.apply(this,arguments);};
 global.editFuncionario=function(mat){const idx=(FUNCIONARIOS||[]).findIndex(f=>String(f.mat||'')===String(mat||''));const entity=idx>=0?FUNCIONARIOS[idx]:null;if(entity)openEmployee(entity,idx);else if(typeof legacy.editEmployee==='function')legacy.editEmployee.apply(this,arguments);};
 

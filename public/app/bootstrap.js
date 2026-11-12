@@ -7,6 +7,7 @@ import { initProfilePhoto } from '../modules/profile/profile-photo.js';
 const assetRevision = '20261110-parcial-cheques-v9';
 const crudCacheRevision = '20261108-crud-sync-per-record-v2';
 const webIslandsEntry = '';
+const webIslandsStyles = [];
 
 function loadClassic(src) {
   return new Promise((resolve, reject) => {
@@ -258,6 +259,7 @@ async function main() {
   ]);
 
   if (webIslandsEntry) {
+    webIslandsStyles.forEach(loadStyle);
     try {
       await import(webIslandsEntry);
     } catch (error) {

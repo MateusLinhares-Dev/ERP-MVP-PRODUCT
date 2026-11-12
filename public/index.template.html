@@ -764,30 +764,7 @@
         <button id="sforn-despesa-btn" onclick="switchSubForn('despesa')" style="padding:8px 22px;font-weight:700;font-size:.88rem;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--gray);cursor:pointer">🧾 Fornecedores de Despesa</button>
       </div>
 
-            <div id="sforn-compra">
-        <div class="tcard">
-          <div class="tcard-hdr">
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div class="tcard-title">Fornecedores de Compra (Sucata)</div><button onclick="_ffCodAtual=null;var dl=document.getElementById('ff-forn-list');if(dl)dl.innerHTML=(getFornAtivos()||[]).map(function(f){return '<option value=\''+f.nome+'\'>';}).join('');var busca=document.getElementById('ff-busca');if(busca)busca.value='';var info=document.getElementById('ff-forn-info');if(info)info.style.display='none';var kpis=document.getElementById('ff-kpis');if(kpis)kpis.innerHTML='';var tb=document.getElementById('ff-tbody');if(tb)tb.innerHTML='';document.getElementById('modal-ficha-forn').style.display='flex'" style="padding:5px 12px;background:#2980b9;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.8rem;font-weight:700">&#x1F4CB; Ficha por Nome</button></div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <button class="btn-add" onclick="om('fornecedor')">+ Novo</button>
-              <input type="file" id="forn-import-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importarFornecedores(this)">
-              <button onclick="document.getElementById('forn-import-file').click()" title="Importar vários fornecedores de uma planilha Excel de uma vez" style="background:#0277bd;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-weight:700;cursor:pointer;font-size:.82rem">📥 Importar Lista</button>
-              <button id="btn-excluir-sel" onclick="excluirSelecionados()" style="display:none;background:#e74c3c;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-weight:700;cursor:pointer;font-size:.82rem">🗑️ Excluir Selecionados (<span id="sel-count">0</span>)</button>
-              <button id="btn-restaurar-forn" onclick="restaurarFornecedores()" style="background:#2980b9;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-weight:700;cursor:pointer;font-size:.82rem">↩️ Restaurar</button>
-            </div>
-          </div>
-          <div style="padding:6px 0 10px">
-            <input id="forn-busca-nome" type="text" oninput="filtrarTabelaForn(this.value)" placeholder="&#x1F50D; Filtrar por nome, codigo ou cidade..." style="width:100%;max-width:400px;padding:8px 12px;border:1.5px solid #27ae60;border-radius:7px;font-size:.88rem">
-          </div>
-          <table>
-            <thead><tr>
-              <th style="width:36px"><input type="checkbox" id="chk-all-forn" onchange="toggleAllForn(this.checked)"></th>
-              <th>Cód.</th><th>Nome / Razão Social</th><th>CPF / CNPJ</th><th>Cidade/UF</th><th>Ações (💳 PIX = DADOS DO BANCO)</th>
-            </tr></thead>
-            <tbody id="tb-fornecedores"></tbody>
-          </table>
-        </div>
-      </div>
+            <div id="sforn-compra"><div class="tcard"><p style="padding:16px">Carregando fornecedores...</p></div></div>
 
             <div id="sforn-despesa" style="display:none">
         <div class="tcard">
@@ -822,67 +799,8 @@
     </div>
 
         <div class="tab-panel" id="tab-vendas">
-      <div class="sec-title">💵 Registro de Vendas</div>
-      <div class="kpi-grid">
-        <div class="kpi g"><div class="kpi-lbl">Total de Vendas</div><div class="kpi-val" id="kpi-v-mes-val">R$ 0</div><div class="kpi-sub" id="kpi-v-mes-sub">0 vendas cadastradas</div></div>
-        <div class="kpi"><div class="kpi-lbl">Vendas este mês</div><div class="kpi-val" id="kpi-v-nf-val">R$ 0</div><div class="kpi-sub" id="kpi-v-nf-sub">Este mês</div></div>
-        <div class="kpi o"><div class="kpi-lbl">A Receber</div><div class="kpi-val" id="kpi-v-pend-val">R$ 0</div><div class="kpi-sub" id="kpi-v-pend-sub">Pendentes</div></div>
-        <div class="kpi" style="border-left:3px solid #e74c3c"><div class="kpi-lbl" style="color:#e74c3c">Atrasados</div><div class="kpi-val" id="kpi-v-atras-val" style="color:#e74c3c">R$ 0</div><div class="kpi-sub">Vencidos</div></div>
-      </div>
-            <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid var(--border)">
-        <button id="vstab-lancar" onclick="vSubTab('lancar')" style="padding:8px 20px;background:#1a5e2a;color:#fff;border:none;border-radius:7px 7px 0 0;cursor:pointer;font-weight:700;font-size:.88rem;margin-right:4px">📝 Lançar Venda</button>
-        <button id="vstab-hist" onclick="vSubTab('hist')" style="padding:8px 20px;background:#eee;color:#555;border:none;border-radius:7px 7px 0 0;cursor:pointer;font-weight:600;font-size:.88rem">📊 Histórico Completo</button>
-      </div>
-            <div id="v-panel-lancar">
-        <div class="tcard">
-          <div class="tcard-hdr">
-            <div class="tcard-title">Vendas</div>
-            <button class="btn-add" onclick="om('venda')">+ Nova Venda</button>
-          </div>
-          <table>
-            <thead><tr><th>Data</th><th>NF/Pedido</th><th>Cliente</th><th>Materiais</th><th>Qtde (kg)</th><th>Total R$</th><th>Vencimento</th><th>Status</th><th>Ações</th></tr></thead>
-            <tbody id="tb-vendas-list"></tbody>
-          </table>
-        </div>
-      </div>
-            <div id="v-panel-hist" style="display:none">
-        <div class="tcard" style="margin-bottom:12px">
-          <div class="tcard-hdr"><div class="tcard-title">🔎 Filtros</div></div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;padding:6px 0 4px">
-            <div><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:3px">DE</label>
-              <input type="date" id="vh-de" style="padding:5px 8px;border:1.5px solid #27ae60;border-radius:5px;font-size:.82rem"></div>
-            <div><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:3px">ATÉ</label>
-              <input type="date" id="vh-ate" style="padding:5px 8px;border:1.5px solid #27ae60;border-radius:5px;font-size:.82rem"></div>
-            <div><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:3px">CLIENTE</label>
-              <input type="text" id="vh-cli" placeholder="Nome do cliente..." style="padding:5px 8px;border:1px solid #ccc;border-radius:5px;font-size:.82rem;width:200px"></div>
-            <div><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:3px">STATUS</label>
-              <select id="vh-status" style="padding:5px 8px;border:1px solid #ccc;border-radius:5px;font-size:.82rem">
-                <option value="">Todos</option><option value="Pago">Pago</option><option value="Pendente">Pendente</option><option value="A prazo">A prazo</option>
-              </select></div>
-            <div style="display:flex;align-items:flex-end;gap:6px">
-              <button onclick="renderHistoricoVendas()" style="padding:7px 18px;background:#1a5e2a;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700">🔎 Filtrar</button>
-              <button onclick="vhLimpar()" style="padding:7px 12px;background:#999;color:#fff;border:none;border-radius:5px;cursor:pointer">Limpar</button>
-              <button onclick="vhImprimir()" style="padding:7px 12px;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:600">Imprimir</button>
-            </div>
-          </div>
-        </div>
-        <div class="kpi-grid" style="margin-bottom:12px">
-          <div class="kpi g"><div class="kpi-lbl">Total Período</div><div class="kpi-val" id="vh-total-val">R$ 0</div><div class="kpi-sub" id="vh-total-sub">0 vendas</div></div>
-          <div class="kpi"><div class="kpi-lbl">Total kg</div><div class="kpi-val" id="vh-kg-val">0 kg</div><div class="kpi-sub">Peso total</div></div>
-          <div class="kpi g"><div class="kpi-lbl">Recebido</div><div class="kpi-val" id="vh-receb-val">R$ 0</div><div class="kpi-sub">Status Pago</div></div>
-          <div class="kpi o"><div class="kpi-lbl">Pendente</div><div class="kpi-val" id="vh-pend-val">R$ 0</div><div class="kpi-sub">A receber</div></div>
-        </div>
-        <div class="tcard">
-          <div class="tcard-hdr"><div class="tcard-title" id="vh-titulo">Histórico de Vendas</div></div>
-          <div style="overflow-x:auto">
-            <table>
-              <thead><tr><th>Data</th><th>NF</th><th>Cliente</th><th>Materiais</th><th>Qtde (kg)</th><th>Total R$</th><th>Vencimento</th><th>Status</th><th>Formas Pgto</th></tr></thead>
-              <tbody id="tb-hist-vendas"></tbody>
-            </table>
-          </div>
-          <tfoot id="vh-tfoot" style="background:#f0f8f0;font-weight:700"></tfoot>
-        </div>
-      </div>
+      <div class="sec-title">💵 Vendas (saídas)</div>
+      <div id="vendas-app"><div class="tcard"><p style="padding:16px">Carregando vendas...</p></div></div>
     </div>
 
         <div class="tab-panel" id="tab-caminhoes">
