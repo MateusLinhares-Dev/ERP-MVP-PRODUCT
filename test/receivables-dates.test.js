@@ -12,10 +12,12 @@ test('Contas a Receber ordena e marca atraso pela data (dd/mm/aaaa vira aaaa-mm-
   assert.doesNotMatch(render, /a\.venc\.localeCompare|c\.venc<hoje/);
 });
 
-test('recebimento com banco guarda o lançamento do banco; excluir ou reabrir venda desfaz esse lançamento', () => {
+test('recebimento com banco guarda o lançamento do banco; Pago, Reabrir e Excluir venda passam pelo servidor', () => {
   assert.match(core, /const mov=registrarMovBanco\(banco, data, 'Recebto: '[\s\S]{0,140}c\.movBancoId=mov\.id/);
-  const reopen = core.slice(core.indexOf('function reabrirVenda(idx){'), core.indexOf("window['reabrirVenda']=reabrirVenda;"));
-  assert.match(reopen, /_vendaDesfazerMovBanco\(cr\)/);
-  const remove = core.slice(core.indexOf('function excluirVenda(btnOrIdx){'), core.indexOf("window['excluirVenda']=excluirVenda;"));
-  assert.match(remove, /if\(_vendaDesfazerMovBanco\(cr\)\) desfeitosBanco\+\+;/);
+  for (const [name, action] of [['marcarVendaPaga', 'mark-paid'], ['reabrirVenda', 'reopen'], ['excluirVenda', 'delete']]) {
+    const start = core.indexOf('async function ' + name + '(');
+    assert.ok(start > 0, name);
+    assert.match(core.slice(start, core.indexOf("window['" + name + "']", start)), new RegExp("_vendaApi\\(\\{action:'" + action + "'"), name);
+  }
+  assert.doesNotMatch(core, /function _vendaGravarPedido|function _vendaRestaurarAbatimentos|_syncVendas\.paraObjeto\(\)/);
 });

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { toBRDate } from '../../../shared/domain/dates.js';
 import { formatQuantity } from '../../../shared/domain/money.js';
-import { RECENT_WEIGHING_DAYS } from '../domain/sales.js';
-import type { PendingWeighing } from '../domain/sales.js';
+import { RECENT_WEIGHING_DAYS } from '../../../../server/modules/sales/domain/sales.js';
+import type { PendingWeighing } from '../../../../server/modules/sales/domain/sales.js';
 
 interface PendingWeighingsProps {
   rows: PendingWeighing[];

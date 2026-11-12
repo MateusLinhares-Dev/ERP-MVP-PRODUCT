@@ -293,7 +293,7 @@
       },
       "vendasDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSales == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSales == true)"
+        ".write": false
       },
       "valesDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
@@ -430,7 +430,11 @@
       },
       "contasReceber": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".indexOn": [
+          "vendaId",
+          "cli"
+        ]
       },
       "afazeres": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canTasks == true)",
@@ -438,7 +442,7 @@
       },
       "vendas": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSales == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSales == true)"
+        ".write": false
       },
       "vales": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
@@ -563,6 +567,18 @@
       "fcLanc": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
         ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+      },
+      "erpSalesLocks": {
+        ".read": false,
+        ".write": false
+      },
+      "salesOperations": {
+        ".read": false,
+        ".write": false
+      },
+      "salesNumberSeq": {
+        ".read": false,
+        ".write": false
       },
       "supplierOperations": {
         ".read": false,
@@ -731,7 +747,7 @@
       },
       "vendasDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSales == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canSales == true)"
+        ".write": false
       },
       "despGrupoDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",

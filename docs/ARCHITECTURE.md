@@ -45,7 +45,7 @@ vite.config.ts            Build das telas React para dist/ (chamado por scripts/
 test/                     Testes (node:test, executados via tsx)
 ```
 
-Módulos: `access` (login, usuários, permissões), `audit`, `company` (empresas e configuração), `suppliers`, `customers`, `purchases`, `advances`, `payables`, `supplier-repasses`, `banking`, `quick-entry`, `agenda`, `training`, `help`, `fiscal`, `snapshots`.
+Módulos: `access` (login, usuários, permissões), `audit`, `company` (empresas e configuração), `suppliers`, `customers`, `sales`, `purchases`, `advances`, `payables`, `supplier-repasses`, `banking`, `quick-entry`, `agenda`, `training`, `help`, `fiscal`, `snapshots`.
 
 ## Regra de dependência
 
@@ -183,7 +183,7 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
   - Vendas (`web/modules/sales/`, ligado em `web/erp/sales.tsx`), no mesmo layout do Pedido de compra (detalhes em `docs/VENDAS.md`):
     - abas "Pesagens a fechar" (saídas da Balança Rodoviária), "Lançamento" (pedido de venda na própria aba, sem janela) e "Histórico" (filtros, totais do período, impressão da lista);
     - regras puras e testadas em `web/modules/sales/domain/` (totais, parcelas, abatimento de adiantamento e cheque, contas a receber de cada parcela, estoque);
-    - a gravação ainda é feita pelo navegador: a ilha monta um comando completo e o `app-core.js` só aplica (`window.erpSalesBridge.commit`). O próximo passo é levar esse comando para uma API no servidor;
+    - grava pela API `finance/sales` (venda, contas a receber, abatimentos, banco e pesagem numa operação só, com trava por venda e cliente);
     - impressão do pedido de venda no padrão da notinha (`web/shared/print/order-print.ts`);
     - saíram do `app-core.js` o modal de venda, a edição em modal, o histórico antigo e o recebimento por linhas; saíram do `phase1-commercial.js` os remendos do modal;
     - `om('venda')`, `editVenda(i)`, `verVendaDoCR`, `fcLancarVenda` e `renderVendas` passaram a abrir ou redesenhar a versão React.
@@ -192,8 +192,9 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
   - **Cuidado ao migrar:** scripts antigos que rodam a cada mudança na tela (`apply()` do phase1/phase2/phase3) podem inserir ou remover elementos dentro do contêiner da ilha. O React quebra ("insertBefore") e a tela some. Antes de montar uma ilha, procure no `public/` quem mexe naquele contêiner (`removeByText`, `decorate...`, `tableSearch`) e tire o contêiner dessas rotinas.
   - Clientes (`web/modules/customers/`, ligado em `web/erp/customers.tsx`): lista em `#clientes-app` e formulário no editor da casca de cadastros, gravando pela API `master-data/customers` (detalhes em `docs/CLIENTES-API.md`). Trocar o nome leva o histórico junto.
   - **Cadastro de pessoa comum:** `web/shared/domain/party.ts` (campos, validação de CPF/CNPJ, envio) e `web/shared/ui/PartyFormView.tsx` (formulário) servem Fornecedores e Clientes; o cliente tem a mais o limite de crédito.
+- **Regra pura compartilhada:** a tela pode importar de `server/modules/<m>/domain` e `server/shared/domain` (só regra pura, sem Firebase nem Node), para calcular exatamente como o servidor. Vendas usa isso: `web/modules/sales` importa o pedido de `server/modules/sales/domain`, e `web/shared/domain/{dates,money,decimal,text}.ts` só reexportam os de `server/shared/domain`.
 - **Ordem das próximas migrações:**
-  1. API de vendas: levar o comando de `erpSalesBridge.commit` para `server/modules/sales` (venda, contas a receber, abatimentos e pesagens numa transação) e travar `vendas` nas regras do Firebase.
+  1. Contas a Receber (servidor + tela), que hoje é gravada pelo navegador e pelo servidor ao mesmo tempo.
   2. Depois os blocos do `app-core.js`, começando pelos que já têm API no servidor (Contas a Pagar, Adiantamentos, Bancos).
 - **Limpeza feita na etapa 5:**
   - scripts avulsos de incidentes já resolvidos (fornecedor de teste F675, ticket T284, adiantamento excluído);

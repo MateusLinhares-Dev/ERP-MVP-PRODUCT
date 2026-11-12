@@ -150,7 +150,7 @@ test('v30 inventory keeps every material condition as its own stock key',()=>{
   assert.match(appCoreV30,/const IDENT_SEPARA_ESTOQUE = new Set\(IDENT\)/);
   assert.match(appCoreV30,/function _materialEfetivoDoItem\(item\)/);
   assert.match(appCoreV30,/const matEstoque=_matEfetivoEstoque\(mat,id\)/);
-  const saleOrder=fs.readFileSync(new URL('../web/modules/sales/domain/sale-order.ts',import.meta.url),'utf8');
+  const saleOrder=fs.readFileSync(new URL('../server/modules/sales/domain/sale-order.ts',import.meta.url),'utf8');
   assert.match(saleOrder,/matBase: item\.material\.trim\(\),\s*ident: item\.ident,/);
 });
 
