@@ -82,7 +82,7 @@ test('Múltiplas tabelas mantêm paginação independente e preservam identidade
 });
 
 test('Listas do ERP paginam na origem e não escondem 1.000 linhas de DOM',()=>{
-  const functions=['renderClientes','renderFornDespesa','renderTbFuncionarios','renderVales','renderContasReceber','renderContasPagar'];
+  const functions=['renderFornDespesa','renderTbFuncionarios','renderVales','renderContasReceber','renderContasPagar'];
   for(const fun of functions){
     const start=appCore.indexOf('function '+fun+'(');
     assert.ok(start>0, `${fun} não encontrado`);
@@ -92,7 +92,6 @@ test('Listas do ERP paginam na origem e não escondem 1.000 linhas de DOM',()=>{
   }
   assert.match(bootstrap,/loadClassic\('\/modules\/phase1\/list-pagination\.js'\).*loadClassic\('\/legacy\/app-core\.js'\)/s);
   assert.doesNotMatch(usability,/tableSearch\('tab-fornecedores'/);
-  assert.match(appCore,/const realIdx=CLIENTES\.indexOf\(c\)/);
   assert.match(appCore,/FORNECEDORES_DESPESA\.indexOf\(f\)/);
   assert.match(appCore,/const idx=CONTAS_RECEBER\.indexOf\(c\)/);
 });

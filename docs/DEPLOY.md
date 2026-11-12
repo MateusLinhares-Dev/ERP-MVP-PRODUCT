@@ -1,6 +1,6 @@
-# Deploy v30 — LOCAL, HML e PRODUÇÃO
+# Deploy — LOCAL, HML e PRODUÇÃO
 
-Esta versão mantém o funcionamento da v29. A alteração é somente de processo de ambiente, segurança de configuração e deploy.
+Como os três ambientes são separados, quais variáveis cada um recebe e como publicar.
 
 ## 1. Matriz de ambientes
 
@@ -19,6 +19,30 @@ Regras obrigatórias:
 - `FIREBASE_SERVICE_ACCOUNT_B64` e `LOGIN_RATE_LIMIT_SECRET` existem somente no servidor/Vercel.
 - `dist/` contém somente frontend estático; as funções em `/api` são publicadas separadamente pela Vercel.
 - Nunca execute `seed:emulator`, scripts de seed ou fixtures em HML/PROD.
+
+### Variáveis por ambiente
+
+| Variável | Browser pode receber? | LOCAL | HML Preview | PROD |
+|---|---:|---|---|---|
+| `APP_ENV` | sim | `local` | `homolog` | `production` |
+| `USE_FIREBASE_EMULATORS` | sim | `true` | `false` | `false` |
+| `FIREBASE_PROJECT_ID` | sim | demo | HML | PROD |
+| `FIREBASE_API_KEY` | sim | demo | Web config HML | Web config PROD |
+| `FIREBASE_AUTH_DOMAIN` | sim | demo | HML | PROD |
+| `FIREBASE_DATABASE_URL` | sim | demo | HML | PROD |
+| `FIREBASE_STORAGE_BUCKET` | sim | demo | HML | PROD |
+| `FIREBASE_MESSAGING_SENDER_ID` | sim | demo | HML | PROD |
+| `FIREBASE_APP_ID` | sim | demo | HML | PROD |
+| `FIREBASE_SERVICE_ACCOUNT_B64` | **NÃO** | não necessário no Emulator | segredo Vercel | segredo Vercel |
+| `LOGIN_RATE_LIMIT_SECRET` | **NÃO** | segredo local | segredo Vercel | segredo Vercel |
+| `LOCAL_DEV_PASSWORD_BASE` | **NÃO** | somente local | proibido/desnecessário | proibido/desnecessário |
+
+**Observações:**
+
+- Configuração Web do Firebase não concede acesso sozinha; acesso é controlado por Authentication + Security Rules.
+- Service account é credencial privilegiada e nunca deve entrar no frontend.
+- HML e PROD devem usar projetos Firebase diferentes.
+- Vercel Preview recebe somente HML; Vercel Production recebe somente PROD.
 
 ---
 
@@ -299,13 +323,48 @@ Não existe promessa técnica de "zero vulnerabilidades". A versão aplica harde
 
 ## Docker Compose para desenvolvimento local
 
-A v30 também pode ser executada de forma padronizada por Docker, sem alterar HML/PROD:
+Padroniza Node/Java e o fluxo LOCAL entre as máquinas, sem mudar HML/PROD. O Compose expõe só em `127.0.0.1` as portas 3000, 4000, 9000, 9099 e 9199; dentro do container, `firebase.docker.json` faz os Emulators escutarem em `0.0.0.0`.
+
+### Primeira execução
+
 
 ```powershell
 Copy-Item .env.erp.local.example .env.erp.local
+# edite somente valores locais/demo se necessário
 docker compose up --build
 ```
 
-O Compose expõe somente em `127.0.0.1` as portas 3000, 4000, 9000, 9099 e 9199. Dentro do container, `firebase.docker.json` faz os Emulators escutarem em `0.0.0.0` para que o bind de portas funcione. A aplicação continua entregando ao navegador `127.0.0.1` como host dos Emulators, portanto não há alteração do contrato do frontend.
+Acesse:
 
-Detalhes: `docs/DOCKER_LOCAL_V30.md`.
+- ERP: http://localhost:3000
+- Firebase Emulator UI: http://127.0.0.1:4000
+- RTDB Emulator: 127.0.0.1:9000
+- Auth Emulator: 127.0.0.1:9099
+- Storage Emulator: 127.0.0.1:9199
+
+O volume `erp_emulator_data` mantém o export/import do Emulator entre recriações normais do container. Para apagar somente a massa LOCAL deliberadamente:
+
+```powershell
+docker compose down
+docker volume rm manuela-erp-dev_erp_emulator_data
+```
+
+Não execute essa limpeza em HML/PROD.
+
+### Vercel CLI
+
+O ERP continua usando `vercel dev` localmente porque `/api/*` deve reproduzir as Functions usadas em HML/PROD. Se uma máquina nova exigir vínculo/autenticação da Vercel, faça o vínculo local da equipe sem colocar token no repositório. `VERCEL_TOKEN` pode ser fornecido ao Compose pelo ambiente do desenvolvedor quando necessário.
+
+### Comandos úteis
+
+```powershell
+docker compose up --build
+docker compose logs -f erp
+docker compose exec erp npm test
+docker compose exec erp npm run build
+docker compose down
+```
+
+### Regra de arquitetura
+
+Docker padroniza o ambiente de desenvolvimento. Não muda a interface, os cálculos ou o modelo de dados do legado. Firebase Auth/RTDB/Storage e Vercel continuam sendo a infraestrutura da aplicação.

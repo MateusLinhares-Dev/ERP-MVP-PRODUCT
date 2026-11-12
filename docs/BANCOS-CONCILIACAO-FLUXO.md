@@ -96,7 +96,18 @@ Também foi removido código sem uso: "marcar compra paga" (sem botão) e `_apli
 - **Lista de movimentações:**
   - mostra 100 por vez, com "Mostrar mais";
   - a busca e os filtros procuram em todas as movimentações.
-- **Regra mantida:** conciliar não dá baixa em conta a pagar ou a receber. Ver `docs/CONCILIACAO-BANCARIA-AVANCADA-HML.md`.
+- **O que a conciliação faz** (API `/api/banking/reconcile`, só para quem tem `canBanking`):
+  - importa OFX sem duplicar (FITID/conteúdo e conta de origem); o extrato importado não mexe no saldo;
+  - sugere títulos por valor, data, tipo e descrição;
+  - liga vários títulos a um movimento e vários movimentos a um título, com alocação parcial sem passar do valor;
+  - ajustes (tarifa, desconto) exigem categoria e são só metadados: não viram lançamento contábil;
+  - concilia em lote até 30 correspondências exatas, tudo ou nada;
+  - arquiva, classifica e desfaz, com histórico de quem e quando;
+  - o mesmo título não pode ser conciliado duas vezes, nem em contas diferentes;
+  - "Registrar movimento no ERP" e "Criar título financeiro" usam identificador determinístico (repetir não duplica); o título nasce Pendente.
+- **Regra mantida:** conciliar **não** dá baixa em conta a pagar ou a receber, nem muda caixa ou saldo dos títulos. Só "Registrar movimento no ERP" mexe no saldo do banco; use apenas quando o movimento ainda não existir no extrato do ERP.
+- **Limite:** até 10.000 eventos por conta; acima disso, é preciso arquivar.
+- **Teste rápido:** importar `docs/examples/conciliacao-exemplo.ofx` duas vezes (a segunda não insere nada); ligar títulos de R$ 1.500 e R$ 1.000 a um débito de R$ 2.500 (diferença zero); tentar usar o mesmo título em outra conta (deve falhar).
 
 ## Pontos para combinar com a cliente
 

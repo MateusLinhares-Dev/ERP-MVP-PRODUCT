@@ -1,22 +1,50 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { formatCep, formatCnpj, formatCpf, formatPhone } from '../../../shared/domain/documents.js';
-import { messageOf } from '../../../shared/domain/errors.js';
-import { CONTRIBUINTE_OPTIONS, checkForm, payloadOf } from '../domain/suppliers.js';
-import type { SupplierForm } from '../domain/suppliers.js';
+import { formatCep, formatCnpj, formatCpf, formatPhone } from '../domain/documents.js';
+import { messageOf } from '../domain/errors.js';
+import { CONTRIBUINTE_OPTIONS, checkPartyForm, partyPayload } from '../domain/party.js';
+import type { PartyForm } from '../domain/party.js';
 
-export interface SupplierFormViewProps {
+export interface PartyKind {
+  noun: 'fornecedor' | 'cliente';
+  title: string;
+  subtitle: string;
+  ids: { create: string; edit: string };
+  className: string;
+  withLimit: boolean;
+}
+
+export const SUPPLIER_KIND: PartyKind = {
+  noun: 'fornecedor',
+  title: 'fornecedor',
+  subtitle: 'Cadastro comercial usado em compras, preços, financeiro e documentos.',
+  ids: { create: 'nf', edit: 'ef' },
+  className: 'erp-supplier',
+  withLimit: false,
+};
+
+export const CUSTOMER_KIND: PartyKind = {
+  noun: 'cliente',
+  title: 'cliente',
+  subtitle: 'Cadastro comercial usado em vendas, preços, contas a receber e documentos.',
+  ids: { create: 'nc', edit: 'ec' },
+  className: 'erp-customer',
+  withLimit: true,
+};
+
+export interface PartyFormViewProps {
+  kind: PartyKind;
   code: string;
-  initial: SupplierForm;
+  initial: PartyForm;
   hasLegacyBankText: boolean;
-  save(payload: Record<string, string>): Promise<string>;
+  save(payload: Record<string, string | number>): Promise<string>;
   confirm(message: string): boolean;
   notify(message: string, error?: boolean): void;
   onBankAccounts(code: string, name: string): void;
   onDone(): void;
 }
 
-type Field = keyof SupplierForm;
+type Field = keyof PartyForm;
 
 function Labeled({ label, wide, children }: { label: string; wide?: boolean; children: ReactNode }) {
   return (
@@ -41,7 +69,8 @@ function Section({ title, subtitle, children }: { title: string; subtitle: strin
   );
 }
 
-export function SupplierFormView({
+export function PartyFormView({
+  kind,
   code,
   initial,
   hasLegacyBankText,
@@ -50,8 +79,8 @@ export function SupplierFormView({
   notify,
   onBankAccounts,
   onDone,
-}: SupplierFormViewProps) {
-  const [form, setForm] = useState<SupplierForm>(initial);
+}: PartyFormViewProps) {
+  const [form, setForm] = useState<PartyForm>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const refs = useRef<Partial<Record<Field, HTMLInputElement | null>>>({});
@@ -77,7 +106,7 @@ export function SupplierFormView({
       ref={(element) => {
         refs.current[field] = element;
       }}
-      id={(editing ? 'ef-' : 'nf-') + field}
+      id={(editing ? kind.ids.edit : kind.ids.create) + '-' + field}
       type={attrs.type ?? 'text'}
       placeholder={attrs.placeholder}
       maxLength={attrs.maxLength}
@@ -90,7 +119,7 @@ export function SupplierFormView({
   const submit = async () => {
     if (busy) return;
     setError('');
-    const check = checkForm(form);
+    const check = checkPartyForm(form, kind.noun);
     if (check.ok === false) {
       setError(check.message);
       refs.current[check.field]?.focus();
@@ -99,22 +128,27 @@ export function SupplierFormView({
     if (check.ok === 'confirm' && !confirm(check.message)) return;
     setBusy(true);
     try {
-      const saved = await save(payloadOf(form));
-      notify(editing ? 'Fornecedor atualizado.' : `Fornecedor ${saved} cadastrado.`);
+      const saved = await save(partyPayload(form, kind.withLimit));
+      notify(editing ? `${label} atualizado.` : `${label} ${saved} cadastrado.`);
       onDone();
     } catch (failure) {
-      setError(messageOf(failure, 'Não foi possível salvar o fornecedor.'));
+      setError(messageOf(failure, `Não foi possível salvar o ${kind.noun}.`));
       setBusy(false);
     }
   };
 
   const pf = form.personType === 'PF';
+  const label = kind.title.charAt(0).toUpperCase() + kind.title.slice(1);
+  const prefix = editing ? kind.ids.edit : kind.ids.create;
   return (
-    <div className="erp-supplier-form" onKeyDown={(event) => event.key === 'Escape' && !busy && onDone()}>
+    <div
+      className={kind.className + '-form'}
+      onKeyDown={(event) => event.key === 'Escape' && !busy && onDone()}
+    >
       <div className="phase4-master-head">
         <div>
-          <h2>{editing ? 'Editar fornecedor' : 'Novo fornecedor'}</h2>
-          <p>Cadastro comercial usado em compras, preços, financeiro e documentos.</p>
+          <h2>{(editing ? 'Editar ' : 'Novo ') + kind.title}</h2>
+          <p>{kind.subtitle}</p>
         </div>
         <div className="phase4-master-actions">
           <button type="button" className="phase4-master-outline" disabled={busy} onClick={onDone}>
@@ -126,11 +160,11 @@ export function SupplierFormView({
         </div>
       </div>
       {error ? (
-        <p className="erp-supplier-form-error" role="alert">
+        <p className={kind.className + '-form-error'} role="alert">
           {error}
         </p>
       ) : null}
-      <Section title="Dados cadastrais" subtitle="Identificação principal do fornecedor.">
+      <Section title="Dados cadastrais" subtitle={`Identificação principal do ${kind.noun}.`}>
         <Labeled label="Nome / Razão Social *" wide>
           {input('nome', { maxLength: 160, format: (value) => value.toUpperCase() })}
         </Labeled>
@@ -140,7 +174,7 @@ export function SupplierFormView({
         </Labeled>
         <Labeled label="Tipo de pessoa">
           <select
-            id={(editing ? 'ef' : 'nf') + '-pessoa'}
+            id={prefix + '-pessoa'}
             disabled={busy}
             value={form.personType}
             onChange={(event) => set('personType')(event.target.value)}
@@ -149,7 +183,7 @@ export function SupplierFormView({
             <option value="PF">Pessoa Física</option>
           </select>
         </Labeled>
-        <Labeled label="Fornecedor desde">{input('desde', { type: 'date' })}</Labeled>
+        <Labeled label={label + ' desde'}>{input('desde', { type: 'date' })}</Labeled>
         <Labeled label="CPF">
           {input('cpf', { placeholder: '000.000.000-00', format: formatCpf, disabled: !pf })}
         </Labeled>
@@ -178,7 +212,7 @@ export function SupplierFormView({
           {input('email', { type: 'email', maxLength: 120 })}
         </Labeled>
       </Section>
-      <Section title="Endereço" subtitle="Endereço principal do fornecedor.">
+      <Section title="Endereço" subtitle={`Endereço principal do ${kind.noun}.`}>
         <Labeled label="CEP">{input('cep', { format: formatCep })}</Labeled>
         <Labeled label="UF">{input('uf', { maxLength: 2, format: (value) => value.toUpperCase() })}</Labeled>
         <Labeled label="Cidade" wide>
@@ -193,6 +227,11 @@ export function SupplierFormView({
           {input('bairro', { maxLength: 80 })}
         </Labeled>
       </Section>
+      {kind.withLimit ? (
+        <Section title="Financeiro" subtitle="Limite usado nas vendas a prazo.">
+          <Labeled label="Limite de crédito R$">{input('limite', { placeholder: '0,00' })}</Labeled>
+        </Section>
+      ) : null}
       <Section title="Dados bancários" subtitle="Conta principal e chave PIX usadas nos pagamentos.">
         <Labeled label="Chave PIX" wide>
           {input('pix', { maxLength: 160 })}
@@ -232,7 +271,7 @@ export function SupplierFormView({
         ) : null}
         <Labeled label="Observações" wide>
           <textarea
-            id={(editing ? 'ef' : 'nf') + '-nota'}
+            id={prefix + '-nota'}
             rows={3}
             placeholder="Informações adicionais..."
             disabled={busy}

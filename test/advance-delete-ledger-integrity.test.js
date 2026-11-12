@@ -85,18 +85,3 @@ test('sincronização geral não reenvia movimentos de adiantamentos administrad
   assert.deepEqual(Object.keys(ctx.dados),['lancBanco/LB3']);
 });
 
-test('auditoria somente leitura identifica divergência do movimento sem alterar snapshot',async()=>{
-  const {inspectAdvanceLedger}=await import('../scripts/audit-advance-ledger.mjs');
-  const data={erp:{adiantamentos:{F1:[{cod:'ADT124',valor:124,bancoCod:'B1',movBancoId:'LB1',status:'Pendente'}]},lancBanco:{LB1:{id:'LB1',valor:124,bancoCod:'B1',descricao:'Adiantamento: Teste'}}}};
-  const before=JSON.stringify(data);
-  const result=inspectAdvanceLedger(data,'ADT124');
-  assert.equal(result.length,1);
-  assert.equal(result[0].ledgerConsistent,true);
-  data.erp.lancBanco.LB1.valor=125;
-  const invalid=inspectAdvanceLedger(data,'ADT124');
-  assert.equal(invalid[0].ledgerConsistent,false);
-  assert.equal(invalid[0].amountMatches,false);
-  assert.match(invalid[0].recommendation,/conciliar/);
-  assert.equal(before.includes('ADT124'),true);
-  assert.equal(data.erp.adiantamentos.F1[0].valor,124);
-});

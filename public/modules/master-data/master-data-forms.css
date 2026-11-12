@@ -36,23 +36,23 @@
 @media(max-width:650px){.phase4-master-workspace-tabs button,.phase4-master-workspace-views button{flex:1;padding:9px 10px}.phase4-master-inline-editor .phase4-master-section{margin:10px 8px}}
 
 .phase4-master-field input:disabled{background:#eef2ef;color:#77857b;cursor:not-allowed;border-color:#d8e1da}
-.erp-supplier-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.erp-supplier-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.erp-supplier-actions button:not(.btn-add),.erp-supplier-ledger{border:none;border-radius:8px;padding:6px 14px;font-weight:700;cursor:pointer;font-size:.82rem;color:#fff;background:#2980b9}
-.erp-supplier-import{background:#0277bd!important}
-.erp-supplier-delete-selected{background:#e74c3c!important}
-.erp-supplier-delete-selected:disabled{opacity:.6;cursor:progress}
-.erp-supplier-search{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:6px 0 10px}
-.erp-supplier-search input{flex:1;min-width:240px;max-width:460px;padding:8px 12px;border:1.5px solid var(--border,#d9e2dc);border-radius:8px;font-size:.88rem}
-.erp-supplier-search span{font-size:.8rem;color:#6b7b70}
-.erp-supplier-table-wrap{overflow-x:auto}
-.erp-supplier-list td small{display:block;font-size:.74rem;color:#6b7b70}
-.erp-supplier-list tr.selected td{background:#fff8e1}
-.erp-supplier-bank{font-size:.78rem;max-width:260px}
-.erp-supplier-row-actions{white-space:nowrap}
-.erp-supplier-row-actions button{margin-right:4px}
-.erp-supplier-row-actions .forn-ficha-btn{padding:4px 10px;font-size:.78rem;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer}
-.erp-supplier-pix{padding:4px 10px;font-size:.78rem;background:#159447;color:#fff;border:none;border-radius:5px;cursor:pointer}
-.erp-supplier-docs{background:#0277bd!important;color:#fff!important}
-.erp-supplier-empty{text-align:center;color:var(--gray,#6b7b70);padding:20px}
-.erp-supplier-form-error{background:#fdecea;color:#a12b22;border:1px solid #f3c0c0;border-radius:8px;padding:10px 12px;font-weight:700;margin:0 0 12px}
+.erp-supplier-title,.erp-customer-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.erp-supplier-actions,.erp-customer-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.erp-supplier-actions button:not(.btn-add),.erp-supplier-ledger,.erp-customer-actions button:not(.btn-add),.erp-customer-ledger{border:none;border-radius:8px;padding:6px 14px;font-weight:700;cursor:pointer;font-size:.82rem;color:#fff;background:#2980b9}
+.erp-supplier-import,.erp-customer-import{background:#0277bd!important}
+.erp-supplier-delete-selected,.erp-customer-delete-selected{background:#e74c3c!important}
+.erp-supplier-delete-selected:disabled,.erp-customer-delete-selected:disabled{opacity:.6;cursor:progress}
+.erp-supplier-search,.erp-customer-search{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:6px 0 10px}
+.erp-supplier-search input,.erp-customer-search input{flex:1;min-width:240px;max-width:460px;padding:8px 12px;border:1.5px solid var(--border,#d9e2dc);border-radius:8px;font-size:.88rem}
+.erp-supplier-search span,.erp-customer-search span{font-size:.8rem;color:#6b7b70}
+.erp-supplier-table-wrap,.erp-customer-table-wrap{overflow-x:auto}
+.erp-supplier-list td small,.erp-customer-list td small{display:block;font-size:.74rem;color:#6b7b70}
+.erp-supplier-list tr.selected td,.erp-customer-list tr.selected td{background:#fff8e1}
+.erp-supplier-bank,.erp-customer-bank{font-size:.78rem;max-width:260px}
+.erp-supplier-row-actions,.erp-customer-row-actions{white-space:nowrap}
+.erp-supplier-row-actions button,.erp-customer-row-actions button{margin-right:4px}
+.erp-supplier-row-actions .forn-ficha-btn,.erp-customer-row-actions .forn-ficha-btn{padding:4px 10px;font-size:.78rem;background:#2980b9;color:#fff;border:none;border-radius:5px;cursor:pointer}
+.erp-supplier-pix,.erp-customer-pix{padding:4px 10px;font-size:.78rem;background:#159447;color:#fff;border:none;border-radius:5px;cursor:pointer}
+.erp-supplier-docs,.erp-customer-docs{background:#0277bd!important;color:#fff!important}
+.erp-supplier-empty,.erp-customer-empty{text-align:center;color:var(--gray,#6b7b70);padding:20px}
+.erp-supplier-form-error,.erp-customer-form-error{background:#fdecea;color:#a12b22;border:1px solid #f3c0c0;border-radius:8px;padding:10px 12px;font-weight:700;margin:0 0 12px}

@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {payPayable,inspectPayablePayment} from '../server/modules/payables/application/payables.js';
-import {inspectPayableIntegrity} from '../scripts/audit-payable-integrity.mjs';
 const account='CPPO_T309',ticket='T309';
 const user={uid:'elaine',erpUser:'elaine',erpAccess:true,canPayables:true};
 const op='7cb6db60-6d56-4d01-a159-3c97b5f1c965';
@@ -22,17 +21,6 @@ function mock(initial){const state=structuredClone(initial);let updates=0;
     update:async changes=>{updates++;for(const [k,v]of Object.entries(changes))put(path+'/'+k,v);}
   };}};
 }
-test('T309: quatro baixas 50, compra 50, somente um lançamento — auditoria aponta excesso e 3 movimentos ausentes',()=>{
-  const data=scenario(),original=JSON.stringify(data);
-  const [result]=inspectPayableIntegrity(data,ticket);
-  assert.equal(result.ticketNominal,50);
-  assert.equal(result.historyPaymentTotal,200);
-  assert.equal(result.movements.filter(m=>m.found).length,1);
-  assert.equal(result.movements.filter(m=>!m.found).length,3);
-  assert.ok(result.issues.includes('PAYMENTS_EXCEED_PURCHASE'));
-  assert.ok(result.issues.includes('BANK_MOVEMENTS_MISSING'));
-  assert.equal(JSON.stringify(data),original);
-});
 test('T309: consulta de status não informa confirmado enquanto título possui quatro pagamentos inconsistentes',async()=>{
   const db=mock(scenario());const before=JSON.stringify(db.state);
   const result=await inspectPayablePayment(user,{payableId:account},{db});

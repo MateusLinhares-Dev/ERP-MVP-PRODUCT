@@ -62,12 +62,12 @@ test('Comercial simplifica Ficha Financeira; a venda (com recebimento no ato) es
   assert.match(s,/fcQuitarSaldo\|fcSaldoAnteriorModal\|fcJuntarAbrir/);
   assert.match(s,/phase1FichaPdf/);
   assert.match(s,/phase1FichaShare/);
-  assert.match(s,/phase1-client-ficha/);
+  assert.doesNotMatch(s,/phase1-client-ficha|tb-clientes-list/,'não mexe na lista React de clientes');
 });
 
 test('Usabilidade cobre calendário, buscas estáveis, navegação por teclado, ativos e dados bancários múltiplos',()=>{
   const s=read('public/modules/phase1/phase1-usability.js');
-  for(const token of ['Calendário','phase1-calendar-de','phase1-calendar-ate','phase1-annual-calendar','ArrowDown','ArrowUp','activeEmployees','partyBanks','phase1-selected-row','formatMoneyInput'])assert.match(s,new RegExp(token));
+  for(const token of ['Calendário','phase1-calendar-de','phase1-calendar-ate','phase1-annual-calendar','ArrowDown','ArrowUp','activeEmployees','phase1-selected-row','formatMoneyInput'])assert.match(s,new RegExp(token));
   assert.match(s,/toLocaleString\('pt-BR'.*minimumFractionDigits:2/);
   assert.match(s,/input\.type='text'/);
   assert.match(s,/FORN_DELETED/);
