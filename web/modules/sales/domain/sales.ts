@@ -23,9 +23,22 @@ export const RECEIVED = 'Recebido';
 const SETTLED_SALE = new Set(['Pago', 'Permuta']);
 const CLOSED_CHEQUE = new Set(['Compensado', 'Devolvido', 'Quitado']);
 
-export function receivablesOf(data: SalesData, saleId: string): Raw[] {
-  if (!saleId) return [];
-  return data.receivables.filter((row) => isRaw(row) && text(row.vendaId) === saleId);
+export function receivablesOf(data: SalesData, sale: Raw): Raw[] {
+  const id = text(sale.id);
+  const linked = id ? data.receivables.filter((row) => isRaw(row) && text(row.vendaId) === id) : [];
+  if (linked.length) return linked;
+  const client = text(sale.cliente);
+  const date = text(sale.data);
+  const total = toCents(sale.total);
+  if (!client || !date) return [];
+  return data.receivables.filter(
+    (row) =>
+      isRaw(row) &&
+      !text(row.vendaId) &&
+      text(row.cli) === client &&
+      text(row.data) === date &&
+      Math.abs(toCents(row.valor) - total) <= 1,
+  );
 }
 
 export function itemQuantity(item: Raw): number {
@@ -52,7 +65,7 @@ export function saleRow(data: SalesData, sale: Raw, today: string): SaleRow {
   const id = text(sale.id);
   const total = amount(sale.total);
   const items = Array.isArray(sale.itens) ? sale.itens.filter(isRaw) : [];
-  const linked = receivablesOf(data, id);
+  const linked = receivablesOf(data, sale);
   const stored = text(sale.status) || 'Pendente';
   let receivedCents = 0;
   let pendingCents = 0;

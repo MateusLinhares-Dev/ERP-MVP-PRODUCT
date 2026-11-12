@@ -146,7 +146,7 @@ test('salvar venda nova: conta a receber por parcela, abatimento recebido, banco
   ]);
   assert.ok(commit.upsertReceivables.every((row) => row.vendaId === 'VD-1' && row.cli === 'TUPY'));
   assert.deepEqual(commit.creditUses, [{ kind: 'advance', ref: 'ADTC9', amount: 100 }]);
-  assert.deepEqual(commit.bankMovements, [{ bank: 'B1', date: '2026-11-10', description: 'Recebto Venda: TUPY NF V0001', amount: 450 }]);
+  assert.deepEqual(commit.bankMovements, [{ bank: 'B1', date: '2026-11-10', description: 'Recebto Venda: TUPY NF V0001', amount: 450, receivableId: 'CR3' }]);
   assert.equal(nextSaleNumber([{ nf: 'V0009' }, { nf: 'NF12' }, { nf: 'v0011' }]), 'V0012');
 });
 
@@ -262,4 +262,35 @@ test('estoque: soma o mesmo material em linhas diferentes e avisa quando passa d
   assert.deepEqual(stockIssues(order, (mat) => stock[mat.toUpperCase()] ?? null), [
     { material: 'Ferro', requested: 1100, available: 1000 },
   ]);
+});
+
+test('venda antiga sem vínculo nas contas a receber: acha pelo cliente, data e valor e liga ao salvar (sem duplicar)', () => {
+  counter = 500;
+  const data = {
+    ...emptyData(),
+    sales: [{ id: 'VD-ANTIGA', nf: '12', data: '01/09/2026', cliente: 'TUPY', itens: [{ mat: 'FERRO', qt: 100, pr: 3, total: 300 }], total: 300, status: 'Pendente' }],
+    receivables: [
+      { id: 'CRA', cli: 'TUPY', data: '01/09/2026', valor: 300, status: 'Pendente', forma: '—', venc: '01/10/2026' },
+      { id: 'CRB', cli: 'TUPY', data: '01/09/2026', valor: 999, status: 'Pendente' },
+    ],
+  };
+  let order = orderFromSale(data, data.sales[0], TODAY);
+  assert.deepEqual(order.installments.map((row) => [row.receivableId, row.amount]), [['CRA', '300']]);
+  assert.equal(saleRows(data, TODAY)[0].overdue, true);
+  order = balanceInstallments(order, []);
+  const commit = buildCommit(order, context(data, []));
+  assert.deepEqual(commit.upsertReceivables.map((row) => [row.id, row.vendaId, row.valor]), [['CRA', 'VD-ANTIGA', 300]]);
+  assert.deepEqual(commit.removeReceivables, []);
+});
+
+test('recebimento com banco leva o código da conta a receber para ligar o lançamento do banco', () => {
+  counter = 700;
+  let order = balanceInstallments(withItems(blankOrder(TODAY, 'X'), [['FERRO', '10', '10']]), []);
+  order = { ...order, installments: [{ ...order.installments[0], method: 'PIX', bank: 'B1', received: true }] };
+  const commit = buildCommit(order, context(emptyData()));
+  const receivable = commit.upsertReceivables[0];
+  assert.equal(commit.bankMovements.length, 1);
+  assert.equal(commit.bankMovements[0].receivableId, receivable.id);
+  assert.equal(receivable.bancoCod, 'B1');
+  assert.equal(receivable.banco, 'Sicredi');
 });

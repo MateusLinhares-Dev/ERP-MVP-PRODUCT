@@ -30,6 +30,7 @@ const ENDPOINTS = {
   'finance/purchase-order-edit': { POST: 'user' },
   'finance/supplier-cash-repasses': { GET: 'user', POST: 'user' },
   'master-data/suppliers': { POST: 'user' },
+  'master-data/customers': { POST: 'user' },
   'banking/integrations': { POST: 'user' },
   'banking/reconcile': { POST: 'user' },
 };

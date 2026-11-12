@@ -201,8 +201,10 @@ global.phase3BankSave=async function(kind,key){
     await store.save('partyBanks',bankKey(kind,key),rows);
     partyBanks[bankKey(kind,key)]=rows;
     const e=partyEntity(kind,key),first=rows[0]||{};
-    if(e){e.banco=first.bank||'';e.agencia=first.agency||'';e.conta=first.account||'';e.pix=first.pix||'';
-      try{kind==='fornecedor'?saveFornecedores():saveClientes();}catch(error){console.warn('[phase3] sincronização legado:',error);}
+    if(e){
+      const fields={banco:first.bank||'',agencia:first.agency||'',conta:first.account||'',pix:first.pix||''};
+      if(kind==='cliente')await global.erpCustomerRequest({action:'update',id:String(e.id||''),customer:fields});
+      else await global.erpSupplierRequest({action:'update',cod:String(e.cod||key),supplier:fields});
     }
     $('#phase3-bank-ov')?.remove();
     try{global.renderTabelaFornecedores?.();}catch(error){console.warn('[phase3] re-render:',error);}

@@ -192,10 +192,14 @@ global.agendaWhats=function(id){
 global.phase1AgendaQuickClient=function(){
   document.getElementById('phase1-agenda-client-ov')?.remove();const ov=document.createElement('div');ov.id='phase1-agenda-client-ov';ov.className='phase1-agenda-client-ov';ov.innerHTML=`<div class="phase1-agenda-client-card"><h3>👤 Cadastro rápido de cliente</h3><label>Nome / Razão Social *<input id="phase1-agenda-cli-name"></label><label>WhatsApp / Telefone<input id="phase1-agenda-cli-phone" inputmode="tel"></label><details><summary>Mais campos</summary><div class="phase1-agenda-more"><label>CPF<input id="phase1-agenda-cli-cpf"></label><label>CNPJ<input id="phase1-agenda-cli-cnpj"></label><label>E-mail<input id="phase1-agenda-cli-email"></label><label>Cidade / UF<input id="phase1-agenda-cli-city"></label></div></details><div class="phase1-agenda-client-actions"><button onclick="document.getElementById('phase1-agenda-client-ov').remove()">Cancelar</button><button class="save" onclick="phase1AgendaSaveQuickClient()">Salvar e selecionar</button></div></div>`;document.body.appendChild(ov);ov.onclick=e=>{if(e.target===ov)ov.remove();};setTimeout(()=>document.getElementById('phase1-agenda-cli-name')?.focus(),20);
 };
-global.phase1AgendaSaveQuickClient=function(){
+global.phase1AgendaSaveQuickClient=async function(){
   const name=String(document.getElementById('phase1-agenda-cli-name')?.value||'').trim();if(!name){try{showToast('Informe o nome do cliente.','error');}catch(e){}return;}
-  try{const exists=(CLIENTES||[]).some(c=>String(c?.nome||'').trim().toUpperCase()===name.toUpperCase());if(!exists){const code='CL'+String(Date.now()).slice(-8);CLIENTES.push({cod:code,nome:name,tel:String(document.getElementById('phase1-agenda-cli-phone')?.value||'').trim(),cpf:String(document.getElementById('phase1-agenda-cli-cpf')?.value||'').trim(),cnpj:String(document.getElementById('phase1-agenda-cli-cnpj')?.value||'').trim(),email:String(document.getElementById('phase1-agenda-cli-email')?.value||'').trim(),cidade:String(document.getElementById('phase1-agenda-cli-city')?.value||'').trim(),status:'Ativo'});if(typeof saveClientes==='function')saveClientes();}}
-  catch(e){console.error(e);return;}
-  const type=document.getElementById('agd-novo-tipo');if(type)type.value='Cliente';try{if(typeof _agdNovoAtualizaNomes==='function')_agdNovoAtualizaNomes();}catch(e){}document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'clientes'}}));const select=document.getElementById('agd-novo-nome');if(select)select.value=name;global.ERPRefreshSearchableSelect?.('agd-novo-nome');document.getElementById('phase1-agenda-client-ov')?.remove();
+  const exists=(CLIENTES||[]).some(c=>String(c?.nome||'').trim().toUpperCase()===name.toUpperCase());
+  if(!exists){
+    const field=id=>String(document.getElementById(id)?.value||'').trim();
+    try{await global.erpCustomerRequest({action:'create',customer:{nome:name,tel:field('phase1-agenda-cli-phone'),cpf:field('phase1-agenda-cli-cpf'),cnpj:field('phase1-agenda-cli-cnpj'),email:field('phase1-agenda-cli-email'),cidade:field('phase1-agenda-cli-city'),status:'Ativo'}});}
+    catch(error){try{showToast('Cliente não cadastrado: '+error.message,'error',8000);}catch(e){}return;}
+  }
+  const type=document.getElementById('agd-novo-tipo');if(type)type.value='Cliente';try{if(typeof _agdNovoAtualizaNomes==='function')_agdNovoAtualizaNomes();}catch(e){}document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'clientes'}}));const select=document.getElementById('agd-novo-nome');if(select)select.value=name.toUpperCase();global.ERPRefreshSearchableSelect?.('agd-novo-nome');document.getElementById('phase1-agenda-client-ov')?.remove();
 };
 })(window);

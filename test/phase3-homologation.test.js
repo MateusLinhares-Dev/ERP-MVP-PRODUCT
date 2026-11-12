@@ -12,7 +12,7 @@ const has=(...xs)=>xs.forEach(x=>assert.ok(js.includes(x),`Faltou: ${x}`));
 
 test('bootstrap carrega phase3 após phase2',()=>{assert.ok(boot.includes("/modules/phase3/phase3-homologation.js"));assert.ok(boot.indexOf('/modules/phase3/phase3-homologation.js')>boot.indexOf('/modules/phase2/phase2-feedback.js'));});
 test('ticket da Compra é resolvido localmente ou recuperado da nuvem',()=>has('resolveTicketKey','ensureTicketKey','erp/tickets','orderByChild(\'ticket\')','global.abrirDetalheCompra','global.csAbrirImpureza'));
-test('clientes e fornecedores recebem multibanco compartilhado',()=>has("'partyBanks'",'phase3OpenPartyBanks','phase3BankSave','ERPPartyBanks','saveFornecedores','saveClientes'));
+test('clientes e fornecedores recebem multibanco compartilhado',()=>has("'partyBanks'",'phase3OpenPartyBanks','phase3BankSave','ERPPartyBanks','erpSupplierRequest','erpCustomerRequest'));
 test('preços usam combobox pesquisável direto na lista e removem a barra duplicada da fase2',()=>{has('ensurePriceCombo','phase3-price-combo','renderPriceComboList',"tab.querySelectorAll('.phase2-price-searches').forEach(x=>x.remove())");assert.ok(css.includes('.phase3-price-combo-list'));});
 test('calendário unifica legado, filtra por datas ou meses e lembra 5 3 1',()=>has("'calendarEvents'",'migrateLegacyAfazeres','calendarRangeMode','monthFrom','monthTo','userKey','[5,3,1]','checkCalendarPopups'));
 test('calendário injeta compromissos na aba Avisos',()=>has('injectCalendarAvisos','Meus compromissos','avisosAtualizarBadge'));

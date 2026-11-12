@@ -90,8 +90,9 @@ for(const node of nodes){
     '.write':`${auth} && (${writing.join(' || ')})`
   };
 }
-for(const node of ['fornecedores','fornDeleted'])candidate.rules.erp[node]['.write']=false;
+for(const node of ['fornecedores','fornDeleted','clientes','clientesDeleted'])candidate.rules.erp[node]['.write']=false;
 candidate.rules.erp.supplierOperations={'.read':false,'.write':false};
+candidate.rules.erp.customerOperations={'.read':false,'.write':false};
 for(const [node,access] of Object.entries(directNodes)){
   if(candidate.rules.erp[node])throw new Error(`Regra direta duplicada: ${node}`);
   const grant=(perm)=>perm==='admin'?`${auth} && auth.token.admin == true`:`${auth} && auth.token.${perm} == true`;
@@ -171,6 +172,7 @@ const purchaseWrite=purchaseRule['.write'];
 delete purchaseRule['.write'];
 purchaseRule.$ticketId={'.write':purchaseWrite+" && ((newData.exists() && !root.child('erp/ticketsDeletedV2').child($ticketId).exists()) || (!newData.exists() && !data.exists() && root.child('erp/ticketsDeletedV2').child($ticketId).exists()) || (!newData.exists() && data.exists() && data.child('_consolidado').val() != true && !data.child('_purchaseOperationId').exists()))"};
 candidate.rules.erp.ticketsDeletedV2['.write']=false;
+purchaseRule['.indexOn']=['tipo'];
 candidate.rules.erp.financeAdvanceDeleted['.write']=false;
 candidate.rules.erp.purchaseDeleteOperations={'.read':false,'.write':false};
 const out=path.join(root,'database.rules.json');

@@ -79,40 +79,37 @@ test('exclusões comuns seguem acesso do módulo, não papel administrativo',()=
   assert.match(core,/function _usuarioPodeOperarModulo\(tab\)/);
   for(const tab of ['clientes','lista_compras','rod_balanca','compra_sucata'])assert.ok(core.includes("_usuarioPodeOperarModulo('"+tab+"')"),tab);
   assert.match(readFileSync(new URL('../web/erp/suppliers.tsx',import.meta.url),'utf8'),/_usuarioPodeOperarModulo\?\.\(TAB\)/);
-  assert.match(rules.clientesDeletedV2['.write'],/canCustomers/);
+  assert.equal(rules.clientes['.write'],false);
+  assert.equal(rules.clientesDeleted['.write'],false);
+  assert.match(rules.clientes['.read'],/canCustomers/);
   assert.equal(rules.fornecedoresDeletedV2['.write'],false);
   assert.equal(rules.fornecedores['.write'],false);
   assert.equal(rules.fornDeleted['.write'],false);
   assert.match(rules.fornecedores['.read'],/canSuppliers/);
-  assert.doesNotMatch(rules.clientesDeletedV2['.write'],/auth\.token\.admin/);
   assert.match(storage,/allow delete: if authenticated\(\)\s*&& request\.auth\.token\.canBusinessDocs == true/);
   assert.match(rules.advanceBackups['.write'],/auth\.token\.admin/);
 });
 
-test('exclusão de cliente só altera a lista após confirmação do Firebase',async()=>{
+test('exclusão de cliente passa pelo servidor e só registra histórico depois da confirmação',async()=>{
   const {runInNewContext}=await import('node:vm');
-  const section=core.slice(core.indexOf('const _erpExclusoesEmAndamento='),core.indexOf('function esc(',core.indexOf('const _erpExclusoesEmAndamento=')));
-  const local=[{id:'CL-1',cod:'C001',nome:'Cliente Um'}],updates=[];
-  let failure=true,history=0;
-  const context={CLIENTES:local,Set,CustomEvent:class{constructor(name,payload){this.type=name;this.detail=payload.detail;}},
-    _usuarioPodeOperarModulo:()=>true,confirm:()=>true,alert(){},showToast(){},
-    _syncClientes:{remover(idx){local.splice(idx,1);},paraObjeto(){return {'CL-1':local[0]};}},
-    window:{_fbDB:{ref(path){return {once:async()=>({val:()=>local[0]}),update:async data=>{if(failure)throw Error('permission_denied');updates.push(data);}};}}},
-    firebase:{auth:()=>({currentUser:{uid:'erp:thais'}})},
-    document:{dispatchEvent(){}},localStorage:{setItem(){}},renderClientes(){},populatePrecosCliSel(){},registrarHistorico(){history++;}
+  const section=core.slice(core.indexOf('const _erpExclusoesEmAndamento='),core.indexOf('function _jsArg(',core.indexOf('const _erpExclusoesEmAndamento=')));
+  const local=[{id:'CL-1',cod:'C001',nome:'Cliente Um'}],calls=[],toasts=[];
+  let deny=true,history=0;
+  const context={CLIENTES:local,Set,_usuarioPodeOperarModulo:()=>true,confirm:()=>true,alert(){},showToast(message){toasts.push(message);},
+    _cliApi:async payload=>{calls.push(payload);if(deny)throw new Error('Não dá para excluir cliente com pendência financeira');local.splice(0,1);return {action:'delete',deleted:['CL-1']};},
+    registrarHistorico(){history++;}
   };
   runInNewContext(section+';this.deleteCustomer=excluirCliente;',context);
   await context.deleteCustomer(0);
   assert.equal(local.length,1);
-  assert.equal(updates.length,0);
   assert.equal(history,0);
-  failure=false;
+  assert.match(toasts[0],/pendência financeira/);
+  deny=false;
   await context.deleteCustomer(0);
   assert.equal(local.length,0);
-  assert.equal(updates.length,1);
-  assert.equal(updates[0]['clientes/CL-1'],null);
-  assert.equal(updates[0]['clientesDeleted/CL-1'],true);
   assert.equal(history,1);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[1])),{action:'delete',ids:['CL-1']});
+  assert.doesNotMatch(section,/_fbDB|clientesDeleted/,'não grava direto no Firebase');
 });
 
 test('exclusão de fornecedor só some da lista depois que o servidor confirma',async()=>{
