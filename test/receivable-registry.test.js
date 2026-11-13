@@ -91,7 +91,7 @@ test('dar baixa pelo banco e estornar: o lançamento do banco é criado e depois
   const reopened = await call({ action: 'reopen', id: 'CR1' });
   assert.deepEqual(reopened.bankUndone, [movementId]);
   const row = await read('erp/contasReceber/CR1');
-  assert.deepEqual([row.status, row.dataReceb, row.movBancoId], ['Pendente', '', undefined]);
+  assert.deepEqual([row.status, row.dataReceb, row.movBancoId, row.banco, row.bancoCod], ['Pendente', '', undefined, '—', '']);
   assert.equal(await read('erp/lancBanco/' + movementId), null);
   assert.equal((await read('erp/lancBancoDeletedV2'))[movementId], true);
 });

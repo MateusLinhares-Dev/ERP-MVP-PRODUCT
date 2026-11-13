@@ -1,0 +1,319 @@
+.erp-cr .kpi-grid {
+  margin-bottom: 14px;
+}
+
+.erp-cr-status {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.erp-cr-status button {
+  border: 1px solid #d5ddd8;
+  background: #fff;
+  color: #4d5b54;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.erp-cr-status button.active {
+  background: #1a3a2a;
+  border-color: #1a3a2a;
+  color: #fff;
+  font-weight: 700;
+}
+
+.erp-cr-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 18px 10px;
+}
+
+.erp-cr-filters input[type='search'] {
+  flex: 1;
+  min-width: 240px;
+  max-width: 420px;
+  padding: 7px 11px;
+  border: 1.5px solid var(--border, #d9e2dc);
+  border-radius: 7px;
+  font-size: 0.86rem;
+}
+
+.erp-cr-filters label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: #5f6d66;
+}
+
+.erp-cr-filters input[type='date'] {
+  padding: 5px 8px;
+  border: 1px solid var(--border, #d9e2dc);
+  border-radius: 6px;
+}
+
+.erp-cr-count {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: #5f6d66;
+  font-weight: 700;
+}
+
+.erp-cr-table {
+  overflow-x: auto;
+}
+
+.erp-cr-table table {
+  width: 100%;
+}
+
+.erp-cr-table td.n {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.erp-cr-table tr.erp-cr-late {
+  background: #fff5f5;
+}
+
+.erp-cr-notes {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+
+.erp-cr-actions {
+  white-space: nowrap;
+}
+
+.erp-cr-actions button {
+  margin-right: 4px;
+  padding: 3px 8px;
+  font-size: 0.74rem;
+  border-radius: 5px;
+  border: 1px solid #d5ddd8;
+  background: #fff;
+  cursor: pointer;
+}
+
+.erp-cr-actions .erp-cr-receive {
+  background: #27ae60;
+  border-color: #27ae60;
+  color: #fff;
+  font-weight: 700;
+}
+
+.erp-cr-empty {
+  text-align: center;
+  color: var(--gray, #6b7280);
+  padding: 20px;
+}
+
+.erp-cr-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100400;
+  background: rgba(8, 25, 16, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.erp-cr-dialog {
+  width: min(620px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  padding: 0 18px 16px;
+}
+
+.erp-cr-dialog > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0 10px;
+  border-bottom: 1px solid #e4e9e6;
+  margin-bottom: 12px;
+}
+
+.erp-cr-dialog > header h3 {
+  margin: 0;
+  color: #1a3a2a;
+  font-size: 1rem;
+}
+
+.erp-cr-dialog > header button {
+  border: 0;
+  background: transparent;
+  font-size: 1.15rem;
+  cursor: pointer;
+}
+
+.erp-cr-dialog > footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.erp-cr-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.erp-cr-field {
+  display: grid;
+  gap: 4px;
+}
+
+.erp-cr-field.wide,
+.erp-cr-hint.wide {
+  grid-column: 1 / -1;
+}
+
+.erp-cr-field span {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #5f6d66;
+  text-transform: uppercase;
+}
+
+.erp-cr-field input,
+.erp-cr-field select {
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid #cbd5ce;
+  border-radius: 6px;
+  font-size: 0.86rem;
+}
+
+.erp-cr-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #e8f5e9;
+  margin-bottom: 12px;
+}
+
+.erp-cr-error {
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: #fdecea;
+  color: #8a1f14;
+  font-weight: 700;
+  font-size: 0.84rem;
+}
+
+.erp-cr-hint {
+  font-size: 0.78rem;
+  color: #5f6d66;
+  margin: 0 0 8px;
+}
+
+.erp-cr-link {
+  border: 0;
+  background: transparent;
+  color: #1d5836;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+}
+
+.erp-cr-cheques {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid #e0d0f0;
+  border-radius: 10px;
+  background: #faf5ff;
+  display: grid;
+  gap: 6px;
+}
+
+.erp-cr-cheques header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.erp-cr-cheque-row {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1fr 1.1fr auto;
+  gap: 6px;
+}
+
+.erp-cr-cheque-row input {
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  min-width: 0;
+}
+
+.erp-cr-cheque-row button {
+  border: 0;
+  background: #e74c3c;
+  color: #fff;
+  border-radius: 6px;
+  width: 28px;
+  cursor: pointer;
+}
+
+.erp-cr-warn {
+  color: #a35c00;
+  font-weight: 700;
+}
+
+.erp-cr-outline,
+.erp-cr-primary {
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 800;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.erp-cr-outline {
+  background: #fff;
+  color: #1a3a2a;
+  border: 1px solid #1a3a2a;
+}
+
+.erp-cr-primary {
+  background: #1a3a2a;
+  color: #fff;
+  border: 1px solid #1a3a2a;
+}
+
+.erp-cr-primary:disabled,
+.erp-cr-outline:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+@media (max-width: 640px) {
+  .erp-cr-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .erp-cr-cheque-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .erp-cr-count {
+    margin-left: 0;
+  }
+}

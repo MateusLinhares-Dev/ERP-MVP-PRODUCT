@@ -193,10 +193,8 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
   - Clientes (`web/modules/customers/`, ligado em `web/erp/customers.tsx`): lista em `#clientes-app` e formulário no editor da casca de cadastros, gravando pela API `master-data/customers` (detalhes em `docs/CLIENTES-API.md`). Trocar o nome leva o histórico junto.
   - **Cadastro de pessoa comum:** `web/shared/domain/party.ts` (campos, validação de CPF/CNPJ, envio) e `web/shared/ui/PartyFormView.tsx` (formulário) servem Fornecedores e Clientes; o cliente tem a mais o limite de crédito.
 - **Regra pura compartilhada:** a tela pode importar de `server/modules/<m>/domain` e `server/shared/domain` (só regra pura, sem Firebase nem Node), para calcular exatamente como o servidor. Vendas usa isso: `web/modules/sales` importa o pedido de `server/modules/sales/domain`, e `web/shared/domain/{dates,money,decimal,text}.ts` só reexportam os de `server/shared/domain`.
-  - Contas a Receber: gravadas pelo servidor (`server/modules/receivables`, `api/finance/receivables.ts`, detalhes em `docs/CONTAS-RECEBER.md`), com estorno de baixa. A tela ainda é a antiga, chamando a API.
-- **Ordem das próximas migrações:**
-  1. Tela de Contas a Receber em React.
-  2. Depois os blocos do `app-core.js`, começando pelos que já têm API no servidor (Contas a Pagar, Adiantamentos, Bancos).
+  - Contas a Receber (`web/modules/receivables/`, ligado em `web/erp/receivables.tsx`): lista, lançamento, baixa por banco ou cheque, estorno e exclusão em `#contas-receber-app`, gravando pela API `finance/receivables` (detalhes em `docs/CONTAS-RECEBER.md`).
+- **Ordem das próximas migrações:** os blocos do `app-core.js`, começando pelos que já têm API no servidor (Contas a Pagar, Adiantamentos, Bancos).
 - **Limpeza feita na etapa 5:**
   - scripts avulsos de incidentes já resolvidos (fornecedor de teste F675, ticket T284, adiantamento excluído);
   - migrações únicas já aplicadas (`migrate:auth`, `migrate:storage`);
@@ -204,7 +202,7 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
   - `bootstrap-admin.json`, que tinha o hash de senha da administradora e não era usado;
   - ferramentas de auditoria de incidentes (`audit-*.mjs`, `access-inventory.mjs`, `diagnose-emulator.mjs`), que liam cópias exportadas do banco para investigar casos já resolvidos;
   - documentos de fases e incidentes encerrados (guias de homologação das fases 1–3, mapas de correção, notas de incidente e as entregas antigas da conciliação). As regras que ainda valem foram para `BANCOS-CONCILIACAO-FLUXO.md`; deploy, variáveis e Docker ficaram só em `DEPLOY.md`.
-- **Testes de texto do código antigo** (phase1/2/3, v30): saem junto com cada módulo quando ele vira React, como aconteceu com Vendas, Fornecedores e Clientes.
+- **Testes de texto do código antigo** (phase1/2/3, v30): saem junto com cada módulo quando ele vira React, como aconteceu com Vendas, Fornecedores, Clientes e Contas a Receber.
 
 Para migrar uma tela:
 

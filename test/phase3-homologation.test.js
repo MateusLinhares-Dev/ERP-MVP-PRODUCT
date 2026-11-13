@@ -23,7 +23,7 @@ test('EPI corrige ReferenceError data e faz uma única baixa',()=>{has('delivery
 test('funcionários ativos usam regra consistente em módulos operacionais',()=>{has('activeEmployee','getEmployees','vg-motorista','reu-partic-list','adv-mat');assert.ok(phase2.includes("['inativo','demitido','desligado','rescindido']"));assert.ok(!phase2.includes("&&!f.dataRescisao"));});
 test('próxima revisão da frota vira data e filtro é reaplicado',()=>has("el.type='date'",'phase2FrotaFilter','phase2-maint-card'));
 test('edição da viagem possui gastos extras e remove inativos',()=>has('p3-vg-edit-extra','gastosExtras','vg-edit-motorista'));
-test('contas a receber ganham vínculo fiscal sem misturar cadastros',()=>has('fiscalLinks','Cliente Fiscal','Fluxo consolidado','phase3ReceivableFiscal'));
+test('contas a receber ganham vínculo fiscal sem misturar cadastros',()=>has('fiscalLinks','Cliente Fiscal','phase3ReceivableFiscal'));
 test('Casa Glória é consolidada em Casa e removida da navegação',()=>has("norm(x.area)==='casa gloria'","x.area='Casa'",'removeCasaGloria'));
 test('Coordenação repovoa reuniões e advertências com todos funcionários ativos',()=>has('fixCoordination','reu-partic-list','adv-mat','getEmployees'));
 test('layout possui responsividade para calendário, bancos e contas pessoais',()=>{assert.ok(css.includes('@media(max-width:1000px)'));assert.ok(css.includes('.p3-cal-layout'));assert.ok(css.includes('.phase3-bank-row'));assert.ok(css.includes('.p3-owner-calendar'));});

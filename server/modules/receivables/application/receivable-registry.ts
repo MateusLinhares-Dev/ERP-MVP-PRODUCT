@@ -279,6 +279,10 @@ async function undoReceipt(
   delete next.chequesRecebimento;
   delete next.recebidoPor;
   if (text(next.forma) === 'Cheque' && Array.isArray(row.chequesRecebimento)) next.forma = '—';
+  if (bankUndone.length) {
+    next.banco = '—';
+    next.bancoCod = '';
+  }
   return { next, bankUndone, cheques };
 }
 
