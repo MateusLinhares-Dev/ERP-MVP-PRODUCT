@@ -29,3 +29,24 @@ test('funcionário sem cargo não aparece como "(undefined)" nas listas de motor
   assert.equal((core.match(/\(f\.cargo\?' \('\+f\.cargo\+'\)':''\)/g) || []).length, 2);
   assert.ok(html.includes('id="tab-viagem_motorista"'));
 });
+
+test('aviso de contas bancárias antigas: compara por id, código ou banco+agência+conta, nomeia e aparece uma vez', async () => {
+  const start = core.indexOf('function _bancosDoBackupAusentes(');
+  const source = core.slice(start, core.indexOf('\nfunction ', start + 10));
+  const { runInNewContext } = await import('node:vm');
+  const scope = {};
+  runInNewContext(source + ';this.missing=_bancosDoBackupAusentes;', scope);
+  const cloud = [{ id: 'k1', cod: 'BC-002', banco: 'sicred manuela', agencia: '2602', conta: '585457' }];
+  const plain = (value) => JSON.parse(JSON.stringify(value));
+  assert.deepEqual(plain(scope.missing([{ id: 'x', cod: 'BC-002' }, { banco: 'Sicred Manuela', agencia: '2602', conta: '58545-7' }], cloud)), []);
+  assert.deepEqual(plain(scope.missing([{ cod: 'BC-099', banco: 'antigo' }, null], cloud)).map((b) => b.cod), ['BC-099']);
+  assert.match(core, /function loadBancos\(\)\{\}/, 'não cria mais foto "antes da nuvem" em navegador novo');
+  assert.match(core, /localStorage\.getItem\('mm_bancos_backup_aviso'\)!==marca/);
+  assert.doesNotMatch(core, /Existem contas no cache antigo/);
+});
+
+test('cartões de Bancos e Contas a Pagar não ficam presos em "Aguardando…"', () => {
+  assert.match(core, /kpiSubs\[0\]\.textContent=BANCOS_DB\.length\?'Contas cadastradas no sistema'/);
+  assert.match(core, /kpiSubs\[1\]\.textContent=\[\.\.\.balanceByCode\.values\(\)\]/);
+  assert.match(core, /const subs=document\.querySelectorAll\('#tab-contas_pagar \.kpi-sub'\);/);
+});

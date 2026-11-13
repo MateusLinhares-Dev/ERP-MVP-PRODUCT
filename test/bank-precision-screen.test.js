@@ -15,15 +15,17 @@ runInNewContext(load('public/modules/banking/bank-ledger.js'),{window:ledgerWind
 function runBankView(entries){
   const bank={cod:'BC-001',banco:'Teste',tipo:'Conta Corrente',saldo:1000,titular:'Teste'};
   const totals=[{textContent:''},{textContent:''}];
-  const subtitle={textContent:''},tbody={innerHTML:''};
+  const subtitle={textContent:''},countSubtitle={textContent:''},tbody={innerHTML:''};
   const doc={
     getElementById(id){return id==='tb-bancos'?tbody:null;},
     querySelector(selector){
       if(selector==='#tab-contas_banco .kpi-val') return totals[0];
-      if(selector==='#tab-contas_banco .kpi-sub') return subtitle;
       return null;
     },
-    querySelectorAll(selector){return selector==='#tab-contas_banco .kpi-val'?totals:[];}
+    querySelectorAll(selector){
+      if(selector==='#tab-contas_banco .kpi-sub') return [countSubtitle,subtitle];
+      return selector==='#tab-contas_banco .kpi-val'?totals:[];
+    }
   };
   const window={erpBankLedger:ledgerWindow.erpBankLedger,__ERP_BANKS_CLOUD_READY__:true};
   const context={
