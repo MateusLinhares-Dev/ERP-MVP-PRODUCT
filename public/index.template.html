@@ -1419,22 +1419,7 @@
 
     <div class="tab-panel" id="tab-contas_receber">
       <div class="sec-title">📥 Contas a Receber</div>
-      <div class="kpi-grid">
-        <div class="kpi g"><div class="kpi-lbl">A Receber (em aberto)</div><div class="kpi-val" id="kpi-cr-aberto-val">R$ 0</div><div class="kpi-sub" id="kpi-cr-aberto-sub">Aguardando lançamentos</div></div>
-        <div class="kpi o"><div class="kpi-lbl">Pendentes</div><div class="kpi-val" id="kpi-cr-pend-val">0</div><div class="kpi-sub">Lançamentos em aberto</div></div>
-        <div class="kpi r"><div class="kpi-lbl">Atrasados</div><div class="kpi-val" id="kpi-cr-atras-val">0</div><div class="kpi-sub">Vencidos e não recebidos</div></div>
-        <div class="kpi g"><div class="kpi-lbl">Recebidos</div><div class="kpi-val" id="kpi-cr-receb-val">R$ 0</div><div class="kpi-sub">Já quitados</div></div>
-      </div>
-      <div class="tcard">
-        <div class="tcard-hdr">
-          <div class="tcard-title">Lançamentos</div>
-          <button class="btn-add" onclick="om('conta_receber')">+ Novo Recebimento</button>
-        </div>
-        <table>
-          <thead><tr><th>Data Venda</th><th>NF/Pedido</th><th>Cliente</th><th>Valor R$</th><th>Forma</th><th>Conta Bancária</th><th>Vencimento</th><th>Status</th><th>Data Receb.</th><th>Obs.</th><th>Ações</th></tr></thead>
-          <tbody id="tb-contas-receber"></tbody>
-        </table>
-      </div>
+      <div id="contas-receber-app"><div class="tcard"><p style="padding:16px">Carregando contas a receber...</p></div></div>
     </div>
 
         <div class="tab-panel" id="tab-contas_banco">

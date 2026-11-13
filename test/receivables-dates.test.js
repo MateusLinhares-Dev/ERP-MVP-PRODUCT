@@ -1,19 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { receivableRows } from '../web/modules/receivables/domain/receivables.ts';
 
 const core = readFileSync(new URL('../public/legacy/app-core.js', import.meta.url), 'utf8');
-const start = core.indexOf('function renderContasReceber(){');
-const render = core.slice(start, core.indexOf('\nfunction ', start + 10));
 
 test('Contas a Receber ordena e marca atraso pela data (dd/mm/aaaa vira aaaa-mm-dd), sem quebrar sem vencimento', () => {
-  assert.match(render, /sort\(\(a,b\)=>_toISOcr\(a\.venc\)\.localeCompare\(_toISOcr\(b\.venc\)\)\)/);
-  assert.match(render, /const atrasado=c\.status==='Pendente'&&Boolean\(_vencISO\)&&_vencISO<hoje;/);
-  assert.doesNotMatch(render, /a\.venc\.localeCompare|c\.venc<hoje/);
+  const rows = receivableRows(
+    [
+      { id: 'A', cli: 'B', valor: 1, status: 'Pendente', venc: '05/12/2026' },
+      { id: 'B', cli: 'A', valor: 1, status: 'Pendente', venc: '10/11/2026' },
+      { id: 'C', cli: 'C', valor: 1, status: 'Pendente' },
+      { id: 'D', cli: 'D', valor: 1, status: 'Recebido', venc: '01/11/2026' },
+    ],
+    '2026-11-13',
+  );
+  assert.deepEqual(rows.map((row) => row.id), ['D', 'B', 'A', 'C']);
+  assert.deepEqual(rows.map((row) => row.overdue), [false, true, false, false]);
 });
 
-test('Contas a Receber e vendas (Pago, Reabrir, Excluir) passam pelo servidor', () => {
-  for (const [name, action] of [['salvarContaReceber', 'create'], ['salvarEditContaReceber', 'update'], ['confirmarReceberCR', 'receive'], ['estornarContaReceber', 'reopen'], ['excluirContaReceber', 'delete'], ['fcSalvarPagamento', 'create']]) {
+test('pagamento avulso da Ficha e vendas (Pago, Reabrir, Excluir) passam pelo servidor', () => {
+  for (const [name, action] of [['fcSalvarPagamento', 'create']]) {
     const start = core.indexOf('async function ' + name + '(');
     assert.ok(start > 0, name);
     assert.match(core.slice(start, core.indexOf('\nfunction ', start + 10) > 0 ? core.indexOf('\nfunction ', start + 10) : start + 3000), new RegExp("_crApi\\(\\{action:'" + action + "'"), name);

@@ -104,7 +104,6 @@ function _cliAplicarResultado(result){
   try{ localStorage.setItem('mm_clientes',JSON.stringify(CLIENTES)); }catch(e){}
   try{ renderClientes(); }catch(e){}
   try{ populatePrecosCliSel(); }catch(e){}
-  try{ popularCrCliList(); }catch(e){}
   try{ _popularClientesSel(); }catch(e){}
   if(result.renamed){ try{ renderVendas(); }catch(e){} try{ renderContasReceber(); }catch(e){} try{ renderFichaCliente(); }catch(e){} }
   try{ document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'clientes'}})); }catch(e){}
@@ -140,7 +139,11 @@ function _crAplicarResultado(r){
   (r.bankUndone||[]).forEach(function(id){ const i=LANC_BANCO_DB.findIndex(function(l){ return l&&l.id===id; }); if(i>=0) _syncLancBanco.remover(i); });
   if(r.cheques&&r.cheques.client){
     if(Array.isArray(r.cheques.list)) CHEQUES_CLI[r.cheques.client]=r.cheques.list;
-    else if(Array.isArray(r.cheques.added)) CHEQUES_CLI[r.cheques.client]=(CHEQUES_CLI[r.cheques.client]||[]).concat(r.cheques.added);
+    else if(Array.isArray(r.cheques.added)){
+      const atual=CHEQUES_CLI[r.cheques.client]||[];
+      const novos=r.cheques.added.filter(function(ch){ return ch&&!atual.some(function(x){ return x&&String(x.num)===String(ch.num)&&String(x.banco||'')===String(ch.banco||''); }); });
+      CHEQUES_CLI[r.cheques.client]=atual.concat(novos);
+    }
   }
   try{ localStorage.setItem('mm_cr',JSON.stringify(CONTAS_RECEBER)); }catch(e){}
   try{ renderContasReceber(); }catch(e){}
@@ -165,6 +168,13 @@ async function _crApi(payload){
   return result;
 }
 window.erpReceivablesRequest=_crApi;
+window.erpReceivablesList=function(){ return CONTAS_RECEBER; };
+window.erpBanks={
+  snapshot:function(){
+    return {ready:Boolean(_erpBankDirectory.ready), list:(_erpBankDirectory.banks||[]).map(function(b){ return {cod:String(b.cod||''),label:String(b.banco||'')+(b.empresa?' — '+b.empresa:'')}; })};
+  },
+  load:function(){ return _erpBankDirectoryLoad(); }
+};
 
 let TICKETS_DELETED = new Set();
 
@@ -1517,34 +1527,6 @@ function salvarNovoCpCredInline(){
   ['cp-nc-nome','cp-nc-tel','cp-nc-cat'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('cp-novo-cred-box').style.display='none';
   showToast('✅ Credor "'+nome+'" cadastrado e selecionado!','success');
-}
-
-function toggleNovoCrCli(){
-  const box=document.getElementById('cr-novo-cli-box');
-  if(!box) return;
-  box.style.display=box.style.display==='none'?'block':'none';
-  if(box.style.display==='block') document.getElementById('cr-nc-nome')?.focus();
-}
-function popularCrCliList(){
-  const dl=document.getElementById('cr-cli-list');
-  if(!dl) return;
-  dl.innerHTML=CLIENTES.slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{sensitivity:'base'})).map(c=>`<option value="${esc(c.nome)}">`).join('');
-}
-async function salvarNovoCrCliInline(){
-  const nome=(document.getElementById('cr-nc-nome')?.value||'').trim();
-  if(!nome){alert('Informe o nome do cliente!');return;}
-  let result;
-  try{
-    result=await _cliApi({action:'create',customer:{nome,
-      tel:    document.getElementById('cr-nc-tel')?.value.trim()||'',
-      cidade: document.getElementById('cr-nc-cidade')?.value.trim()||''}});
-  }catch(error){ showToast('Cliente não cadastrado: '+error.message,'error',8000); return; }
-  popularCrCliList();
-  const inp=document.getElementById('cr-cli');
-  if(inp) inp.value=String(result.customer&&result.customer.nome||nome);
-  ['cr-nc-nome','cr-nc-tel','cr-nc-cidade'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  document.getElementById('cr-novo-cli-box').style.display='none';
-  showToast('✅ Cliente "'+nome+'" cadastrado e selecionado!','success');
 }
 
 function filtrarCpCred(tipo){
@@ -4174,32 +4156,6 @@ const FORMS={
     <div class="fg" id="cp-status-box"><label>Status</label><select id="cp-status"><option>Pendente</option><option>Pago</option><option>Atrasado</option><option>Agendado</option></select></div>
     <div class="fg"><label>Obs.</label><input id="cp-obs" placeholder="Observação opcional"></div>
     <div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarContaPagar()">💾 Salvar</button></div>`,
-  conta_receber:`<h3>📥 Novo Recebimento</h3>
-    <div class="fg"><label>Cliente</label>
-      <div style="display:flex;gap:6px;align-items:center">
-        <input id="cr-cli" list="cr-cli-list" placeholder="Digite ou selecione o cliente" style="flex:1">
-        <datalist id="cr-cli-list"></datalist>
-        <button type="button" onclick="toggleNovoCrCli()" title="Cadastrar novo cliente" style="background:#1a5e2a;color:#fff;border:none;border-radius:7px;padding:7px 12px;cursor:pointer;font-size:1rem;white-space:nowrap">➕ Novo</button>
-      </div>
-      <div id="cr-novo-cli-box" style="display:none;margin-top:8px;background:#f9f9f9;border:1px solid #ddd;border-radius:8px;padding:10px">
-        <div style="font-size:.78rem;font-weight:800;color:#1a5e2a;margin-bottom:8px">➕ Cadastrar Novo Cliente</div>
-        <input id="cr-nc-nome" placeholder="Nome do cliente *" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #ddd;border-radius:6px;margin-bottom:6px">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-          <input id="cr-nc-tel" placeholder="Telefone" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px">
-          <input id="cr-nc-cidade" placeholder="Cidade" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px">
-        </div>
-        <div style="display:flex;gap:6px">
-          <button type="button" onclick="salvarNovoCrCliInline()" style="background:#1a5e2a;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:.83rem;font-weight:700">💾 Salvar e Usar</button>
-          <button type="button" onclick="document.getElementById('cr-novo-cli-box').style.display='none'" style="background:#eee;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:.83rem">Cancelar</button>
-        </div>
-      </div>
-    </div>
-    <div class="fg"><label>NF/Pedido</label><input id="cr-nf" placeholder="NF001"></div>
-    <div class="fg"><label>Valor R$</label><input id="cr-valor" type="number" min="0" step="0.01"></div>
-    <div class="fg"><label>Vencimento</label><input id="cr-venc" type="date"></div>
-    <div class="fg"><label>Status</label><select id="cr-status"><option>Pendente</option><option>Recebido</option><option>Atrasado</option></select></div>
-    <div class="fg"><label>Obs.</label><input id="cr-obs" placeholder="Observação opcional"></div>
-    <div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarContaReceber()">💾 Salvar</button></div>`,
   banco:`<h3>🏦 Nova Conta Bancária</h3>
     <div class="fg"><label>Empresa dona da conta</label><select id="bc-empresa" onchange="_bcPreencheEndereco('bc-empresa','bc-endereco')">${_empresasOptions()}</select></div>
     <div class="fg"><label>Banco</label><input id="bc-banco" placeholder="Nome do banco"></div>
@@ -16712,23 +16668,6 @@ function loadContas(){
   }catch(ex){}
 }
 
-async function excluirContaReceber(idx){
-  const cr=CONTAS_RECEBER[idx];
-  if(!cr){ alert('Lançamento não encontrado.'); return; }
-  if(cr.vendaId){ showToast('Esta conta é de uma venda: exclua ou edite pela venda.','error',7000); return; }
-  if(!confirm('Excluir lançamento de '+(cr.cli||'?')+' — R$ '+Number(cr.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+'?\nEsta ação não pode ser desfeita.'+(cr.movBancoId?'\nO lançamento no banco desta baixa também será desfeito.':''))) return;
-  try{ await _crApi({action:'delete',id:cr.id}); try{ cm(); }catch(e){} showToast('Lançamento excluído.','success'); }
-  catch(error){ showToast('Não foi possível excluir: '+error.message,'error',9000); }
-}
-async function estornarContaReceber(idx){
-  const cr=CONTAS_RECEBER[idx]; if(!cr) return;
-  if(!confirm('Estornar a baixa de '+(cr.cli||'?')+' — R$ '+Number(cr.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+'? Ela volta a ficar pendente.'+(cr.movBancoId?'\nO lançamento no banco também será desfeito.':''))) return;
-  try{ await _crApi({action:'reopen',id:cr.id}); showToast('Baixa estornada.','success'); }
-  catch(error){ showToast('Não foi possível estornar: '+error.message,'error',9000); }
-}
-window['estornarContaReceber']=estornarContaReceber;
-window['excluirContaReceber']=excluirContaReceber;
-
 let _cpFiltroDia = ''; 
 let _cpSelecionados = new Set(); 
 let _cpFiltroTipo = 'todos'; 
@@ -18184,177 +18123,7 @@ function cpExcluirTodas(grupoId){
   showToast((antes-CONTAS_PAGAR.length)+' parcela(s) excluída(s).','success');
 }
 
-function renderContasReceber(){
-  const tbody=document.getElementById('tb-contas-receber');
-  if(!tbody) return;
-
-  try{ if(_syncContasReceber.limparDuplicatasExatas()){ try{ saveContasReceber(); }catch(e){} } }catch(e){}
-  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const hoje=_hojeISO();
-  
-  const _toISOcr=d=>{if(!d)return'';const ds=String(d).trim();if(ds.indexOf('/')>=0){const p=ds.split('/');return(p[2]||'0000')+'-'+(p[1]||'01')+'-'+(p[0]||'01');}return ds.slice(0,10);};
-  const _emAberto=CONTAS_RECEBER.filter(c=>c.status!=='Recebido');
-  const _totAberto=_emAberto.reduce((s,c)=>s+Number(c.valor||0),0);
-  const _totReceb=CONTAS_RECEBER.filter(c=>c.status==='Recebido').reduce((s,c)=>s+Number(c.valor||0),0);
-  const _atrasados=_emAberto.filter(c=>{const vi=_toISOcr(c.venc);return vi&&vi<hoje;});
-  const _setCR=(id,t)=>{const e=document.getElementById(id);if(e)e.textContent=t;};
-  _setCR('kpi-cr-aberto-val','R$ '+fmt(_totAberto));
-  _setCR('kpi-cr-aberto-sub',_emAberto.length+' lançamento'+(_emAberto.length!==1?'s':'')+' em aberto');
-  _setCR('kpi-cr-pend-val',String(_emAberto.length));
-  _setCR('kpi-cr-atras-val',String(_atrasados.length));
-  _setCR('kpi-cr-receb-val','R$ '+fmt(_totReceb));
-  if(CONTAS_RECEBER.length===0){
-    _erpPaginarDados('contas-receber',[],'tb-contas-receber',renderContasReceber);
-    tbody.innerHTML='<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum lançamento ainda</td></tr>';
-    return;
-  }
-  const sorted=[...CONTAS_RECEBER].filter(Boolean).sort((a,b)=>_toISOcr(a.venc).localeCompare(_toISOcr(b.venc)));
-  const pagina=_erpPaginarDados('contas-receber',sorted,'tb-contas-receber',renderContasReceber,{searchable:true,placeholder:'Pesquisar conta, cliente, NF ou observação...',text:c=>[c.cli,c.nf,c.obs,c.venc,c.forma].join(' ')});
-  tbody.innerHTML=pagina.map((c)=>{
-    const idx=CONTAS_RECEBER.indexOf(c);
-    const _vencISO=_toISOcr(c.venc);
-    const atrasado=c.status==='Pendente'&&Boolean(_vencISO)&&_vencISO<hoje;
-    const stCls=c.status==='Recebido'?'b-pago':atrasado?'b-pend':'b-zerado';
-    return '<tr style="'+(atrasado?'background:#fff5f5':'')+'">'
-      +'<td>'+fmtDate(c.data)+'</td><td>'+esc(c.nf||'—')+'</td>'
-      +'<td><b>'+esc(c.cli)+'</b></td>'
-      +'<td style="font-weight:800;text-align:right">R$ '+fmt(c.valor)+'</td>'
-      +'<td style="font-size:.78rem">'+esc(c.forma||'—')+'</td>'
-      +'<td style="font-size:.78rem">'+esc(c.banco||'—')+'</td>'
-      +'<td>'+fmtDate(c.venc)+'</td>'
-      +'<td><span class="b '+stCls+'">'+(atrasado?'Atrasado':c.status)+'</span></td>'
-      +'<td>'+esc(c.dataReceb||'—')+'</td>'
-      +'<td>'+esc(c.obs||'—')+'</td>'
-      +'<td style="white-space:nowrap">'
-        +(c.vendaId?'<button class="btn-add" style="padding:3px 8px;font-size:.72rem;margin-right:4px" onclick="verVendaDoCR(this.dataset.id)" data-id="'+c.vendaId+'">🔗 Venda</button>':'')
-        +'<button class="btn-edit" onclick="editContaReceber('+idx+')" style="margin-right:4px">✏️</button>'
-        +(c.status!=='Recebido'?'<button class="btn-edit" style="background:#27ae60;color:#fff;font-size:.75rem;margin-right:4px" onclick="receberContaRapido('+idx+')">✅ Receber</button>':'<button class="btn-edit" style="font-size:.75rem;margin-right:4px" onclick="estornarContaReceber('+idx+')" title="Estornar baixa">↩ Estornar</button>')
-        +'<button class="btn-edit-danger" onclick="excluirContaReceber('+idx+')" title="Excluir lançamento">🗑️</button>'
-      +'</td>'
-    +'</tr>';
-  }).join('');
-}
-
-async function salvarContaReceber(){
-  const cli=document.getElementById('cr-cli')?.value.trim();
-  const valor=parseFloat(document.getElementById('cr-valor')?.value)||0;
-  const venc=document.getElementById('cr-venc')?.value;
-  if(!cli||valor<=0||!venc){alert('Preencha cliente, valor e vencimento!');return;}
-  try{
-    await _crApi({action:'create',receivable:{cli:cli,nf:document.getElementById('cr-nf')?.value.trim()||'',valor:valor,venc:venc,obs:document.getElementById('cr-obs')?.value.trim()||''}});
-    cm();
-    showToast('Conta a receber lançada!','success');
-  }catch(error){ showToast('Não foi possível lançar: '+error.message,'error',9000); }
-}
-
-function editContaReceber(idx){
-  const c=CONTAS_RECEBER[idx]; if(!c) return;
-  const body=document.getElementById('modal-body');
-  body.className='modal';
-  body.innerHTML=
-    '<h3>✏️ Editar Recebimento</h3>'+
-    '<input type="hidden" id="ecr-idx" value="'+idx+'">'+
-    '<div class="fg"><label>Cliente</label><input id="ecr-cli" value="'+esc(c.cli)+'"></div>'+
-    '<div class="fg"><label>NF/Pedido</label><input id="ecr-nf" value="'+esc(c.nf||'')+'"></div>'+
-    '<div class="fg"><label>Valor R$</label><input id="ecr-valor" type="number" min="0" step="0.01" value="'+c.valor+'"></div>'+
-    '<div class="fg"><label>Vencimento</label><input id="ecr-venc" type="date" value="'+(c.venc?c.venc.split('/').reverse().join('-'):'')+'"></div>'+
-    '<div style="font-size:.78rem;color:#666;margin:-4px 0 8px">Situação: <b>'+esc(c.status||'Pendente')+'</b>. Para receber ou estornar, use os botões da lista.</div>'+
-    '<div class="fg"><label>Obs.</label><input id="ecr-obs" value="'+esc(c.obs||'')+'"></div>'+
-    '<div class="modal-ft">'+
-    '<button class="btn-edit-danger" onclick="excluirContaReceber('+idx+')">🗑️ Excluir</button>'+
-    '<button class="btn-cancel" onclick="cm()">Cancelar</button>'+
-    '<button class="btn-save" onclick="salvarEditContaReceber()">💾 Salvar</button></div>';
-  document.getElementById('modal-ov').classList.add('open');
-}
-
-async function salvarEditContaReceber(){
-  const idx=parseInt(document.getElementById('ecr-idx').value);
-  const c=CONTAS_RECEBER[idx]; if(!c) return;
-  const g=function(id){ return (document.getElementById(id)?.value||'').trim(); };
-  const campos={nf:g('ecr-nf'),venc:g('ecr-venc'),obs:g('ecr-obs')};
-  if(!c.vendaId){ campos.cli=g('ecr-cli'); campos.valor=parseFloat(g('ecr-valor'))||0; }
-  try{
-    await _crApi({action:'update',id:c.id,receivable:campos,expectedUpdate:c.atualizadoEm!=null?Number(c.atualizadoEm):undefined});
-    cm();
-    showToast('Conta a receber atualizada.','success');
-  }catch(error){ showToast('Não foi possível salvar: '+error.message,'error',9000); }
-}
-
-function receberContaRapido(idx){
-  const c=CONTAS_RECEBER[idx]; if(!c) return;
-  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const body=document.getElementById('modal-body');
-  body.className='modal';
-  const hoje=_hojeISO();
-  const bancoOpts=(_erpBankDirectory.ready?_erpBankDirectory.banks:[]).map(b=>{
-    const n=b.banco+(b.tipo==='Conta Terceiro'?' ('+b.titular+')':'')+(b.empresa?' — '+b.empresa:'');
-    return '<option value="'+esc(b.cod||'')+'">'+esc(n)+'</option>';
-  }).join('');
-  body.innerHTML=
-    '<h3>✅ Baixar Recebimento</h3>'+
-    '<div style="background:#e8f5e9;border-radius:8px;padding:12px 14px;margin-bottom:14px">'+
-      '<b>'+esc(c.cli)+'</b><br>'+
-      '<span style="font-size:.9rem">Valor: <b>R$ '+fmt(c.valor)+'</b></span>'+
-      (c.nf?'<span style="font-size:.82rem;color:#555"> &nbsp;·&nbsp; NF: '+esc(c.nf)+'</span>':'')+
-    '</div>'+
-    '<input type="hidden" id="rcr-idx" value="'+idx+'"><input type="hidden" id="rcr-id" value="'+esc(c.id||'')+'">'+
-    '<div class="fg"><label>Data de Recebimento</label><input id="rcr-data" type="date" value="'+hoje+'"></div>'+
-    '<div class="fg"><label>Conta Bancária <small style="color:#888">(dinheiro / PIX / transferência)</small></label><select id="rcr-banco"><option value="">— Selecione —</option>'+bancoOpts+'</select></div>'+
-    '<div style="border:1.5px solid #e0d0f0;border-radius:10px;padding:10px 12px;margin:8px 0;background:#faf5ff">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
-        '<b style="font-size:.85rem;color:#6a1b9a">📄 Recebido em cheques? (opcional)</b>'+
-        '<button type="button" onclick="crAddChequeRow()" style="background:#6a1b9a;color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:.8rem;font-weight:700">+ Adicionar cheque</button>'+
-      '</div>'+
-      '<div id="rcr-cheques-list"></div>'+
-      '<div style="font-size:.78rem;color:#666;margin-top:4px">Total em cheques: <b id="rcr-cheques-total">R$ 0,00</b> — se preencher cheques, eles vão pra ficha e pra aba de Cheques do cliente (como Pendentes).</div>'+
-    '</div>'+
-    '<div class="fg"><label>Observação</label><input id="rcr-obs" placeholder="Opcional" value="'+esc(c.obs||'')+'"></div>'+
-    '<div class="modal-ft">'+
-      '<button class="btn-cancel" onclick="cm()">Cancelar</button>'+
-      '<button class="btn-save" style="background:#27ae60" onclick="confirmarReceberCR()">✅ Confirmar Recebimento</button>'+
-    '</div>';
-  document.getElementById('modal-ov').classList.add('open');
-}
-
-function crAddChequeRow(){
-  const lst=document.getElementById('rcr-cheques-list'); if(!lst) return;
-  const row=document.createElement('div');
-  row.className='rcr-cheque-row';
-  row.style.cssText='display:grid;grid-template-columns:1.1fr 1.3fr 1fr 1.1fr auto;gap:6px;margin-bottom:6px;align-items:center';
-  row.innerHTML=
-    '<input class="rcr-ch-num" placeholder="Nº cheque" style="padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.82rem">'+
-    '<input class="rcr-ch-banco" placeholder="Banco" style="padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.82rem">'+
-    '<input class="rcr-ch-valor" type="number" min="0" step="0.01" placeholder="Valor R$" oninput="_crSomaCheques()" style="padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.82rem">'+
-    '<input class="rcr-ch-bom" type="date" title="Bom para" style="padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:.82rem">'+
-    '<button type="button" title="Remover" onclick="this.closest(\'.rcr-cheque-row\').remove();_crSomaCheques()" style="background:#e74c3c;color:#fff;border:none;border-radius:6px;width:28px;height:28px;cursor:pointer;font-weight:800">×</button>';
-  lst.appendChild(row);
-  const inp=row.querySelector('.rcr-ch-num'); if(inp) inp.focus();
-}
-function _crSomaCheques(){
-  let t=0;
-  document.querySelectorAll('#rcr-cheques-list .rcr-ch-valor').forEach(function(el){ t+=parseFloat(el.value)||0; });
-  const lbl=document.getElementById('rcr-cheques-total');
-  if(lbl) lbl.textContent='R$ '+t.toLocaleString('pt-BR',{minimumFractionDigits:2});
-}
-async function confirmarReceberCR(){
-  const idAlvo=document.getElementById('rcr-id')?.value||'';
-  const idx=idAlvo?CONTAS_RECEBER.findIndex(x=>x&&x.id===idAlvo):parseInt(document.getElementById('rcr-idx').value);
-  const c=CONTAS_RECEBER[idx]; if(!c){ showToast('Esta conta a receber mudou ou foi excluída. Feche e abra de novo.','error'); return; }
-  if(c.status==='Recebido'){ showToast('Esta conta já foi recebida.','error'); cm(); return; }
-  const data=document.getElementById('rcr-data').value;
-  if(!data){alert('Informe a data de recebimento!');return;}
-  const cheques=[];
-  document.querySelectorAll('#rcr-cheques-list .rcr-cheque-row').forEach(function(r){
-    const num=(r.querySelector('.rcr-ch-num')?.value||'').trim();
-    const valor=parseFloat(r.querySelector('.rcr-ch-valor')?.value)||0;
-    if(valor>0||num) cheques.push({num:num,banco:(r.querySelector('.rcr-ch-banco')?.value||'').trim(),valor:valor,bomPara:r.querySelector('.rcr-ch-bom')?.value||''});
-  });
-  try{
-    const r=await _crApi({action:'receive',id:c.id,date:data,bank:cheques.length?'':document.getElementById('rcr-banco').value,cheques:cheques,notes:document.getElementById('rcr-obs').value.trim()});
-    cm();
-    showToast(cheques.length?'Recebimento em '+cheques.length+' cheque(s) registrado! Eles estão na aba Cheques do cliente.':(r.bankMovements&&r.bankMovements.length?'Recebimento baixado e lançado no banco.':'Recebimento baixado.'),'success');
-  }catch(error){ showToast('Não foi possível dar baixa: '+error.message,'error',9000); }
-}
+function renderContasReceber(){}
 
 let BANCOS_DB = [];
 
@@ -19240,7 +19009,6 @@ function om(k){
       }catch(e){} },20);
       if(k==='contrato') setTimeout(()=>{ try{ popularDatalistContrato(); }catch(e){} },20);
       if(k==='cheque') setTimeout(()=>{ try{addCheqRow();addCheqRow();}catch(e){} },30);
-      if(k==='conta_receber') setTimeout(()=>{ try{popularCrCliList();}catch(e){} },20);
       if(k==='adiantamento_cli'||k==='cheque_cli') setTimeout(()=>{ try{ _popularClientesSel(); }catch(e){} },20);
       if(k==='cheque_cli') setTimeout(()=>{ try{ addCheqCliRow(); addCheqCliRow(); }catch(e){} },40);
 
@@ -20224,7 +19992,7 @@ function initDespesas(){
       window._fcRefreshFicha=_fcRefreshFicha;
       
       function _fcExcluirVendaFicha(idx){ Promise.resolve(excluirVenda(idx)).catch(function(){}).then(function(){ _fcRefreshFicha(); }); }
-      function _fcExcluirRecebFicha(idx){ try{ excluirContaReceber(idx); }catch(e){} _fcRefreshFicha(); }
+      function _fcExcluirRecebFicha(idx){ Promise.resolve(excluirContaReceber(idx)).catch(function(){}).then(function(){ _fcRefreshFicha(); }); }
       function _fcExcluirAdtFicha(codEnc){ try{ excluirAdtCli(_fcCliAtual, decodeURIComponent(codEnc)); }catch(e){} _fcRefreshFicha(); }
       function _fcExcluirChequeFicha(numEnc){ try{ excluirChequeCli(_fcCliAtual, decodeURIComponent(numEnc)); }catch(e){} _fcRefreshFicha(); }
       window._fcExcluirVendaFicha=_fcExcluirVendaFicha;
