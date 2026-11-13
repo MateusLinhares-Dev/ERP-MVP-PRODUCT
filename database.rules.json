@@ -588,6 +588,10 @@
         ".read": false,
         ".write": false
       },
+      "payableOperations": {
+        ".read": false,
+        ".write": false
+      },
       "supplierOperations": {
         ".read": false,
         ".write": false

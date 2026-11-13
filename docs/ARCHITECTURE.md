@@ -194,7 +194,11 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
   - **Cadastro de pessoa comum:** `web/shared/domain/party.ts` (campos, validação de CPF/CNPJ, envio) e `web/shared/ui/PartyFormView.tsx` (formulário) servem Fornecedores e Clientes; o cliente tem a mais o limite de crédito.
 - **Regra pura compartilhada:** a tela pode importar de `server/modules/<m>/domain` e `server/shared/domain` (só regra pura, sem Firebase nem Node), para calcular exatamente como o servidor. Vendas usa isso: `web/modules/sales` importa o pedido de `server/modules/sales/domain`, e `web/shared/domain/{dates,money,decimal,text}.ts` só reexportam os de `server/shared/domain`.
   - Contas a Receber (`web/modules/receivables/`, ligado em `web/erp/receivables.tsx`): lista, lançamento, baixa por banco ou cheque, estorno e exclusão em `#contas-receber-app`, gravando pela API `finance/receivables` (detalhes em `docs/CONTAS-RECEBER.md`).
-- **Ordem das próximas migrações:** os blocos do `app-core.js`, começando pelos que já têm API no servidor (Contas a Pagar, Adiantamentos, Bancos).
+  - Contas a Pagar: lançar (avulsa ou parcelada), editar e excluir pelo servidor (`api/finance/payables.ts`, detalhes em `docs/CONTAS-PAGAR.md`); pagar e desfazer pagamento já eram. A tela ainda é a antiga, e outras telas (folha, despesas, combustível, contratos, contas fixas) ainda criam contas a pagar pelo navegador.
+- **Ordem das próximas migrações:**
+  1. Tela de Contas a Pagar em React.
+  2. Passar para o servidor quem ainda cria conta a pagar pelo navegador (folha, despesas, combustível, contratos, contas fixas); aí `contasPagar` fecha nas regras.
+  3. Bancos (extrato) e Adiantamentos.
 - **Limpeza feita na etapa 5:**
   - scripts avulsos de incidentes já resolvidos (fornecedor de teste F675, ticket T284, adiantamento excluído);
   - migrações únicas já aplicadas (`migrate:auth`, `migrate:storage`);
