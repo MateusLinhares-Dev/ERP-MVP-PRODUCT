@@ -16,6 +16,16 @@
 - Conta de pedido de compra (`CPPO_…`, ou ticket com `_purchaseOperationId`) só muda pelo Histórico de compras.
 - Conta gravada no formato antigo (lista com índice) é achada pelo `id`.
 
+## Desfazer pagamento e excluir compra paga
+
+Ordem: **🕒 Excluir o pagamento → excluir a compra no Histórico de compras → excluir o adiantamento** (se for o caso).
+
+- O 🕒 desfaz pagamentos no banco e com adiantamento (desde a v236). Com adiantamento, o valor volta para o adiantamento do fornecedor: volta a "Pendente", sem vínculo com a compra; uso parcial devolve o valor ao adiantamento de origem e apaga a parte dividida.
+- Pagamentos novos guardam quais adiantamentos usaram (`adtUsos`). Nos antigos, o servidor acha os adiantamentos pela marca "Compensado em CP <data>" ou pela parte dividida (`compensacao_cp`) da mesma compra e data, e só desfaz se a soma bater exatamente. Se não bater, ou se o adiantamento foi usado de novo depois, recusa sem alterar nada (`ADVANCE_REVERSAL_UNSAFE`): desfaça antes o pagamento mais recente.
+- A exclusão de compra não considera mais "paga" uma conta só porque tem banco gravado (`bancoCod`), e o registro histórico de pagamentos só bloqueia se sobrar pagamento sem estorno.
+- Compra com adiantamento marcado na hora do lançamento (sem pagamento depois) se exclui direto, e o adiantamento volta.
+- Ainda não se desfazem pela tela: compra paga com cheque ou com crédito do fornecedor no lançamento.
+
 ## O que ainda grava pelo navegador
 
 A sincronização do navegador continua mandando `contasPagar` criadas por outras telas, até cada uma passar para o servidor:

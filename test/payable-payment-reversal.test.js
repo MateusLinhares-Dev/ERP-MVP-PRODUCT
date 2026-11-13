@@ -21,9 +21,9 @@ function purchaseTicket(no, total) {
 }
 const create = (ticket) => mod.createPurchaseOrder(identity, { operationId: randomUUID(), ticketNo: ticket.ticket, fornecedorCod: 'F1',
   ticket, advanceCodes: [], chequeIds: [], useLegacyCredit: false, sourceTicketKeys: [] }, { db });
-async function pay(payableId, amount) {
+async function pay(payableId, amount, advanceAmount = 0) {
   const current = await viaSdk('erp/contasPagar/' + payableId);
-  return mod.payPayable(identity, { payableId, operationId: randomUUID(), bankCode: 'B1', date: today, amount, fornCod: 'F1',
+  return mod.payPayable(identity, { payableId, operationId: randomUUID(), bankCode: amount ? 'B1' : '', date: today, amount, advanceAmount, fornCod: 'F1',
     expected: { valor: current.valor, status: current.status, paymentsCount: (current.pagamentos || []).length } }, { db });
 }
 async function reverse(payableId, paymentIndex, override = {}) {
@@ -49,6 +49,7 @@ before(async () => {
     ...(await import('../server/modules/purchases/application/create-purchase-order.js')),
     ...(await import('../server/modules/payables/application/payables.js')),
     ...(await import('../server/modules/payables/application/payment-reversal.js')),
+    ...(await import('../server/modules/purchases/application/delete-purchase-order.js')),
   };
 });
 after(async () => {
@@ -104,7 +105,7 @@ test('conta quitada em dois pagamentos: excluir o primeiro deixa em aberto só e
   assert.equal(srv.read('erp/tickets/T710').status, 'Parcial');
 });
 
-test('exclusão recusada quando a conta mudou, o pagamento não confere, tem adiantamento ou falta permissão', async () => {
+test('exclusão recusada quando a conta mudou, o pagamento não confere, o adiantamento não é identificável ou falta permissão', async () => {
   srv.reset(baseData());
   await create(purchaseTicket('T720', 1000));
   await pay('CPPO_T720', 300);
@@ -114,7 +115,7 @@ test('exclusão recusada quando a conta mudou, o pagamento não confere, tem adi
   await assert.rejects(mod.reversePayablePayment({ ...identity, canPayables: false }, { payableId: 'CPPO_T720' }, { db }), { code: 'PAYABLES_REQUIRED' });
   const current = await viaSdk('erp/contasPagar/CPPO_T720');
   await db.ref('erp/contasPagar/CPPO_T720/pagamentos/0/adt').set(50);
-  await assert.rejects(reverse('CPPO_T720', 0), { code: 'PAYMENT_HAS_ADVANCE' });
+  await assert.rejects(reverse('CPPO_T720', 0), { code: 'ADVANCE_REVERSAL_UNSAFE' });
   await db.ref('erp/contasPagar/CPPO_T720/pagamentos/0/adt').set(0);
   assert.equal((await viaSdk('erp/contasPagar/CPPO_T720')).valor, current.valor);
   assert.equal(movementsOf('CPPO_T720').length, 1);
@@ -160,4 +161,65 @@ test('tela chama o servidor para excluir pagamento e não edita conta de compra 
   assert.match(edit, /_cpGravadaPeloServidor\(c\)/);
   const endpoint = readFileSync(new URL('../api/finance/payables-payment.ts', import.meta.url), 'utf8');
   assert.match(endpoint, /action === 'reverse'/);
+});
+
+const ledger = () => Object.values(srv.read('erp/adiantamentos/F1') || {});
+const removePurchase = (ticketNo) => mod.deletePurchaseOrder(identity, { ticketNo, operationId: randomUUID() }, { db });
+
+test('pagamento com adiantamento: excluir no 🕒 devolve o adiantamento e a compra pode ser excluída', async () => {
+  srv.reset({ ...baseData(), erp: { ...baseData().erp, adiantamentos: { F1: [{ cod: 'ADT1', data: '01/11/2026', valor: 1000, status: 'Pendente', forma: 'PIX', obs: 'teste' }] } } });
+  await create(purchaseTicket('T730', 1000));
+  await pay('CPPO_T730', 0, 1000);
+  assert.deepEqual(ledger().map((row) => [row.cod, row.status, row.ticket]), [['ADT1', 'Quitado', 'T730']]);
+  assert.deepEqual((await viaSdk('erp/contasPagar/CPPO_T730')).pagamentos[0].adtUsos, [{ cod: 'ADT1', valor: 1000 }]);
+  await assert.rejects(removePurchase('T730'), { code: 'PURCHASE_HAS_FINANCE' });
+  const result = await reverse('CPPO_T730', 0);
+  assert.equal(result.reversedAmount, 1000);
+  assert.equal(result.fornCod, 'F1');
+  assert.deepEqual(ledger().map((row) => [row.cod, row.status, row.valor, row.valorCompensado, row.ticket, row.obs]), [['ADT1', 'Pendente', 1000, 0, '', 'teste']]);
+  const payable = await viaSdk('erp/contasPagar/CPPO_T730');
+  assert.deepEqual([payable.status, payable.valor, payable.adtCompensado, (payable.pagamentos || []).length], ['Pendente', 1000, 0, 0]);
+  assert.equal(srv.read('erp/tickets/T730').saldoPagar, 1000);
+  assert.deepEqual(locks(), []);
+  assert.equal(Object.keys(srv.read('erpFinanceAdvanceLocks') || {}).length, 0);
+  await removePurchase('T730');
+  assert.equal(srv.read('erp/tickets/T730'), null);
+});
+
+test('pagamento antigo (sem registro dos adiantamentos usados), parte adiantamento e parte banco: volta tudo', async () => {
+  srv.reset({ ...baseData(), erp: { ...baseData().erp, adiantamentos: { F1: [{ cod: 'ADT2', data: '01/11/2026', valor: 1000, status: 'Pendente' }] } } });
+  await create(purchaseTicket('T740', 1000));
+  await pay('CPPO_T740', 700, 300);
+  assert.equal(ledger().length, 2);
+  await db.ref('erp/contasPagar/CPPO_T740/pagamentos/0/adtUsos').remove();
+  await reverse('CPPO_T740', 0);
+  assert.deepEqual(ledger().map((row) => [row.cod, row.status, row.valor, row.valorCompensado, row.ticket || '']), [['ADT2', 'Pendente', 1000, 0, '']]);
+  assert.equal(movementsOf('CPPO_T740').length, 0);
+  await removePurchase('T740');
+  assert.equal(srv.read('erp/tickets/T740'), null);
+});
+
+test('compra paga no banco: depois do 🕒 a compra pode ser excluída (o banco gravado na conta não conta como pagamento)', async () => {
+  srv.reset(baseData());
+  await create(purchaseTicket('T750', 500));
+  await pay('CPPO_T750', 500);
+  await reverse('CPPO_T750', 0);
+  assert.equal((await viaSdk('erp/contasPagar/CPPO_T750')).bancoCod, 'B1');
+  await removePurchase('T750');
+  assert.equal(srv.read('erp/tickets/T750'), null);
+});
+
+test('adiantamento usado de novo depois do pagamento: recusa e não mexe em nada', async () => {
+  srv.reset({ ...baseData(), erp: { ...baseData().erp, adiantamentos: { F1: [{ cod: 'ADT3', data: '01/11/2026', valor: 1000, status: 'Pendente' }] } } });
+  await create(purchaseTicket('T760', 1000));
+  await create(purchaseTicket('T761', 700));
+  await pay('CPPO_T760', 700, 300);
+  await pay('CPPO_T761', 0, 700);
+  const before = JSON.stringify(ledger());
+  await assert.rejects(reverse('CPPO_T760', 0), { code: 'ADVANCE_REVERSAL_UNSAFE' });
+  assert.equal(JSON.stringify(ledger()), before);
+  assert.deepEqual(locks(), []);
+  await reverse('CPPO_T761', 0);
+  await reverse('CPPO_T760', 0);
+  assert.deepEqual(ledger().map((row) => [row.cod, row.status, row.valor]), [['ADT3', 'Pendente', 1000]]);
 });

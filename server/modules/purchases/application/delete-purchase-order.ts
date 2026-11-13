@@ -86,11 +86,18 @@ const hasTicketRef = (value: unknown, ticketId: string, depth = 0): boolean => {
   );
 };
 
+const openPaymentOperations = (operations: unknown, ticketId: string): boolean =>
+  rowEntries(operations).reduce(
+    (balance, [, operation]) =>
+      hasTicketRef(operation, ticketId) ? balance + (operation.kind === 'reversal' ? -1 : 1) : balance,
+    0,
+  ) > 0;
+
 const isPaidPayable = (payable: PayableRow): boolean => {
   if (String(payable.status || '').toLocaleLowerCase('pt-BR') !== 'pendente') return true;
   if (cents(payable.valorPago || 0) > 0 || cents(payable.adtCompensado || 0) > 0) return true;
   if (Array.isArray(payable.pagamentos) && payable.pagamentos.length > 0) return true;
-  return Boolean(payable.dataPgto || payable.movBancoIdCP || payable.bancoCod);
+  return Boolean(payable.dataPgto || payable.movBancoIdCP);
 };
 
 const advanceOnlyReceipt = (ticket: PurchaseTicket): boolean => {
@@ -109,7 +116,7 @@ const advanceOnlyReceipt = (ticket: PurchaseTicket): boolean => {
 const payableWithoutPayment = (payable: PayableRow): boolean => {
   if (cents(payable.valorPago || 0) > 0 || cents(payable.adtCompensado || 0) > 0) return false;
   if (Array.isArray(payable.pagamentos) && payable.pagamentos.length > 0) return false;
-  if (payable.movBancoIdCP || payable.bancoCod) return false;
+  if (payable.movBancoIdCP) return false;
   const status = String(payable.status || '').toLocaleLowerCase('pt-BR');
   return status === 'pendente' || (status === 'pago' && cents(payable.valor || 0) === 0);
 };
@@ -326,7 +333,7 @@ export async function deletePurchaseOrder(
         hasTicketRef(cheques, ticketId) ||
         hasTicketRef(saldo, ticketId) ||
         hasTicketRef(saldoDevedor, ticketId) ||
-        hasTicketRef(paymentOps, ticketId) ||
+        openPaymentOperations(paymentOps, ticketId) ||
         linkedBank(purchaseBank, currentPayables, ticketId, expected)
       ) {
         conflict(
@@ -394,7 +401,7 @@ export async function deletePurchaseOrder(
         hasTicketRef(cheques, ticketId) ||
         hasTicketRef(saldo, ticketId) ||
         hasTicketRef(saldoDevedor, ticketId) ||
-        hasTicketRef(paymentOps, ticketId) ||
+        openPaymentOperations(paymentOps, ticketId) ||
         hasTicketRef(advanceOps, ticketId) ||
         linkedBank(bank, currentPayables, ticketId, expected))
     ) {

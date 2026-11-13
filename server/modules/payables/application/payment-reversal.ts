@@ -4,6 +4,7 @@ import type { Identity } from '../../../shared/auth/identity.js';
 import { hasControlChars } from '../../../shared/domain/text.js';
 import { fail } from '../../../shared/errors/app-error.js';
 import { acquireLease, releaseLease } from '../../../shared/firebase/rtdb-transaction.js';
+import { restoreAdvances, type AdvanceEntry } from '../domain/advance-reversal.js';
 import type { PayableRecord, PaymentRecord } from './payables.js';
 
 type Row = Record<string, unknown>;
@@ -124,6 +125,7 @@ export async function reversePayablePayment(
     );
   }
   let ticketLock: Reference | null = null;
+  let supplierLock: Reference | null = null;
   let committed = false;
   try {
     const found = await findPayable(instance, id);
@@ -148,15 +150,11 @@ export async function reversePayablePayment(
     ) {
       fail(409, 'PAYABLE_CHANGED', 'O pagamento mudou em outra tela. Atualize e tente de novo.');
     }
-    if (toCents(payment.adt) > 0) {
-      fail(
-        409,
-        'PAYMENT_HAS_ADVANCE',
-        'Este pagamento usou adiantamento. Para não desfazer a compensação pela metade, peça ajuda ao suporte.',
-      );
-    }
     const cash = toCents(payment.valor);
-    if (cash <= 0) fail(422, 'EMPTY_PAYMENT', 'Este pagamento não tem valor em dinheiro para excluir.');
+    const advance = toCents(payment.adt);
+    const total = cash + advance;
+    if (cash < 0 || advance < 0 || total <= 0)
+      fail(422, 'EMPTY_PAYMENT', 'Este pagamento não tem valor para excluir.');
     const updates: Row = {};
     let removedMovementId = '';
     const movementId = text(payment.movBancoId, 120);
@@ -177,12 +175,13 @@ export async function reversePayablePayment(
       valorPago: money(Math.max(0, toCents(original.valorPago) - cash)),
       _upd: now(),
     };
+    if (advance) updated.adtCompensado = money(Math.max(0, toCents(original.adtCompensado) - advance));
     if (original.status === 'Pago') {
       updated.status = 'Pendente';
-      updated.valor = money(cash);
+      updated.valor = money(total);
       updated.dataPgto = '';
     } else {
-      updated.valor = money(toCents(original.valor) + cash);
+      updated.valor = money(toCents(original.valor) + total);
     }
     if (movementId && String(original.movBancoIdCP || '') === movementId) delete updated.movBancoIdCP;
     updates['contasPagar/' + path] = updated;
@@ -206,10 +205,43 @@ export async function reversePayablePayment(
       ticketLock = candidate;
       const current = (await instance.ref('erp/tickets/' + safeTicket).get()).val() as TicketRow | null;
       if (current) {
-        const balance = toCents(current.saldoPagar) + cash;
+        const balance = toCents(current.saldoPagar) + total;
         ticket = { ...current, saldoPagar: money(balance), status: ticketStatus(current, balance) };
         updates['tickets/' + safeTicket] = ticket;
       }
+    }
+    let advanceEntries: AdvanceEntry[] | null = null;
+    let supplier = '';
+    if (advance) {
+      supplier = text(original.fornCod) || text(ticket?.fornecedorCod);
+      if (!supplier || !SAFE_KEY.test(supplier))
+        fail(
+          409,
+          'SUPPLIER_NOT_VERIFIED',
+          'Não foi possível confirmar o fornecedor do adiantamento. Nada foi alterado; peça ajuda ao suporte.',
+        );
+      const candidate = instance.ref('erpFinanceAdvanceLocks/' + supplier);
+      if (
+        !(await acquireLease(candidate, owner, {
+          now,
+          ttlMs: LOCK_TTL_MS,
+          meta: { kind: 'payable-reversal', fornCod: supplier },
+        }))
+      )
+        fail(
+          409,
+          'ADVANCE_IN_PROGRESS',
+          'Outra operação de adiantamento deste fornecedor está em andamento. Aguarde alguns segundos e tente de novo.',
+        );
+      supplierLock = candidate;
+      const raw: unknown = (await instance.ref('erp/adiantamentos/' + supplier).get()).val();
+      const ledger = (Array.isArray(raw) ? raw : Object.values((raw as Row | null) ?? {})).filter(
+        (row): row is AdvanceEntry => Boolean(row) && typeof row === 'object',
+      );
+      const restored = restoreAdvances(ledger, payment, text(original.ticket));
+      if ('problem' in restored) fail(409, 'ADVANCE_REVERSAL_UNSAFE', restored.problem);
+      advanceEntries = restored.entries;
+      updates['adiantamentos/' + supplier] = advanceEntries;
     }
     const result = {
       payable: updated,
@@ -217,7 +249,9 @@ export async function reversePayablePayment(
       ticket,
       ticketKey: ticket ? ticketKey : '',
       removedMovementId,
-      reversedAmount: money(cash),
+      reversedAmount: money(total),
+      advanceEntries,
+      fornCod: supplier,
     };
     updates['financePayableOperations/' + opKey] = {
       result,
@@ -231,11 +265,14 @@ export async function reversePayablePayment(
     atomic['erp/_ts'] = now();
     atomic['erpFinancePayableLocks/' + id] = null;
     if (ticketLock) atomic['erpFinancePayableTicketLocks/' + key(ticketKey)] = null;
+    if (supplierLock) atomic['erpFinanceAdvanceLocks/' + supplier] = null;
     await instance.ref().update(atomic);
     committed = true;
     return result;
   } finally {
     if (!committed) {
+      if (supplierLock)
+        await releaseLease(supplierLock, owner, { label: 'payable.reversal.supplier.release' });
       if (ticketLock) await releaseLease(ticketLock, owner, { label: 'payable.reversal.ticket.release' });
       await releaseLease(lockRef, owner, { label: 'payable.reversal.release' });
     }

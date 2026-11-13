@@ -6,7 +6,7 @@ import { fail } from '../../../shared/errors/app-error.js';
 import { runTransaction } from '../../../shared/firebase/rtdb-transaction.js';
 import { AuditRepository } from '../infrastructure/audit-repository.js';
 
-const EVENT_KINDS = ['js_error', 'unhandled_rejection', 'api_failure', 'permission_denied'];
+const EVENT_KINDS = ['js_error', 'unhandled_rejection', 'api_failure', 'permission_denied', 'sync_rejected'];
 const WINDOW_MS = 60_000;
 const MAX_EVENTS = 12;
 

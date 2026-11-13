@@ -63,6 +63,8 @@ export async function startFakeRtdb({namespace='demo-erp-test'}={}){
   const listens=new Map();
   const stats={connections:0,puts:0,hashedPuts:0,datastale:0,dropped:0,gets:0,merges:0};
   const dropRules=[];
+  const denyRules=[];
+  const denied=changes=>changes.some(([path,value])=>denyRules.some(rule=>rule(normalize(path),value,read)));
   const sockets=new Set();
 
   const read=path=>{
@@ -145,6 +147,7 @@ export async function startFakeRtdb({namespace='demo-erp-test'}={}){
           if(drop==='apply'){stats.dropped+=1;socket.terminate();return;}
           respond(socket,request,'ok','');return;
         }
+        if(denied([[path,body.d]])){respond(socket,request,'permission_denied','Permission denied');return;}
         write(path,body.d);
         notify([path]);
         respond(socket,request,'ok','');return;
@@ -153,8 +156,9 @@ export async function startFakeRtdb({namespace='demo-erp-test'}={}){
         stats.merges+=1;
         const base=normalize(body.p);
         const changed=[];
-        for(const [child,value] of Object.entries(body.d||{})){
-          const full=[base,normalize(child)].filter(Boolean).join('/');
+        const entries=Object.entries(body.d||{}).map(([child,value])=>[[base,normalize(child)].filter(Boolean).join('/'),value]);
+        if(denied(entries)){respond(socket,request,'permission_denied','Permission denied');return;}
+        for(const [full,value] of entries){
           write(full,value);changed.push(full);
         }
         notify(changed);
@@ -200,6 +204,7 @@ export async function startFakeRtdb({namespace='demo-erp-test'}={}){
     seed(path,value){write(path,value);notify([path]);},
     reset(value=null){root=prune(clone(value));},
     dropNextTransaction(prefix,{times=1,applyBeforeDrop=false}={}){dropRules.push({action:'transaction',prefix,remaining:times,applyBeforeDrop});},
+    denyWrites(rule){denyRules.push(rule);},
     dropAllConnections(){for(const socket of sockets){stats.dropped+=1;socket.terminate();}},
     async close(){
       for(const socket of sockets)socket.terminate();
