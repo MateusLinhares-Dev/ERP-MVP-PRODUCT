@@ -1,7 +1,19 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
+import { erpSessionUser } from '../shared/auth/erp-session.js';
 import { todayISO } from '../shared/domain/dates.js';
+import { createApiClient } from '../shared/http/api-client.js';
+import {
+  createPendingPayments,
+  reversePayment,
+  submitPayment,
+  verifyPayment,
+} from '../modules/payables/application/payments.js';
+import type { PaymentDeps } from '../modules/payables/application/payments.js';
+import { reversalRequest } from '../modules/payables/domain/payment.js';
+import type { PaymentContext } from '../modules/payables/domain/payment.js';
+import { payableRows } from '../modules/payables/domain/payables.js';
 import { PayablesWorkspace } from '../modules/payables/ui/PayablesWorkspace.js';
 import type {
   PayableBank,
@@ -20,12 +32,12 @@ interface LegacyPayables {
   erpPayablesFromPurchase?: (raw: Raw) => boolean;
   erpPayablesHygiene?: () => void;
   erpPayablesSuppliers?: (kind: string) => string[];
-  erpPayablesPay?: (id: string) => void;
   erpPayablesOnlyPurchases?: () => boolean;
   erpFinanceCompanies?: () => string[];
   erpFinanceCompanyColor?: (company: string) => string;
   erpBanks?: { snapshot(): { ready: boolean; list: PayableBank[] }; load(): Promise<unknown> };
-  verHistoricoPagamentosCP?: (id: string) => void;
+  erpPayablesApply?: (kind: string, result: Record<string, unknown>) => void;
+  erpPayablesPaymentContext?: (id: string) => PaymentContext | null;
   _usuarioPodeOperarModulo?: (tab: string) => boolean;
   showToast?: (message: string, kind: string, duration?: number) => void;
   om?: (type: string, ...rest: unknown[]) => unknown;
@@ -50,7 +62,32 @@ const fromPurchase = (raw: Raw): boolean => {
   }
 };
 
+const api = createApiClient({
+  currentUser: erpSessionUser,
+  onSignedOut: () => undefined,
+  messages: { NETWORK_ERROR: 'Sem resposta do servidor. Confira a internet.' },
+});
+const PAYMENT = '/api/finance/payables-payment';
+
 export function installPayables(): void {
+  const deps: PaymentDeps = {
+    gateway: {
+      pay: (body) => api.request(PAYMENT, { method: 'POST', body }),
+      reverse: (body) => api.request(PAYMENT, { method: 'POST', body }),
+      status: (payableId, operationId) =>
+        api.request(
+          '/api/finance/payables-status?' + new URLSearchParams({ payableId, operationId }).toString(),
+        ),
+    },
+    ledger: { apply: (kind, result) => legacy().erpPayablesApply?.(kind, result) },
+    pending: createPendingPayments(
+      () => Date.now(),
+      () => window.crypto.randomUUID(),
+    ),
+    now: () => Date.now(),
+  };
+  const rowsNow = () =>
+    payableRows(legacy().erpPayablesList?.() ?? [], { today: todayISO(), companyOf, fromPurchase });
   let handler: ((command: PayableCommand) => void) | null = null;
   const pending: PayableCommand[] = [];
   const controller: PayablesController = {
@@ -104,8 +141,16 @@ export function installPayables(): void {
         if (!send) throw new Error('Contas a Pagar indisponível. Atualize a página.');
         return send(payload);
       },
-      pay: (id) => legacy().erpPayablesPay?.(id),
-      history: (id) => legacy().verHistoricoPagamentosCP?.(id),
+      payment: {
+        context: (id) =>
+          legacy().erpPayablesPaymentContext?.(id) ?? { fornCod: '', ticket: '', advances: [] },
+        operation: (id) => deps.pending.operation(id),
+        blockedSeconds: (id) => deps.pending.blockedSeconds(id),
+        submit: (payload) => submitPayment(deps, payload),
+        verify: (id, operationId) => verifyPayment(deps, id, operationId),
+        reverse: (row, index) =>
+          reversePayment(deps, reversalRequest(row, index, window.crypto.randomUUID())),
+      },
       notify,
       confirm: (message) => window.confirm(message),
     };
@@ -138,11 +183,11 @@ export function installPayables(): void {
     );
   }
 
-  function send(command: PayableCommand): void {
+  function send(command: PayableCommand, openTab = true): void {
     const app = legacy();
     if (app.erpCanAccessTab && !app.erpCanAccessTab(TAB))
       return notify('Você não tem acesso a Contas a Pagar.', 'error');
-    if (!document.getElementById('tab-' + TAB)?.classList.contains('active')) app.switchTab?.(TAB);
+    if (openTab && !document.getElementById('tab-' + TAB)?.classList.contains('active')) app.switchTab?.(TAB);
     render();
     if (handler) handler(command);
     else pending.push(command);
@@ -159,6 +204,15 @@ export function installPayables(): void {
     renderContasPagar: render,
     editContaPagar: (index: unknown, id?: unknown) => send({ kind: 'edit', id: idAt(index, id) }),
     excluirContaPagar: (index: unknown, id?: unknown) => send({ kind: 'delete', id: idAt(index, id) }),
+    pagarContaRapido: (index: unknown, id?: unknown) => send({ kind: 'pay', id: idAt(index, id) }, false),
+    verHistoricoPagamentosCP: (id: unknown) => send({ kind: 'history', id: String(id ?? '') }, false),
+    erpPayablesReverse: (id: unknown, index: unknown) => {
+      const row = rowsNow().find((item) => item.id === String(id ?? ''));
+      return reversePayment(
+        deps,
+        row ? reversalRequest(row, Number(index), window.crypto.randomUUID()) : null,
+      );
+    },
     om: (type: string, ...rest: unknown[]) =>
       type === 'conta_pagar' ? send({ kind: 'new' }) : previous.om?.(type, ...rest),
     switchTab: (tab: string, ...rest: unknown[]) => {

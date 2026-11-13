@@ -9,13 +9,33 @@ type Raw = Record<string, unknown>;
 const text = (value: unknown): string => (value == null ? '' : String(value).trim());
 const isRaw = (value: unknown): value is Raw =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-const count = (value: unknown): number =>
-  Array.isArray(value) ? value.filter(Boolean).length : isRaw(value) ? Object.keys(value).length : 0;
+const entries = (value: unknown): Raw[] =>
+  (Array.isArray(value) ? value : isRaw(value) ? Object.values(value) : []).filter(isRaw);
+const paymentsOf = (value: unknown): PaymentEntry[] =>
+  entries(value).map((payment) => ({
+    date: text(payment.data),
+    amount: fromCents(toCents(payment.valor)),
+    advance: fromCents(toCents(payment.adt)),
+    bank: text(payment.banco),
+    notes: text(payment.obs),
+    movementId: text(payment.movBancoId),
+  }));
 
 export type PayableKind = 'compra' | 'despesa';
 
+export interface PaymentEntry {
+  date: string;
+  amount: number;
+  advance: number;
+  bank: string;
+  notes: string;
+  movementId: string;
+}
+
 export interface PayableRow {
   id: string;
+  status: string;
+  paymentList: PaymentEntry[];
   supplier: string;
   description: string;
   category: string;
@@ -54,10 +74,13 @@ export function payableRows(raw: unknown, context: RowContext): PayableRow[] {
     .map((item) => {
       const paid = text(item.status) === 'Pago';
       const due = toISODate(item.venc);
-      const payments = count(item.pagamentos);
+      const paymentList = paymentsOf(item.pagamentos);
+      const payments = paymentList.length;
       const settled = toCents(item.valorPago) + toCents(item.adtCompensado);
       return {
         id: text(item.id),
+        status: text(item.status) || 'Pendente',
+        paymentList,
         supplier: text(item.cred),
         description: text(item.desc),
         category: text(item.cat),

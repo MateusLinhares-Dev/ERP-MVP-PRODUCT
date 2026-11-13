@@ -530,6 +530,36 @@
   cursor: progress;
 }
 
+.erp-cp-paybox {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fde8e8;
+  margin-bottom: 12px;
+  font-size: 0.86rem;
+}
+
+.erp-cp-warn {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fff3cd;
+  color: #75511b;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.erp-cp-warn.wide,
+.erp-cp-hint.wide {
+  grid-column: 1 / -1;
+}
+
+.erp-cp-field small {
+  font-size: 0.72rem;
+  color: #5f6d66;
+}
+
 @media (max-width: 640px) {
   .erp-cp-grid {
     grid-template-columns: 1fr;

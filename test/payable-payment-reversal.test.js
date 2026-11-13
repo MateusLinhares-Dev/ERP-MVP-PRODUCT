@@ -152,15 +152,25 @@ test('conta comum (sem compra): exclui pagamento e a saída do banco', async () 
   assert.equal(movementsOf('CP9').length, 0);
 });
 
-test('tela chama o servidor para excluir pagamento e não edita conta de compra só na tela', () => {
+test('tela chama o servidor para excluir pagamento e não edita conta de compra só na tela', async () => {
+  const { reversalRequest } = await import('../web/modules/payables/domain/payment.ts');
+  const { reversePayment, createPendingPayments } = await import('../web/modules/payables/application/payments.ts');
+  const row = { id: 'CP9', amount: 0, status: 'Pago', paymentList: [{ date: '10/11/2026', amount: 100, advance: 0, bank: 'Sicredi', notes: '', movementId: 'LB-PG-1' }] };
+  const body = reversalRequest(row, 0, 'op-1');
+  assert.deepEqual(body, { action: 'reverse', operationId: 'op-1', payableId: 'CP9', paymentIndex: 0, payment: { data: '10/11/2026', valor: 100, movBancoId: 'LB-PG-1' }, expected: { valor: 0, status: 'Pago', paymentsCount: 1 } });
+  let sent = null;
+  const applied = [];
+  const deps = { gateway: { reverse: async (request) => { sent = request; return { payable: { id: 'CP9', status: 'Pendente' }, removedMovementId: 'LB-PG-1' }; } }, ledger: { apply: (kind) => applied.push(kind) }, pending: createPendingPayments(() => 1, () => 'x'), now: () => 1 };
+  assert.equal(await reversePayment(deps, body), '');
+  assert.equal(sent.action, 'reverse');
+  assert.deepEqual(applied, ['reversal']);
+  assert.equal(await reversePayment(deps, reversalRequest(row, 5, 'op-2')), 'Pagamento não encontrado (recarregue e tente de novo).');
   const core = readFileSync(new URL('../public/legacy/app-core.js', import.meta.url), 'utf8');
-  const undo = core.slice(core.indexOf('async function _cpExcluirPagamento('), core.indexOf('async function excluirPagamentoCP('));
-  assert.match(undo, /action:'reverse'/);
-  assert.doesNotMatch(undo, /saveContasPagar\(|_fbRawDB/);
+  assert.doesNotMatch(core, /function _cpExcluirPagamento|function confirmarPagarCP|function pagarContaRapido/);
+  assert.match(core, /window\.erpPayablesReverse\(_cpId,_pIdx\)/, 'Ficha do fornecedor usa o mesmo estorno');
   const workspace = readFileSync(new URL('../web/modules/payables/ui/PayablesWorkspace.tsx', import.meta.url), 'utf8');
   const edit = workspace.slice(workspace.indexOf('const askEdit = useCallback('), workspace.indexOf('useEffect(', workspace.indexOf('const askEdit = useCallback(')));
   assert.match(edit, /if \(row\.fromPurchase\) return port\.notify\(PURCHASE_MESSAGE, 'info'\);/);
-  assert.match(core, /window\.erpPayablesFromPurchase=function\(c\)\{ return _cpGravadaPeloServidor\(c\); \};/);
   const endpoint = readFileSync(new URL('../api/finance/payables-payment.ts', import.meta.url), 'utf8');
   assert.match(endpoint, /action === 'reverse'/);
 });

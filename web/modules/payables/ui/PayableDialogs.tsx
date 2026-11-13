@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import { toFieldText } from '../../../shared/domain/decimal.js';
 import { messageOf } from '../../../shared/domain/errors.js';
@@ -47,7 +48,7 @@ export function Dialog({
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
-  return (
+  return createPortal(
     <div className="erp-cp-overlay" role="dialog" aria-modal="true" aria-label={title}>
       <div className="erp-cp-dialog">
         <header>
@@ -58,7 +59,8 @@ export function Dialog({
         </header>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

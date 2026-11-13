@@ -20,6 +20,7 @@ import {
 import type { KindOption, PayableFilter, PayableRow, StatusOption } from '../domain/payables.js';
 import { PURCHASE_MESSAGE, removePayables } from './actions.js';
 import { GroupDeleteDialog, PayableFormDialog } from './PayableDialogs.js';
+import { HistoryDialog, PaymentDialog } from './PaymentDialogs.js';
 import type { PayableCommand, PayablesController, PayablesPort } from './ports.js';
 
 interface WorkspaceProps {
@@ -31,7 +32,13 @@ interface WorkspaceProps {
   onlyPurchases: boolean;
 }
 
-type DialogState = { kind: 'new' } | { kind: 'edit'; id: string } | { kind: 'group'; id: string } | null;
+type DialogState =
+  | { kind: 'new' }
+  | { kind: 'edit'; id: string }
+  | { kind: 'group'; id: string }
+  | { kind: 'pay'; id: string }
+  | { kind: 'history'; id: string }
+  | null;
 
 const money = (value: number): string => 'R$ ' + formatAmount(value);
 const MONTHS = [
@@ -167,6 +174,12 @@ export function PayablesWorkspace({
           return port.notify('Seu perfil pode consultar, mas não alterar Contas a Pagar.', 'error');
         if (command.kind === 'new') return setDialog({ kind: 'new' });
         if (command.kind === 'edit') return askEdit(command.id);
+        if (command.kind === 'pay' || command.kind === 'history') {
+          const row = rowsRef.current.find((item) => item.id === command.id);
+          if (!row) return port.notify('Essa conta já não existe mais na lista. Atualize a tela.', 'error');
+          if (command.kind === 'pay' && row.paid) return port.notify('Esta conta já está paga.', 'info');
+          return setDialog({ kind: command.kind, id: command.id });
+        }
         askDelete(command.id);
       }),
     [controller, port, askEdit, askDelete],
@@ -178,7 +191,7 @@ export function PayablesWorkspace({
     const purchase = chosen.filter((row) => row.fromPurchase);
     if (purchase.length)
       return port.notify(
-        `${plural(purchase.length, 'conta')} selecionada(s) ${purchase.length === 1 ? 'é' : 'são'} de pedido de compra e não se exclui(em) aqui. Desmarque ou exclua o pedido no Histórico de compras.`,
+        `${purchase.length === 1 ? '1 conta selecionada é de pedido de compra e não se exclui' : `${purchase.length} contas selecionadas são de pedido de compra e não se excluem`} aqui. Desmarque ou exclua o pedido no Histórico de compras.`,
         'info',
       );
     const withPayments = chosen.filter((row) => row.payments);
@@ -566,6 +579,8 @@ export function PayablesWorkspace({
                             checked={selected.has(row.id)}
                             onCheck={(on) => toggle(row.id, on)}
                             onEdit={() => askEdit(row.id)}
+                            onPay={() => setDialog({ kind: 'pay', id: row.id })}
+                            onHistory={() => setDialog({ kind: 'history', id: row.id })}
                             onDelete={() => askDelete(row.id)}
                             busy={busy}
                           />
@@ -603,6 +618,12 @@ export function PayablesWorkspace({
       {dialog?.kind === 'edit' && dialogRow ? (
         <PayableFormDialog key={dialogRow.id} row={dialogRow} port={port} onClose={() => setDialog(null)} />
       ) : null}
+      {dialog?.kind === 'pay' && dialogRow ? (
+        <PaymentDialog key={dialogRow.id} row={dialogRow} port={port} onClose={() => setDialog(null)} />
+      ) : null}
+      {dialog?.kind === 'history' && dialogRow ? (
+        <HistoryDialog row={dialogRow} port={port} onClose={() => setDialog(null)} />
+      ) : null}
       {dialog?.kind === 'group' && dialogRow && choices ? (
         <GroupDeleteDialog
           row={dialogRow}
@@ -625,10 +646,12 @@ interface LineProps {
   busy: boolean;
   onCheck(on: boolean): void;
   onEdit(): void;
+  onPay(): void;
+  onHistory(): void;
   onDelete(): void;
 }
 
-function PayableLine({ row, port, checked, busy, onCheck, onEdit, onDelete }: LineProps) {
+function PayableLine({ row, port, checked, busy, onCheck, onEdit, onDelete, onPay, onHistory }: LineProps) {
   const status = row.paid ? 'Pago' : row.overdue ? 'Atrasado' : row.partial ? 'Parcial' : 'Pendente';
   const badge = row.paid ? 'b-pago' : row.overdue ? 'b-atrasado' : 'b-pendente';
   return (
@@ -660,12 +683,7 @@ function PayableLine({ row, port, checked, busy, onCheck, onEdit, onDelete }: Li
       <td>
         <span className={'b ' + badge}>{status}</span>
         {row.payments ? (
-          <button
-            type="button"
-            className="erp-cp-icon"
-            title="Histórico de pagamentos"
-            onClick={() => port.history(row.id)}
-          >
+          <button type="button" className="erp-cp-icon" title="Histórico de pagamentos" onClick={onHistory}>
             🕒
           </button>
         ) : null}
@@ -677,7 +695,7 @@ function PayableLine({ row, port, checked, busy, onCheck, onEdit, onDelete }: Li
           </button>
         ) : null}
         {port.canOperate && !row.paid ? (
-          <button type="button" className="erp-cp-pay" disabled={busy} onClick={() => port.pay(row.id)}>
+          <button type="button" className="erp-cp-pay" disabled={busy} onClick={onPay}>
             ✅ Pagar
           </button>
         ) : null}

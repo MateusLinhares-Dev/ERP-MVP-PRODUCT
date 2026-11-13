@@ -35,45 +35,23 @@ test('Histórico não dá baixa nem altera dados se a conta não existe ou houve
   }
 });
 
-test('Contas a Pagar não abate automaticamente créditos disponíveis; banco pode ser escolhido',()=>{
-  const start=core.indexOf('function pagarContaRapido(');
-  const end=core.indexOf('function atualizarLiquidoCP(',start);
-  assert.ok(start>=0&&end>start);
-  const body={className:'',innerHTML:'',dataset:{},querySelectorAll:()=>[]};
-  const elements={
-    'modal-body':body,
-    'modal-ov':{classList:{add(){}}},
-    'btn-so-compensar':{addEventListener(){}},
-    'btn-pagar-tudo':{addEventListener(){}}
-  };
-  const env={
-    _numFinito:(n,d)=>Number.isFinite(Number(n))?Number(n):d,
-    _cpIdxPorId:()=>0,
-    CONTAS_PAGAR:[{id:'CP-T303',ticket:'T303',fornCod:'F675',valor:50,status:'Pendente',desc:'Compra T303'}],
-    ADT_POR_FORN:{F675:[{status:'Pendente',valor:35},{status:'Pendente',valor:15}]},
-    TICKETS_DB:{},FORNECEDORES:[],document:{getElementById:(id)=>elements[id]||null},
-    crypto:{randomUUID:()=> 'aaaa-bbbb'},esc:(v)=>String(v),
-    _cpConsultarContasBancarias(){},atualizarLiquidoCP(){},
-    _hojeISO:()=>'2026-11-08',
-  };
-  runInNewContext('const _cpPendingPayments=new Map();'+core.slice(start,end)+';pagarContaRapido(0,"CP-T303");',env);
-  assert.match(body.innerHTML,/id="pcp-adt"[^>]*value="0\.00"/);
-  assert.match(body.innerHTML,/Crédito disponível: R\$ 50,00/);
-  assert.match(body.innerHTML,/Para pagar pelo banco, mantenha 0,00/);
-  assert.match(body.innerHTML,/id="pcp-banco"/);
+test('Contas a Pagar não abate automaticamente créditos disponíveis; banco pode ser escolhido',async()=>{
+  const {advanceOptions}=await import('../web/modules/payables/domain/payment.ts');
+  const options=advanceOptions({fornCod:'F675',ticket:'T303',advances:[{status:'Pendente',valor:35},{status:'Pendente',valor:15},{status:'Pendente',valor:99,ticket:'T999'},{status:'Quitado',valor:7}]},50);
+  assert.deepEqual(options,{available:50,limit:50,blocked:1});
+  const dialog=readFileSync(new URL('../web/modules/payables/ui/PaymentDialogs.tsx',import.meta.url),'utf8');
+  assert.match(dialog,/advance: '0',/,'abre sem abater crédito');
+  assert.match(dialog,/Crédito disponível: \{money\(options\.available\)\}/);
+  assert.match(dialog,/Para pagar só pelo banco, deixe 0/);
+  assert.match(dialog,/id="erp-cp-pay-bank"/);
 });
 
-test('banco habilita quando a compensação é zero e desabilita só se não há débito',()=>{
-  const src=fnSource('atualizarLiquidoCP','async function confirmarPagarCP(');
-  const bank={value:'',disabled:true,options:[{value:''},{value:'BC-005'}],dataset:{}};
-  const adt={value:'0'},total={value:'50'},label={textContent:''};
-  const elements={'pcp-adt':adt,'pcp-valor-pagar':total,'pcp-banco':bank,'pcp-liquido-label':label};
-  const env={document:{getElementById:id=>elements[id]||null}};
-  runInNewContext(src+';atualizarLiquidoCP(50);',env);
-  assert.equal(bank.disabled,false);
-  assert.match(label.textContent,/50,00/);
-  adt.value='50';
-  runInNewContext(src+';atualizarLiquidoCP(50);',env);
-  assert.equal(bank.disabled,true);
-  assert.match(label.textContent,/0,00/);
+test('banco habilita quando a compensação é zero e desabilita só se não há débito',async()=>{
+  const {bankDebit}=await import('../web/modules/payables/domain/payment.ts');
+  assert.equal(bankDebit({total:'50',advance:'0'}),50);
+  assert.equal(bankDebit({total:'50',advance:'50'}),0);
+  assert.equal(bankDebit({total:'50,10',advance:'20,05'}),30.05);
+  const dialog=readFileSync(new URL('../web/modules/payables/ui/PaymentDialogs.tsx',import.meta.url),'utf8');
+  assert.match(dialog,/disabled=\{blocked \|\| cash === 0\}/);
 });
+

@@ -16545,87 +16545,6 @@ function _cpGravadaPeloServidor(c){
   const tk=String(c.ticket||'').trim();
   return String(c.id||'').startsWith('CPPO_')||Boolean(tk&&typeof TICKETS_DB!=='undefined'&&TICKETS_DB[tk]&&TICKETS_DB[tk]._purchaseOperationId);
 }
-const _cpExcluindoPagamento=new Set();
-async function _cpExcluirPagamento(c,pIdx){
-  if(!c||!Array.isArray(c.pagamentos)||!c.pagamentos[pIdx]) return 'Pagamento não encontrado (recarregue e tente de novo).';
-  const p=c.pagamentos[pIdx];
-  const user=typeof firebase!=='undefined'?firebase.auth().currentUser:null;
-  if(!user) return 'Sessão expirada. Entre novamente.';
-  if(_cpExcluindoPagamento.has(c.id)) return 'A exclusão deste pagamento já está em andamento.';
-  _cpExcluindoPagamento.add(c.id);
-  try{
-    const token=await user.getIdToken();
-    let response;
-    try{
-      response=await fetch('/api/finance/payables-payment',{method:'POST',credentials:'same-origin',
-        headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-        body:JSON.stringify({action:'reverse',operationId:crypto.randomUUID(),payableId:c.id,paymentIndex:pIdx,
-          payment:{data:p.data||'',valor:Number(p.valor||0),movBancoId:p.movBancoId||''},
-          expected:{valor:Number(c.valor),status:c.status,paymentsCount:c.pagamentos.length}})});
-    }catch(e){ return 'Sem resposta do servidor. Atualize a tela e confira a conta antes de tentar de novo.'; }
-    const result=await response.json().catch(()=>({}));
-    if(!response.ok||!result.payable) return result.message||'Não foi possível excluir o pagamento.';
-    const idx=_cpIdxPorId(c.id);
-    if(idx>=0) CONTAS_PAGAR[idx]=result.payable;
-    if(result.removedMovementId) _bancoRemoverMovimento(result.removedMovementId);
-    if(result.ticket&&result.ticketKey&&typeof TICKETS_DB!=='undefined') TICKETS_DB[result.ticketKey]=result.ticket;
-    if(Array.isArray(result.advanceEntries)&&result.fornCod&&typeof ADT_POR_FORN!=='undefined'){ ADT_POR_FORN[result.fornCod]=result.advanceEntries; try{renderAdiantamentos();}catch(e){} }
-    try{ registrarHistorico('Contas a Pagar','Pagamento excluído',(c.cred||c.desc||c.id)+' — R$ '+Number(result.reversedAmount||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+(c.ticket?' | Ticket '+c.ticket:''),result.payable,{cpId:c.id}); }catch(e){}
-    try{renderContasPagar();}catch(e){} try{renderTickets();}catch(e){}
-    try{renderFluxo();}catch(e){} try{renderDashboard();}catch(e){}
-    return '';
-  }finally{ _cpExcluindoPagamento.delete(c.id); }
-}
-async function excluirPagamentoCP(id,pIdx){
-  const c=CONTAS_PAGAR.find(x=>x&&x.id===id);
-  const p=c&&Array.isArray(c.pagamentos)?c.pagamentos[pIdx]:null;
-  if(!p){ showToast('Pagamento não encontrado (recarregue e tente de novo).','error'); return; }
-  const _fmtPg=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const _adtPg=Number(p.adt||0);
-  if(!confirm('Excluir o pagamento de '+_fmtPg(Number(p.valor||0)+_adtPg)+' ('+(p.data||'sem data')+')?\n\nO valor volta a ser devido.'+(Number(p.valor||0)>0?'\nA saída de '+_fmtPg(p.valor)+' é retirada do extrato do banco.':'')+(_adtPg>0?'\nOs '+_fmtPg(_adtPg)+' de adiantamento voltam para o adiantamento do fornecedor.':''))) return;
-  document.querySelectorAll('#cp-historico-pagamentos button').forEach(b=>{b.disabled=true;});
-  const erro=await _cpExcluirPagamento(c,pIdx);
-  if(erro){ showToast(erro,'error',9000); verHistoricoPagamentosCP(id); return; }
-  showToast('Pagamento excluído. Voltou a ser devido.','success');
-  verHistoricoPagamentosCP(id);
-}
-
-function verHistoricoPagamentosCP(id){
-  const c=CONTAS_PAGAR.find(x=>x&&x.id===id);
-  if(!c){ showToast('Essa conta já não existe mais na lista.','error'); return; }
-  const fmt=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const pagamentos=Array.isArray(c.pagamentos)?c.pagamentos:[];
-  const body=document.getElementById('modal-body');
-  body.className='modal';
-  const linhas=pagamentos.length
-    ? pagamentos.map((p,i)=>
-        '<tr>'
-        +'<td>'+esc(p.data||'—')+'</td>'
-        +'<td style="text-align:right">'+fmt(p.valor)+'</td>'
-        +'<td style="text-align:right">'+(p.adt?fmt(p.adt):'—')+'</td>'
-        +'<td>'+esc(p.banco||'—')+'</td>'
-        +'<td style="font-size:.78rem;color:#666">'+esc(p.obs||'')+'</td>'
-        +'<td><button type="button" class="btn-edit-danger" data-cp-pagamento="'+i+'" title="Excluir este pagamento">Excluir</button></td>'
-        +'</tr>').join('')
-    : '<tr><td colspan="6" style="text-align:center;color:var(--gray);padding:12px">Nenhum pagamento parcial registrado ainda.</td></tr>';
-  body.innerHTML=
-    '<h3>🕒 Histórico de Pagamentos</h3>'+
-    '<div style="background:#eaf4ef;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:.85rem">'+
-      '<b>'+esc(c.desc||c.cred||'')+'</b><br>'+
-      'Saldo atual em aberto: <b>'+fmt(c.status==='Pago'?0:c.valor)+'</b> &nbsp;·&nbsp; Status: <b>'+esc(c.status)+'</b>'+
-    '</div>'+
-    '<table style="width:100%;border-collapse:collapse;font-size:.82rem"><thead><tr style="text-align:left;border-bottom:2px solid #ddd">'
-    +'<th style="padding:4px 6px">Data</th><th style="padding:4px 6px;text-align:right">Valor</th>'
-    +'<th style="padding:4px 6px;text-align:right">Adiant.</th><th style="padding:4px 6px">Banco</th><th style="padding:4px 6px">Obs.</th><th></th>'
-    +'</tr></thead><tbody id="cp-historico-pagamentos">'+linhas+'</tbody></table>'+
-    '<div class="modal-ft"><button class="btn-cancel" onclick="cm()">Fechar</button></div>';
-  body.querySelector('#cp-historico-pagamentos').addEventListener('click',event=>{
-    const button=event.target.closest('button[data-cp-pagamento]');
-    if(button) excluirPagamentoCP(id,Number(button.dataset.cpPagamento));
-  });
-  document.getElementById('modal-ov').classList.add('open');
-}
-
 function ctToggleLanc(val){
   document.getElementById('ct-avista-box').style.display=(val==='avista')?'block':'none';
   document.getElementById('ct-parc-box').style.display=(val==='parcelado')?'block':'none';
@@ -17025,7 +16944,33 @@ window.erpPayablesCompanyOf=function(c){ return _cpEmpresa(c); };
 window.erpPayablesFromPurchase=function(c){ return _cpGravadaPeloServidor(c); };
 window.erpPayablesHygiene=function(){ try{ if(_cpAutoLimparDuplicatas()) saveContasPagar(); }catch(e){} try{ if(_cpLimparDuplicatasExatas()) saveContasPagar(); }catch(e){} };
 window.erpPayablesSuppliers=function(kind){ return kind==='compra'?(getFornAtivos()||[]).map(function(f){ return f&&f.nome; }):(FORNECEDORES_DESPESA||[]).map(function(f){ return f&&(f.nome||f.razao); }); };
-window.erpPayablesPay=function(id){ const i=_cpIdxPorId(id); if(i>=0) pagarContaRapido(i,id); else showToast('Essa conta já não existe mais na lista. Atualize a tela.','error'); };
+window.erpPayablesPaymentContext=function(id){
+  const c=CONTAS_PAGAR[_cpIdxPorId(id)]; if(!c) return null;
+  const ticket=String(c.ticket||'').trim();
+  const doTicket=ticket?Object.values(TICKETS_DB||{}).find(function(t){ return String(t&&t.ticket||'').trim()===ticket; }):null;
+  const fornCod=String(c.fornCod||(doTicket&&doTicket.fornecedorCod)||((FORNECEDORES||[]).find(function(f){ return f&&f.nome===c.cred; })||{}).cod||'');
+  return {fornCod:fornCod,ticket:ticket,advances:fornCod?(ADT_POR_FORN[fornCod]||[]).slice():[]};
+};
+window.erpPayablesApply=function(kind,result){
+  if(!result) return;
+  const payable=result.payable;
+  if(payable){
+    const id=String(payable.id||result.payableKey||'');
+    const idx=_cpIdxPorId(id);
+    if(idx>=0) CONTAS_PAGAR[idx]=payable;
+  }
+  if(result.bankMovement) try{ window.erpBankMovementAdded?.(result.bankMovement); }catch(e){}
+  if(result.removedMovementId) _bancoRemoverMovimento(result.removedMovementId);
+  if(Array.isArray(result.advanceEntries)&&result.fornCod){ ADT_POR_FORN[result.fornCod]=result.advanceEntries; try{ renderAdiantamentos(); }catch(e){} }
+  if(result.ticket&&result.ticketKey&&typeof TICKETS_DB!=='undefined'){ TICKETS_DB[result.ticketKey]=result.ticket; try{ renderTickets(); }catch(e){} }
+  if(kind==='reversal'&&payable){
+    try{ registrarHistorico('Contas a Pagar','Pagamento excluído',(payable.cred||payable.desc||payable.id)+' — R$ '+Number(result.reversedAmount||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+(payable.ticket?' | Ticket '+payable.ticket:''),payable,{cpId:payable.id}); }catch(e){}
+  }
+  try{ const serialized=JSON.stringify(CONTAS_PAGAR); if(serialized.length<1024*1024) localStorage.setItem('mm_cp',serialized); }catch(e){}
+  try{ renderContasPagar(); }catch(e){}
+  try{ renderFluxo(); }catch(e){}
+  try{ renderDashboard(); }catch(e){}
+};
 window.erpPayablesOnlyPurchases=function(){ return Boolean(typeof cu!=='undefined'&&cu&&cu.cpApenasFornecedor); };
 window.erpFinanceCompanies=function(){ return _cfgFinanceCompanies(); };
 window.erpFinanceCompanyColor=function(n){ return _cfgFinanceCompanyColor(n); };
@@ -17049,191 +16994,6 @@ function registrarMovBanco(bancoNome, dataISO, descricao, tipo, valor){
   saveBancos();
   renderBancos();
   return mov;
-}
-
-async function _cpConsultarContasBancarias(selectId,current=''){
-  const select=document.getElementById(selectId);
-  if(!select)return false;
-  if(current)select.dataset.erpBankDesired=current;
-  const allowed=await _erpBankDirectoryLoad();
-  if(document.getElementById(selectId)!==select)return false;
-  _erpBankDirectoryApply();
-  if(selectId==='pcp-banco')atualizarLiquidoCP(Number(document.getElementById('pcp-valor-pagar')?.value||0));
-  return allowed&&_erpBankDirectory.banks.length>0;
-}
-
-const _cpPendingPayments=new Map();
-
-function pagarContaRapido(idx,id){
-  if(id){const fresh=_cpIdxPorId(id);if(fresh>=0)idx=fresh;}
-  const c=CONTAS_PAGAR[idx];if(!c)return;
-  const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const body=document.getElementById('modal-body');body.className='modal';
-  const hoje=_hojeISO();
-  const ticket=String(c.ticket||'').trim();
-  const ticketFornecedor=ticket?Object.values(TICKETS_DB||{}).find(t=>String(t?.ticket||'').trim()===ticket):null;
-  const fornCod=c.fornCod||ticketFornecedor?.fornecedorCod||(FORNECEDORES.find(f=>f.nome===c.cred)||{}).cod||'';
-  const todosAdiantamentos=fornCod?(ADT_POR_FORN[fornCod]||[]):[];
-  const adtsPendentes=todosAdiantamentos.filter(a=>a&&a.status==='Pendente'&&(!a.ticket||String(a.ticket).trim()===ticket));
-  const totalAdtDisp=adtsPendentes.reduce((sum,a)=>sum+Math.max(0,Number(a.valor)||0),0);
-  const valorCP=Number(c.valor),adtSugerido=Math.min(totalAdtDisp,valorCP);
-  const bloqueados=todosAdiantamentos.filter(a=>a&&a.status==='Pendente'&&a.ticket&&String(a.ticket).trim()!==ticket);
-  const adtBlock=totalAdtDisp>0
-    ?'<div class="fg"><label>Abater adiantamento nesta operação (R$)</label><input id="pcp-adt" type="number" min="0" step="0.01" max="'+adtSugerido.toFixed(2)+'" value="0.00" oninput="atualizarLiquidoCP('+valorCP+')"><small>Crédito disponível: R$ '+fmt(totalAdtDisp)+'. Para pagar pelo banco, mantenha 0,00. Para compensar crédito, informe o valor que deseja usar.'+(totalAdtDisp>valorCP?' Crédito acima do valor desta compra continuará disponível.':'')+'</small></div>':'<div class="fg"><small>Nenhum adiantamento disponível para esta compra.</small></div>';
-  const avisoVinculo=bloqueados.length?'<div style="font-size:.78rem;color:#75511b;margin-bottom:10px">Há adiantamentos vinculados a outras compras. Eles não serão utilizados neste pagamento.</div>':'';
-  body.innerHTML='<h3>💳 Baixar Pagamento</h3>'+
-    '<div style="background:#fde8e8;border-radius:8px;padding:12px;margin-bottom:14px"><b>'+esc(c.desc||c.cred)+'</b><div>Saldo em aberto: R$ '+fmt(valorCP)+'</div>'+(c.formaPrevista?'<div>Forma prevista: '+esc(c.formaPrevista)+'</div>':'')+'</div>'+
-    '<input type="hidden" id="pcp-id" value="'+esc(c.id||'')+'"><input type="hidden" id="pcp-forn-cod" value="'+esc(fornCod)+'">'+
-    '<div class="fg"><label>Valor total a quitar nesta operação (R$)</label><input id="pcp-valor-pagar" type="number" min="0.01" step="0.01" max="'+valorCP.toFixed(2)+'" value="'+valorCP.toFixed(2)+'" oninput="atualizarLiquidoCP('+valorCP+')"></div>'+
-    adtBlock+avisoVinculo+'<div id="pcp-liquido-label" style="font-weight:700;margin-bottom:10px"></div>'+
-    '<div class="fg"><label>Data</label><input id="pcp-data" type="date" value="'+hoje+'"></div>'+
-    '<div class="fg"><label>Conta Bancária (Debitada)</label><select id="pcp-banco" disabled><option value="">Carregando bancos autorizados...</option></select></div>'+
-    '<div class="fg"><label>Observação</label><input id="pcp-obs" placeholder="Opcional"></div>'+
-    '<div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button>'+
-    '<button class="btn-cancel" type="button" id="btn-verificar-baixa">🔎 Verificar situação</button>'+ 
-    (totalAdtDisp>0?'<button class="btn-save" type="button" id="btn-so-compensar">Compensar adiantamento</button>':'')+
-    '<button class="btn-save" type="button" id="btn-pagar-tudo">✅ Confirmar Pagamento</button></div>';
-  document.getElementById('modal-ov').classList.add('open');
-  const pending=_cpPendingPayments.get(String(c.id||''));
-  if(pending&&pending.expiresAt>Date.now()){
-    body.dataset.paymentOperation=pending.operationId;
-    body.dataset.paymentLockedUntil=String(pending.blockedUntil||0);
-  }else{
-    _cpPendingPayments.delete(String(c.id||''));
-    body.dataset.paymentOperation=crypto.randomUUID();
-  }
-  _cpConsultarContasBancarias('pcp-banco',c.bancoCod||'');
-  atualizarLiquidoCP(valorCP);
-  document.getElementById('btn-so-compensar')?.addEventListener('click',()=>confirmarPagarCP('so-compensar'));
-  document.getElementById('btn-pagar-tudo')?.addEventListener('click',()=>confirmarPagarCP('pagar-tudo'));
-  document.getElementById('btn-verificar-baixa')?.addEventListener('click',()=>_cpVerificarSituacaoPagamento());
-  if(Number(body.dataset.paymentLockedUntil||0)>Date.now()){
-    body.querySelectorAll('#btn-pagar-tudo,#btn-so-compensar').forEach(button=>button.disabled=true);
-  }
-}
-
-function atualizarLiquidoCP(valorCP){
-  const adt=Number(document.getElementById('pcp-adt')?.value)||0;
-  const total=Number(document.getElementById('pcp-valor-pagar')?.value);
-  const liquido=Math.max(0,(Number.isFinite(total)?total:valorCP)-adt);
-  const label=document.getElementById('pcp-liquido-label');
-  if(label)label.textContent='Débito bancário nesta operação: R$ '+liquido.toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const banco=document.getElementById('pcp-banco');
-  if(banco){
-    if(liquido===0){banco.dataset.erpBankPrevious=banco.value;banco.value='';banco.disabled=true;}
-    else if(banco.options.length>1){banco.disabled=false;}
-  }
-}
-
-async function _cpVerificarSituacaoPagamento(){
-  const modal=document.getElementById('modal-body');
-  const id=document.getElementById('pcp-id')?.value;
-  if(!modal||!id||modal.dataset.paymentStatusBusy==='true')return;
-  const user=firebase?.auth?.().currentUser;
-  if(!user){showToast('Sessão expirada. Entre novamente.','error');return;}
-  const verifyButton=document.getElementById('btn-verificar-baixa');
-  modal.dataset.paymentStatusBusy='true';
-  if(verifyButton)verifyButton.disabled=true;
-  try{
-    const token=await user.getIdToken(true);
-    const params=new URLSearchParams({payableId:id,operationId:modal.dataset.paymentOperation||''});
-    const response=await fetch('/api/finance/payables-status?'+params,{credentials:'same-origin',headers:{Authorization:'Bearer '+token}});
-    const data=await response.json();
-    if(!response.ok)throw new Error(data.message||'Não foi possível consultar o pagamento.');
-    if(firebase?.auth?.().currentUser?.uid!==user.uid)throw new Error('Sua sessão mudou. Entre novamente.');
-    if(data.state==='confirmed'){
-      const idx=_cpIdxPorId(id);
-      if(idx>=0)CONTAS_PAGAR[idx]=data.payable;
-      if(data.ticket&&data.ticketKey)TICKETS_DB[data.ticketKey]=data.ticket;
-      _cpPendingPayments.delete(id);
-      try{renderContasPagar();renderTickets();renderFluxo();renderDashboard();}catch(error){console.error('pagamento.render',error);}
-      cm();
-      showToast('Pagamento confirmado no Firebase. Compra e conta atualizadas.','success',6500);
-    }else if(data.state==='processing'){
-      const seconds=Math.max(1,Math.min(120,Number(data.retryAfterSeconds)||10));
-      const blockedUntil=Date.now()+seconds*1000;
-      modal.dataset.paymentLockedUntil=String(blockedUntil);
-      _cpPendingPayments.set(id,{operationId:modal.dataset.paymentOperation,expiresAt:Date.now()+180000,blockedUntil});
-      modal.querySelectorAll('#btn-pagar-tudo,#btn-so-compensar').forEach(button=>button.disabled=true);
-      showToast('A baixa ainda está em processamento. Nenhum novo pagamento foi enviado. Confira novamente após '+seconds+' segundos.','warning',6500);
-    }else if(data.state==='pending'){
-      modal.dataset.paymentLockedUntil='0';
-      _cpPendingPayments.set(id,{operationId:modal.dataset.paymentOperation,expiresAt:Date.now()+180000,blockedUntil:0});
-      modal.querySelectorAll('#btn-pagar-tudo,#btn-so-compensar').forEach(button=>button.disabled=false);
-      showToast('O Firebase ainda mostra esta conta como pendente. Confira o extrato antes de confirmar novamente.','warning',6500);
-    }else if(data.state==='needs_review'){
-      modal.querySelectorAll('#btn-pagar-tudo,#btn-so-compensar').forEach(button=>button.disabled=true);
-      showToast('A conta e a compra mostram situações diferentes. Nenhum pagamento foi enviado. É necessário conferir o histórico financeiro.','error',7500);
-    }else{
-      modal.querySelectorAll('#btn-pagar-tudo,#btn-so-compensar').forEach(button=>button.disabled=true);
-      showToast('Conta não localizada no Firebase. Nenhum pagamento foi enviado.','error',6500);
-    }
-  }catch(error){showToast(error.message||'Falha ao consultar o pagamento. Nenhuma baixa foi enviada.','error',6500);}
-  finally{modal.dataset.paymentStatusBusy='false';if(verifyButton)verifyButton.disabled=false;}
-}
-
-async function confirmarPagarCP(modo){
-  const modal=document.getElementById('modal-body'),id=document.getElementById('pcp-id')?.value;
-  const idx=_cpIdxPorId(id),c=CONTAS_PAGAR[idx];if(!c||!modal||modal.dataset.paymentBusy==='true')return;
-  const blockedUntil=Number(modal.dataset.paymentLockedUntil||0);
-  if(blockedUntil>Date.now()){
-    const seconds=Math.ceil((blockedUntil-Date.now())/1000);
-    showToast('Existe uma baixa sendo processada. Aguarde '+seconds+' segundo(s) antes de consultar novamente. Não registre outro pagamento.','warning',6500);
-    return;
-  }
-  const total=Number(document.getElementById('pcp-valor-pagar')?.value);
-  const adt=Number(document.getElementById('pcp-adt')?.value||0);
-  const onlyAdvance=modo==='so-compensar';
-  const advanceAmount=Math.round(adt*100)/100;
-  const amount=onlyAdvance?0:Math.round((total-adt)*100)/100;
-  const banco=amount>0?(document.getElementById('pcp-banco')?.value||''):'';
-  const paymentDate=document.getElementById('pcp-data')?.value||'';
-  const limiteAdt=Number(document.getElementById('pcp-adt')?.max||0);
-  if(!Number.isFinite(total)||!Number.isFinite(adt)||adt<0||adt>limiteAdt+0.001||!Number.isFinite(amount)||amount<0||advanceAmount>total+0.001||(onlyAdvance?adt<=0:total<=0)||total>Number(c.valor)+0.001){
-    showToast('Confira o valor e a compensação informados.','error');return;
-  }
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)){showToast('Informe uma data válida.','error');return;}
-  if(amount>0&&!banco){showToast('Selecione a conta bancária autorizada.','error');return;}
-  const user=firebase?.auth?.().currentUser;
-  if(!user){showToast('Sessão expirada. Entre novamente.','error');return;}
-  modal.dataset.paymentBusy='true';
-  const buttons=Array.from(modal.querySelectorAll('#btn-pagar-tudo,#btn-so-compensar'));
-  buttons.forEach(button=>button.disabled=true);
-  try{
-    const token=await user.getIdToken(true);
-    _cpPendingPayments.set(id,{operationId:modal.dataset.paymentOperation,expiresAt:Date.now()+180000,blockedUntil:0});
-    const response=await fetch('/api/finance/payables-payment',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operationId:modal.dataset.paymentOperation,payableId:id,expected:{valor:c.valor,status:c.status,paymentsCount:Array.isArray(c.pagamentos)?c.pagamentos.length:0},date:paymentDate,bankCode:banco,amount,advanceAmount,fornCod:document.getElementById('pcp-forn-cod')?.value||'',obs:document.getElementById('pcp-obs')?.value||''})});
-    const result=await response.json().catch(()=>({message:'Resposta inválida do servidor ('+response.status+'). Use “Verificar situação” antes de tentar novamente.'}));
-    if(!response.ok){
-      if(result.code==='PAYMENT_IN_PROGRESS'){
-        const seconds=Math.max(1,Math.min(120,Math.ceil(Number(result.retryAfterSeconds)||10)));
-        const blockedUntil=Date.now()+seconds*1000;
-        modal.dataset.paymentLockedUntil=String(blockedUntil);
-        _cpPendingPayments.set(id,{operationId:modal.dataset.paymentOperation,expiresAt:Date.now()+180000,blockedUntil});
-        const progress=new Error('Há uma baixa em processamento para este título. Use “Verificar situação” após '+seconds+' segundo(s). Nenhum novo pagamento foi enviado por este aviso.');
-        progress.code='PAYMENT_IN_PROGRESS';
-        throw progress;
-      }
-      if(result.code==='PAYABLE_CHANGED'){
-        _cpPendingPayments.delete(id);
-        throw new Error('Esta conta foi alterada ou quitada em outra sessão. Feche a janela e atualize a listagem antes de tentar novamente.');
-      }
-      throw new Error(result.message||'Falha ao confirmar pagamento.');
-    }
-    if(firebase?.auth?.().currentUser?.uid!==user.uid)throw new Error('Sessão alterada. Atualize a página.');
-    _cpPendingPayments.delete(id);
-    CONTAS_PAGAR[idx]=result.payable;
-    if(result.bankMovement)window.erpBankMovementAdded?.(result.bankMovement);
-    if(result.advanceEntries&&result.fornCod)ADT_POR_FORN[result.fornCod]=result.advanceEntries;
-    if(result.ticket&&result.ticketKey)TICKETS_DB[result.ticketKey]=result.ticket;
-    try{renderContasPagar();}catch(error){console.error('contasPagar.render',error);}
-    if(result.advanceEntries)try{renderAdiantamentos();}catch(error){console.error('adiantamentos.render',error);}
-    if(result.ticket)try{renderTickets();}catch(error){console.error('tickets.render',error);}
-    try{renderFluxo();renderDashboard();}catch(error){console.error('financeiro.render',error);}
-    cm();
-    showToast(result.payable?.status==='Pago'?'Conta quitada e operação confirmada.':'Compensação ou pagamento parcial confirmado.','success');
-  }catch(error){showToast(error.message||'Não foi possível confirmar o pagamento.',error?.code==='PAYMENT_IN_PROGRESS'?'warning':'error',6500);}
-  finally{modal.dataset.paymentBusy='false';buttons.forEach(button=>button.disabled=Number(modal.dataset.paymentLockedUntil||0)>Date.now());}
 }
 
 
@@ -20081,8 +19841,7 @@ function initDespesas(){
         if(!confirm(msg)) return;
         if(tipo==='pagamento_cp'){
           var _pp=String(id).split('§'); var _cpId=_pp[0]; var _pIdx=parseInt(_pp[1],10);
-          var c=CONTAS_PAGAR.find(function(x){return x&&x.id===_cpId;});
-          _cpExcluirPagamento(c,_pIdx).then(function(_erroPg){
+          Promise.resolve(typeof window.erpPayablesReverse==='function'?window.erpPayablesReverse(_cpId,_pIdx):'Contas a Pagar ainda não carregou. Atualize a página.').then(function(_erroPg){
             if(_erroPg){ showToast(_erroPg,'error',9000); return; }
             ffRenderFicha(fornCod,(document.getElementById('ff-de')||{}).value||'',(document.getElementById('ff-ate')||{}).value||'');
             showToast('Pagamento excluído. Voltou a ser devido.','success');
