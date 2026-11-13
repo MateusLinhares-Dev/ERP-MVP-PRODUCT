@@ -84,7 +84,7 @@ test('duas chamadas simultâneas com o mesmo UUID terminam com apenas uma movime
 
 test('interface mostra conflito em linguagem compreensível e não reenvia com lock ativo',async()=>{
   const core=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
-  const start=core.indexOf('async function confirmarPagarCP('),end=core.indexOf('function _baixarSaldoTicket(',start);
+  const start=core.indexOf('async function confirmarPagarCP('),end=core.indexOf('function confirmarAcao(',start);
   assert.ok(start>=0&&end>start);
   const messages=[],modal={dataset:{paymentOperation:op},querySelectorAll:()=>[{disabled:false}]};
   const fields={'modal-body':modal,'pcp-id':{value:'CP-T275'},'pcp-valor-pagar':{value:'230'},'pcp-adt':{value:'0',max:'0'},'pcp-banco':{value:'BC-005'},'pcp-data':{value:'2026-11-05'},'pcp-forn-cod':{value:'FT'},'pcp-obs':{value:''}};

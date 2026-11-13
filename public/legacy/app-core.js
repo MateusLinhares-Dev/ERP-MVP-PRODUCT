@@ -4153,7 +4153,6 @@ const FORMS={
       </div>
     </div>
     <div class="fg" id="cp-venc-box"><label>Data Vencimento</label><input id="cp-venc" type="date"></div>
-    <div class="fg" id="cp-status-box"><label>Status</label><select id="cp-status"><option>Pendente</option><option>Pago</option><option>Atrasado</option><option>Agendado</option></select></div>
     <div class="fg"><label>Obs.</label><input id="cp-obs" placeholder="Observação opcional"></div>
     <div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarContaPagar()">💾 Salvar</button></div>`,
   banco:`<h3>🏦 Nova Conta Bancária</h3>
@@ -16843,21 +16842,8 @@ function cpMarcarUm(id, checked){
 
 function cpExcluirSelecionadas(){
   if(_cpSelecionados.size===0){ showToast('Selecione ao menos uma conta.','error'); return; }
-  confirmarAcao('Excluir '+_cpSelecionados.size+' conta(s) a pagar selecionada(s)?', function(){
-    const idsAlvo=new Set(_cpSelecionados);
-    for(let i=CONTAS_PAGAR.length-1;i>=0;i--){
-      const c=CONTAS_PAGAR[i];
-      if(c && c.id && idsAlvo.has(c.id)) _removerCPporIndice(i);
-    }
-    _cpSelecionados.clear();
-    saveContasPagar();
-    try{renderContasPagar();}catch(e){}
-    try{renderFluxo();}catch(e){}
-    try{renderDashboard();}catch(e){}
-    showToast('Contas excluídas.','success');
-  });
+  confirmarAcao('Excluir '+_cpSelecionados.size+' conta(s) a pagar selecionada(s)?', function(){ _cpExcluirIds([..._cpSelecionados]); });
 }
-
 let _cpCalAberto = false;
 let _cpCalAno = new Date().getFullYear();
 let _cpCalMes = new Date().getMonth(); 
@@ -17593,70 +17579,80 @@ function _bancoNomePorCod(cod){
   if(!b) return (typeof cod==='string'?cod:'');
   return b.banco+(b.tipo==='Conta Terceiro'&&b.titular?' ('+b.titular+')':'');
 }
-function salvarContaPagar(){
-  const desc=document.getElementById('cp-desc')?.value.trim();
-  const valor=parseFloat(document.getElementById('cp-valor')?.value)||0;
+function _cpAplicarResultado(r){
+  if(!r) return;
+  (r.payables||[]).concat(r.payable?[r.payable]:[]).forEach(function(cp){
+    if(!cp||!cp.id) return;
+    CONTAS_PAGAR_DELETED.delete(cp.id);
+    const i=_cpIdxPorId(cp.id);
+    if(i>=0) CONTAS_PAGAR[i]=cp; else CONTAS_PAGAR.push(cp);
+  });
+  (r.action==='delete'?(r.ids||[]):[]).forEach(function(id){
+    const i=_cpIdxPorId(id);
+    if(i>=0) CONTAS_PAGAR.splice(i,1);
+    CONTAS_PAGAR_DELETED.add(id);
+    _cpSelecionados.delete(id);
+  });
+  try{ localStorage.setItem('mm_cp_deletados', JSON.stringify([...CONTAS_PAGAR_DELETED])); }catch(e){}
+  try{ const serialized=JSON.stringify(CONTAS_PAGAR); if(serialized.length<1024*1024) localStorage.setItem('mm_cp',serialized); }catch(e){}
+  try{ renderContasPagar(); }catch(e){}
+  try{ renderFluxo(); }catch(e){}
+  try{ renderDashboard(); }catch(e){}
+}
+async function _cpApi(payload){
+  const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
+  if(!user) throw new Error('Sessão expirada. Entre novamente.');
+  const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
+  let response;
+  try{
+    response=await fetch('/api/finance/payables',{method:'POST',credentials:'same-origin',
+      headers:{Authorization:'Bearer '+await user.getIdToken(),'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }catch(e){ throw new Error('Sem conexão com o servidor. Confira a internet e tente de novo.'); }
+  const result=await response.json().catch(function(){ return {}; });
+  if(!response.ok){ const error=new Error(result.message||'O servidor não confirmou a conta a pagar.'); error.code=result.code; throw error; }
+  _cpAplicarResultado(result);
+  return result;
+}
+window.erpPayablesRequest=_cpApi;
+window.erpPayablesList=function(){ return CONTAS_PAGAR; };
+function _cpBotaoSalvando(sel){
+  const botao=document.querySelector(sel);
+  if(!botao) return { livre:true, fim:function(){} };
+  if(botao.disabled) return { livre:false, fim:function(){} };
+  const texto=botao.textContent; botao.disabled=true; botao.textContent='Salvando...';
+  return { livre:true, fim:function(){ botao.disabled=false; botao.textContent=texto; } };
+}
+async function salvarContaPagar(){
+  const v=function(id){ return String(document.getElementById(id)?.value||'').trim(); };
+  const desc=v('cp-desc');
+  const valor=parseFloat(v('cp-valor'))||0;
   const parcelado=document.getElementById('cp-parcelado')?.checked||false;
   if(!desc||valor<=0){alert('Preencha descrição e valor!');return;}
-  const bancoCod=document.getElementById('cp-banco')?.value||'';
-  const bancoNome=_bancoNomePorCod(bancoCod);
-  const hoje=_hojeISO().split('-').reverse().join('/');
-  const cred=document.getElementById('cp-cred')?.value.trim()||'';
-  const cat=document.getElementById('cp-cat')?.value.trim()||'Outros';
-  const obs=document.getElementById('cp-obs')?.value.trim()||'';
-
-  let tipoForn=document.getElementById('cp-tipo-forn')?.value||'';
-  if(tipoForn!=='compra'&&tipoForn!=='despesa'){
-    if(cred && typeof getFornAtivos==='function' && getFornAtivos().some(f=>f.nome===cred)) tipoForn='compra';
-    else tipoForn='despesa';
-  }
-  const empresa=document.getElementById('cp-empresa')?.value||'';
+  const cred=v('cp-cred');
+  let tipoForn=v('cp-tipo-forn');
+  if(tipoForn!=='compra'&&tipoForn!=='despesa')
+    tipoForn=(cred&&typeof getFornAtivos==='function'&&getFornAtivos().some(f=>f.nome===cred))?'compra':'despesa';
+  const empresa=v('cp-empresa');
   if(!empresa){alert('Selecione a empresa responsável por esta conta.');return;}
-
+  const payable={desc,cred,cat:v('cp-cat')||'Outros',tipoForn,empresa,bancoCod:v('cp-banco'),valor,obs:v('cp-obs')};
+  let installments=null;
   if(parcelado){
-    
-    const nparc=parseInt(document.getElementById('cp-nparc')?.value)||1;
-    const dia=parseInt(document.getElementById('cp-diaparc')?.value)||10;
-    const mesVal=document.getElementById('cp-mesparc')?.value;
-    if(!mesVal||nparc<1){alert('Preencha o mês da 1ª parcela e número de parcelas!');return;}
-    const [anoI,mesI]=mesVal.split('-').map(Number);
-    const grupoId='grp_'+Date.now(); 
-    let adicionados=0;
-    for(let i=0;i<nparc;i++){
-      let m=mesI+i; let a=anoI+Math.floor((m-1)/12); m=((m-1)%12)+1;
-      const diaVenc=Math.min(dia, new Date(a,m,0).getDate());
-      const vencFmt=String(diaVenc).padStart(2,'0')+'/'+String(m).padStart(2,'0')+'/'+a;
-      CONTAS_PAGAR.push({ id:_novoIdCP(),
-        lancto: hoje, desc: desc+' ('+(i+1)+'/'+nparc+')',
-        cred, cat, bancoCod, bancoNome, tipoForn, empresa,
-        venc: vencFmt, valor, grupoId, totalParcelas: nparc,
-        status: 'Pendente', dataPgto:'', obs
-      });
-      adicionados++;
-    }
-    saveContasPagar(); renderContasPagar();
-    try{renderFluxo();}catch(e){}
-    try{renderDashboard();}catch(e){}
-    cm();
-    showToast('✅ '+adicionados+' parcela(s) lançada(s) em Contas a Pagar!','success');
+    const count=parseInt(v('cp-nparc'))||1, day=parseInt(v('cp-diaparc'))||10, firstMonth=v('cp-mesparc');
+    if(!firstMonth||count<1){alert('Preencha o mês da 1ª parcela e número de parcelas!');return;}
+    installments={count,day,firstMonth};
   } else {
-    
-    const venc=document.getElementById('cp-venc')?.value;
+    const venc=v('cp-venc');
     if(!venc){alert('Preencha a data de vencimento!');return;}
-    CONTAS_PAGAR.push({ id:_novoIdCP(),
-      lancto: hoje, desc, cred, cat, bancoCod, bancoNome, tipoForn, empresa,
-      venc: venc.split('-').reverse().join('/'), valor,
-      status: document.getElementById('cp-status')?.value||'Pendente',
-      dataPgto:'', obs
-    });
-    saveContasPagar(); renderContasPagar();
-    try{renderFluxo();}catch(e){}
-    try{renderDashboard();}catch(e){}
-    cm();
-    showToast('Conta a pagar registrada!','success');
+    payable.venc=venc;
   }
+  const botao=_cpBotaoSalvando('#modal-body .btn-save'); if(!botao.livre) return;
+  try{
+    const r=await _cpApi({action:'create',payable,installments});
+    cm();
+    showToast(installments?'✅ '+r.payables.length+' parcela(s) lançada(s) em Contas a Pagar!':'Conta a pagar registrada!','success');
+  }catch(error){ showToast('Não foi possível salvar: '+error.message,'error',9000); }
+  finally{ botao.fim(); }
 }
-
 function editContaPagar(idx, id){
 
   if(id){ const fresh=_cpIdxPorId(id); if(fresh>=0) idx=fresh; }
@@ -17674,7 +17670,6 @@ function editContaPagar(idx, id){
     const sel=(b.cod===c.bancoCod)||(c.bancoNome&&(c.bancoNome===b.banco||c.bancoNome===nomeComp));
     return '<option value="'+esc(b.cod||b.banco)+'"'+(sel?' selected':'')+'>'+esc(nomeComp)+(b.empresa?' — '+esc(b.empresa):'')+'</option>';
   }).join('');
-  const stOpts=['Pendente','Pago','Atrasado','Agendado'].map(s=>'<option'+(s===c.status?' selected':'')+'>'+s+'</option>').join('');
   document.querySelectorAll('.modal-ov[data-dynamic="1"]').forEach(e=>e.remove());
   const _ovE=document.createElement('div'); _ovE.className='modal-ov'; _ovE.id='modal-ov'; _ovE.dataset.dynamic='1';
   const body=document.createElement('div'); body.id='modal-body'; body.className='modal';
@@ -17699,9 +17694,9 @@ function editContaPagar(idx, id){
     '<div class="fg"><label>Empresa</label><select id="ecp-empresa"><option value="">— Selecione a empresa —</option>'+_empresasOptions(c.empresa||'',true)+'</select></div>'+
     '<div class="fg"><label>Banco de Pagamento</label><select id="ecp-banco" onchange="_sincronizarEmpresaPorBanco(&#39;ecp-banco&#39;,&#39;ecp-empresa&#39;)">'+bancoOpts+'</select></div>'+
     '<div class="fg"><label>Vencimento</label><input id="ecp-venc" type="date" value="'+vencISO+'"></div>'+
-    '<div class="fg"><label>Valor R$</label><input id="ecp-valor" type="number" min="0" step="0.01" value="'+c.valor+'"></div>'+
-    '<div class="fg"><label>Status</label><select id="ecp-status">'+stOpts+'</select></div>'+
-    '<div class="fg"><label>Data Pagamento</label><input id="ecp-pgto" type="date" value="'+(c.dataPgto?c.dataPgto.split('/').reverse().join('-'):'')+'"></div>'+
+    '<div class="fg"><label>Valor R$'+(c.status==='Pago'?' <span style="font-weight:400;color:var(--gray)">(conta paga: valor travado)</span>':'')+'</label><input id="ecp-valor" type="number" min="0" step="0.01" value="'+c.valor+'"'+(c.status==='Pago'?' disabled':'')+'></div>'+
+    '<input type="hidden" id="ecp-upd" value="'+esc(String(c._upd||''))+'">'+
+    '<div class="fg" style="font-size:.8rem;color:var(--gray)">Situação: <b>'+esc(c.status||'Pendente')+'</b> — para pagar use ✅ Pagar; para desfazer um pagamento use o histórico (🕒).</div>'+
     '<div class="fg"><label>Obs.</label><input id="ecp-obs" value="'+esc(c.obs||'')+'"></div>'+
     '<div class="modal-ft">'+
     '<button class="btn-edit-danger" onclick="excluirContaPagar('+idx+','+_jsArg(c.id||'')+')">🗑️ Excluir</button>'+
@@ -17713,66 +17708,24 @@ function editContaPagar(idx, id){
   _erpBankDirectoryScan();
 }
 
-function salvarEditContaPagar(){
+async function salvarEditContaPagar(){
   let idx=parseInt(document.getElementById('ecp-idx').value);
   const idAlvo=document.getElementById('ecp-id')?.value||'';
   if(idAlvo){ const fresh=_cpIdxPorId(idAlvo); if(fresh>=0) idx=fresh; }
-  const c=CONTAS_PAGAR[idx]; if(!c) return;
-  const statusAntes=c.status;
-  const bancoCod=document.getElementById('ecp-banco').value||'';
-  const pgto=document.getElementById('ecp-pgto').value;
-  const statusNovo=document.getElementById('ecp-status').value;
-  const historicoPg=Array.isArray(c.pagamentos)?c.pagamentos.filter(Boolean):[];
-  if(statusAntes==='Pago'&&statusNovo!=='Pago'&&historicoPg.length){
-    alert('Esta conta tem pagamentos registrados. Para voltar a ser devida, exclua o pagamento no Histórico de pagamentos (🕒). Assim o saldo do banco e o saldo em aberto ficam certos.');
-    verHistoricoPagamentosCP(c.id);
-    return;
-  }
-  if(!document.getElementById('ecp-empresa')?.value){alert('Selecione a empresa responsável por esta conta.');return;}
-  let removerMovimento=false;
-  if(statusAntes==='Pago'&&statusNovo!=='Pago'&&c.movBancoIdCP&&LANC_BANCO_DB.some(l=>l&&l.id===c.movBancoIdCP)){
-    removerMovimento=confirm('A conta deixa de estar paga. Retirar do extrato do banco a saída lançada no pagamento?');
-  }
-  c.desc=document.getElementById('ecp-desc').value.trim();
-  c.cred=document.getElementById('ecp-cred').value.trim();
-  c.cat=document.getElementById('ecp-cat').value.trim()||'Outros';
-  c.bancoCod=bancoCod;
-  c.bancoNome=_bancoNomePorCod(bancoCod);
-  c.empresa=document.getElementById('ecp-empresa').value;
-  c.venc=document.getElementById('ecp-venc').value.split('-').reverse().join('/');
-  c.valor=parseFloat(document.getElementById('ecp-valor').value)||0;
-  c.status=document.getElementById('ecp-status').value;
-  c.dataPgto=pgto?pgto.split('-').reverse().join('/'):'';
-  c.obs=document.getElementById('ecp-obs').value.trim();
-
-  c._upd=Date.now();
-
-  if(removerMovimento){ _bancoRemoverMovimento(c.movBancoIdCP); delete c.movBancoIdCP; }
-  if(c.status==='Pago' && statusAntes!=='Pago' && (Number(c.valor)||0)>0){
-    let _movEdit=null;
-    if((c.bancoCod||c.bancoNome) && !c.movBancoIdCP){
-      _movEdit=registrarMovBanco(c.bancoCod||c.bancoNome, pgto||'', 'Pagto: '+(c.desc||c.cred||''), 'Saida', Number(c.valor)||0);
-      if(_movEdit) c.movBancoIdCP=_movEdit.id;
-    }
-    if(!c.dataPgto) c.dataPgto=new Date().toLocaleDateString('pt-BR');
-    if(!Array.isArray(c.pagamentos)) c.pagamentos=[];
-    c.pagamentos.push({data:c.dataPgto,valor:Number(c.valor)||0,adt:0,banco:c.bancoNome||'',obs:'Baixa pela edição da conta',movBancoId:_movEdit?_movEdit.id:''});
-    c.valorPago=Math.round(((Number(c.valorPago)||0)+(Number(c.valor)||0))*100)/100;
-  }
-  saveContasPagar(); renderContasPagar();
-  try{renderFluxo();}catch(e){}
-  try{renderDashboard();}catch(e){}
-  cm();
-  showToast('Conta a pagar atualizada!','success');
-
-  if(c.ticket && c.status==='Pago' && statusAntes!=='Pago' && TICKETS_DB[c.ticket]){
-    _baixarSaldoTicket(c.ticket, Number(c.valor)||0, c.dataPgto);
-    saveDB();
-    try{renderTickets();}catch(e){}
-    showToast('Ticket #'+c.ticket+' atualizado!','success');
-  }
+  const c=CONTAS_PAGAR[idx]; if(!c||!c.id) return;
+  const v=function(id){ return String(document.getElementById(id)?.value||'').trim(); };
+  if(!v('ecp-empresa')){alert('Selecione a empresa responsável por esta conta.');return;}
+  const payable={desc:v('ecp-desc'),cred:v('ecp-cred'),cat:v('ecp-cat')||'Outros',empresa:v('ecp-empresa'),bancoCod:v('ecp-banco'),venc:v('ecp-venc'),obs:v('ecp-obs')};
+  if(c.status!=='Pago') payable.valor=parseFloat(v('ecp-valor'))||0;
+  const upd=v('ecp-upd');
+  const botao=_cpBotaoSalvando('.modal-ov[data-dynamic="1"] .btn-save'); if(!botao.livre) return;
+  try{
+    await _cpApi({action:'update',id:c.id,payable,expectedUpdate:upd?Number(upd):undefined});
+    cm();
+    showToast('Conta a pagar atualizada!','success');
+  }catch(error){ showToast('Não foi possível salvar: '+error.message,'error',9000); }
+  finally{ botao.fim(); }
 }
-
 function registrarMovBanco(bancoNome, dataISO, descricao, tipo, valor){
 
   if(!bancoNome||!valor) return null;
@@ -17980,44 +17933,6 @@ async function confirmarPagarCP(modo){
   finally{modal.dataset.paymentBusy='false';buttons.forEach(button=>button.disabled=Number(modal.dataset.paymentLockedUntil||0)>Date.now());}
 }
 
-function _baixarSaldoTicket(ticketId, valorPago, dataFmt, cpJaTratadoId){
-  const tk=TICKETS_DB[ticketId]; if(!tk) return;
-  const novoSaldo=Math.max(0, Number(tk.saldoPagar||0) - Number(valorPago||0));
-  tk.saldoPagar=novoSaldo;
-  tk.status = novoSaldo<=0.01 ? 'Pago' : 'Parcial';
-  const dataFmtUsar = dataFmt || new Date().toLocaleDateString('pt-BR');
-
-  const pendentesDoTicket = CONTAS_PAGAR.filter(cp=>cp.ticket===ticketId && cp.status==='Pendente' && cp.id!==cpJaTratadoId);
-
-  if(novoSaldo>0.01){
-
-    if(pendentesDoTicket.length){
-      pendentesDoTicket[0].valor=novoSaldo;
-      pendentesDoTicket[0]._upd=Date.now();
-      for(let i=1;i<pendentesDoTicket.length;i++){
-        const idx=CONTAS_PAGAR.indexOf(pendentesDoTicket[i]);
-        if(idx>=0) _removerCPporIndice(idx);
-      }
-    } else if(!cpJaTratadoId){
-
-      CONTAS_PAGAR.push({ id:_novoIdCP(),
-        lancto:tk.data, desc:'Compra Sucata – Ticket '+ticketId+' – '+(tk.fornecedor||'')+' (saldo restante)',
-        cred:tk.fornecedor||'', cat:'Compra de Sucata', bancoCod:'', bancoNome:'', tipoForn:'compra',
-        venc:tk.data, valor:novoSaldo, status:'Pendente',
-        dataPgto:'', obs:'Saldo restante após pagamento parcial', ticket:ticketId,
-        fornCod:tk.fornecedorCod||''
-      });
-    }
-  } else if(pendentesDoTicket.length){
-
-    pendentesDoTicket.forEach(function(cp){
-      cp.status='Pago'; cp.dataPgto=dataFmtUsar;
-      cp.obs=(cp.obs?cp.obs+' | ':'')+'Baixado automaticamente — saldo do ticket já quitado por outro pagamento';
-      cp._upd=Date.now();
-    });
-  }
-  try{ saveContasPagar(); renderContasPagar(); }catch(e){}
-}
 
 function confirmarAcao(msg, onOk, okLabel, okStyle){
   const old=document.getElementById('modal-ov-confirm'); if(old) old.remove();
@@ -18054,7 +17969,9 @@ function excluirContaPagar(idx, id){
 
   if(grupoId && irmãs.length > 0){
     
+    document.getElementById('cp-grupo-excluir')?.remove();
     const modal = document.createElement('div');
+    modal.id='cp-grupo-excluir';
     modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center';
     modal.innerHTML=`<div style="background:#fff;border-radius:14px;padding:28px 28px 20px;max-width:420px;width:93%;box-shadow:0 8px 40px #0004">
       <div style="font-size:1rem;font-weight:800;color:#1a3a2a;margin-bottom:8px">🗑️ Excluir Parcela</div>
@@ -18069,60 +17986,35 @@ function excluirContaPagar(idx, id){
         <button onclick="cpExcluirTodas('${grupoId}')" style="background:#fdecea;color:#c0392b;border:2px solid #f5c6cb;border-radius:9px;padding:11px 14px;text-align:left;cursor:pointer;font-size:.87rem;font-weight:600">
           🗑️ Excluir <b>todas as ${irmãs.length+1} parcelas</b> do grupo
         </button>
-        <button onclick="this.closest('[style*=fixed]').remove()" style="background:#fff;color:#888;border:1px solid #ddd;border-radius:9px;padding:9px;cursor:pointer;font-size:.85rem;margin-top:4px">Cancelar</button>
+        <button onclick="document.getElementById('cp-grupo-excluir')?.remove()" style="background:#fff;color:#888;border:1px solid #ddd;border-radius:9px;padding:9px;cursor:pointer;font-size:.85rem;margin-top:4px">Cancelar</button>
       </div>
     </div>`;
     document.body.appendChild(modal);
   } else {
-    confirmarAcao('Excluir esta conta a pagar?', function(){
-      let idxFinal = idx;
-      if(idAlvo){ const fresh=_cpIdxPorId(idAlvo); if(fresh>=0) idxFinal=fresh; }
-      if(idxFinal<0 || !CONTAS_PAGAR[idxFinal]){ showToast('Essa conta já não existe mais na lista (foi atualizada por outra tela).','error'); try{renderContasPagar();}catch(e){} return; }
-      _removerCPporIndice(idxFinal); saveContasPagar();
-      try{renderContasPagar();}catch(e){}
-      try{renderFluxo();}catch(e){}
-      try{renderDashboard();}catch(e){}
-      showToast('Conta excluída.','success');
-    });
+    confirmarAcao('Excluir esta conta a pagar?', function(){ _cpExcluirIds([idAlvo],'Conta excluída.'); });
   }
 }
+async function _cpExcluirIds(ids,mensagem){
+  const alvo=[...new Set((ids||[]).filter(Boolean))];
+  if(!alvo.length){ showToast('Essa conta já não existe mais na lista (foi atualizada por outra tela).','error'); return; }
+  try{
+    const r=await _cpApi({action:'delete',ids:alvo});
+    showToast(mensagem||((r.ids||[]).length+' conta(s) excluída(s).'),'success');
+  }catch(error){ showToast('Não foi possível excluir: '+error.message,'error',9000); }
+}
 function cpExcluirApenas(idx, id){
-  if(id){ const fresh=_cpIdxPorId(id); if(fresh>=0) idx=fresh; }
-  document.querySelectorAll('[style*="position:fixed"][style*="99999"]').forEach(el=>el.remove());
-  _removerCPporIndice(idx); saveContasPagar();
-  try{renderContasPagar();}catch(e){}
-  try{renderFluxo();}catch(e){}
-  try{renderDashboard();}catch(e){}
-  showToast('Parcela excluída.','success');
+  document.getElementById('cp-grupo-excluir')?.remove();
+  _cpExcluirIds([id||(CONTAS_PAGAR[idx]||{}).id],'Parcela excluída.');
 }
 function cpExcluirPendentes(grupoId,idxAtual){
-  document.querySelectorAll('[style*="position:fixed"][style*="99999"]').forEach(el=>el.remove());
-  
-  const remover=new Set();
-  remover.add(idxAtual);
-  CONTAS_PAGAR.forEach((c,i)=>{ if(c.grupoId===grupoId && c.status==='Pendente') remover.add(i); });
-  remover.forEach(function(i){ const c=CONTAS_PAGAR[i]; if(c&&c.id) CONTAS_PAGAR_DELETED.add(c.id); });
-  try{ localStorage.setItem('mm_cp_deletados', JSON.stringify([...CONTAS_PAGAR_DELETED])); }catch(e){}
-  CONTAS_PAGAR.splice(0,CONTAS_PAGAR.length,...CONTAS_PAGAR.filter((_,i)=>!remover.has(i)));
-  saveContasPagar();
-  try{renderContasPagar();}catch(e){}
-  try{renderFluxo();}catch(e){}
-  try{renderDashboard();}catch(e){}
-  showToast(remover.size+' parcela(s) excluída(s).','success');
+  document.getElementById('cp-grupo-excluir')?.remove();
+  const ids=[(CONTAS_PAGAR[idxAtual]||{}).id].concat(CONTAS_PAGAR.filter(c=>c&&c.grupoId===grupoId&&c.status==='Pendente'&&!(Array.isArray(c.pagamentos)&&c.pagamentos.length)).map(c=>c.id));
+  _cpExcluirIds(ids);
 }
 function cpExcluirTodas(grupoId){
-  document.querySelectorAll('[style*="position:fixed"][style*="99999"]').forEach(el=>el.remove());
-  const antes=CONTAS_PAGAR.length;
-  CONTAS_PAGAR.filter(c=>c.grupoId===grupoId).forEach(function(c){ if(c&&c.id) CONTAS_PAGAR_DELETED.add(c.id); });
-  try{ localStorage.setItem('mm_cp_deletados', JSON.stringify([...CONTAS_PAGAR_DELETED])); }catch(e){}
-  CONTAS_PAGAR.splice(0,CONTAS_PAGAR.length,...CONTAS_PAGAR.filter(c=>c.grupoId!==grupoId));
-  saveContasPagar();
-  try{renderContasPagar();}catch(e){}
-  try{renderFluxo();}catch(e){}
-  try{renderDashboard();}catch(e){}
-  showToast((antes-CONTAS_PAGAR.length)+' parcela(s) excluída(s).','success');
+  document.getElementById('cp-grupo-excluir')?.remove();
+  _cpExcluirIds(CONTAS_PAGAR.filter(c=>c&&c.grupoId===grupoId).map(c=>c.id));
 }
-
 function renderContasReceber(){}
 
 let BANCOS_DB = [];

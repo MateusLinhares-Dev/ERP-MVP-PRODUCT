@@ -103,7 +103,7 @@ test('registro parcialmente compensado não pode ser editado nem excluído apaga
 
 test('navegador envia a data correta para a API e não exige banco se compensação for integral',async()=>{
   const start=core.indexOf('async function confirmarPagarCP(');
-  const end=core.indexOf('function _baixarSaldoTicket(',start);
+  const end=core.indexOf('function confirmarAcao(',start);
   assert.ok(start>0&&end>start);
   const elems={
     'modal-body':{dataset:{paymentOperation:operationId},querySelectorAll:()=>[]},
@@ -130,7 +130,7 @@ test('navegador envia a data correta para a API e não exige banco se compensaç
 
 test('pagamento bancário envia data e banco sem referência JavaScript indefinida',async()=>{
   const start=core.indexOf('async function confirmarPagarCP(');
-  const end=core.indexOf('function _baixarSaldoTicket(',start);
+  const end=core.indexOf('function confirmarAcao(',start);
   const elems={
     'modal-body':{dataset:{paymentOperation:operationId},querySelectorAll:()=>[]},
     'pcp-id':{value:'CP-T080'},'pcp-valor-pagar':{value:'2794.80'},'pcp-adt':null,

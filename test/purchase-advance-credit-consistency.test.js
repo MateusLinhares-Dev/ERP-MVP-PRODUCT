@@ -67,7 +67,7 @@ test('usuário não vê consulta técnica do Firebase no histórico',()=>{
 
 test('baixa envia a data escolhida sem referência a date inexistente',()=>{
   const begin=core.indexOf('async function confirmarPagarCP(');
-  const end=core.indexOf('function _baixarSaldoTicket(',begin);
+  const end=core.indexOf('function confirmarAcao(',begin);
   const source=core.slice(begin,end);
   assert.match(source,/const paymentDate=document\.getElementById\('pcp-data'\)/);
   assert.match(source,/date:paymentDate/);
