@@ -17072,6 +17072,13 @@ function renderContasPagar(){
   if(kpis[1]) kpis[1].textContent=hj.length;
   if(kpis[2]) kpis[2].textContent=atrasGeral.length;
   if(kpis[3]) kpis[3].textContent=fmt2(pagosMes.reduce((s,c)=>s+Number(c.valor||0),0));
+  const subs=document.querySelectorAll('#tab-contas_pagar .kpi-sub');
+  const qtd=n=>n+(n===1?' conta':' contas');
+  const soma=lista=>fmt2(lista.reduce((s,c)=>s+Number(c.valor||0),0));
+  if(subs[0]) subs[0].textContent=pendMes.length?qtd(pendMes.length)+' em aberto':'Nada em aberto no mês';
+  if(subs[1]) subs[1].textContent=hj.length?soma(hj):'Nada vence hoje';
+  if(subs[2]) subs[2].textContent=atrasGeral.length?soma(atrasGeral):'Nenhuma atrasada';
+  if(subs[3]) subs[3].textContent=pagosMes.length?qtd(pagosMes.length)+' no mês':'Nenhuma paga no mês';
 }
 
 function _bancoRemoverMovimento(movId){
@@ -17997,22 +18004,17 @@ let LANC_BANCO_DB = [];
 const _syncLancBanco = _criarSincroniaPorChave('lancBanco', LANC_BANCO_DB, 'LB');
 function saveBancos(){ localStorage.setItem('mm_bancos', JSON.stringify(BANCOS_DB)); localStorage.setItem('mm_lanc_banco', JSON.stringify(LANC_BANCO_DB)); try{fbSalvar();}catch(e){} }
 
-function loadBancos(){
-  try{
-    const v=localStorage.getItem('mm_bancos');
-    if(v && !localStorage.getItem('mm_bancos_backup_pre_cloud_v28')){
-      const parsed=JSON.parse(v);
-      if(Array.isArray(parsed) && parsed.length)
-        localStorage.setItem('mm_bancos_backup_pre_cloud_v28',v);
-    }
-    const lb=localStorage.getItem('mm_lanc_banco');
-    if(lb && !localStorage.getItem('mm_lanc_banco_backup_pre_cloud_v28')){
-      const parsed=JSON.parse(lb);
-      if(Array.isArray(parsed) && parsed.length)
-        localStorage.setItem('mm_lanc_banco_backup_pre_cloud_v28',lb);
-    }
-  }catch(e){ console.warn('Backup de cache bancário legado indisponível',e); }
+function loadBancos(){}
 
+function _bancosDoBackupAusentes(backup, nuvem){
+  const assinatura=function(b){
+    const conta=String(b&&b.conta||'').replace(/\D/g,'');
+    return conta?String(b.banco||'').trim().toLowerCase()+'|'+String(b.agencia||'').replace(/\D/g,'')+'|'+conta:'';
+  };
+  const chaves=function(b){ return [String(b&&b.id||''),String(b&&b.cod||''),assinatura(b)].filter(Boolean); };
+  const conhecidas=new Set();
+  (nuvem||[]).forEach(function(b){ chaves(b).forEach(function(k){ conhecidas.add(k); }); });
+  return (backup||[]).filter(function(b){ return b && typeof b==='object' && !chaves(b).some(function(k){ return conhecidas.has(k); }); });
 }
 
 function bancosCorrigeEmpresa(){
@@ -18243,8 +18245,9 @@ function renderBancos(){
     ?ledger.addMoney(BANCOS_DB.map(b=>balanceByCode.get(b.cod).closingBalance))
     :BANCOS_DB.reduce((s,b)=>s+Number(b.saldo||0),0);
   if(kpiSaldo) kpiSaldo.textContent='R$ '+fmt(saldoTotalAtual);
-  const kpiSub=document.querySelector('#tab-contas_banco .kpi-sub');
-  if(kpiSub) kpiSub.textContent=[...balanceByCode.values()].some(value=>value?.hasUnsafeLegacyValues||value?.invalidValues)
+  const kpiSubs=document.querySelectorAll('#tab-contas_banco .kpi-sub');
+  if(kpiSubs[0]) kpiSubs[0].textContent=BANCOS_DB.length?'Contas cadastradas no sistema':'Nenhuma conta cadastrada';
+  if(kpiSubs[1]) kpiSubs[1].textContent=[...balanceByCode.values()].some(value=>value?.hasUnsafeLegacyValues||value?.invalidValues)
     ?'Revise lançamentos antigos fora da precisão ou inválidos':'Saldo consolidado atualizado';
 
 }
@@ -18298,12 +18301,13 @@ async function recarregarBancosDoBanco(){
     try{
       const backup=JSON.parse(localStorage.getItem('mm_bancos_backup_pre_cloud_v28')||'[]');
       if(Array.isArray(backup) && backup.length){
-        const remotos=new Set(BANCOS_DB.map(b=>String(b.id||b.cod||'')));
-        const extras=backup.filter(b=>b && !remotos.has(String(b.id||b.cod||'')));
-        if(extras.length && !window.__ERP_BANKS_CACHE_WARNING_SHOWN__){
-          window.__ERP_BANKS_CACHE_WARNING_SHOWN__=true;
-          console.warn('[Bancos] Cache antigo contém '+extras.length+' registros não identificados no RTDB. Backup preservado localmente; revisão manual necessária.');
-          try{showToast('⚠️ Existem contas no cache antigo que não foram confirmadas no Firebase. Backup local preservado para conferência.','info',8000);}catch(e){}
+        const extras=_bancosDoBackupAusentes(backup,BANCOS_DB);
+        const marca=extras.map(b=>String(b.id||b.cod||b.banco||'')).sort().join('|');
+        if(extras.length && localStorage.getItem('mm_bancos_backup_aviso')!==marca){
+          localStorage.setItem('mm_bancos_backup_aviso',marca);
+          const nomes=extras.slice(0,4).map(b=>((b.cod?b.cod+' ':'')+(b.banco||'')).trim()||'sem nome').join(', ');
+          console.warn('[Bancos] Contas guardadas neste navegador que não existem no Firebase:',extras);
+          try{showToast('Este navegador ainda guarda '+extras.length+' conta(s) bancária(s) antiga(s) que não existem mais no sistema ('+nomes+(extras.length>4?'…':'')+'). Se foram excluídas de propósito, pode ignorar: este aviso não volta a aparecer.','info',12000);}catch(e){}
         }
       }
     }catch(e){}
