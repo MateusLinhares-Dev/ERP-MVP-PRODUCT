@@ -189,6 +189,7 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
     - `om('venda')`, `editVenda(i)`, `verVendaDoCR`, `fcLancarVenda` e `renderVendas` passaram a abrir ou redesenhar a versão React.
   - **CSS das telas React:** o Vite gera `dist/web/erp-islands-<hash>.css` e o `build.mjs` grava a lista em `webIslandsStyles` no `bootstrap.js`, que carrega o CSS antes das ilhas. O `verify-deployment-artifacts.mjs` reprova o deploy sem esse arquivo.
   - As telas React usam os mesmos ids e classes, então o CSS e os testes de tela continuaram valendo.
+  - **Menus e redesenho:** quando outro computador grava, a sincronização redesenha a aba ativa. Menu suspenso que morre no redesenho fecha sozinho (foi o defeito do "Mais" em Contas bancárias, 13/11/2026). Menus soltos na página devem se prender de novo ao botão após o redesenho, e a recarga é adiada enquanto um menu listado em `_FB_MENUS_ABERTOS` (`firebase-sync.js`) estiver aberto.
   - **Cuidado ao migrar:** scripts antigos que rodam a cada mudança na tela (`apply()` do phase1/phase2/phase3) podem inserir ou remover elementos dentro do contêiner da ilha. O React quebra ("insertBefore") e a tela some. Antes de montar uma ilha, procure no `public/` quem mexe naquele contêiner (`removeByText`, `decorate...`, `tableSearch`) e tire o contêiner dessas rotinas.
   - Clientes (`web/modules/customers/`, ligado em `web/erp/customers.tsx`): lista em `#clientes-app` e formulário no editor da casca de cadastros, gravando pela API `master-data/customers` (detalhes em `docs/CLIENTES-API.md`). Trocar o nome leva o histórico junto.
   - **Cadastro de pessoa comum:** `web/shared/domain/party.ts` (campos, validação de CPF/CNPJ, envio) e `web/shared/ui/PartyFormView.tsx` (formulário) servem Fornecedores e Clientes; o cliente tem a mais o limite de crédito.
@@ -318,6 +319,21 @@ Para criar a próxima tela React:
 | Lançamento rápido | `erp/quickEntries`, `erp/quickUploads` (somente servidor) |
 | Configuração da empresa | `erp/config` |
 | Arquivos (fotos, PDFs) | Firebase Storage, com ponteiro no RTDB |
+
+## Sincronização do navegador e gravações recusadas
+
+O código antigo grava em lote (`fbSalvar` → `_enviarDadosEmLotes` em `public/legacy/firebase-sync.js`), uma atualização atômica com tudo o que mudou e todas as exclusões locais (`<nó>/<id>: null`). O filtro por nó (`__ERP_RTD_COLLECTION_POLICY__`) não enxerga regras com condição dentro do nó, como a de `tickets/$ticketId`. Antes de 13/11/2026, um único item recusado derrubava o lote inteiro em toda gravação daquele computador, e o aviso "Falha ao confirmar dados no Firebase" ficava preso.
+
+Desde a v235:
+
+- **Recusa de regra** (`PERMISSION_DENIED`, chave inválida, caminhos sobrepostos): primeiro grava só `_user` para testar a sessão. Se a sessão está boa, separa o lote por nó e ao meio até achar os itens recusados (no máximo 200 tentativas; o resto fica para a próxima gravação), grava o restante e manda `_ts` por último.
+- **Exclusão recusada de algo que já não existe no servidor** conta como feita, sem aviso.
+- **Item recusado de verdade** fica de quarentena neste computador (`localStorage.mm_fb_rejeitados`, 12 horas; exclusões confirmadas, 30 dias). A pessoa recebe um aviso dizendo o que ficou de fora, e o evento vai para Engenharia → Auditoria e logs (`sync_rejected`, com o nó e o id, sem valores).
+- **Chaves com `. # $ [ ]`** (ex.: nome antigo de cliente em `chequesCli`) saem do lote antes do envio e entram na mesma quarentena.
+- **Sessão sem permissão** continua como antes (aviso de erro, relogin e nova tentativa), sem quarentena.
+- **`_ts` desfeito**: quando o Firebase recusa uma gravação, ele desfaz o `_ts` local antes de rejeitar. O ouvinte de `_ts` ignora o valor que o servidor tinha antes do envio; antes disso, cada recusa causava recarga e nova gravação, num laço sem fim.
+
+O banco simulado dos testes (`test/support/fake-rtdb-server.mjs`) aceita `denyWrites(regra)` para imitar recusas.
 
 ## Login
 

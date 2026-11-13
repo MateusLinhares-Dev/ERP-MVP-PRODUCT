@@ -4,6 +4,7 @@ import type { Identity } from '../../../shared/auth/identity.js';
 import { hasControlChars } from '../../../shared/domain/text.js';
 import { AppError, fail } from '../../../shared/errors/app-error.js';
 import { acquireLease, releaseLease } from '../../../shared/firebase/rtdb-transaction.js';
+import type { AdvanceUse } from '../domain/advance-reversal.js';
 
 type Row = Record<string, unknown>;
 
@@ -222,7 +223,8 @@ function applyAdvances(
   date: string,
   now: () => number,
   uuid: () => string,
-): void {
+): AdvanceUse[] {
+  const uses: AdvanceUse[] = [];
   let remaining = amount;
   const eligible = advanceList.filter(
     (advance) =>
@@ -246,6 +248,7 @@ function applyAdvances(
       if (advance.valorDisponivel != null) advance.valorDisponivel = 0;
       advance.ticket = advance.ticket || ticketCode;
       advance.obs = (advance.obs ? advance.obs + ' | ' : '') + 'Compensado em CP ' + displayDate(date);
+      uses.push({ cod: String(advance.cod || ''), valor: money(used) });
     } else {
       advance.valor = money(available - used);
       if (advance.valorDisponivel != null) advance.valorDisponivel = money(available - used);
@@ -253,13 +256,15 @@ function applyAdvances(
         advance.ticketOrigem = advance.ticket;
         advance.ticket = '';
       }
+      const splitCode = 'ADT' + now().toString(36) + uuid().replaceAll('-', '').slice(0, 8);
+      uses.push({ cod: String(advance.cod || ''), valor: money(used), parcial: splitCode });
       advanceList.push({
-        cod: 'ADT' + now().toString(36) + uuid().replaceAll('-', '').slice(0, 8),
+        cod: splitCode,
         data: displayDate(date),
         valor: money(used),
         status: 'Quitado',
         ticket: ticketCode,
-        forma: advance.forma,
+        forma: advance.forma || '',
         bancoCod: advance.bancoCod || '',
         bancoNome: advance.bancoNome || '',
         empresa: advance.empresa || '',
@@ -276,6 +281,7 @@ function applyAdvances(
       'ADVANCE_BALANCE_CHANGED',
       'Crédito disponível para este ticket é insuficiente. Atualize os dados.',
     );
+  return uses;
 }
 
 async function assertPurchaseHistory(
@@ -503,8 +509,9 @@ export async function payPayable(
         );
       }
     }
-    if (advanceList)
-      applyAdvances(advanceList, String(original.ticket || '').trim(), advanceCents, date, now, uuid);
+    const advanceUses = advanceList
+      ? applyAdvances(advanceList, String(original.ticket || '').trim(), advanceCents, date, now, uuid)
+      : [];
     const amountTotal = payCents + advanceCents;
     const rest = currentCents - amountTotal;
     const full = rest === 0;
@@ -516,6 +523,7 @@ export async function payPayable(
           data: displayDate(date),
           valor: money(payCents),
           adt: money(advanceCents),
+          ...(advanceUses.length ? { adtUsos: advanceUses } : {}),
           banco: bank?.banco || '',
           obs: clean(input.obs, 1000),
         },

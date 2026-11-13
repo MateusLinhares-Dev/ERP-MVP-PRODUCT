@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-13-1500-v234-contas-pagar-api';
+  const _APP_BUILD = '2026-11-13-2300-v237-menu-bancos';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -579,9 +579,9 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     let pulados=0;
     Object.keys(dados).forEach(function(k){
       if(k==='_ts'||k==='_user'){ filtrado[k]=dados[k]; return; }
-      if(dados[k]===null){ filtrado[k]=null; return; }
+      if(dados[k]===null){ if(_fbRejeitadoIgual(k,'null')){ pulados++; return; } filtrado[k]=null; return; }
       let str; try{ str=JSON.stringify(dados[k]); }catch(e){ str=undefined; }
-      if(str!==undefined && _fbEnviadoOk[k]===str){ pulados++; return; }
+      if(str!==undefined && (_fbEnviadoOk[k]===str||_fbRejeitadoIgual(k,str))){ pulados++; return; }
       filtrado[k]=dados[k];
     });
     if(pulados>0&&window.__ERP_DEBUG_SYNC__===true)console.info('fbSalvar: '+pulados+' itens inalterados pulados (já estão na nuvem).');
@@ -667,7 +667,9 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         const value=grupo.valor;
         const filhos=Object.entries(grupo.patch);
         if(!filhos.length){ patch[raiz]=value; return; }
-        throw new Error('Lote com caminhos sobrepostos em erp/'+raiz);
+        const sobreposto=new Error('Lote com caminhos sobrepostos em erp/'+raiz);
+        sobreposto.code='SYNC_OVERLAP';
+        throw sobreposto;
       }
       Object.entries(grupo.patch).forEach(function([sub,val]){patch[raiz+'/'+sub]=val;});
     });
@@ -675,47 +677,185 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     try{
       await _comTimeoutFirebase(window._fbDB.ref('erp').update(patch),75000);
     }catch(error){
-      throw new Error('Atualizacao atomica RTDB recusada para '+Object.keys(grupos).join(', ')+': '+String(error?.message||error));
+      const falha=new Error('Atualizacao atomica RTDB recusada para '+Object.keys(grupos).join(', ')+': '+String(error?.message||error));
+      falha.code=error&&error.code;
+      throw falha;
     }
+  }
+
+  const _FB_REJEITADOS_LS='mm_fb_rejeitados';
+  const _FB_REJEICAO_VALIDADE={dado:12*3600*1000,ausente:30*24*3600*1000};
+  const _fbRejeitados=(function(){
+    const vivos={};
+    try{
+      const salvo=JSON.parse(localStorage.getItem(_FB_REJEITADOS_LS)||'{}');
+      const agora=Date.now();
+      Object.keys(salvo&&typeof salvo==='object'&&!Array.isArray(salvo)?salvo:{}).forEach(function(k){
+        const item=salvo[k];
+        if(!item||typeof item.s!=='string'||typeof item.t!=='number')return;
+        const validade=item.s==='null'?_FB_REJEICAO_VALIDADE.ausente:_FB_REJEICAO_VALIDADE.dado;
+        if(agora-item.t<validade)vivos[k]=item;
+      });
+    }catch(e){}
+    return vivos;
+  })();
+  function _fbRejeitadoIgual(k, assinatura){ const item=_fbRejeitados[k]; return Boolean(item&&item.s===assinatura); }
+  const _FB_NOMES_NOS={tickets:'Compras',contasPagar:'Contas a Pagar',contasPagarDeleted:'Contas a Pagar',lancBanco:'Extrato bancário',
+    chequesCli:'Cheques de clientes',adtCli:'Adiantamentos de clientes',cheques:'Cheques de fornecedores',saldos:'Saldos de fornecedores',
+    estoque:'Estoque',historico:'Histórico',vales:'Vales',ponto:'Ponto',folha:'Folha',combustivel:'Combustível',tanque:'Tanque',
+    precosForn:'Preços de fornecedores',precosCli:'Preços de clientes',contratos:'Contratos',despGrupo:'Despesas do grupo'};
+  function _fbErroDeRegra(e){
+    const t=(String(e&&e.code||'')+' '+String(e&&e.message||'')).toLowerCase();
+    return t.indexOf('permission')>=0||t.indexOf('invalid')>=0||t.indexOf('sync_overlap')>=0||t.indexOf('first argument')>=0;
+  }
+  function _fbChaveInvalida(k){
+    return String(k).split('/').some(function(parte){ return !parte||/[.#$\[\]]/.test(parte); });
+  }
+  function _fbAssinatura(v){ try{ return JSON.stringify(v===undefined?null:v); }catch(e){ return '?'; } }
+  function _fbSepararChavesInvalidas(dados){
+    const validos={}, invalidas=[];
+    Object.keys(dados||{}).forEach(function(k){
+      if(k!=='_ts'&&k!=='_user'&&_fbChaveInvalida(k)) invalidas.push({chave:k,valor:dados[k],motivo:'INVALID_KEY'});
+      else validos[k]=dados[k];
+    });
+    return {validos,invalidas};
+  }
+  async function _fbSessaoGrava(meta){
+    if(meta._user===undefined) return true;
+    try{ await _enviarMapaErp({_user:meta._user}); return true; }
+    catch(e){ if(_fbErroDeRegra(e)) return false; throw e; }
+  }
+  async function _fbEnviarIsolando(lote, orcamento){
+    const chaves=Object.keys(lote||{}).filter(function(k){ return k!=='_ts'&&k!=='_user'; });
+    const rejeitadas=[], pendentes=[];
+    let gravadas=0;
+    async function tentar(lista){
+      if(!lista.length) return;
+      if(orcamento.restante<=0){ lista.forEach(function(k){ pendentes.push(k); }); return; }
+      orcamento.restante--;
+      const parte={}; lista.forEach(function(k){ parte[k]=lote[k]; });
+      try{ await _enviarMapaErp(parte); _fbMarcarEnviado(parte); gravadas+=lista.length; return; }
+      catch(e){
+        if(!_fbErroDeRegra(e)) throw e;
+        if(lista.length===1){ rejeitadas.push({chave:lista[0],valor:lote[lista[0]],motivo:String(e&&e.code||'PERMISSION_DENIED')}); return; }
+        const meio=Math.ceil(lista.length/2);
+        await tentar(lista.slice(0,meio));
+        await tentar(lista.slice(meio));
+      }
+    }
+    const porNo={};
+    chaves.forEach(function(k){ const no=k.split('/')[0]; (porNo[no]=porNo[no]||[]).push(k); });
+    for(const no of Object.keys(porNo)) await tentar(porNo[no]);
+    return {rejeitadas,pendentes,gravadas};
+  }
+  function _fbReportarRejeicao(item){
+    try{
+      const user=firebase.auth&&firebase.auth().currentUser;
+      if(!user) return;
+      const partes=String(item.chave).split('/');
+      const corpo=JSON.stringify({kind:'sync_rejected',module:partes[0].slice(0,40),code:partes.slice(1).join('/').slice(0,50)||'(nó inteiro)',path:String(item.motivo||'').slice(0,100)});
+      user.getIdToken().then(function(token){
+        return fetch('/api/engineering/telemetry',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:corpo});
+      }).catch(function(){});
+    }catch(e){}
+  }
+  async function _fbTratarRejeitadas(rejeitadas){
+    if(!rejeitadas.length) return;
+    const reais=[];
+    for(const item of rejeitadas){
+      if(item.valor===null&&item.motivo!=='INVALID_KEY'){
+        let remoto;
+        try{ remoto=(await _comTimeoutFirebase(window._fbDB.ref('erp/'+item.chave).once('value'),15000)).val(); }catch(e){ remoto=undefined; }
+        if(remoto===null){ _fbRejeitados[item.chave]={s:'null',t:Date.now()}; continue; }
+      }
+      _fbRejeitados[item.chave]={s:_fbAssinatura(item.valor),t:Date.now()};
+      reais.push(item);
+    }
+    try{
+      const chaves=Object.keys(_fbRejeitados);
+      if(chaves.length>500) chaves.slice(0,chaves.length-500).forEach(function(k){ delete _fbRejeitados[k]; });
+      localStorage.setItem(_FB_REJEITADOS_LS,JSON.stringify(_fbRejeitados));
+    }catch(e){}
+    if(!reais.length) return;
+    console.warn('[Firebase] Itens recusados pelo servidor e mantidos só neste computador:',reais.map(function(r){ return r.chave+' ('+r.motivo+')'; }));
+    reais.slice(0,5).forEach(_fbReportarRejeicao);
+    const nomes=[...new Set(reais.map(function(r){ const no=String(r.chave).split('/')[0]; return _FB_NOMES_NOS[no]||no; }))];
+    try{
+      showToast('⚠️ '+reais.length+' alteração(ões) não foram aceitas pelo Firebase e ficaram só neste computador ('+nomes.slice(0,4).join(', ')+
+        '). O restante foi salvo normalmente. O erro foi registrado para a equipe técnica.','warning',12000);
+    }catch(e){}
   }
 
   async function _enviarDadosEmLotes(dados, limiteBytes){
     dados = _fbFiltrarJaEnviado(dados);
     dados = _fbLimparUndefined(await _rtdbFiltrarGravacao(dados));
+    const separados=_fbSepararChavesInvalidas(dados);
+    dados=separados.validos;
+    const rejeitadas=separados.invalidas.slice();
     if(Object.keys(dados).every(function(key){return key==='_ts'||key==='_user';})){
       if(window._fbTsPendentesProprios)window._fbTsPendentesProprios.delete(dados._ts);
+      await _fbTratarRejeitadas(rejeitadas);
       return;
     }
     let tamanhoTotal;
     try{ tamanhoTotal=JSON.stringify(dados).length; }catch(e){ tamanhoTotal=0; }
-    if(tamanhoTotal<=limiteBytes && Object.keys(dados).length<=MAX_ITENS_POR_LOTE){
+    const _ts=dados._ts, _user=dados._user;
+    const meta={};
+    if(_ts!==undefined) meta._ts=_ts;
+    if(_user!==undefined) meta._user=_user;
+    if(tamanhoTotal<=limiteBytes && Object.keys(dados).length<=MAX_ITENS_POR_LOTE && !rejeitadas.length){
       try{
         const _r = await _enviarMapaErp(dados);
         _fbMarcarEnviado(dados);
         return _r;
       }catch(e){
-        e.message = (e&&e.message?e.message:'Erro desconhecido')+' [lote único, '+Object.keys(dados).length+' itens, ~'+Math.round(tamanhoTotal/1024)+'KB]';
-        throw e;
+        if(!_fbErroDeRegra(e)){
+          e.message = (e&&e.message?e.message:'Erro desconhecido')+' [lote único, '+Object.keys(dados).length+' itens, ~'+Math.round(tamanhoTotal/1024)+'KB]';
+          throw e;
+        }
+        if(!(await _fbSessaoGrava(meta))) throw e;
+        const isolado=await _fbEnviarIsolando(dados,{restante:200});
+        await _fbConfirmarSessaoEAplicar(meta, isolado, e);
+        return;
       }
     }
-    const _ts=dados._ts, _user=dados._user;
     const resto={}; Object.keys(dados).forEach(function(k){ if(k!=='_ts'&&k!=='_user') resto[k]=dados[k]; });
     const lotes=_dividirEmLotes(resto, limiteBytes);
+    let primeiroErro=null, sessaoOk=null;
+    const orcamento={restante:200}, pendentes=[];
     for(let i=0;i<lotes.length;i++){
       try{
         await _enviarMapaErp(lotes[i]);
         _fbMarcarEnviado(lotes[i]);
         try{ _fbSetStatus('saving', 'Enviando '+(i+1)+' de '+lotes.length+' pacotes...'); }catch(_){ }
       }catch(e){
+        if(_fbErroDeRegra(e)){
+          primeiroErro=primeiroErro||e;
+          if(sessaoOk===null) sessaoOk=await _fbSessaoGrava(meta);
+          if(!sessaoOk) throw e;
+          const isolado=await _fbEnviarIsolando(lotes[i],orcamento);
+          isolado.rejeitadas.forEach(function(item){ rejeitadas.push(item); });
+          isolado.pendentes.forEach(function(k){ pendentes.push(k); });
+          continue;
+        }
         let _tamLote; try{ _tamLote=JSON.stringify(lotes[i]).length; }catch(_){ _tamLote=0; }
         e.message = (e&&e.message?e.message:'Erro desconhecido')+' [lote '+(i+1)+' de '+lotes.length+', '+Object.keys(lotes[i]).length+' itens, ~'+Math.round(_tamLote/1024)+'KB, chaves: '+Object.keys(lotes[i]).slice(0,3).join(', ')+(Object.keys(lotes[i]).length>3?'...':'')+']';
         throw e;
       }
     }
-    const meta={};
-    if(_ts!==undefined) meta._ts=_ts;
-    if(_user!==undefined) meta._user=_user;
-    if(Object.keys(meta).length){ await _enviarMapaErp(meta); _fbMarcarEnviado(meta); }
+    await _fbConfirmarSessaoEAplicar(meta, {rejeitadas,pendentes}, primeiroErro);
+  }
+  async function _fbConfirmarSessaoEAplicar(meta, resultado, erroOriginal){
+    if(Object.keys(meta).length){
+      try{ await _enviarMapaErp(meta); _fbMarcarEnviado(meta); }
+      catch(e){ throw erroOriginal||e; }
+    }
+    await _fbTratarRejeitadas(resultado.rejeitadas);
+    if(resultado.pendentes&&resultado.pendentes.length){
+      const resto=erroOriginal||new Error('Gravação parcial');
+      resto.message=String(resto.message||'')+' ['+resultado.pendentes.length+' item(ns) ficam para a próxima tentativa]';
+      throw resto;
+    }
   }
 
   function fbSalvar() {
@@ -982,6 +1122,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         _patchIncremental(dados, 'fcLanc', FC_LANC, null);
       }
 
+      window._fbTsAntesDoEnvio = window._fbUltimoTs;
       window._fbUltimoTs = dados._ts;
       if(!window._fbTsPendentesProprios) window._fbTsPendentesProprios = new Set();
       window._fbTsPendentesProprios.add(dados._ts);
@@ -1596,6 +1737,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     });
 
     let _fbDeferredSyncTimer=null;
+    const _FB_MENUS_ABERTOS='.erp-bank-more-popover, details.erp-actions-dropdown[open], details.erp-rec-more-actions[open]';
     function _fbAgendarSyncCompletoDeferido(){
       window.__ERP_DEFERRED_FULL_SYNC__=true;
       clearTimeout(_fbDeferredSyncTimer);
@@ -1605,7 +1747,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           const tab=painel&&painel.id?painel.id.replace('tab-',''):'';
           const campo=document.activeElement;
           const digitando=campo&&['INPUT','TEXTAREA','SELECT'].includes(campo.tagName)&&campo.offsetParent!==null;
-          const modal=document.querySelector('.modal-ov.open');
+          const modal=document.querySelector('.modal-ov.open')||document.querySelector(_FB_MENUS_ABERTOS);
           if(tab==='chat'||digitando||modal){
             _fbDeferredSyncTimer=setTimeout(tentar,1200);
             return;
@@ -1633,6 +1775,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       }
       if(!window._fbUltimoTs) { window._fbUltimoTs = ts; return; }
       if(ts === window._fbUltimoTs) return;
+      if(window._fbTsAntesDoEnvio != null && ts === window._fbTsAntesDoEnvio){ window._fbUltimoTs = ts; return; }
       window._fbUltimoTs = ts;
 
       try{
@@ -1640,7 +1783,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         const tabAtual=painelAtual&&painelAtual.id?painelAtual.id.replace('tab-',''):'';
         const campoAtual=document.activeElement;
         const digitandoAtual=campoAtual&&['INPUT','TEXTAREA','SELECT'].includes(campoAtual.tagName)&&campoAtual.offsetParent!==null;
-        const modalAtual=document.querySelector('.modal-ov.open');
+        const modalAtual=document.querySelector('.modal-ov.open')||document.querySelector(_FB_MENUS_ABERTOS);
         if(tabAtual==='chat'||digitandoAtual||modalAtual){
           _fbAgendarSyncCompletoDeferido();
           return;

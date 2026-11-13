@@ -3934,35 +3934,6 @@ const FORMS={
     <div class="fg"><label>Vencimento</label><input type="date"></div>
     <div class="fg"><label>Status</label><select><option>Pendente</option><option>Pago</option></select></div>
     <div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="cm()">Salvar</button></div>`,
-  fornecedor:`<h3>🤝 Novo Fornecedor de Compra</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="fg" style="grid-column:1/-1"><label>Nome / Razão Social *</label><input id="nf-nome" placeholder="Nome completo ou razão social"></div>
-      <div class="fg"><label>CPF</label><input id="nf-cpf" class="mask-cpf" placeholder="000.000.000-00"></div>
-      <div class="fg"><label>CNPJ</label><input id="nf-cnpj" class="mask-cnpj" placeholder="00.000.000/0001-00"></div>
-      <div class="fg"><label>RG</label><input id="nf-rg" placeholder="00.000.000-0"></div>
-      <div class="fg"><label>Inscrição Estadual (IE)</label><input id="nf-ie" placeholder="000.000.000.000"></div>
-      <div class="fg"><label>Telefone</label><input id="nf-tel" placeholder="(47) 9 9999-9999"></div>
-      <div class="fg"><label>WhatsApp</label><input id="nf-wpp" placeholder="(47) 9 9999-9999"></div>
-      <div class="fg" style="grid-column:1/-1"><label>E-mail</label><input id="nf-email" type="email" placeholder="email@fornecedor.com"></div>
-    </div>
-    <div style="font-size:.78rem;font-weight:800;color:#1a5e2a;margin:10px 0 6px">📍 ENDEREÇO</div>
-    <div style="display:grid;grid-template-columns:1fr 3fr;gap:10px">
-      <div class="fg"><label>CEP</label><input id="nf-cep" placeholder="00000-000"></div>
-      <div class="fg"><label>Rua / Logradouro</label><input id="nf-rua" placeholder="Rua, Av., Estrada..."></div>
-      <div class="fg"><label>Número</label><input id="nf-num" placeholder="123"></div>
-      <div class="fg"><label>Complemento</label><input id="nf-compl" placeholder="Apto, Sala, Galpão..."></div>
-      <div class="fg"><label>Bairro</label><input id="nf-bairro" placeholder="Centro"></div>
-      <div class="fg"><label>Cidade/UF</label><input id="nf-cidade" placeholder="Joinville/SC"></div>
-    </div>
-    <div style="font-size:.78rem;font-weight:800;color:#1a5e2a;margin:10px 0 6px">🏦 DADOS BANCÁRIOS / PIX</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="fg" style="grid-column:1/-1"><label>Chave PIX</label><input id="nf-pix" placeholder="CPF, CNPJ, telefone, e-mail..."></div>
-      <div class="fg" style="grid-column:1/-1"><label>Banco</label><input id="nf-banco" placeholder="Nome do banco"></div>
-      <div class="fg"><label>Agência</label><input id="nf-agencia" placeholder="0000"></div>
-      <div class="fg"><label>Conta</label><input id="nf-conta" placeholder="00000-0"></div>
-    </div>
-    <div class="fg"><label>Observações</label><textarea id="nf-nota" rows="2" placeholder="Outras informações relevantes..."></textarea></div>
-    <div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarNovoFornecedor()">💾 Salvar</button></div>`,
   fornecedor_despesa:`<h3>🧾 Novo Fornecedor de Despesa</h3>
     <div class="fg"><label>Nome / Razão Social</label><input id="nfd-nome" placeholder="Ex: COPEL, Locadora ABC..."></div>
     <div class="fg"><label>CPF / CNPJ</label><input id="nfd-cpf" class="mask-cpf" placeholder="000.000.000-00"></div>
@@ -17120,7 +17091,6 @@ const _cpExcluindoPagamento=new Set();
 async function _cpExcluirPagamento(c,pIdx){
   if(!c||!Array.isArray(c.pagamentos)||!c.pagamentos[pIdx]) return 'Pagamento não encontrado (recarregue e tente de novo).';
   const p=c.pagamentos[pIdx];
-  if(Number(p.adt||0)>0) return 'Este pagamento usou adiantamento. Para não desfazer a compensação do adiantamento pela metade, peça ajuda ao suporte.';
   const user=typeof firebase!=='undefined'?firebase.auth().currentUser:null;
   if(!user) return 'Sessão expirada. Entre novamente.';
   if(_cpExcluindoPagamento.has(c.id)) return 'A exclusão deste pagamento já está em andamento.';
@@ -17141,6 +17111,7 @@ async function _cpExcluirPagamento(c,pIdx){
     if(idx>=0) CONTAS_PAGAR[idx]=result.payable;
     if(result.removedMovementId) _bancoRemoverMovimento(result.removedMovementId);
     if(result.ticket&&result.ticketKey&&typeof TICKETS_DB!=='undefined') TICKETS_DB[result.ticketKey]=result.ticket;
+    if(Array.isArray(result.advanceEntries)&&result.fornCod&&typeof ADT_POR_FORN!=='undefined'){ ADT_POR_FORN[result.fornCod]=result.advanceEntries; try{renderAdiantamentos();}catch(e){} }
     try{ registrarHistorico('Contas a Pagar','Pagamento excluído',(c.cred||c.desc||c.id)+' — R$ '+Number(result.reversedAmount||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+(c.ticket?' | Ticket '+c.ticket:''),result.payable,{cpId:c.id}); }catch(e){}
     try{renderContasPagar();}catch(e){} try{renderTickets();}catch(e){}
     try{renderFluxo();}catch(e){} try{renderDashboard();}catch(e){}
@@ -17151,7 +17122,9 @@ async function excluirPagamentoCP(id,pIdx){
   const c=CONTAS_PAGAR.find(x=>x&&x.id===id);
   const p=c&&Array.isArray(c.pagamentos)?c.pagamentos[pIdx]:null;
   if(!p){ showToast('Pagamento não encontrado (recarregue e tente de novo).','error'); return; }
-  if(!confirm('Excluir o pagamento de R$ '+Number(p.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+' ('+(p.data||'sem data')+')?\n\nO valor volta a ser devido e a saída é retirada do extrato do banco.')) return;
+  const _fmtPg=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const _adtPg=Number(p.adt||0);
+  if(!confirm('Excluir o pagamento de '+_fmtPg(Number(p.valor||0)+_adtPg)+' ('+(p.data||'sem data')+')?\n\nO valor volta a ser devido.'+(Number(p.valor||0)>0?'\nA saída de '+_fmtPg(p.valor)+' é retirada do extrato do banco.':'')+(_adtPg>0?'\nOs '+_fmtPg(_adtPg)+' de adiantamento voltam para o adiantamento do fornecedor.':''))) return;
   document.querySelectorAll('#cp-historico-pagamentos button').forEach(b=>{b.disabled=true;});
   const erro=await _cpExcluirPagamento(c,pIdx);
   if(erro){ showToast(erro,'error',9000); verHistoricoPagamentosCP(id); return; }
@@ -17174,7 +17147,7 @@ function verHistoricoPagamentosCP(id){
         +'<td style="text-align:right">'+(p.adt?fmt(p.adt):'—')+'</td>'
         +'<td>'+esc(p.banco||'—')+'</td>'
         +'<td style="font-size:.78rem;color:#666">'+esc(p.obs||'')+'</td>'
-        +'<td>'+(Number(p.adt||0)>0?'':'<button type="button" class="btn-edit-danger" data-cp-pagamento="'+i+'" title="Excluir este pagamento">Excluir</button>')+'</td>'
+        +'<td><button type="button" class="btn-edit-danger" data-cp-pagamento="'+i+'" title="Excluir este pagamento">Excluir</button></td>'
         +'</tr>').join('')
     : '<tr><td colspan="6" style="text-align:center;color:var(--gray);padding:12px">Nenhum pagamento parcial registrado ainda.</td></tr>';
   body.innerHTML=
@@ -18159,15 +18132,30 @@ function _erpBankMoreOpen(button){
     });
     popover.appendChild(option);
   });
+  popover.dataset.bankCode=bankCode;
   document.body.appendChild(popover);
   _erpBankMorePopover=popover;_erpBankMoreAnchor=button;
   button.setAttribute('aria-expanded','true');
+  _erpBankMorePosicionar();
+  popover.querySelector('button')?.focus({preventScroll:true});
+}
+function _erpBankMorePosicionar(){
+  const popover=_erpBankMorePopover, button=_erpBankMoreAnchor;
+  if(!popover||!button)return;
   const box=button.getBoundingClientRect();
   const menuHeight=popover.getBoundingClientRect().height||145;
   const top=box.bottom+menuHeight+6>window.innerHeight?box.top-menuHeight-6:box.bottom+6;
   popover.style.top=Math.max(8,top)+'px';
   popover.style.left=Math.max(8,Math.min(box.right-popover.offsetWidth,window.innerWidth-popover.offsetWidth-8))+'px';
-  popover.querySelector('button')?.focus();
+}
+function _erpBankMoreReancorar(){
+  if(!_erpBankMorePopover)return;
+  const code=_erpBankMorePopover.dataset.bankCode;
+  const novo=[...document.querySelectorAll('#tb-bancos button[data-bank-more]')].find(function(b){ return b.dataset.bankMore===code; });
+  if(!novo||!BANCOS_DB.some(function(bank){ return bank.cod===code; })){ _erpBankMoreClose(); return; }
+  _erpBankMoreAnchor=novo;
+  novo.setAttribute('aria-expanded','true');
+  _erpBankMorePosicionar();
 }
 if(typeof document!=='undefined'&&!window.__ERP_BANK_MORE_EVENTS__){
   window.__ERP_BANK_MORE_EVENTS__=true;
@@ -18176,15 +18164,20 @@ if(typeof document!=='undefined'&&!window.__ERP_BANK_MORE_EVENTS__){
   });
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&_erpBankMorePopover){_erpBankMoreClose();}});
   window.addEventListener('resize',_erpBankMoreClose);
-  window.addEventListener('scroll',_erpBankMoreClose,true);
+  window.addEventListener('scroll',function(event){
+    if(!_erpBankMorePopover||!_erpBankMoreAnchor)return;
+    const alvo=event.target;
+    if(_erpBankMorePopover.contains(alvo))return;
+    if(alvo===document||alvo===document.documentElement||alvo===document.body||(alvo&&alvo.contains&&alvo.contains(_erpBankMoreAnchor)))_erpBankMoreClose();
+  },true);
 }
 
 function renderBancos(){
-  if(typeof _erpBankMoreClose === 'function') _erpBankMoreClose();
   const tbody=document.getElementById('tb-bancos');
-  if(!tbody) return;
+  if(!tbody){ if(typeof _erpBankMoreClose==='function') _erpBankMoreClose(); return; }
 
   if(!window.__ERP_BANKS_CLOUD_READY__){
+    if(typeof _erpBankMoreClose==='function') _erpBankMoreClose();
     tbody.innerHTML='<tr><td colspan="11" style="text-align:center;padding:20px">Carregando contas do Firebase...</td></tr>';
     const kpi=document.querySelector('#tab-contas_banco .kpi-val');
     if(kpi) kpi.textContent='—';
@@ -18241,6 +18234,7 @@ function renderBancos(){
     });
     if(tbody.dataset)tbody.dataset.reconcileBound='true';
   }
+  try{ if(typeof _erpBankMoreReancorar==='function') _erpBankMoreReancorar(); }catch(e){ if(typeof _erpBankMoreClose==='function') _erpBankMoreClose(); }
   const kpiTotal=document.querySelector('#tab-contas_banco .kpi-val');
   if(kpiTotal) kpiTotal.textContent=BANCOS_DB.length;
   const kpiSaldo=document.querySelectorAll('#tab-contas_banco .kpi-val')[1];
@@ -19710,7 +19704,7 @@ function initDespesas(){
           while(sel.options.length>1) sel.remove(1);
           funs.forEach(fn=>{
             const nm=fn.nome||''; if(!nm) return;
-            const o=document.createElement('option'); o.value=nm; o.textContent=nm+' ('+fn.cargo+')'; sel.appendChild(o);
+            const o=document.createElement('option'); o.value=nm; o.textContent=nm+(fn.cargo?' ('+fn.cargo+')':''); sel.appendChild(o);
           });
           
           const names=[...new Set(VIAGEM_DB.map(v=>v.motorista).filter(Boolean))];
@@ -21046,7 +21040,7 @@ function initDespesas(){
         const sel=document.getElementById('vg-edit-motorista');
         sel.innerHTML='';
         const funs=(FUNCIONARIOS||[]).filter(f=>f.status!=='Inativo');
-        funs.forEach(f=>{ const o=document.createElement('option'); o.value=f.nome; o.textContent=f.nome+' ('+f.cargo+')'; sel.appendChild(o); });
+        funs.forEach(f=>{ const o=document.createElement('option'); o.value=f.nome; o.textContent=f.nome+(f.cargo?' ('+f.cargo+')':''); sel.appendChild(o); });
         const names=[...new Set(VIAGEM_DB.map(x=>x.motorista).filter(Boolean))];
         names.forEach(n=>{ if(!funs.find(f=>f.nome===n)){ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); } });
         sel.value=v.motorista||'';
@@ -21196,7 +21190,7 @@ function initDespesas(){
             motSel.insertBefore(oEmp, motSel.options[1]||null);
           }
           (FUNCIONARIOS||[]).filter(f=>f.status!=='Inativo').forEach(f=>{
-            const o=document.createElement('option'); o.value=f.nome; o.textContent=f.nome+' ('+f.cargo+')'; motSel.appendChild(o);
+            const o=document.createElement('option'); o.value=f.nome; o.textContent=f.nome+(f.cargo?' ('+f.cargo+')':''); motSel.appendChild(o);
           });
           if(curVal) motSel.value=curVal;
         }

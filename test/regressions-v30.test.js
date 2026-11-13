@@ -136,7 +136,8 @@ test('v30 reconnect does not blindly overwrite cloud and deletions are never ski
   const connectedBlock=firebaseSyncV30.slice(connectedStart,connectedEnd);
   assert.match(connectedBlock,/fbCarregar\(function\(\)\{\}\)/);
   assert.doesNotMatch(connectedBlock,/setTimeout\(_fbSalvarAgora/);
-  assert.match(firebaseSyncV30,/if\(dados\[k\]===null\)\{ filtrado\[k\]=null; return; \}/);
+  assert.match(firebaseSyncV30,/if\(dados\[k\]===null\)\{ if\(_fbRejeitadoIgual\(k,'null'\)\)\{ pulados\+\+; return; \} filtrado\[k\]=null; return; \}/);
+  assert.match(firebaseSyncV30,/if\(remoto===null\)\{ _fbRejeitados\[item\.chave\]=\{s:'null',t:Date\.now\(\)\}; continue; \}/,'só pula exclusão recusada que o servidor confirmou não existir');
 });
 
 test('v30 successful save only clears pending state when no newer change arrived',()=>{
