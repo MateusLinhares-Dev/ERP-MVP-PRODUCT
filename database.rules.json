@@ -285,7 +285,7 @@
       },
       "contasReceberDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+        ".write": false
       },
       "afazeresDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canTasks == true)",
@@ -430,7 +430,7 @@
       },
       "contasReceber": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
+        ".write": false,
         ".indexOn": [
           "vendaId",
           "cli"
@@ -580,6 +580,14 @@
         ".read": false,
         ".write": false
       },
+      "erpReceivableLocks": {
+        ".read": false,
+        ".write": false
+      },
+      "receivableOperations": {
+        ".read": false,
+        ".write": false
+      },
       "supplierOperations": {
         ".read": false,
         ".write": false
@@ -707,7 +715,7 @@
       },
       "contasReceberDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+        ".write": false
       },
       "afazeresDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canCoordination == true || auth.token.canTasks == true)",
