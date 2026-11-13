@@ -144,19 +144,17 @@ test('endpoint e regras: só o servidor grava operações', () => {
   assert.deepEqual(rules.rules.erp.payableOperations, { '.read': false, '.write': false });
 });
 
-test('tela de Contas a Pagar grava lançar, editar e excluir pela API; edição não muda a situação', () => {
+test('tela de Contas a Pagar (React) grava pela API; a tela antiga saiu', () => {
   const core = readFileSync(new URL('../public/legacy/app-core.js', import.meta.url), 'utf8');
-  const body = (name) => {
-    const start = core.indexOf('function ' + name + '(');
-    assert.ok(start > 0, name);
-    return core.slice(start, core.indexOf('\nfunction ', start + 10));
-  };
-  assert.match(body('salvarContaPagar'), /_cpApi\(\{action:'create',payable,installments\}\)/);
-  assert.match(body('salvarEditContaPagar'), /_cpApi\(\{action:'update',id:c\.id,payable,expectedUpdate/);
-  assert.match(body('_cpExcluirIds'), /_cpApi\(\{action:'delete',ids:alvo\}\)/);
-  for (const name of ['salvarContaPagar', 'salvarEditContaPagar', 'cpExcluirApenas', 'cpExcluirPendentes', 'cpExcluirTodas', 'cpExcluirSelecionadas'])
-    assert.doesNotMatch(body(name), /CONTAS_PAGAR\.push|CONTAS_PAGAR\.splice|_removerCPporIndice|saveContasPagar|registrarMovBanco/, name);
-  assert.doesNotMatch(core, /id="ecp-status"|id="ecp-pgto"|id="cp-status"|function _baixarSaldoTicket/);
-  assert.match(core, /modal\.id='cp-grupo-excluir'/, 'janela de parcelas fecha pelo id (o seletor por estilo nunca achava a janela)');
-  assert.doesNotMatch(core, /style\*="position:fixed"\]\[style\*="99999"/);
+  for (const name of ['salvarContaPagar', 'salvarEditContaPagar', 'editContaPagar', 'excluirContaPagar', 'cpExcluirSelecionadas', 'cpSetTipo', '_cpAplicarFiltros', 'cpRenderCalendario'])
+    assert.doesNotMatch(core, new RegExp('function ' + name + '\\('), name);
+  assert.match(core, /function renderContasPagar\(\)\{\}/);
+  assert.doesNotMatch(core, /conta_pagar:`<h3>/);
+  const actions = readFileSync(new URL('../web/modules/payables/ui/actions.ts', import.meta.url), 'utf8');
+  assert.match(actions, /port\.request\(\{ action: 'delete', ids: list \}\)/);
+  const html = readFileSync(new URL('../public/index.template.html', import.meta.url), 'utf8');
+  assert.match(html, /<div id="contas-pagar-app">/);
+  assert.doesNotMatch(html, /id="cp-filtro-sidebar"|onclick="cpSetTipo/);
+  assert.match(readFileSync(new URL('../web/erp/islands.tsx', import.meta.url), 'utf8'), /installPayables\(\);/);
+  assert.match(core, /modal\.id='cp-grupo-excluir'|function _erpBankMoreReancorar/);
 });

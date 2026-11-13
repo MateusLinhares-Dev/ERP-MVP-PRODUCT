@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-14-0100-v238-aviso-bancos';
+  const _APP_BUILD = '2026-11-14-0300-v239-contas-pagar-react';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -335,7 +335,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       }
       try{ if(typeof _popularEmpresasDespesa==='function') _popularEmpresasDespesa(); }catch(_e){}
       try{ if(typeof window.__erpRefreshCompanySources==='function') window.__erpRefreshCompanySources(); }catch(_e){}
-      try{ if(Array.isArray(cfg.financeCompanies) && typeof _cpRenderEmpresaBotoes==='function') _cpRenderEmpresaBotoes(); }catch(_e){}
+      try{ if(Array.isArray(cfg.financeCompanies) && typeof window.renderContasPagar==='function') window.renderContasPagar(); }catch(_e){}
       try{
         var nf=document.getElementById('nfu-emp');
         if(nf && typeof _cfgEmployeeCompanyOptionsHtml==='function') nf.innerHTML=_cfgEmployeeCompanyOptionsHtml(nf.value||'');
@@ -345,7 +345,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       try{
         var dlEmp=document.getElementById('dlist-empresas');
         if(dlEmp && typeof window.__erpRefreshCompanySources==='function')window.__erpRefreshCompanySources();
-        try{ if(typeof _cpRenderEmpresaBotoes==='function') _cpRenderEmpresaBotoes(); }catch(_e2){}
         var fcfg=cfg.fiscalCompanies&&typeof cfg.fiscalCompanies==='object'?cfg.fiscalCompanies:{};
         try{ if(typeof _fiscalEnsureEmpresa==='function') _fiscalEnsureEmpresa(); if(typeof _fiscalRenderEmpresaBotoes==='function') _fiscalRenderEmpresaBotoes(); }catch(_e3){}
         var fkey=(typeof _fiscalEmpresa!=='undefined'?_fiscalEmpresa:''); var fv=fcfg[fkey]||{};

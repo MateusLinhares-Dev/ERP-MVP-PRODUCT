@@ -157,8 +157,10 @@ test('tela chama o servidor para excluir pagamento e não edita conta de compra 
   const undo = core.slice(core.indexOf('async function _cpExcluirPagamento('), core.indexOf('async function excluirPagamentoCP('));
   assert.match(undo, /action:'reverse'/);
   assert.doesNotMatch(undo, /saveContasPagar\(|_fbRawDB/);
-  const edit = core.slice(core.indexOf('function editContaPagar('), core.indexOf('function salvarEditContaPagar('));
-  assert.match(edit, /_cpGravadaPeloServidor\(c\)/);
+  const workspace = readFileSync(new URL('../web/modules/payables/ui/PayablesWorkspace.tsx', import.meta.url), 'utf8');
+  const edit = workspace.slice(workspace.indexOf('const askEdit = useCallback('), workspace.indexOf('useEffect(', workspace.indexOf('const askEdit = useCallback(')));
+  assert.match(edit, /if \(row\.fromPurchase\) return port\.notify\(PURCHASE_MESSAGE, 'info'\);/);
+  assert.match(core, /window\.erpPayablesFromPurchase=function\(c\)\{ return _cpGravadaPeloServidor\(c\); \};/);
   const endpoint = readFileSync(new URL('../api/finance/payables-payment.ts', import.meta.url), 'utf8');
   assert.match(endpoint, /action === 'reverse'/);
 });
