@@ -47,3 +47,19 @@ Se as regras forem publicadas antes, uma aba antiga que ainda grava fornecedores
 
 - A lista e o formulário de fornecedores de compra estão em React e usam esta API. Ver `docs/ARCHITECTURE.md`, etapa 5.
 - O botão "Restaurar excluídos" não aparece, como já acontecia antes (o `phase2-feedback.js` o escondia). A ação `restore-all` continua no servidor, para uso do suporte.
+
+## Fornecedor renomeado (17/11/2026, v243)
+
+Problema da cliente: depois de editar o nome do fornecedor Jorge, a notinha T178 parou de abrir para editar ("Fornecedor do pedido não está mais ativo no cadastro."). A compra guarda o código (`fornecedorCod`) e o nome da época. A tela de compra, porém, procurava o fornecedor só pelo nome.
+
+O que mudou:
+
+- **Editar pedido e fechar pesagem** (`purchase-order.js`, `supplierForTicket`): a busca usa primeiro o código. Se o pedido não tiver código, compara o nome atual e depois os nomes anteriores. Espaços repetidos e maiúsculas/minúsculas não contam. O formulário mostra o nome atual. O servidor não troca o nome gravado na compra, porque o código é o mesmo e para ele não houve troca de fornecedor.
+- **Nomes anteriores**: ao renomear pela API, o servidor guarda o nome antigo em `nomesAnteriores` no cadastro. São no máximo 10, sem repetir e sem o nome atual. A tela não consegue gravar esse campo, porque `cleanSupplier` só aceita os campos do formulário.
+- **Telas antigas** (`app-core.js`): `_fornPorNome` e `_ticketDoForn` comparam pelo código quando os dois lados têm código e, se não tiverem, pelo nome atual ou anterior. Usam essa regra:
+  - escolher o fornecedor no Lançamento (`csCarregarForn`), que carrega as pesagens aguardando preço;
+  - o Balanceiro (`balIniciarNovaSessao`), que guarda só o nome na sessão e assim não abre uma segunda sessão para o mesmo fornecedor;
+  - a Ficha do fornecedor.
+- O caso do Jorge não tem nome anterior guardado, porque foi renomeado antes desta versão. A busca pelo código resolve: a T178 tem `fornecedorCod`.
+
+Não muda: um fornecedor de fato inativo ou excluído continua bloqueando a edição. A mensagem agora mostra o nome gravado no pedido e diz para reativá-lo em Fornecedores.

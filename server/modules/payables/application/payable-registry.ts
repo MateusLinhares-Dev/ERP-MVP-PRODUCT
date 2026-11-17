@@ -99,7 +99,7 @@ const newId = (context: Context): string =>
   'CP' + context.now().toString(36) + context.uuid().replace(/-/g, '').slice(0, 10);
 
 async function createMany(context: Context, body: Row) {
-  const { fields, problem } = cleanPayableFields(body.payable, true);
+  const { fields, problem } = cleanPayableFields(body.payable, true, { links: true });
   if (problem) fail(422, problem.code, problem.message);
   const { plan, problem: planProblem } = cleanInstallments(body.installments);
   if (planProblem) fail(422, planProblem.code, planProblem.message);
@@ -112,7 +112,7 @@ async function createMany(context: Context, body: Row) {
     cred: fields.cred ?? '',
     cat: fields.cat || 'Outros',
     tipoForn: fields.tipoForn ?? 'despesa',
-    empresa: fields.empresa,
+    empresa: fields.empresa ?? '',
     bancoCod: bank.cod,
     bancoNome: bank.nome,
     valor: fields.valor,
@@ -123,6 +123,8 @@ async function createMany(context: Context, body: Row) {
     _upd: now,
   };
   if (fields.formaPrevista) base.formaPrevista = fields.formaPrevista;
+  for (const field of ['origem', 'despId', 'contratoId', 'folhaMes', 'ticket', 'fornCod'] as const)
+    if (fields[field]) base[field] = fields[field];
   const rows: Row[] = [];
   if (plan) {
     const group = 'grp_' + now + '_' + context.uuid().replace(/-/g, '').slice(0, 6);

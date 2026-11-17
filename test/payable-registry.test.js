@@ -158,3 +158,33 @@ test('tela de Contas a Pagar (React) grava pela API; a tela antiga saiu', () => 
   assert.match(readFileSync(new URL('../web/erp/islands.tsx', import.meta.url), 'utf8'), /installPayables\(\);/);
   assert.match(core, /modal\.id='cp-grupo-excluir'|function _erpBankMoreReancorar/);
 });
+
+test('origem: folha, despesas, combustível, tanque, contrato e compra antiga criam pelo servidor, com vínculo e sem exigir empresa', async () => {
+  const folha = await call({ action: 'create', payable: { desc: 'Folha de Pagamento – Novembro/2026', cred: 'Funcionários', cat: 'Folha de Pagamento', valor: 15230.4, venc: '05/12/2026', origem: 'folha', folhaMes: '2026-11' } });
+  const row = await read('erp/contasPagar/' + folha.payables[0].id);
+  assert.deepEqual([row.origem, row.folhaMes, row.empresa, row.venc, row.valor], ['folha', '2026-11', '', '05/12/2026', 15230.4]);
+  const desp = await call({ action: 'create', payable: { desc: 'Luz', cred: 'CELESC', valor: 80, venc: '2026-11-30', origem: 'despesas_grupo', despId: 'D-1731' } });
+  assert.equal((await read('erp/contasPagar/' + desp.payables[0].id)).despId, 'D-1731');
+  const contrato = await call({ action: 'create', payable: { desc: 'Aluguel', cred: 'IMOB', valor: 2000, origem: 'contrato', contratoId: 'CTabc' }, installments: { count: 2, day: 10, firstMonth: '2026-12' } });
+  assert.deepEqual(contrato.payables.map((p) => [p.desc, p.contratoId]), [['Aluguel (1/2)', 'CTabc'], ['Aluguel (2/2)', 'CTabc']]);
+  assert.equal((await failure(call({ action: 'create', payable: { desc: 'X', valor: 1, venc: '2026-12-01' } })))?.code, 'COMPANY_REQUIRED', 'sem origem, empresa continua obrigatória');
+  assert.equal((await failure(call({ action: 'create', payable: { desc: 'X', valor: 1, venc: '2026-12-01', origem: 'qualquer' } })))?.code, 'INVALID_ORIGIN');
+  assert.equal((await failure(call({ action: 'create', payable: { desc: 'X', valor: 1, venc: '2026-12-01', origem: 'tanque', despId: 'a/b' } })))?.code, 'INVALID_LINK');
+  await call({ action: 'update', id: 'CP1', payable: { desc: 'Energia', origem: 'folha', folhaMes: '2026-01' } });
+  const edited = await read('erp/contasPagar/CP1');
+  assert.equal(edited.origem, undefined, 'edição não troca a origem nem o vínculo');
+  assert.equal(edited.folhaMes, undefined);
+});
+
+test('criadores do navegador (folha, despesas, combustível, tanque, contrato, compra antiga) pedem ao servidor', () => {
+  const core = readFileSync(new URL('../public/legacy/app-core.js', import.meta.url), 'utf8');
+  for (const origin of ['folha', 'despesas_grupo', 'combustivel', 'tanque', 'contrato', 'compra_antiga'])
+    assert.match(core, new RegExp("origem:'" + origin + "'"), origin);
+  assert.doesNotMatch(core, /CONTAS_PAGAR\.push\(\{\s*id:'CP_(CR|TK)_/);
+  assert.doesNotMatch(core, /patch\['contasPagar\/'\+cp\.id\]/);
+  assert.match(core, /async function excluirDespesa\(id\)\{[\s\S]*?_cpExcluirDaOrigem\(CONTAS_PAGAR\.filter\(c=>c&&c\.despId===id\)/);
+  assert.match(core, /async function excluirTanque\(id\)\{[\s\S]*?_cpExcluirDaOrigem\(\[reg\.contaPagarId\]/);
+  const overrides = readFileSync(new URL('../public/legacy/security-overrides.js', import.meta.url), 'utf8');
+  assert.match(overrides, /_cpExcluirDaOrigem\(CONTAS_PAGAR\.filter/);
+  assert.doesNotMatch(overrides, /_removerCPporIndice/);
+});

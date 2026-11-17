@@ -78,6 +78,35 @@ export function cleanSupplier(input: unknown): {
   return { fields, problems };
 }
 
+export const MAX_FORMER_NAMES = 10;
+
+const sameName = (value: unknown): string =>
+  String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleUpperCase('pt-BR');
+
+export function formerNames(record: Row, nextName: unknown): string[] | null {
+  const previous = String(record.nome ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const next = sameName(nextName);
+  if (!previous || !next || sameName(previous) === next) return null;
+  const kept = Array.isArray(record.nomesAnteriores) ? record.nomesAnteriores : [];
+  const seen = new Set<string>([next]);
+  const list: string[] = [];
+  for (const name of [previous, ...kept]) {
+    const label = String(name ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 160);
+    if (!label || seen.has(sameName(label))) continue;
+    seen.add(sameName(label));
+    list.push(label);
+  }
+  return list.slice(0, MAX_FORMER_NAMES);
+}
+
 export function nextSupplierCode(existing: Iterable<string>): string {
   const reserved = new Set(existing);
   let next =

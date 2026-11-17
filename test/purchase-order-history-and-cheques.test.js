@@ -142,7 +142,7 @@ test('edição mantém valores extras legados sem modificar o total da compra ao
     itens:[{mat:'COBRE',pesoLiq:10,quantidade:10,preco:100}]};
   const ctx={
     tickets(){return {T200:ticket};},
-    supplierByName(){return {nome:'JOAO ELIAS',cod:'F3'};},
+    supplierForTicket(){return {nome:'JOAO ELIAS',cod:'F3'};},
     ticketItemsForOrder(){return [{mat:'COBRE',quantidade:10,preco:100,source:true}]},
     itemNet(i){return Number(i.quantidade||i.pesoLiq||0);},
     isoDate(){return '2026-10-27';},
@@ -154,4 +154,50 @@ test('edição mantém valores extras legados sem modificar o total da compra ao
   assert.equal(state.originalBalance,665);
   assert.equal(state.appliedAdvance,500);
   assert.equal(state.items[0].source,false);
+});
+
+test('fornecedor renomeado: editar o pedido acha o fornecedor pelo código e usa o nome atual',()=>{
+  const lookup=extract(purchase,'function suppliers(){','function jsonDataset(');
+  const code=extract(purchase,'function stateForExistingTicket(key,cloudTicket){','global.phase4PurchaseEditTicket=async function');
+  const ticket={ticket:'T178',fornecedor:'JORGE ANTONIO DA SILVA ',fornecedorCod:'F042',totalGeral:500,saldoPagar:500,
+    itens:[{mat:'COBRE',pesoLiq:5,quantidade:5,preco:100}]};
+  const list=[{cod:'F041',nome:'JORGE ANTONIO DA SILVA'},{cod:'F042',nome:'JORGE ANTONIO',nomesAnteriores:['JORGE ANTONIO DA SILVA']}];
+  const ctx={
+    getFornAtivos(){return list;},
+    tickets(){return {T178:ticket};},
+    ticketItemsForOrder(){return [{mat:'COBRE',quantidade:5,preco:100}];},
+    itemNet(i){return Number(i.quantidade||0);},
+    isoDate(){return '2026-11-17';},
+    today(){return '2026-11-17';}
+  };
+  const state=runInNewContext(`${lookup}\n${code}\nstateForExistingTicket('T178')`,ctx);
+  assert.equal(state.supplierCode,'F042');
+  assert.equal(state.supplierName,'JORGE ANTONIO');
+  assert.equal(state.originalSupplierCode,'F042');
+  const found=(t)=>runInNewContext(`${lookup}\nsupplierForTicket(t)`,{...ctx,t});
+  assert.equal(found({fornecedor:'jorge  antonio da silva'}).cod,'F041');
+  assert.equal(found({forn:'JORGE ANTONIO'}).cod,'F042');
+  list.shift();
+  assert.equal(found({fornecedorNome:'Jorge Antonio da Silva'}).cod,'F042');
+  assert.equal(found({fornecedor:'OUTRO'}),null);
+  ticket.fornecedorCod='F999';ticket.fornecedor='NINGUEM';
+  assert.throws(()=>runInNewContext(`${lookup}\n${code}\nstateForExistingTicket('T178')`,ctx),/NINGUEM\) não está ativo no cadastro/);
+});
+
+test('fornecedor renomeado: pesagens e sessão do Balanceiro acham o fornecedor pelo código ou nome antigo',()=>{
+  const helpers=extract(core,'function _fornChaveNome(nome){','function balIniciarNovaSessao(){');
+  const forn={cod:'F042',nome:'JORGE ANTONIO',nomesAnteriores:['JORGE ANTONIO DA SILVA']};
+  const ctx={getFornAtivos(){return [{cod:'F001',nome:'CICLO'},forn];}};
+  const run=(expr,extra={})=>runInNewContext(`${helpers}\n${expr}`,{...ctx,...extra});
+  assert.equal(run(`_fornPorNome('jorge antonio da silva')`).cod,'F042');
+  assert.equal(run(`_fornPorNome(' JORGE  ANTONIO ')`).cod,'F042');
+  assert.equal(run(`_fornPorNome('SEM CADASTRO')`),null);
+  const match=(t)=>run(`_ticketDoForn(t,forn,'JORGE ANTONIO')`,{t,forn});
+  assert.equal(match({fornecedorCod:'F042',fornecedor:'JORGE ANTONIO DA SILVA'}),true);
+  assert.equal(match({fornecedorCod:'F001',fornecedor:'JORGE ANTONIO'}),false);
+  assert.equal(match({forn:'JORGE ANTONIO DA SILVA',_balSessao:true}),true);
+  assert.equal(match({fornecedorNome:'OUTRO'}),false);
+  const load=extract(core,'function csCarregarForn(forceName){','const adtsTodos=');
+  assert.match(load,/const fornObj=_fornPorNome\(fornNome\);[\s\S]*_ticketDoForn\(t,fornObj,fornNome\)/);
+  assert.match(extract(core,'function balIniciarNovaSessao(){','const sessId'),/_ticketDoForn\(t,fornSel,fornNome\)/);
 });

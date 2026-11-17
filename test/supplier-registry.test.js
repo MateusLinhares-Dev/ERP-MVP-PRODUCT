@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { startFakeRtdb } from './support/fake-rtdb-server.mjs';
-import { validCnpj, validCpf, nextSupplierCode, cleanSupplier } from '../server/modules/suppliers/domain/supplier-rules.ts';
+import { validCnpj, validCpf, nextSupplierCode, cleanSupplier, formerNames } from '../server/modules/suppliers/domain/supplier-rules.ts';
 
 const identity = { uid: 'erp:thais', erpUser: 'thais', erpAccess: true, canSuppliers: true };
 const admin = { ...identity, uid: 'erp:elaine', erpUser: 'elaine', admin: true };
@@ -143,4 +143,24 @@ test('repetir a mesma operação devolve o resultado gravado sem criar outro for
 test('endpoint POST /api/master-data/suppliers chama o cadastro do servidor', () => {
   const endpoint = readFileSync(new URL('../api/master-data/suppliers.ts', import.meta.url), 'utf8');
   assert.match(endpoint, /changeSupplier\(identity, body as Body\)/);
+});
+
+test('renomear guarda os nomes anteriores para as compras e pesagens antigas continuarem ligadas', async () => {
+  assert.equal(formerNames({ nome: 'CICLO' }, 'ciclo'), null);
+  assert.equal(formerNames({ nome: '' }, 'NOVO'), null);
+  assert.deepEqual(formerNames({ nome: 'B', nomesAnteriores: ['A', 'C', 'a'] }, 'C'), ['B', 'A']);
+  assert.equal(formerNames({ nome: 'X', nomesAnteriores: Array.from({ length: 15 }, (_, i) => 'N' + i) }, 'Y').length, 10);
+  srv.reset(baseData());
+  await call({ action: 'update', cod: 'F009', supplier: { nome: 'joão  elias  sucatas' } });
+  let stored = await viaSdk('erp/fornecedores/F009');
+  assert.equal(stored.nome, 'JOÃO ELIAS SUCATAS');
+  assert.deepEqual(stored.nomesAnteriores, ['JOAO ELIAS']);
+  await call({ action: 'update', cod: 'F009', supplier: { tel: '47 99999-0000' } });
+  await call({ action: 'update', cod: 'F009', supplier: { nome: 'JOÃO ELIAS SUCATAS' } });
+  stored = await viaSdk('erp/fornecedores/F009');
+  assert.deepEqual(stored.nomesAnteriores, ['JOAO ELIAS']);
+  await call({ action: 'update', cod: 'F009', supplier: { nome: 'JOAO ELIAS', nomesAnteriores: ['HACK'] } });
+  stored = await viaSdk('erp/fornecedores/F009');
+  assert.equal(stored.nome, 'JOAO ELIAS');
+  assert.deepEqual(stored.nomesAnteriores, ['JOÃO ELIAS SUCATAS']);
 });

@@ -38,7 +38,7 @@ test('T309: mesmo se algum código legado reverter status e saldo para pendente,
 });
 test('sincronizador não reenvia CPPO, tickets criados pela API e saídas bancárias LB-PG-',()=>{
   const code=readFileSync(new URL('../public/legacy/firebase-sync.js',import.meta.url),'utf8');
-  assert.match(code,/String\(id\)\.startsWith\('CPPO_'\)/);
+  assert.doesNotMatch(code,/_patchIncremental\(dados, 'contasPagar'/,'nenhuma conta a pagar (CPPO ou não) sai do navegador');
   assert.match(code,/TICKETS_DB\[k\]\?\._purchaseOperationId/);
   assert.match(code,/String\(id\)\.startsWith\('LB-PG-'\)/);
 });
