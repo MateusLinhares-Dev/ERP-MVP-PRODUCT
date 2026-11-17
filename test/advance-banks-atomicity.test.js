@@ -86,7 +86,7 @@ test('aplicação não amplia regra de bancos nem publica extrato para perfil fi
   const rules=JSON.parse(readFileSync(new URL('../database.rules.json',import.meta.url),'utf8'));
   assert.match(rules.rules.erp.bancos['.read'],/canBanking/);
   assert.doesNotMatch(rules.rules.erp.bancos['.read'],/canFinance/);
-  assert.match(rules.rules.erp.lancBanco['.write'],/canBanking/);
+  assert.equal(rules.rules.erp.lancBanco['.write'],false,'só o servidor grava o extrato');
   const frontend=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
   assert.match(frontend,/\/api\/finance\/advance-banks/);
   assert.match(frontend,/\/api\/finance\/advances/);

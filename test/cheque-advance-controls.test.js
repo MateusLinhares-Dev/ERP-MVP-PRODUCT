@@ -9,8 +9,11 @@ function slice(start,end){
   assert.ok(a>=0&&b>a,'trecho não encontrado: '+start);
   return core.slice(a,b);
 }
+const json=value=>JSON.parse(JSON.stringify(value));
 const helpers=slice('function _chqHojeBR(){','function chqInit(){');
-const movement=slice('function _chqPodeLancarBanco(){','function _chqMovBancoRemover(movId){');
+const access=slice('function _chqPodeLancarBanco(){','function chqMarcarComp(id){');
+const mark=slice('function chqMarcarComp(id){','function chqRemessaDeposito(){');
+const batch=slice('function chqRemessaDepConfirmar(){',"window['chqRemessaDeposito']");
 const remove=slice('function chqReabrir(id){','function _chqCadastroDestinos(){');
 
 test('compensação: cheque próprio de adiantamento baixa o banco; de terceiro não; legado pergunta',()=>{
@@ -22,38 +25,57 @@ test('compensação: cheque próprio de adiantamento baixa o banco; de terceiro 
   assert.equal(ctx.auto({n:'123',dc:true}),null,'cheque legado: mantém a pergunta');
 });
 
-test('sem acesso a Bancos a saída não é gravada em silêncio: avisa e não cria movimento',()=>{
-  const toasts=[];let saved=0;
-  const make=cu=>{
-    const ctx={cu,LANC_BANCO_DB:[],showToast:(m,t)=>toasts.push([m,t]),saveBancos(){saved++;},renderBancos(){},_chqFmt:v=>'R$ '+v,Date,Math,Number,Array};
-    runInNewContext(movement+';this.criar=_chqMovBancoCriar;',ctx);
-    return ctx;
-  };
-  const sem=make({tabs:['cheques_compensar']});
-  assert.equal(sem.criar('B1','08/11/2026','Cheque 1',100),'');
-  assert.equal(sem.LANC_BANCO_DB.length,0);
-  assert.match(toasts[0][0],/NÃO foi lançada no extrato/);
-  const com=make({tabs:['cheques_compensar','contas_banco']});
-  assert.match(com.criar('B1','08/11/2026','Cheque 1',100),/^LB-/);
-  assert.equal(com.LANC_BANCO_DB.length,1);assert.equal(saved,1);
-  assert.match(make({admin:true,tabs:[]}).criar('B1','08/11/2026','x',5),/^LB-/);
+function chequeContext(cheques,extra={}){
+  const calls=[],toasts=[],alerts=[];
+  const ctx={CHQ_CTRL:cheques,ADT_POR_FORN:{F1:[{cod:'ADT1'}]},calls,toasts,alerts,
+    prompt:()=>'17/11/2026',confirm:()=>true,alert:m=>alerts.push(m),
+    showToast:(m,t)=>toasts.push([t,m]),_chqFmt:v=>'R$ '+v,
+    _cfgChequeBankCode:name=>name==='Sicredi'?'BC-001':'',
+    _bancoApi:async body=>{calls.push(json(body));return extra.reply||{cleared:[],movements:[]};},
+    document:{getElementById:()=>({value:'2026-11-17',remove(){}}),querySelectorAll:()=>extra.checks||[],querySelector:()=>null},
+    Array,Number,...extra.context};
+  runInNewContext(helpers+access+mark+batch+remove,ctx);
+  return ctx;
+}
+
+test('compensar um cheque manda ao servidor a data, a conta do banco e se desconta',async()=>{
+  const ctx=chequeContext({C1:{n:'1',b:'Sicredi',v:10},C2:{n:'2',b:'Sicredi',v:10,dc:true},C3:{n:'3',b:'Itaú',v:10,advanceCode:'ADT1',fornCod:'F1'}},{context:{confirm:()=>false}});
+  ctx.chqMarcarComp('C1');ctx.chqMarcarComp('C2');ctx.chqMarcarComp('C3');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(ctx.calls.map(c=>c.cheques[0]),[{id:'C1',bankCode:'BC-001',debit:true},{id:'C2',bankCode:'BC-001',debit:false},{id:'C3',bankCode:'',debit:true}]);
+  assert.deepEqual(ctx.calls.map(c=>[c.action,c.mode,c.date]),[['clear-cheques','controle','17/11/2026'],['clear-cheques','controle','17/11/2026'],['clear-cheques','controle','17/11/2026']]);
+  assert.equal(ctx.CHQ_CTRL.C1.s,undefined,'a tela só muda com a resposta do servidor');
 });
 
-test('cheque de adiantamento não é excluído pelo controle; cheque já debitado exige acesso a Bancos',()=>{
-  const alerts=[];const removed=[];
-  const make=(cheque,cu)=>{
-    const ctx={CHQ_CTRL:{C1:cheque},cu,_chqDel:{},alert:m=>alerts.push(m),confirm:()=>true,showToast(){},renderChequesCompensar(){},
-      _chqFmt:v=>'R$ '+v,_chqMovBancoRemover:id=>removed.push(id),
-      _chqRef:()=>({child:()=>({remove:()=>Promise.resolve(),update:()=>Promise.resolve()})}),
-      _chqDelRef:()=>({child:()=>({set:()=>Promise.resolve()})})};
-    runInNewContext(movement.slice(0,movement.indexOf('function _chqMovBancoCriar'))+remove+';this.excluir=chqExcluir;this.reabrir=chqReabrir;',ctx);
-    return ctx;
-  };
-  make({n:'1',b:'Itaú',v:10,advanceCode:'ADT9'},{admin:true}).excluir('C1');
-  assert.match(alerts.pop(),/pertence ao adiantamento ADT9/);
-  make({n:'2',b:'Itaú',v:10,movBancoId:'LB-7',s:'C'},{tabs:['cheques_compensar']}).reabrir('C1');
-  assert.match(alerts.pop(),/acesso a Bancos/);
-  assert.deepEqual(removed,[],'movimento do extrato preservado');
-  make({n:'3',b:'Itaú',v:10,movBancoId:'LB-8',s:'C'},{tabs:['contas_banco']}).reabrir('C1');
-  assert.deepEqual(removed,['LB-8']);
+test('remessa manda todos os marcados numa chamada só e mostra os avisos do servidor',async()=>{
+  const checks=['C1','C2','C9'].map(id=>({dataset:{id}}));
+  const ctx=chequeContext({C1:{n:'1',b:'Sicredi',v:10},C2:{n:'2',b:'Sicredi',v:5,dc:true},C9:{n:'9',b:'Sicredi',v:5,s:'C'}},
+    {checks,reply:{cleared:[{id:'C1'},{id:'C2'}],movements:[{id:'LB-1'}],warnings:['Cheque nº 2: aviso']}});
+  ctx.chqRemessaDepConfirmar();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(ctx.calls,[{action:'clear-cheques',mode:'remessa',date:'2026-11-17',cheques:[{id:'C1',bankCode:'BC-001',debit:true},{id:'C2',bankCode:'BC-001',debit:false}]}]);
+  assert.deepEqual(ctx.toasts.map(t=>t[0]),['warn','success']);
+  assert.match(ctx.toasts[1][1],/2 cheque\(s\) · R\$ 15,00/);
+});
+
+test('cheque de adiantamento não é excluído pelo controle; cheque já debitado exige acesso a Bancos',async()=>{
+  const adt=chequeContext({C1:{n:'1',b:'Itaú',v:10,advanceCode:'ADT9'}},{context:{cu:{admin:true}}});
+  adt.chqExcluir('C1');
+  assert.match(adt.alerts.pop(),/pertence ao adiantamento ADT9/);
+  const semBanco=chequeContext({C1:{n:'2',b:'Itaú',v:10,movBancoId:'LB-7',s:'C'}},{context:{cu:{tabs:['cheques_compensar']}}});
+  semBanco.chqReabrir('C1');semBanco.chqExcluir('C1');
+  assert.equal(semBanco.alerts.length,2);
+  assert.match(semBanco.alerts[0],/acesso a Bancos/);
+  assert.equal(adt.calls.length+semBanco.calls.length,0,'nada vai ao servidor');
+  const comBanco=chequeContext({C1:{n:'3',b:'Itaú',v:10,movBancoId:'LB-8',s:'C'},C2:{n:'4',b:'Itaú',v:10}},{context:{cu:{tabs:['contas_banco']}}});
+  comBanco.chqReabrir('C1');comBanco.chqExcluir('C2');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(comBanco.calls,[{action:'reopen-cheque',id:'C1'},{action:'delete-cheque',id:'C2'}]);
+});
+
+test('a tela não cria nem apaga lançamento do extrato por conta própria',()=>{
+  assert.doesNotMatch(core,/function _chqMovBancoCriar/);
+  assert.doesNotMatch(core,/function _chqMovBancoRemover/);
+  assert.doesNotMatch(core,/function registrarMovBanco/);
+  assert.doesNotMatch(core,/LANC_BANCO_DB\.push\(\{id,bancoCod:cod/);
 });

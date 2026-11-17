@@ -5831,6 +5831,12 @@ function _movimentoPertenceAdiantamento(movement){
 function _bancoMovimentoDoServidor(mov){
   return Boolean(mov)&&(/^LB-(PG|REP)-/.test(String(mov.id||''))||Boolean(mov.payableId));
 }
+function _bancoMovimentoAutomatico(mov){
+  if(!mov) return false;
+  if(_bancoMovimentoDoServidor(mov)||_movimentoPertenceAdiantamento(mov)) return true;
+  if(/^LB-(VD|CR|CHQ)-/.test(String(mov.id||''))||mov.saleId||mov.receivableId||mov.source==='cheque'||mov.chequeId) return true;
+  try{ return Object.values(CHQ_CTRL||{}).some(c=>c&&c.movBancoId===mov.id); }catch(e){ return false; }
+}
 function _bloquearEdicaoMovimentoAdiantamento(movement){
   const pagamento=_bancoMovimentoDoServidor(movement);
   if(!pagamento&&!_movimentoPertenceAdiantamento(movement))return false;
@@ -5867,8 +5873,8 @@ function editLancBanco(id, cod){
     </div>`;
 }
 
-function salvarEditLancBanco(id, cod){
-  const l=LANC_BANCO_DB.find(x=>x.id===id);
+async function salvarEditLancBanco(id, cod){
+  const l=LANC_BANCO_DB.find(x=>x&&x.id===id);
   if(!l){alert('Não encontrado.');return;}
   if(_bloquearEdicaoMovimentoAdiantamento(l))return;
   const data=document.getElementById('elb-data').value;
@@ -5879,32 +5885,12 @@ function salvarEditLancBanco(id, cod){
     alert('Preencha data, descrição, tipo e valor válido. O valor deve caber com precisão em centavos.');
     return;
   }
-  l.data=data;
-  l.descricao=descricao;
-  l.tipo=tipo;
-  l.valor=valor;
-  saveBancos();
-  renderBancos();
-  cm();
-  verExtratoBanco(cod);
-  showToast('Lançamento atualizado.','success');
-}
-
-function _removerMovBancoDeAdiantamento(fornCod, a){
-  if(!a) return;
-  let i=-1;
-  if(a.movBancoId) i=LANC_BANCO_DB.findIndex(l=>l.id===a.movBancoId);
-  if(i<0 && a.bancoNome && a.bancoNome!=='Não informado'){
-    const banco=BANCOS_DB.find(x=>x.banco===a.bancoNome);
-    if(banco){
-      const forn=FORNECEDORES.find(f=>f.cod===fornCod);
-      const descEsperada='Adiantamento: '+(forn?forn.nome:fornCod)+(a.ticket?' Ticket '+a.ticket:'');
-      i=LANC_BANCO_DB.findIndex(l=>l.bancoCod===banco.cod && l.tipo==='Saida' &&
-        Math.abs(Number(l.valor)-Number(a.valor))<0.01 &&
-        (l.descricao===descEsperada || l.descricao===('Adiantamento: '+fornCod+(a.ticket?' Ticket '+a.ticket:''))));
-    }
-  }
-  if(i>=0){ _syncLancBanco.remover(i); saveBancos(); renderBancos(); }
+  try{
+    await _bancoApi({action:'update-entry',id,expected:{data:l.data,descricao:l.descricao,tipo:l.tipo,valor:l.valor},entry:{data,descricao,tipo,valor}});
+    cm();
+    verExtratoBanco(cod);
+    showToast('Lançamento atualizado.','success');
+  }catch(error){ alert('Não foi possível salvar o lançamento. '+error.message); }
 }
 
 function excluirAdiantamento(fornCod, adtCod){
@@ -7899,177 +7885,18 @@ function _adtCorrigirDataCompensacaoParcial(){
   return mudou;
 }
 
-function sincronizarAdiantamentosBanco(){
-  const usados=new Set(
-    Object.values(ADT_POR_FORN).flat().filter(a=>a && a.movBancoId).map(a=>a.movBancoId)
-  );
-  const pendentes=[]; 
-  const paraVincular=[]; 
-
-  Object.entries(ADT_POR_FORN).forEach(([fornCod,lista])=>{
-    (lista||[]).forEach(a=>{
-      if(!a || a.movBancoId) return;
-      if(!a.bancoNome || a.bancoNome==='Não informado') return;
-      const banco=BANCOS_DB.find(x=>x.banco===a.bancoNome);
-      if(!banco) return; 
-      const forn=FORNECEDORES.find(f=>f.cod===fornCod);
-      const descEsperada='Adiantamento: '+(forn?forn.nome:fornCod)+(a.ticket?' Ticket '+a.ticket:'');
-      const existente=LANC_BANCO_DB.find(l=>
-        !usados.has(l.id) && l.bancoCod===banco.cod && l.tipo==='Saida' &&
-        Math.abs(Number(l.valor)-Number(a.valor))<0.01 &&
-        (l.descricao===descEsperada || l.descricao===('Adiantamento: '+fornCod+(a.ticket?' Ticket '+a.ticket:'')))
-      );
-      if(existente){ usados.add(existente.id); paraVincular.push({a,movId:existente.id}); }
-      else { pendentes.push({a,fornCod,banco,descEsperada}); }
-    });
-  });
-
-  const orfaos=LANC_BANCO_DB.filter(l=>!usados.has(l.id) && !paraVincular.some(p=>p.movId===l.id) && /^Adiantamento:/.test(l.descricao||''));
-
-  if(pendentes.length===0 && paraVincular.length===0 && orfaos.length===0){
-    alert('✅ Tudo certo — todos os adiantamentos com banco definido estão somando certinho no saldo do banco, e não há lançamentos de adiantamento sobrando sem adiantamento correspondente.');
-    return;
-  }
-
-  const totalPendente=pendentes.reduce((s,p)=>s+Number(p.a.valor||0),0);
-  const totalOrfaos=orfaos.reduce((s,l)=>s+Number(l.valor||0),0);
-  const fmt=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  let msg='Encontrei:\n\n';
-  if(paraVincular.length>0) msg+='• '+paraVincular.length+' adiantamento(s) com lançamento já existente no banco, só faltando vincular (não muda nenhum valor).\n';
-  if(pendentes.length>0) msg+='• '+pendentes.length+' adiantamento(s) SEM nenhum lançamento no banco, totalizando R$ '+fmt(totalPendente)+' — vou criar esses lançamentos agora.\n';
-  if(orfaos.length>0) msg+='• '+orfaos.length+' lançamento(s) de adiantamento no banco que NÃO correspondem a nenhum adiantamento cadastrado hoje (provavelmente de adiantamentos já excluídos), totalizando R$ '+fmt(totalOrfaos)+' — vou remover esses lançamentos agora.\n';
-  msg+='\nUm backup de contas e lançamentos será baixado antes. Continuar?';
-  if(!confirm(msg)) return;
-
-  try{
-    const agora=new Date();
-    const backup={geradoEm:agora.toISOString(),bancos:JSON.parse(JSON.stringify(BANCOS_DB)),lancamentos:JSON.parse(JSON.stringify(LANC_BANCO_DB)),adiantamentos:JSON.parse(JSON.stringify(ADT_POR_FORN))};
-    const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
-    const url=URL.createObjectURL(blob);
-    const link=document.createElement('a');
-    link.href=url; link.download='backup-adiantamentos-bancos-'+agora.toISOString().slice(0,10)+'.json';
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
-    setTimeout(()=>URL.revokeObjectURL(url),2000);
-  }catch(e){ console.warn('backup falhou:',e); }
-
-  paraVincular.forEach(({a,movId})=>{ a.movBancoId=movId; });
-  pendentes.forEach(({a,fornCod,descEsperada})=>{
-    const mov=registrarMovBanco(a.bancoCod||a.bancoNome, a.data?a.data.split('/').reverse().join('-'):'', descEsperada, 'Saida', a.valor);
-    if(mov) a.movBancoId=mov.id;
-  });
-  if(orfaos.length>0){
-    const orfaosIds=new Set(orfaos.map(l=>l.id));
-    for(let i=LANC_BANCO_DB.length-1;i>=0;i--){ if(orfaosIds.has(LANC_BANCO_DB[i].id)) _syncLancBanco.remover(i); }
-    saveBancos(); renderBancos();
-  }
-  saveDB();
-  renderAdiantamentos();
-  alert('✅ Pronto! '+paraVincular.length+' vinculado(s), '+pendentes.length+' lançamento(s) novo(s) criado(s) (R$ '+fmt(totalPendente)+') e '+orfaos.length+' lançamento(s) órfão(s) removido(s) (R$ '+fmt(totalOrfaos)+'). Confira o saldo em Contas Bancárias.');
-}
-
-function sincronizarPagamentosBanco(){
-  if(typeof CONTAS_PAGAR==='undefined'||!Array.isArray(CONTAS_PAGAR)){ alert('Contas a Pagar não carregou ainda. Abra a aba Contas a Pagar e tente de novo.'); return; }
-  const fmt=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  
-  const usados=new Set();
-  CONTAS_PAGAR.forEach(c=>{
-    if(c && c.movBancoIdCP) usados.add(c.movBancoIdCP);
-    if(c && Array.isArray(c.pagamentos)) c.pagamentos.forEach(p=>{ if(p && p.movBancoId) usados.add(p.movBancoId); });
-  });
-
-  const pendentes=[];   
-  const paraVincular=[];
-
-  function _acharBanco(nome){
-    if(!nome) return null;
-    return BANCOS_DB.find(x=>{
-      const n=x.banco+(x.tipo==='Conta Terceiro'&&x.titular?' ('+x.titular+')':'');
-      return n===nome||x.banco===nome;
-    });
-  }
-  function _tentar(alvo, banco, valor, dataISO, desc){
-    if(!banco||!(Number(valor)>0)) return;
-
-    const existente=LANC_BANCO_DB.find(l=>
-      !usados.has(l.id) && l.bancoCod===banco.cod && l.tipo==='Saida' &&
-      Math.abs(Number(l.valor)-Number(valor))<0.01 &&
-      /^Pagto:/i.test(l.descricao||'')
-    );
-    if(existente){ usados.add(existente.id); paraVincular.push({alvo, movId:existente.id}); }
-    else { pendentes.push({alvo, banco, valor:Number(valor), dataISO, desc}); }
-  }
-
-  CONTAS_PAGAR.forEach(c=>{
-    if(!c) return;
-    const temPagamentos=Array.isArray(c.pagamentos)&&c.pagamentos.length>0;
-    if(temPagamentos){
-      c.pagamentos.forEach(p=>{
-        if(!p||p.movBancoId) return;
-        if(!p.banco||!(Number(p.valor)>0)) return;
-        const banco=_acharBanco(p.banco);
-        if(!banco) return;
-        const dataISO=p.data?p.data.split('/').reverse().join('-'):'';
-        _tentar({tipo:'pagamento',c,p}, banco, p.valor, dataISO, 'Pagto: '+(c.desc||c.cred||''));
-      });
-    } else if(c.status==='Pago' && c.bancoNome && !c.movBancoIdCP){
-      
-      const banco=_acharBanco(c.bancoNome);
-      if(!banco) return;
-      const valor=Number(c.valorPago||c.valor||0);
-      const dataISO=c.dataPgto?c.dataPgto.split('/').reverse().join('-'):'';
-      _tentar({tipo:'conta',c}, banco, valor, dataISO, 'Pagto: '+(c.desc||c.cred||''));
-    }
-  });
-
-  if(pendentes.length===0 && paraVincular.length===0){
-    alert('✅ Tudo certo — todos os pagamentos a fornecedor com banco definido já estão puxando do saldo do banco.');
-    return;
-  }
-
-  const totalPendente=pendentes.reduce((s,p)=>s+Number(p.valor||0),0);
-  let msg='Encontrei:\n\n';
-  if(paraVincular.length>0) msg+='• '+paraVincular.length+' pagamento(s) com lançamento já existente no banco, só faltando vincular (não muda nenhum valor).\n';
-  if(pendentes.length>0) msg+='• '+pendentes.length+' pagamento(s) SEM lançamento no banco, totalizando R$ '+fmt(totalPendente)+' — vou criar essas saídas agora pra puxar do saldo.\n';
-  msg+='\nUm backup de contas e lançamentos será baixado antes. Continuar?';
-  if(!confirm(msg)) return;
-
-  try{
-    const agora=new Date();
-    const backup={geradoEm:agora.toISOString(),bancos:JSON.parse(JSON.stringify(BANCOS_DB)),lancamentos:JSON.parse(JSON.stringify(LANC_BANCO_DB)),contasPagar:JSON.parse(JSON.stringify(CONTAS_PAGAR))};
-    const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
-    const url=URL.createObjectURL(blob);
-    const link=document.createElement('a');
-    link.href=url; link.download='backup-pagamentos-bancos-'+agora.toISOString().slice(0,10)+'.json';
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
-    setTimeout(()=>URL.revokeObjectURL(url),2000);
-  }catch(e){ console.warn('backup falhou:',e); }
-
-  paraVincular.forEach(({alvo,movId})=>{
-    if(alvo.tipo==='pagamento'){ alvo.p.movBancoId=movId; if(!alvo.c.movBancoIdCP) alvo.c.movBancoIdCP=movId; }
-    else { alvo.c.movBancoIdCP=movId; }
-    alvo.c._upd=Date.now();
-  });
-  pendentes.forEach(({alvo,banco,valor,dataISO,desc})=>{
-    const mov=registrarMovBanco(banco.banco+(banco.tipo==='Conta Terceiro'&&banco.titular?' ('+banco.titular+')':''), dataISO, desc, 'Saida', valor);
-    if(mov){
-      if(alvo.tipo==='pagamento'){ alvo.p.movBancoId=mov.id; if(!alvo.c.movBancoIdCP) alvo.c.movBancoIdCP=mov.id; }
-      else { alvo.c.movBancoIdCP=mov.id; }
-      alvo.c._upd=Date.now();
-    }
-  });
-  try{ saveContasPagar(); renderContasPagar(); }catch(e){}
-  saveBancos(); renderBancos();
-  alert('✅ Pronto! '+paraVincular.length+' pagamento(s) vinculado(s) e '+pendentes.length+' saída(s) nova(s) criada(s) (R$ '+fmt(totalPendente)+'). Confira o saldo em Contas Bancárias.');
-}
-
-function adtSetEmpresaInline(fornCod, adtCod, novaEmpresa){
+async function adtSetEmpresaInline(fornCod, adtCod, novaEmpresa){
   const lista=ADT_POR_FORN[fornCod]||[];
   const a=lista.find(x=>x.cod===adtCod);
   if(!a) return;
-  a.empresa=novaEmpresa;
-  delete a._empresaAuto; 
-  saveDB();
-  showToast('Empresa do adiantamento '+adtCod+' definida como '+novaEmpresa+'.','success');
+  const empresa=String(novaEmpresa||'').trim();
+  try{
+    await _adtCommitTransacional({action:'company',fornCod,adtCod,empresa});
+    showToast(empresa?'Empresa do adiantamento '+adtCod+' definida como '+empresa+'.':'Empresa do adiantamento '+adtCod+' removida.','success');
+  }catch(error){
+    showToast('Não foi possível salvar a empresa do adiantamento: '+error.message,'error',8000);
+  }
+  try{ renderAdiantamentos(); }catch(e){}
 }
 
 function _bancoKey(nome){
@@ -14489,54 +14316,24 @@ var _CHQ_BANCO_COR={};
 function _chqPodeLancarBanco(){
   try{ return !!(cu && (cu.admin===true || (Array.isArray(cu.tabs)&&cu.tabs.some(function(t){ return t==='contas_banco'||t==='bancos'; })))); }catch(e){ return false; }
 }
-function _chqMovBancoCriar(bancoCod, dataBR, desc, valor){
-  try{
-    if(!bancoCod || !valor || typeof LANC_BANCO_DB==='undefined') return '';
-    if(!_chqPodeLancarBanco()){
-      showToast('⚠️ Cheque marcado como compensado, mas seu usuário não tem acesso a Bancos: a saída de '+_chqFmt(Number(valor)||0)+' NÃO foi lançada no extrato. Peça para quem cuida dos bancos lançar.','warn',10000);
-      return '';
-    }
-    var mov={ id:'LB-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
-      bancoCod:bancoCod, data:(dataBR||_chqHojeBR()), descricao:desc, tipo:'Saida', valor:Number(valor)||0 };
-    LANC_BANCO_DB.push(mov);
-    try{ saveBancos(); }catch(e){} try{ renderBancos(); }catch(e){}
-    return mov.id;
-  }catch(e){ console.warn('mov banco cheque:',e); return ''; }
-}
-function _chqMovBancoRemover(movId){
-  try{
-    if(!movId || typeof LANC_BANCO_DB==='undefined') return;
-    var i=LANC_BANCO_DB.findIndex(function(l){ return l && l.id===movId; });
-    if(i>=0){
-      if(typeof _syncLancBanco!=='undefined' && _syncLancBanco.remover) _syncLancBanco.remover(i);
-      else LANC_BANCO_DB.splice(i,1);
-      try{ saveBancos(); }catch(e){} try{ renderBancos(); }catch(e){}
-    }
-  }catch(e){ console.warn('remover mov banco cheque:',e); }
-}
 function chqMarcarComp(id){
   var c=CHQ_CTRL[id]; if(!c) return;
   var d=prompt('Data que o cheque nº '+c.n+' ('+c.b+') caiu no banco (dd/mm/aaaa):', c.cd||_chqHojeBR());
   if(d===null) return;
-  var r=_chqRef(); if(!r) return;
-
   var descontarBanco=true;
   var _auto=_chqDescontaBancoAuto(c);
   if(_auto!==null){ descontarBanco=_auto; }
   else if(c.dc){
     descontarBanco=confirm('Este cheque está marcado como "desconta da compra" (adiantamento).\n\nSe você já lançou ele como adiantamento, o saldo do banco JÁ baixou — então NÃO precisa descontar de novo (senão conta em dobro).\n\nDescontar do saldo do banco mesmo assim?\n\nOK = sim, descontar do banco\nCancelar = não, só marcar como compensado');
   }
-  
-  var movId='';
-  if(descontarBanco && !c.movBancoId){ movId=_chqMovBancoCriar(_cfgChequeBankCode(c.b), (d||'').trim(), 'Cheque nº '+c.n+' compensado (controle)', +c.v||0); }
-  
-  c.s='C'; c.cd=(d||'').trim(); if(movId) c.movBancoId=movId; try{ renderChequesCompensar(); }catch(e){}
-  var upd={s:'C', cd:(d||'').trim()}; if(movId) upd.movBancoId=movId;
-  r.child(id).update(upd)
-    .then(function(){ showToast('Cheque '+c.n+' compensado'+(movId?' — saiu do saldo do banco':'')+' ✔','success'); })
-    .catch(function(e){ showToast('Erro: '+e.message,'error'); });
+  _bancoApi({action:'clear-cheques',mode:'controle',date:String(d||'').trim()||_chqHojeBR(),cheques:[{id:id,bankCode:_cfgChequeBankCode(c.b),debit:descontarBanco}]})
+    .then(function(r){
+      (r.warnings||[]).forEach(function(w){ showToast('⚠️ '+w,'warn',10000); });
+      if((r.skipped||[]).length){ showToast('O cheque '+c.n+' já não estava a compensar. A lista foi atualizada.','info',6000); return; }
+      showToast('Cheque '+c.n+' compensado'+((r.movements||[]).length?' — saiu do saldo do banco':'')+' ✔','success');
+    })
+    .catch(function(e){ showToast('Erro: '+e.message,'error',8000); });
 }
-
 function chqRemessaDeposito(){
   var pend=Object.keys(CHQ_CTRL).map(function(k){ return {id:k,c:CHQ_CTRL[k]}; }).filter(function(o){ return o.c && (o.c.s||'A')==='A'; });
   if(_chqFbanco && _chqFbanco!=='TODOS') pend=pend.filter(function(o){ return o.c.b===_chqFbanco; });
@@ -14594,21 +14391,22 @@ function chqRemessaDepConfirmar(){
   var checks=Array.prototype.slice.call(document.querySelectorAll('#chq-remessa-ov .chqrd-chk:checked'));
   if(!checks.length){ showToast('Marque pelo menos um cheque.','info'); return; }
   if(!confirm('Depositar '+checks.length+' cheque(s) na data '+dBR+'? Eles viram Compensados e saem do saldo do banco (os de adiantamento não descontam de novo).')) return;
-  var r=_chqRef();
-  var n=0, tot=0;
+  var lista=[];
   checks.forEach(function(chk){
     var id=chk.dataset.id; var c=CHQ_CTRL[id]; if(!c||(c.s||'A')!=='A') return;
-    var _auto=_chqDescontaBancoAuto(c); var descontarBanco=_auto!==null?_auto:!c.dc; 
-    var movId='';
-    if(descontarBanco && !c.movBancoId){ movId=_chqMovBancoCriar(_cfgChequeBankCode(c.b), dBR, 'Cheque nº '+c.n+' compensado (remessa '+dBR+')', +c.v||0); }
-    c.s='C'; c.cd=dBR; if(movId) c.movBancoId=movId;
-    var upd={s:'C', cd:dBR}; if(movId) upd.movBancoId=movId;
-    if(r){ try{ r.child(id).update(upd); }catch(e){} }
-    n++; tot+=Number(c.v||0);
+    var _auto=_chqDescontaBancoAuto(c);
+    lista.push({id:id,bankCode:_cfgChequeBankCode(c.b),debit:_auto!==null?_auto:!c.dc});
   });
-  var ov=document.getElementById('chq-remessa-ov'); if(ov) ov.remove();
-  try{ renderChequesCompensar(); }catch(e){}
-  showToast('✔ Remessa depositada: '+n+' cheque(s) · R$ '+Number(tot).toLocaleString('pt-BR',{minimumFractionDigits:2})+'. Saiu do saldo do banco.','success',6000);
+  if(!lista.length){ showToast('Os cheques marcados já foram compensados. A lista foi atualizada.','info'); return; }
+  var botao=document.querySelector('#chq-remessa-ov button[onclick="chqRemessaDepConfirmar()"]'); if(botao) botao.disabled=true;
+  _bancoApi({action:'clear-cheques',mode:'remessa',date:iso,cheques:lista})
+    .then(function(r){
+      var ov=document.getElementById('chq-remessa-ov'); if(ov) ov.remove();
+      var tot=(r.cleared||[]).reduce(function(s,x){ return s+Number((CHQ_CTRL[x.id]||{}).v||0); },0);
+      (r.warnings||[]).forEach(function(w){ showToast('⚠️ '+w,'warn',10000); });
+      showToast('✔ Remessa depositada: '+(r.cleared||[]).length+' cheque(s) · R$ '+Number(tot).toLocaleString('pt-BR',{minimumFractionDigits:2})+'. Saiu do saldo do banco.','success',6000);
+    })
+    .catch(function(e){ if(botao) botao.disabled=false; showToast('Erro: '+e.message,'error',8000); });
 }
 window['chqRemessaDeposito']=chqRemessaDeposito;
 window['chqRemessaMarcarTodos']=chqRemessaMarcarTodos;
@@ -14617,19 +14415,14 @@ window['chqRemessaDepConfirmar']=chqRemessaDepConfirmar;
 
 function chqReabrir(id){
   var c=CHQ_CTRL[id]; if(!c) return;
-  var r=_chqRef(); if(!r) return;
   if(c.movBancoId && !_chqPodeLancarBanco()){
     alert('Este cheque já saiu do saldo do banco. Para reabri-lo é preciso desfazer a saída no extrato: peça para quem tem acesso a Bancos.');
     return;
   }
-  
   var tinhaMov=!!c.movBancoId;
-  if(tinhaMov){ _chqMovBancoRemover(c.movBancoId); }
-  c.s='A'; c.cd=''; delete c.movBancoId; try{ renderChequesCompensar(); }catch(e){}
-  var upd={s:'A', cd:''}; if(tinhaMov) upd.movBancoId=null;
-  r.child(id).update(upd)
+  _bancoApi({action:'reopen-cheque',id:id})
     .then(function(){ showToast('Cheque '+c.n+' voltou para A Compensar'+(tinhaMov?' — devolvido ao saldo do banco':''),'success'); })
-    .catch(function(e){ showToast('Erro: '+e.message,'error'); });
+    .catch(function(e){ showToast('Erro: '+e.message,'error',8000); });
 }
 function chqExcluir(id){
   var c=CHQ_CTRL[id]; if(!c) return;
@@ -14637,15 +14430,11 @@ function chqExcluir(id){
     alert('Este cheque pertence ao adiantamento '+c.advanceCode+'.\n\nPara removê-lo, exclua o adiantamento no módulo Adiantamentos: os cheques dele saem junto, sem deixar saldo sem origem.');
     return;
   }
-  if(!confirm('Excluir o cheque nº '+c.n+' ('+c.b+', '+_chqFmt(+c.v||0)+')?\n\nEle sai do controle em todos os computadores.')) return;
-  var r=_chqRef(), dr=_chqDelRef(); if(!r||!dr) return;
   if(c.movBancoId && !_chqPodeLancarBanco()){ alert('Este cheque já saiu do saldo do banco. Para excluí-lo, peça para quem tem acesso a Bancos.'); return; }
-  if(c.movBancoId){ _chqMovBancoRemover(c.movBancoId); }
-  _chqDel[id]=true; delete CHQ_CTRL[id]; try{ renderChequesCompensar(); }catch(e){}
-  dr.child(id).set(true).then(function(){
-    return r.child(id).remove();
-  }).then(function(){ showToast('Cheque excluído','success'); })
-    .catch(function(e){ showToast('Erro: '+e.message,'error'); });
+  if(!confirm('Excluir o cheque nº '+c.n+' ('+c.b+', '+_chqFmt(+c.v||0)+')?\n\nEle sai do controle em todos os computadores.')) return;
+  _bancoApi({action:'delete-cheque',id:id})
+    .then(function(){ showToast('Cheque excluído','success'); })
+    .catch(function(e){ showToast('Erro: '+e.message,'error',8000); });
 }
 
 function _chqCadastroDestinos(){
@@ -16856,29 +16645,6 @@ window.erpPayablesApply=function(kind,result){
 window.erpPayablesOnlyPurchases=function(){ return Boolean(typeof cu!=='undefined'&&cu&&cu.cpApenasFornecedor); };
 window.erpFinanceCompanies=function(){ return _cfgFinanceCompanies(); };
 window.erpFinanceCompanyColor=function(n){ return _cfgFinanceCompanyColor(n); };
-function registrarMovBanco(bancoNome, dataISO, descricao, tipo, valor){
-
-  if(!bancoNome||!valor) return null;
-  const alvo=String(bancoNome);
-  const sufixo=/ — ([^—]+)$/.exec(alvo);
-  const b=BANCOS_DB.find(x=>x.cod===alvo)
-    ||(sufixo?BANCOS_DB.find(x=>x.cod===sufixo[1].trim()):null)
-    ||BANCOS_DB.find(x=>x.tipo==='Conta Terceiro'&&x.banco+' ('+x.titular+')'===alvo)
-    ||BANCOS_DB.find(x=>x.banco===alvo);
-  if(!b){ console.warn('Banco nao encontrado:',bancoNome); return null; }
-  const dataFmt=dataISO?dataISO.split('-').reverse().join('/')
-    :new Date().toLocaleDateString('pt-BR');
-  const mov={
-    id:'LB-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
-    bancoCod:b.cod, data:dataFmt, descricao, tipo, valor:Number(valor)
-  };
-  LANC_BANCO_DB.push(mov);
-  saveBancos();
-  renderBancos();
-  return mov;
-}
-
-
 function confirmarAcao(msg, onOk, okLabel, okStyle){
   const old=document.getElementById('modal-ov-confirm'); if(old) old.remove();
   const label = okLabel || '🗑️ Excluir';
@@ -16927,7 +16693,6 @@ function bancosCorrigeEmpresa(){
     const nova=_empresaPorTexto(alvo);
     if(b.empresa!==nova || !b._empresaAuto){ b.empresa=nova; b._empresaAuto=true; mudou=true; }
   });
-  if(mudou) saveBancos();
 }
 
 function compartilharBanco(idx){
@@ -17226,46 +16991,25 @@ async function recarregarBancosDoBanco(){
 async function salvarBanco(){
   const banco=document.getElementById('bc-banco')?.value.trim();
   if(!banco){alert('Informe o nome do banco!');return;}
-  if(!window.__businessRepository || !window.__ERP_BANKS_CLOUD_READY__){alert('Aguarde a confirmação do cadastro de contas pelo Firebase antes de salvar.');return;}
-
-  try{
-    const cloud=await window.__businessRepository.read('bancos');
-    const registros=cloud ? (Array.isArray(cloud)
-      ? cloud.map((x,i)=>[String(i),x]).filter(([,x])=>Boolean(x))
-      : Object.entries(cloud).filter(([,x])=>Boolean(x))) : [];
-    const idsLocal=new Set(BANCOS_DB.map(x=>String(x.id||x.cod||'')));
-    const idsCloud=new Set(registros.map(([key,x])=>String(x.id||key)));
-    if(idsLocal.size!==idsCloud.size || [...idsLocal].some(id=>!idsCloud.has(id))){
-      await recarregarBancosDoBanco();
-      alert('As contas foram atualizadas por outra sessão ou havia dados antigos no navegador. Confira a lista antes de salvar a nova conta.');
-      return;
-    }
-  }catch(e){alert('Não foi possível validar o cadastro no Firebase: '+e.message);return;}
   const tipo=document.getElementById('bc-tipo')?.value||'Conta Corrente';
-  const cod=_proximoCodBanco();
-  const novo={
-    id:'BC'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),cod,banco,tipo,
+  const valor=id=>document.getElementById(id)?.value.trim()||'';
+  const dados={
+    banco,tipo,
     empresa:document.getElementById('bc-empresa')?.value||_empresaPrincipalChave(),
-    titular:document.getElementById('bc-titular')?.value.trim()||_empresaPrincipalRazao(),
-    cpfcnpj:tipo==='Conta Terceiro'?(document.getElementById('bc-cpfcnpj')?.value.trim()||''):'',
-    agencia:document.getElementById('bc-agencia')?.value.trim()||'',
-    conta:document.getElementById('bc-conta')?.value.trim()||'',
-    pix:document.getElementById('bc-pix')?.value.trim()||'',
-    endereco:document.getElementById('bc-endereco')?.value.trim()||'',
+    titular:valor('bc-titular')||_empresaPrincipalRazao(),
+    cpfcnpj:tipo==='Conta Terceiro'?valor('bc-cpfcnpj'):'',
+    agencia:valor('bc-agencia'),conta:valor('bc-conta'),pix:valor('bc-pix'),endereco:valor('bc-endereco'),
     saldo:_parseValorBR(document.getElementById('bc-saldo')?.value),
-    obs:document.getElementById('bc-obs')?.value.trim()||'',
-    criadoEm:(function(){const d=document.getElementById('bc-data')?.value;return d?d+'T12:00:00.000Z':new Date().toISOString();})()
+    obs:valor('bc-obs'),criadoEm:valor('bc-data')
   };
   const btn=document.querySelector('#modal-body .btn-save');if(btn)btn.disabled=true;
   try{
-    await window.__businessRepository.upsert('bancos',novo.id,novo);
-    if(!BANCOS_DB.some(b=>b.id===novo.id))BANCOS_DB.push(novo);
-    localStorage.setItem('mm_bancos',JSON.stringify(BANCOS_DB)); 
-    renderBancos();rebuildBancosDropdowns();cm();
-    registrarHistorico('Banco','Criado',banco+' — saldo inicial R$ '+Number(novo.saldo||0).toLocaleString('pt-BR',{minimumFractionDigits:2}),null,{bancoCod:cod});
-    showToast('✅ Conta bancária confirmada no Firebase!','success');
+    const r=await _bancoApi({action:'create-account',account:dados});
+    cm();
+    registrarHistorico('Banco','Criado',banco+' — saldo inicial R$ '+Number(r.account?.saldo||0).toLocaleString('pt-BR',{minimumFractionDigits:2}),null,{bancoCod:r.account?.cod||''});
+    showToast('✅ Conta bancária '+(r.account?.cod||'')+' confirmada no servidor!','success');
   }catch(error){
-    alert('Não foi possível salvar o banco no Firebase. Nada foi considerado concluído. '+error.message);
+    alert('Não foi possível salvar a conta bancária. Nada foi gravado. '+error.message);
   }finally{if(btn)btn.disabled=false;}
 }
 
@@ -17297,46 +17041,38 @@ function editBanco(idx){
   document.getElementById('modal-ov').classList.add('open');
 }
 
-function salvarEditBanco(){
+async function salvarEditBanco(){
   const idx=parseInt(document.getElementById('eb-idx').value);
   const b=BANCOS_DB[idx]; if(!b) return;
-  const _saldoAntes=b.saldo;
-
-  const novoCod=(document.getElementById('eb-cod')?.value||'').trim();
-  if(novoCod && novoCod!==b.cod){
-    const colide=BANCOS_DB.some((x,i)=>i!==idx && x && x.cod===novoCod);
-    if(colide){ alert('Já existe outra conta com o código "'+novoCod+'". Escolha um código diferente.'); return; }
-    const codAntigo=b.cod;
-    LANC_BANCO_DB.forEach(function(l){ if(l && l.bancoCod===codAntigo) l.bancoCod=novoCod; });
-    registrarHistorico('Banco','Código alterado', b.banco+' — código "'+codAntigo+'" trocado para "'+novoCod+'" (corrige duplicidade)', null, {bancoCodAntigo:codAntigo, bancoCodNovo:novoCod});
-    b.cod=novoCod;
-  }
-  b.empresa=document.getElementById('eb-empresa')?.value||_empresaPrincipalChave();
-  delete b._empresaAuto; 
-  b.banco=document.getElementById('eb-banco').value.trim();
-  b.tipo=document.getElementById('eb-tipo').value;
-  b.titular=document.getElementById('eb-titular').value.trim();
-  b.cpfcnpj=b.tipo==='Conta Terceiro'?(document.getElementById('eb-cpfcnpj')?.value.trim()||''):'';
-  b.agencia=document.getElementById('eb-agencia').value.trim();
-  b.conta=document.getElementById('eb-conta').value.trim();
-  b.pix=document.getElementById('eb-pix').value.trim();
-  b.endereco=document.getElementById('eb-endereco')?.value.trim()||'';
-  b.saldo=_parseValorBR(document.getElementById('eb-saldo').value);
-  
-  const _ebData=document.getElementById('eb-data')?.value;
-  if(_ebData) b.criadoEm=_ebData+'T12:00:00.000Z';
-  b.obs=document.getElementById('eb-obs').value.trim();
-  saveBancos(); renderBancos(); rebuildBancosDropdowns();
-  if(Number(_saldoAntes||0).toFixed(2)!==Number(b.saldo||0).toFixed(2)){
-    registrarHistorico('Banco','Saldo Inicial alterado',
-      b.banco+' — de R$ '+Number(_saldoAntes||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+' para R$ '+Number(b.saldo||0).toLocaleString('pt-BR',{minimumFractionDigits:2}),
-      null, {bancoCod:b.cod});
-  }
-  cm();
-  alert('✅ Conta atualizada!');
+  const saldoAntes=b.saldo;
+  const valor=id=>document.getElementById(id)?.value.trim()||'';
+  const tipo=document.getElementById('eb-tipo').value;
+  const dados={
+    empresa:document.getElementById('eb-empresa')?.value||_empresaPrincipalChave(),
+    banco:valor('eb-banco'),tipo,titular:valor('eb-titular'),
+    cpfcnpj:tipo==='Conta Terceiro'?valor('eb-cpfcnpj'):'',
+    agencia:valor('eb-agencia'),conta:valor('eb-conta'),pix:valor('eb-pix'),endereco:valor('eb-endereco'),
+    saldo:_parseValorBR(document.getElementById('eb-saldo').value),
+    obs:valor('eb-obs')
+  };
+  if(valor('eb-data')) dados.criadoEm=valor('eb-data');
+  const novoCod=valor('eb-cod');
+  if(novoCod && novoCod!==b.cod) dados.cod=novoCod;
+  const btn=document.querySelector('#modal-body .btn-save');if(btn)btn.disabled=true;
+  try{
+    const r=await _bancoApi({action:'update-account',id:b.id||b.cod,expectedUpdate:b._upd,account:dados});
+    const nova=r.account||b;
+    if(r.codeChange) registrarHistorico('Banco','Código alterado',(nova.banco||'')+' — código "'+r.codeChange.from+'" trocado para "'+r.codeChange.to+'" ('+r.codeChange.movedEntries+' lançamento(s) junto; corrige duplicidade)',null,{bancoCodAntigo:r.codeChange.from,bancoCodNovo:r.codeChange.to});
+    if(Number(saldoAntes||0).toFixed(2)!==Number(nova.saldo||0).toFixed(2))
+      registrarHistorico('Banco','Saldo Inicial alterado',(nova.banco||'')+' — de R$ '+Number(saldoAntes||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+' para R$ '+Number(nova.saldo||0).toLocaleString('pt-BR',{minimumFractionDigits:2}),null,{bancoCod:nova.cod});
+    cm();
+    showToast('✅ Conta atualizada no servidor!','success');
+  }catch(error){
+    alert('Não foi possível salvar a conta. Nada foi alterado. '+error.message);
+  }finally{if(btn)btn.disabled=false;}
 }
 
-function excluirBanco(idx){
+async function excluirBanco(idx){
   const conta=BANCOS_DB[idx]; if(!conta) return;
   const cod=String(conta.cod||'');
   const movimentos=cod?LANC_BANCO_DB.filter(l=>l&&String(l.bancoCod||'')===cod).length:0;
@@ -17354,39 +17090,11 @@ function excluirBanco(idx){
     return;
   }
   if(!confirm('Excluir esta conta bancária?')) return;
-  _syncBancos.remover(idx); saveBancos(); renderBancos(); cm();
-}
-
-function zerarSaldosBancos(){
-  if(BANCOS_DB.length===0){ alert('Nenhuma conta cadastrada.'); return; }
-  if(!confirm('Isso vai:\n\n1) Baixar um backup de todas as contas e lançamentos atuais.\n2) Arquivar (não apagar) os lançamentos bancários até ontem.\n3) Zerar o Saldo Inicial de TODAS as '+BANCOS_DB.length+' contas.\n\nDepois disso você edita cada conta e digita o saldo real de ontem. Lançamentos de hoje em diante continuam contando normal.\n\nContinuar?')) return;
-
-  const agora=new Date();
-  const backup={geradoEm:agora.toISOString(),bancos:JSON.parse(JSON.stringify(BANCOS_DB)),lancamentos:JSON.parse(JSON.stringify(LANC_BANCO_DB))};
   try{
-    const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url; a.download='backup-bancos-'+agora.toISOString().slice(0,10)+'.json';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(()=>URL.revokeObjectURL(url),2000);
-  }catch(e){ console.warn('backup download falhou:',e); }
-
-  try{ localStorage.setItem('mm_lanc_banco_arquivado_'+agora.getTime(), JSON.stringify(LANC_BANCO_DB)); }catch(e){}
-
-  const hoje=new Date(agora.getFullYear(),agora.getMonth(),agora.getDate());
-  const parseDataBR=s=>{ const p=(s||'').split('/'); if(p.length!==3) return null; const d=new Date(Number(p[2]),Number(p[1])-1,Number(p[0])); return isNaN(d)?null:d; };
-  const arquivadosQtd=LANC_BANCO_DB.length - LANC_BANCO_DB.filter(l=>{ const d=parseDataBR(l.data); return d && d>=hoje; }).length;
-
-  for(let i=LANC_BANCO_DB.length-1;i>=0;i--){
-    const d=parseDataBR(LANC_BANCO_DB[i].data);
-    if(!(d && d>=hoje)) _syncLancBanco.remover(i);
-  }
-
-  BANCOS_DB.forEach(b=>{ b.saldo=0; });
-
-  saveBancos(); renderBancos();
-  alert('✅ Pronto! '+BANCOS_DB.length+' contas zeradas, '+arquivadosQtd+' lançamento(s) antigo(s) arquivado(s) (backup baixado). Agora edite cada conta e digite o saldo real de ontem no campo Saldo Inicial.');
+    await _bancoApi({action:'delete-account',id:conta.id||conta.cod});
+    cm();
+    showToast('Conta bancária excluída.','success');
+  }catch(error){ alert('Não foi possível excluir a conta. '+error.message); }
 }
 
 window.erpReconciliationSources=function(){
@@ -17401,6 +17109,51 @@ window.erpBankMovementAdded=function(movement){
   try{renderBancos();}catch(e){}
   return true;
 };
+async function _bancoApi(payload){
+  const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
+  if(!user) throw new Error('Sessão expirada. Entre novamente.');
+  const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
+  let response;
+  try{
+    response=await fetch('/api/banking/ledger',{method:'POST',credentials:'same-origin',
+      headers:{Authorization:'Bearer '+await user.getIdToken(),'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }catch(e){ throw new Error('Sem conexão com o servidor. Confira a internet e tente de novo.'); }
+  const result=await response.json().catch(function(){ return {}; });
+  if(!response.ok){ const error=new Error(result.message||'O servidor não confirmou a alteração bancária.'); error.code=result.code; throw error; }
+  _bancoAplicarResultado(result);
+  return result;
+}
+window.erpBankLedgerRequest=_bancoApi;
+function _bancoTirarLocal(id){
+  const i=LANC_BANCO_DB.findIndex(function(l){ return l&&l.id===id; });
+  if(i>=0) _syncLancBanco.remover(i);
+}
+function _bancoAplicarResultado(r){
+  if(!r) return;
+  if(r.account&&r.account.id){
+    const i=BANCOS_DB.findIndex(function(b){ return b&&String(b.id||'')===String(r.account.id); });
+    if(i>=0) BANCOS_DB[i]=r.account; else BANCOS_DB.push(r.account);
+  }
+  if(r.codeChange&&r.codeChange.from&&r.codeChange.to)
+    LANC_BANCO_DB.forEach(function(l){ if(l&&l.bancoCod===r.codeChange.from) l.bancoCod=r.codeChange.to; });
+  if(r.action==='delete-account'&&r.id){
+    const i=BANCOS_DB.findIndex(function(b){ return b&&String(b.id||'')===String(r.id); });
+    if(i>=0) _syncBancos.remover(i);
+  }
+  if(r.movement) window.erpBankMovementAdded(r.movement);
+  (r.movements||[]).forEach(function(m){ window.erpBankMovementAdded(m); });
+  if(r.action==='delete-entry'&&r.id) _bancoTirarLocal(r.id);
+  if(r.removedMovementId) _bancoTirarLocal(r.removedMovementId);
+  if(typeof CHQ_CTRL==='object'&&CHQ_CTRL){
+    (r.cleared||[]).forEach(function(c){ const x=CHQ_CTRL[c.id]; if(x){ x.s='C'; x.cd=r.date||x.cd; if(c.movBancoId) x.movBancoId=c.movBancoId; } });
+    if(r.action==='reopen-cheque'&&CHQ_CTRL[r.id]){ const x=CHQ_CTRL[r.id]; x.s='A'; x.cd=''; delete x.movBancoId; }
+    if(r.action==='delete-cheque'){ try{ _chqDel[r.id]=true; }catch(e){} delete CHQ_CTRL[r.id]; }
+  }
+  try{ localStorage.setItem('mm_bancos',JSON.stringify(BANCOS_DB)); }catch(e){}
+  try{ renderBancos(); }catch(e){}
+  try{ rebuildBancosDropdowns(); }catch(e){}
+  if(/cheque/.test(String(r.action||''))) try{ renderChequesCompensar(); }catch(e){}
+}
 let _extratoBancoAberto='';
 function verExtratoBanco(cod){
   const banco=BANCOS_DB.find(b=>b.cod===cod);if(!banco)return;
@@ -17449,7 +17202,7 @@ function verExtratoBanco(cod){
       (!from.value||row.date>=from.value)&&(!to.value||(row.date&&row.date<=to.value)));
     const pagina=_erpPaginarDados('extrato-banco',filtradas,'erp-bank-rows',desenhar);
     tbody.innerHTML=pagina.length?pagina.map(({entry,date,incoming,amount,balance})=>{
-      const travado=_bancoMovimentoDoServidor(entry)||_movimentoPertenceAdiantamento(entry);
+      const travado=_bancoMovimentoAutomatico(entry);
       return '<tr data-date="'+esc(date)+'" data-type="'+(incoming?'entrada':'saida')+'">'+
         '<td>'+esc(dataBR(date,entry))+'</td>'+
         '<td class="erp-ledger-description">'+esc(entry.descricao||'—')+'</td>'+
@@ -17474,7 +17227,7 @@ function verExtratoBanco(cod){
   document.getElementById('modal-ov').classList.add('open');
 }
 
-function salvarLancBanco(cod){
+async function salvarLancBanco(cod){
   const data=document.getElementById('lb-data')?.value;
   const desc=document.getElementById('lb-desc')?.value.trim();
   const tipo=document.getElementById('lb-tipo')?.value;
@@ -17486,22 +17239,26 @@ function salvarLancBanco(cod){
     alert('Informe um valor positivo e dentro do limite de precisão em centavos.');
     return;
   }
-  const id='LB-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
-  LANC_BANCO_DB.push({id,bancoCod:cod,data,descricao:desc,tipo,valor});
-  saveBancos();
-  renderBancos();
-  verExtratoBanco(cod);
+  const btn=document.getElementById('erp-bank-add');if(btn)btn.disabled=true;
+  try{
+    await _bancoApi({action:'add-entry',bankCode:cod,entry:{data,descricao:desc,tipo,valor}});
+    verExtratoBanco(cod);
+    showToast('Lançamento registrado no servidor.','success');
+  }catch(error){
+    alert('Não foi possível registrar o lançamento. '+error.message);
+  }finally{if(btn&&btn.isConnected)btn.disabled=false;}
 }
 
-function excluirLancBanco(id,cod){
-  const i=LANC_BANCO_DB.findIndex(l=>l.id===id);
-  if(i<0)return;
-  if(_bloquearEdicaoMovimentoAdiantamento(LANC_BANCO_DB[i]))return;
+async function excluirLancBanco(id,cod){
+  const l=LANC_BANCO_DB.find(x=>x&&x.id===id);
+  if(!l)return;
+  if(_bloquearEdicaoMovimentoAdiantamento(l))return;
   if(!confirm('Excluir este lançamento?'))return;
-  _syncLancBanco.remover(i);
-  saveBancos();
-  renderBancos();
-  verExtratoBanco(cod);
+  try{
+    await _bancoApi({action:'delete-entry',id,expected:{data:l.data,descricao:l.descricao,tipo:l.tipo,valor:l.valor}});
+    verExtratoBanco(cod);
+    showToast('Lançamento excluído.','success');
+  }catch(error){ alert('Não foi possível excluir o lançamento. '+error.message); }
 }
 
 function toggleCpfCnpj(fgId, tipo){

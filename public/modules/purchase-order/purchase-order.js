@@ -59,6 +59,26 @@ function supplierByName(name){
     return nameKey(f.nome)===target;
   })||null;
 }
+function tablePrice(code,mat){
+  const key=String(mat||'').trim();
+  if(!code||!key)return 0;
+  try{
+    const prices=(PRECOS_FORN_DATA&&PRECOS_FORN_DATA[code])||{};
+    const target=key.toLocaleUpperCase('pt-BR');
+    const direct=Number(prices[target]??prices[key]);
+    if(direct>0)return direct;
+    const found=Object.keys(prices).find(function(name){return name!=='_datas'&&String(name).trim().toLocaleUpperCase('pt-BR')===target;});
+    const value=found?Number(prices[found]):0;
+    return value>0?value:0;
+  }catch(e){return 0;}
+}
+function fillTablePrices(state){
+  (state.items||[]).forEach(function(item){
+    if(!item.mat||(Number(item.preco||0)>0&&!item.tablePrice))return;
+    const price=tablePrice(state.supplierCode,item.mat);
+    if(price>0){item.preco=price;item.tablePrice=true;}
+  });
+}
 function supplierForTicket(ticket){
   const list=suppliers();
   const code=String(ticket?.fornecedorCod||ticket?.fornCod||'').trim();
@@ -701,8 +721,17 @@ global.phase4PurchaseItem=function(index,field,value){
   const item=state.items?.[index];if(!item)return;
   if(field==='quantidade'||field==='preco')item[field]=Math.max(0,parseBR(value));
   else item[field]=String(value||'');
-  storeState(body,state);
+  if(field==='preco')item.tablePrice=false;
   const total=document.getElementById('phase4-po-row-total-'+index);
+  if(field==='mat'&&(!(Number(item.preco||0)>0)||item.tablePrice)){
+    const price=tablePrice(state.supplierCode,item.mat);
+    if(price>0||item.tablePrice){
+      item.preco=price;item.tablePrice=price>0;
+      const input=total?.closest('tr')?.querySelector('input[oninput*="\'preco\'"]');
+      if(input&&document.activeElement!==input)input.value=price>0?money(price):'';
+    }
+  }
+  storeState(body,state);
   if(total)total.value='R$ '+money(Number(item.quantidade||0)*Number(item.preco||0));
   global.phase4PurchaseRecalc();
   updateDuplicateWarnings(state);
@@ -849,7 +878,8 @@ global.phase4PurchaseSupplierChanged=function(){
       if(input)input.value=state.supplierName;return;
     }
     state.supplierName=supplier.nome;state.supplierCode=supplier.cod||'';
-    storeState(body,state);setHiddenSupplier(supplier.nome);
+    fillTablePrices(state);
+    storeState(body,state);setHiddenSupplier(supplier.nome);render(body);
     try{showToast('Fornecedor trocado para '+supplier.nome+'. Clique em Salvar para confirmar; o número do pedido continua o mesmo.','info',7000);}catch(e){}
     return;
   }
@@ -872,6 +902,7 @@ global.phase4PurchaseSupplierChanged=function(){
       next.creditIssues=fin.issues||[];
       next.sourceTicketKeys=[];
       if(!next.items?.length)next.items=[newItem()];
+      fillTablePrices(next);
       storeState(target,next);
       render(target);
       return;
@@ -1718,12 +1749,7 @@ function stateForSourceTicket(ticketKey){
   if(!supplier)return null;
   const fin=financialData(null,supplier.cod||'',[ticketKey]);
   let items=ticketItemsForOrder(t);
-  items.forEach(function(item){
-    if(Number(item.preco||0)>0||!item.mat)return;
-    try{
-      item.preco=Number(PRECOS_FORN_DATA?.[supplier.cod]?.[String(item.mat).trim().toUpperCase()]||PRECOS_FORN_DATA?.[supplier.cod]?.[String(item.mat).trim()]||0)||0;
-    }catch(e){}
-  });
+  fillTablePrices({supplierCode:supplier.cod||'',items});
   if(!items.length)items=[newItem()];
   let number='';try{number=typeof getNextTicketId==='function'?getNextTicketId():'';}catch(e){}
   return {supplierName:supplier.nome,supplierCode:supplier.cod||'',items,discount:0,freight:0,orderNumber:number,purchaseOrder:'',purchaseDate:today(),dueDate:today(),sourceTicketKeys:[ticketKey],adts:fin.adts,cheques:fin.cheques,previousCredit:fin.balance,creditSource:fin.creditSource||'',creditIssues:fin.issues||[],notes:''};
@@ -1786,13 +1812,7 @@ function renderFromLegacy(forceName){
     const loaded=sourceItems(body);
     if(loaded.length)state.items=loaded;
     else if(!state.items?.length)state.items=[newItem()];
-    state.items.forEach(function(item){
-      if(Number(item.preco||0)>0||!item.mat)return;
-      try{
-        const price=Number(PRECOS_FORN_DATA?.[supplier.cod]?.[String(item.mat).trim().toUpperCase()]||PRECOS_FORN_DATA?.[supplier.cod]?.[String(item.mat).trim()]||0);
-        if(price>0)item.preco=price;
-      }catch(e){}
-    });
+    fillTablePrices(state);
     state.sourceTicketKeys=jsonDataset(body,'ticketKeys',state.sourceTicketKeys||[]);
     state.notes=String(state.notes||'');
   }

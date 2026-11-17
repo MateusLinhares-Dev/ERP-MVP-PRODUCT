@@ -63,3 +63,11 @@ O que mudou:
 - O caso do Jorge não tem nome anterior guardado, porque foi renomeado antes desta versão. A busca pelo código resolve: a T178 tem `fornecedorCod`.
 
 Não muda: um fornecedor de fato inativo ou excluído continua bloqueando a edição. A mensagem agora mostra o nome gravado no pedido e diz para reativá-lo em Fornecedores.
+
+## Preço da tabela na notinha e contas PIX (17/11/2026, v244)
+
+- **Preço da tabela:** ao escolher o material numa linha da notinha, a tela usa o preço da "Tabela de Preços de Compra por Fornecedor" do fornecedor escolhido (`tablePrice` em `purchase-order.js`, sem diferenciar maiúsculas e minúsculas).
+  - Antes, isso só acontecia nas pesagens que vinham da balança; na linha digitada à mão o preço ficava vazio.
+  - Um preço digitado à mão não é trocado ao mudar o material.
+  - Trocar o fornecedor preenche as linhas sem preço.
+- **Excluir conta bancária/PIX do fornecedor:** a janela "Contas / PIX" (Fornecedores → 💳) ganhou o botão "✏️ Editar ou excluir contas". Ele abre o cadastro de contas (`phase3OpenPartyBanks`), que tem o ✕ de cada conta e o Salvar. É o mesmo cadastro do botão "Contas bancárias" no formulário do fornecedor.

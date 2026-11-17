@@ -866,7 +866,6 @@
               <div style="display:flex;gap:8px">
                 <button class="btn-edit" onclick="abrirSnapshots()" title="Cópia diária de dados de negócio do RTDB, sem arquivos do Storage. Restauração exclusiva da Elaine em manutenção.">📦 Snapshots Diários</button>
                 <button class="btn-edit" onclick="om('historico_geral')" title="Vê tudo que foi criado, editado ou excluído em Adiantamentos, Cheques e Bancos — dá pra restaurar o que foi excluído">🕐 Log de Alterações</button>
-                <button class="btn-edit" onclick="sincronizarAdiantamentosBanco()" title="Confere se todo adiantamento com banco de saída definido tem o lançamento correspondente somando no saldo do banco, e cria o que estiver faltando">🔄 Sincronizar c/ Bancos</button>
                 <button class="btn-edit" onclick="zerarTodosAdiantamentos()" title="Apaga TODOS os adiantamentos (na nuvem também) pra você começar do zero. Faz backup antes." style="background:#7a1e1e;color:#fff">🧹 Zerar todos (recomeçar)</button>
                 <button type="button" class="btn-edit" onclick="abrirRelatorioChequesAdiantamentos()">📋 Relatório de Cheques</button>
                 <button class="btn-add" onclick="om('adiantamento')">+ Novo Adiantamento</button>
@@ -1318,8 +1317,6 @@
           <div style="display:flex;gap:8px">
             <button class="btn-edit" onclick="abrirSnapshots()" title="Cópia diária de dados de negócio do RTDB, sem arquivos do Storage. Restauração exclusiva da Elaine em manutenção.">📦 Snapshots Diários</button>
                 <button class="btn-edit" onclick="om('historico_geral')" title="Vê tudo que foi criado, editado ou excluído em Adiantamentos, Cheques e Bancos — dá pra restaurar o que foi excluído">🕐 Log de Alterações</button>
-            <button class="btn-edit" onclick="sincronizarPagamentosBanco()" title="Confere se todo pagamento a fornecedor (Contas a Pagar) com banco definido puxou do saldo do banco, e cria o que estiver faltando. Baixa um backup antes.">💸 Puxar Pagamentos p/ Saldo</button>
-            <button class="btn-edit-danger" onclick="zerarSaldosBancos()" title="Arquiva os lançamentos antigos e zera o Saldo Inicial de todas as contas, pra você recomeçar com o saldo real de ontem">🔄 Zerar Saldos</button>
             <button class="btn-add" onclick="om('banco')">+ Nova Conta</button>
           </div>
         </div>

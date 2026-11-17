@@ -130,9 +130,11 @@
     }).join('') : '<div style="padding:18px 4px;color:#777">Nenhuma conta bancária ou chave PIX cadastrada para este fornecedor.</div>';
     box.innerHTML='<h3 style="margin-bottom:8px">💳 Contas / PIX — '+_safe(f.nome||'')+'</h3>'+ 
       '<div style="font-size:.82rem;color:#6b7280">'+contas.length+' conta(s) cadastrada(s). Use Copiar ou WhatsApp para enviar os dados de pagamento.</div>'+cards+
-      '<div class="modal-ft"><button class="btn-cancel" type="button" id="forn-pix-close">Fechar</button></div>';
+      '<div class="modal-ft">'+(typeof window.phase3OpenPartyBanks==='function'?'<button class="btn-edit" type="button" id="forn-pix-edit">✏️ Editar ou excluir contas</button>':'')+'<button class="btn-cancel" type="button" id="forn-pix-close">Fechar</button></div>';
     ov.appendChild(box); document.body.appendChild(ov);
     document.getElementById('forn-pix-close').onclick=function(){ ov.remove(); };
+    var editar=document.getElementById('forn-pix-edit');
+    if(editar) editar.onclick=function(){ ov.remove(); window.phase3OpenPartyBanks('fornecedor',String(f.cod||''),String(f.nome||'')); };
     ov.addEventListener('click',function(ev){ if(ev.target===ov) ov.remove(); });
   };
 

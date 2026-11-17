@@ -65,23 +65,11 @@ test('extrato bancário bloqueia a edição/exclusão direta de movimentos de ad
   assert.match(core,/function excluirLancBanco\(id,cod\)\{[\s\S]{0,230}_bloquearEdicaoMovimentoAdiantamento/);
 });
 
-test('sincronização geral não reenvia movimentos de adiantamentos administrados pela API',()=>{
+test('sincronização geral não envia extrato nem contas bancárias: só o servidor grava',()=>{
   const sync=readFileSync(new URL('../public/legacy/firebase-sync.js',import.meta.url),'utf8');
-  const start=sync.indexOf('      const _lancamentosLegados=_syncLancBanco.paraObjeto();');
-  const end=sync.indexOf("      _patchIncremental(dados, 'viagem'",start);
-  assert.ok(start>0&&end>start);
-  const ctx={
-    dados:{},
-    ADT_POR_FORN:{F1:[{cod:'ADT1',movBancoId:'LB1'}]},
-    _syncLancBanco:{deletedSet:new Set(),paraObjeto:()=>({
-      LB1:{id:'LB1',descricao:'Mudou a descrição'},
-      LB2:{id:'LB2',descricao:'Adiantamento: Teste'},
-      LB3:{id:'LB3',descricao:'Pagamento livre'},
-      LB4:{id:'LB4',source:'advance'}
-    })},
-    _patchIncremental:(data,path,obj)=>Object.entries(obj).forEach(([key,value])=>{data[path+'/'+key]=value;})
-  };
-  runInNewContext(sync.slice(start,end),ctx);
-  assert.deepEqual(Object.keys(ctx.dados),['lancBanco/LB3']);
+  assert.doesNotMatch(sync,/_patchIncremental\(dados,\s*'lancBanco'/);
+  assert.doesNotMatch(sync,/_patchIncremental\(dados,\s*'bancos'/);
+  assert.doesNotMatch(sync,/lancBancoDeleted: \[/);
+  assert.doesNotMatch(sync,/bancosDeleted: \[/);
 });
 

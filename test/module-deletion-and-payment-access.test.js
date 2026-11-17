@@ -38,7 +38,7 @@ test('consulta devolve somente código e nome sem dados bancários',async()=>{
   await assert.rejects(()=>listPaymentBanks({erpAccess:true,canChat:true},{db}),{status:403});
   assert.match(rules.bancos['.read'],/canBanking/);
   assert.doesNotMatch(rules.bancos['.read'],/canPayables|canFinance/);
-  assert.match(rules.lancBanco['.write'],/canBanking/);
+  assert.equal(rules.lancBanco['.write'],false);
 });
 
 test('pagamento cria movimento bancário e atualiza título/ticket em um update',async()=>{

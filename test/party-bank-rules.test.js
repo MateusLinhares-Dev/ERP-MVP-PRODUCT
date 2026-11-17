@@ -56,7 +56,7 @@ test('regra específica não libera bancos ou extratos da empresa e coincide com
   assert.deepEqual(bankRules,candidate.partyBanks);
   assert.match(rules.bancos['.read'],/canBanking == true/);
   assert.match(rules.lancBanco['.read'],/canBanking == true/);
-  assert.match(rules.lancBanco['.write'],/canBanking == true/);
+  assert.equal(rules.lancBanco['.write'],false);
   assert.equal(allowed(rules.bancos['.read'],claimSet(['fornecedores']),'fornecedor-F670'),false);
   assert.equal(allowed(rules.lancBanco['.read'],claimSet(['clientes']),'cliente-C100'),false);
 });

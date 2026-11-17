@@ -473,10 +473,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canBanking"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "viagemDeleted": {
@@ -597,10 +595,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canBanking"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "despGrupoDeleted": {
@@ -957,10 +953,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canBanking"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "viagem": {
@@ -1091,10 +1085,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canBanking"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "despGrupo": {
