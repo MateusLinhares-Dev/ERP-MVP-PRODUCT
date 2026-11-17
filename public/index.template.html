@@ -1307,24 +1307,7 @@
 
         <div class="tab-panel" id="tab-contas_banco">
       <div class="sec-title">🏦 Contas Bancárias</div>
-      <div class="kpi-grid">
-        <div class="kpi"><div class="kpi-lbl">Total de Contas</div><div class="kpi-val">—</div><div class="kpi-sub">Aguardando cadastro</div></div>
-        <div class="kpi g"><div class="kpi-lbl">Saldo Total</div><div class="kpi-val">R$ 0,00</div><div class="kpi-sub">Aguardando saldos</div></div>
-      </div>
-      <div class="tcard">
-        <div class="tcard-hdr">
-          <div class="tcard-title">Contas Cadastradas</div>
-          <div style="display:flex;gap:8px">
-            <button class="btn-edit" onclick="abrirSnapshots()" title="Cópia diária de dados de negócio do RTDB, sem arquivos do Storage. Restauração exclusiva da Elaine em manutenção.">📦 Snapshots Diários</button>
-                <button class="btn-edit" onclick="om('historico_geral')" title="Vê tudo que foi criado, editado ou excluído em Adiantamentos, Cheques e Bancos — dá pra restaurar o que foi excluído">🕐 Log de Alterações</button>
-            <button class="btn-add" onclick="om('banco')">+ Nova Conta</button>
-          </div>
-        </div>
-        <table>
-          <thead><tr><th>Cód.</th><th>Banco / Conta</th><th>Tipo</th><th>Titular</th><th>CPF/CNPJ</th><th style="text-align:right">Saldo Inicial</th><th title="Data em que o saldo inicial desta conta foi lançado no sistema">Lançado em</th><th style="text-align:right">Saldo Atual</th><th>PIX</th><th>Obs.</th><th>Ações</th></tr></thead>
-          <tbody id="tb-bancos"></tbody>
-        </table>
-      </div>
+      <div id="bancos-app"></div>
     </div>
 
         <div class="tab-panel" id="tab-cheques">

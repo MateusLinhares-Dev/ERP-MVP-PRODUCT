@@ -71,3 +71,18 @@ Não muda: um fornecedor de fato inativo ou excluído continua bloqueando a edi�
   - Um preço digitado à mão não é trocado ao mudar o material.
   - Trocar o fornecedor preenche as linhas sem preço.
 - **Excluir conta bancária/PIX do fornecedor:** a janela "Contas / PIX" (Fornecedores → 💳) ganhou o botão "✏️ Editar ou excluir contas". Ele abre o cadastro de contas (`phase3OpenPartyBanks`), que tem o ✕ de cada conta e o Salvar. É o mesmo cadastro do botão "Contas bancárias" no formulário do fornecedor.
+
+## Contas antigas do fornecedor nas duas janelas (17/11/2026, v246)
+
+Problema da cliente: a janela 💳 "Contas / PIX" do fornecedor Samoel mostrava 5 contas, mas "Contas bancárias e PIX" (onde se edita e exclui) mostrava só 1.
+
+Causa:
+- Enquanto o fornecedor não tem a lista oficial (`partyBanks/fornecedor-<cód>`), a janela de PIX juntava a conta principal do cadastro com as contas guardadas em campos antigos (`contas`, `contasBancarias`, `contas_bancarias`, `contasPix`, `dadosBancarios`).
+- O cadastro de contas lia só a principal.
+- Salvar ali gravava a lista oficial só com essa conta, e as outras sumiam também do PIX.
+
+Agora `bankList` (`phase3-homologation.js`) monta uma lista só, e as duas janelas usam ela (`ERPPartyBanks.list`):
+- **Ordem:** a conta principal vem primeiro, depois os campos antigos, na mesma ordem de antes. Ao salvar, a primeira conta continua sendo a principal do cadastro, e a conta de um terceiro não vira a principal.
+- **Repetidas:** contas iguais escritas de jeitos diferentes (ex.: "769 839-9" e "769839-9" no mesmo banco, agência e PIX) aparecem uma vez só. Se a principal não tinha titular próprio, fica o titular da conta antiga.
+- **Campos antigos aproveitados:** `ag`, `numeroConta`, `chave_pix`, `pais` (Brasil → BR) e `tipoConta` (C/C → Corrente). Valores fora da lista das regras ficam "Não informado".
+- Depois de salvar uma vez, vale só a lista oficial, como antes.

@@ -107,20 +107,64 @@ async function loadPartyBanks(){if(!store)return;try{partyBanks=await store.load
 function partyEntity(kind,key){try{return kind==='fornecedor'?(FORNECEDORES||[]).find(x=>String(x.cod)===String(key)):(CLIENTES||[]).find((x,i)=>String(x.cod||('C'+String(i+1).padStart(3,'0')))===String(key));}catch(e){return null;}}
 function bankKey(kind,key){return `${kind}-${key}`;}
 function hasCanonicalBankList(kind,key){return Object.prototype.hasOwnProperty.call(partyBanks,bankKey(kind,key)) && Array.isArray(partyBanks[bankKey(kind,key)]);}
+function canonicalCountry(value){
+  const v=String(value||'BR').trim().toUpperCase();
+  if(!v||v==='BR'||v==='BRASIL')return 'BR';
+  return 'OUTRO';
+}
+function canonicalAccountType(value){
+  const v=String(value||'').trim();
+  if(['','Corrente','Poupança','Pagamento','Outro'].includes(v))return v;
+  const k=v.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z]/g,'');
+  if(['cc','corrente','contacorrente'].includes(k))return 'Corrente';
+  if(['cp','poupanca','contapoupanca'].includes(k))return 'Poupança';
+  if(['pagamento','contapagamento','cpag'].includes(k))return 'Pagamento';
+  return '';
+}
 function canonicalBank(account){
   const a=account||{};
-  return {bank:String(a.bank||a.banco||'').trim(),country:String(a.country||'BR').trim().toUpperCase(),
-    accountType:String(a.accountType||'').trim(),agency:String(a.agency||a.agencia||'').trim(),
-    account:String(a.account||a.conta||'').trim(),pix:String(a.pix||a.chavePix||'').trim(),
+  return {bank:String(a.bank||a.banco||'').trim(),country:canonicalCountry(a.country||a.pais),
+    accountType:canonicalAccountType(a.accountType||a.tipoConta),agency:String(a.agency||a.agencia||a.ag||'').trim(),
+    account:String(a.account||a.conta||a.numeroConta||'').trim(),pix:String(a.pix||a.chavePix||a.chave_pix||'').trim(),
     holderName:String(a.holderName||a.titular||a.nomeTitular||'').trim(),
     holderDocument:String(a.holderDocument||a.cpfcnpj||a.cpfCnpj||'').trim()};
+}
+const LEGACY_BANK_FIELDS=['contas','contasBancarias','contas_bancarias','contasPix','dadosBancarios'];
+function legacyBankRows(source){
+  if(!source||typeof source!=='object')return [];
+  if(Array.isArray(source))return source.filter(item=>item&&typeof item==='object');
+  if(Object.keys(source).some(k=>['banco','bank','agencia','agency','conta','account','pix'].includes(k)))return [source];
+  return Object.values(source).filter(item=>item&&typeof item==='object');
+}
+function bankIdentity(row){
+  const plain=v=>String(v||'').toLowerCase().replace(/\s+/g,' ').trim();
+  const digits=v=>String(v||'').toLowerCase().replace(/[^0-9a-z]/g,'');
+  const pix=/^\+?[\d\s().-]+$/.test(row.pix)?row.pix.replace(/\D/g,''):plain(row.pix);
+  return [plain(row.bank),digits(row.agency),digits(row.account),pix].join('|');
 }
 function bankList(kind,key){
   if(hasCanonicalBankList(kind,key))return partyBanks[bankKey(kind,key)].map(canonicalBank);
   const entity=partyEntity(kind,key);if(!entity)return [];
-  const primary=canonicalBank({bank:entity.banco,agency:entity.agencia,account:entity.conta,pix:entity.pix,
-    holderName:entity.nome,holderDocument:entity.cnpj||entity.cpf});
-  return [primary].filter(p=>p.bank||p.agency||p.account||p.pix);
+  const holder=String(entity.nome||'').trim(),doc=String(entity.cnpj||entity.cpf||'').trim();
+  const primary=canonicalBank({bank:entity.banco,agency:entity.agencia,account:entity.conta,pix:entity.pix,holderName:holder,holderDocument:doc});
+  const candidates=[{row:primary,fallback:true}];
+  LEGACY_BANK_FIELDS.forEach(field=>legacyBankRows(entity[field]).forEach(item=>{
+    const row=canonicalBank(item);
+    const fallback=!row.holderName;
+    if(!row.holderName)row.holderName=holder;
+    if(!row.holderDocument&&fallback)row.holderDocument=doc;
+    candidates.push({row,fallback});
+  }));
+  const kept=[],byIdentity=new Map();
+  candidates.forEach(({row,fallback})=>{
+    if(!(row.bank||row.agency||row.account||row.pix))return;
+    const identity=bankIdentity(row);
+    const previous=byIdentity.get(identity);
+    if(!previous){byIdentity.set(identity,{row,fallback});kept.push(row);return;}
+    ['bank','agency','account','pix','accountType'].forEach(field=>{if(!previous.row[field]&&row[field])previous.row[field]=row[field];});
+    if(previous.fallback&&!fallback){previous.row.holderName=row.holderName;previous.row.holderDocument=row.holderDocument||previous.row.holderDocument;previous.fallback=false;}
+  });
+  return kept;
 }
 global.phase3OpenPartyBanks=function(kind,key,name){
   const list=bankList(kind,key);

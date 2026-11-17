@@ -111,39 +111,9 @@ test('writer genérico confirma caminhos de coleções diferentes com um único 
   assert.deepEqual(Object.keys(updates[0].data).sort(),['clientes/a','fornecedores/b']);
 });
 
-test('migração de contas a pagar usa transação no snapshot atual, sem set cego da coleção',async()=>{
+test('contas a pagar no formato antigo (lista) não são regravadas pelo navegador: só o servidor grava',()=>{
   const core=read('public/legacy/app-core.js');
-  const a=core.indexOf('let _cpMigracaoEmAndamento=false;');
-  const b=core.indexOf('function _cpCarregarDeRemoto(',a);
-  assert.ok(a>=0&&b>a);
-  let current=[{id:'CP-1',valor:100},{id:'CP-2',valor:200}];
-  let called=0;
-  const scope={
-    window:{_fbDB:{ref:path=>({
-      transaction:async transform=>{called++;assert.equal(path,'erp/contasPagar');const next=transform(current);if(next===undefined)return {committed:false};current=next;return {committed:true};}
-    })}},
-    _cpIdDeterministico:()=> 'unused',console:{info(){},warn(){}}
-  };
-  runInNewContext(core.slice(a,b)+';this.run=_cpMigrarParaFormatoPorChave;',scope);
-  await scope.run();
-  assert.equal(called,1);
-  assert.deepEqual(Object.keys(current),['CP-1','CP-2']);
-  assert.equal(current['CP-2'].valor,200);
-  await scope.run();
-  assert.equal(called,2);
-  assert.deepEqual(Object.keys(current),['CP-1','CP-2']);
-});
-
-test('migração recusa identificadores duplicados em vez de apagar uma conta',async()=>{
-  const core=read('public/legacy/app-core.js');
-  const a=core.indexOf('let _cpMigracaoEmAndamento=false;');
-  const b=core.indexOf('function _cpCarregarDeRemoto(',a);
-  const original=[{id:'CP-1',valor:100},{id:'CP-1',valor:200}];
-  let committed=false;
-  const scope={window:{_fbDB:{ref:()=>({transaction:async update=>{committed=update(original)!==undefined;return {committed};}})}},
-    _cpIdDeterministico:()=> 'unused', console:{info(){},warn(){}}};
-  runInNewContext(core.slice(a,b)+';this.run=_cpMigrarParaFormatoPorChave;',scope);
-  await scope.run();
-  assert.equal(committed,false);
-  assert.equal(original.length,2);
+  assert.doesNotMatch(core,/ref\('erp\/contasPagar'\)\.transaction/);
+  assert.doesNotMatch(core,/function _cpMigrarParaFormatoPorChave/);
+  assert.match(core,/function migrar\(\)\{\s*if\(\['fornecedores','clientes','contasReceber','vendas','bancos','lancBanco'\]\.indexOf\(nome\)>=0\) return;/);
 });

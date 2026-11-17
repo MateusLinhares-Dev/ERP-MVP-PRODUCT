@@ -101,7 +101,7 @@ Regras:
 - O resto do controle de cheques (`chequesControle`: cadastrar e editar cheque) continua gravado pela tela.
 - Saíram as ferramentas escondidas "Sincronizar adiantamentos/pagamentos com o banco" e "Zerar saldos": gravavam adiantamentos e contas a pagar pela tela, o que não funciona mais desde que esses dados passaram para o servidor.
 - `bancosCorrigeEmpresa` só ajusta a exibição e não grava mais.
-- **Snapshots:** restaurar um snapshot pela tela não consegue regravar `bancos` e `lancBanco`, assim como já acontecia com fornecedores, clientes, vendas, contas a receber e contas a pagar.
+- **Snapshots:** a restauração é feita pelo servidor (`/api/admin/snapshots`) e continua funcionando. Saiu `_snapshotPersistirExato`, uma cópia antiga que gravava tudo pelo navegador e não era chamada por ninguém.
 
 **Ordem de implantação** (a mesma da v242):
 1. Publique o código.
@@ -109,6 +109,14 @@ Regras:
 3. Só então rode `npm run deploy:rules:prod`.
 
 Uma aba antiga que ainda grava o extrato teria esse envio recusado pelas regras novas.
+
+## Tela de Bancos em React (17/11/2026, v245)
+
+A aba Contas Bancárias é React (`web/modules/banking/`) e grava pela mesma API `banking/ledger`. Nada muda para a cliente, exceto:
+- **Menu "Mais":** acompanha o botão quando a tabela ou a página rolam, em vez de fechar, e continua aberto quando outro computador grava. Antes, a rolagem que o próprio clique provoca (botão perto da borda, tela estreita) podia fechar o menu na hora.
+- **Busca:** agora procura também no código, tipo, CPF/CNPJ, observação e empresa, sem diferenciar acentos.
+- **Excluir conta:** a tela confere os lançamentos antes de perguntar. O servidor confere de novo, também os adiantamentos pendentes.
+- **Novo lançamento:** já vem com a data de hoje.
 
 ## Sincronização: fornecedor (ou outro registro) sumindo
 

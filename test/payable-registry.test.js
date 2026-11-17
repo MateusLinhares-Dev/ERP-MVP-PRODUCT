@@ -156,7 +156,7 @@ test('tela de Contas a Pagar (React) grava pela API; a tela antiga saiu', () => 
   assert.match(html, /<div id="contas-pagar-app">/);
   assert.doesNotMatch(html, /id="cp-filtro-sidebar"|onclick="cpSetTipo/);
   assert.match(readFileSync(new URL('../web/erp/islands.tsx', import.meta.url), 'utf8'), /installPayables\(\);/);
-  assert.match(core, /modal\.id='cp-grupo-excluir'|function _erpBankMoreReancorar/);
+  assert.match(readFileSync(new URL('../web/modules/payables/ui/PayableDialogs.tsx', import.meta.url), 'utf8'), /import \{ Dialog \} from '\.\.\/\.\.\/\.\.\/shared\/ui\/Dialog\.js';/);
 });
 
 test('origem: folha, despesas, combustível, tanque, contrato e compra antiga criam pelo servidor, com vínculo e sem exigir empresa', async () => {

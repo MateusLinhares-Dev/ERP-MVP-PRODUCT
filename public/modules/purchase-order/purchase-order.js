@@ -67,7 +67,9 @@ function tablePrice(code,mat){
     const target=key.toLocaleUpperCase('pt-BR');
     const direct=Number(prices[target]??prices[key]);
     if(direct>0)return direct;
-    const found=Object.keys(prices).find(function(name){return name!=='_datas'&&String(name).trim().toLocaleUpperCase('pt-BR')===target;});
+    const fold=function(name){return String(name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLocaleUpperCase('pt-BR');};
+    const wanted=fold(key);
+    const found=Object.keys(prices).find(function(name){return name!=='_datas'&&fold(name)===wanted;});
     const value=found?Number(prices[found]):0;
     return value>0?value:0;
   }catch(e){return 0;}

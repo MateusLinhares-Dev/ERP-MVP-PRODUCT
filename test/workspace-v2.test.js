@@ -17,10 +17,11 @@ test('navegador de módulos respeita lista previamente gerada pela ACL e não mo
 
 test('extrato utiliza domínio puro e separa filtros dos saldos',()=>{
   assert.match(bootstrap,/loadClassic\('\/modules\/banking\/bank-ledger\.js'\)/);
-  assert.match(core,/ledger\.statement\(/);
-  assert.match(core,/function verExtratoBanco\(cod\)/);
-  assert.match(core,/#erp-bank-result-count/);
-  assert.match(core,/data-bank-action/);
+  const ledger=readFileSync(new URL('../web/modules/banking/domain/ledger.ts',import.meta.url),'utf8');
+  const view=readFileSync(new URL('../web/modules/banking/domain/statement-view.ts',import.meta.url),'utf8');
+  assert.match(ledger,/export function statement\(/);
+  assert.match(view,/const \{ rows, \.\.\.totals \} = statement\(/);
+  assert.match(readFileSync(new URL('../web/erp/banking.tsx',import.meta.url),'utf8'),/verExtratoBanco: \(code: unknown\)/);
   assert.match(css,/\.erp-statement-table-wrap\{overflow-x:auto/);
 });
 

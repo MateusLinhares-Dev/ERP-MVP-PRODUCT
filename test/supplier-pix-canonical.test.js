@@ -47,8 +47,8 @@ function bankHarness({saved, failSave = false} = {}) {
  return {context,supplier,rows,saveButton,notices,errors,savedOps,requests,get renders(){return renderCount;}};
 }
 
-function supplierHarness(api){
- const supplier={cod:'F008',nome:'FORNECEDOR TESTE',banco:'NUBANK',pix:'PIX-ANTIGO',contas:[{banco:'NUBANK',pix:'PIX-ANTIGO'}]};
+function supplierHarness(api,custom){
+ const supplier=custom||{cod:'F008',nome:'FORNECEDOR TESTE',banco:'NUBANK',pix:'PIX-ANTIGO',contas:[{banco:'NUBANK',pix:'PIX-ANTIGO'}]};
  const table={innerHTML:'',querySelectorAll(){return []}};
  const nodes=[];
  const context={
@@ -139,4 +139,31 @@ test('PIX deduplica contas equivalentes e usa o titular de cada conta no WhatsAp
  assert.match(decoded,/Titular da conta: FILHO DO FORNECEDOR/);
  assert.match(decoded,/CPF\/CNPJ do titular: 12345678901/);
  assert.match(decoded,/Banco: BRASIL/);
+});
+
+test('contas antigas do cadastro aparecem iguais no PIX e em "Contas bancárias e PIX" (sem perder nenhuma ao salvar)',async()=>{
+ const samoel={cod:'F661',nome:'SAMOEL EVANGELISTA FILHO',cpf:'584.198.379-20',banco:'VIACRED',agencia:'0101',conta:'769839-9',pix:'584.198.379-20',
+   contasBancarias:[
+     {banco:'VIACRED',agencia:'0101',conta:'1145659-0',pix:'082.181.389-78',titular:'EDERSON KLANN',cpfcnpj:'082.181.389-78',pais:'Brasil'},
+     {banco:'VIACRED',agencia:'0101',conta:'769 839-9',pix:'584.198.379-20',titular:'SAMOEL EVANGELISTA',cpfcnpj:'584.198.379-20',tipoConta:'C/C'},
+     {banco:'SICRED 748',agencia:'2606',conta:'19793-7',pix:'SAMUELEVANGELISTA1976@GMAIL.COM',titular:'SAMOEL EVANGELISTA'},
+   ],
+   contas:{x:{banco:'085',agencia:'0101-5',conta:'877596-6',pix:'463.426.999-68',titular:'VALMIR EVANGELISTA',cpfcnpj:'463.426.999-68',pais:'OUTRO'}}};
+ const context={console,FORNECEDORES:[samoel],CLIENTES:[],store:{async load(){return {};}},global:{}};
+ context.window=context.global;
+ vm.createContext(context);
+ vm.runInContext(bankSource+'\nglobal.__testLoadPartyBanks=loadPartyBanks;',context);
+ await context.global.__testLoadPartyBanks();
+ const list=context.global.ERPPartyBanks.list('fornecedor','F661');
+ assert.deepEqual(JSON.parse(JSON.stringify(list.map(a=>[a.bank,a.account,a.holderName,a.accountType,a.country]))),[
+   ['VIACRED','769839-9','SAMOEL EVANGELISTA','Corrente','BR'],
+   ['085','877596-6','VALMIR EVANGELISTA','','OUTRO'],
+   ['VIACRED','1145659-0','EDERSON KLANN','','BR'],
+   ['SICRED 748','19793-7','SAMOEL EVANGELISTA','','BR'],
+ ],'a principal vem primeiro, depois os campos antigos na ordem de sempre; "769 839-9" é a mesma conta da principal e vira uma só');
+ const rendered=supplierHarness(context.global.ERPPartyBanks,samoel);
+ const popup=rendered.context.window.fornContas('F661');
+ assert.equal(popup.length,4);
+ assert.equal(JSON.stringify(popup.map(a=>a.conta)),JSON.stringify(list.map(a=>a.account)),'mesma lista e mesma ordem nas duas janelas');
+ assert.equal(context.global.ERPPartyBanks.hasCanonical('fornecedor','F661'),false);
 });

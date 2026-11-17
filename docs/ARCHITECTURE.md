@@ -196,9 +196,15 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
 - **Regra pura compartilhada:** a tela pode importar de `server/modules/<m>/domain` e `server/shared/domain` (só regra pura, sem Firebase nem Node), para calcular exatamente como o servidor. Vendas usa isso: `web/modules/sales` importa o pedido de `server/modules/sales/domain`, e `web/shared/domain/{dates,money,decimal,text}.ts` só reexportam os de `server/shared/domain`.
   - Contas a Receber (`web/modules/receivables/`, ligado em `web/erp/receivables.tsx`): lista, lançamento, baixa por banco ou cheque, estorno e exclusão em `#contas-receber-app`, gravando pela API `finance/receivables` (detalhes em `docs/CONTAS-RECEBER.md`).
   - Contas a Pagar (`web/modules/payables/`, ligado em `web/erp/payables.tsx`): lista, filtros, calendário, lançar (avulsa ou parcelada), editar e excluir em React, gravando pela API `finance/payables` (detalhes em `docs/CONTAS-PAGAR.md`). Pagar e o histórico de pagamentos também são React (desde a v240). Desde a v242 só o servidor grava contas a pagar: folha, despesas do grupo, combustível, tanque, contratos e compras antigas pedem à API com a origem, e `contasPagar` fecha nas regras.
-  - Bancos (v244): contas bancárias, extrato e compensação de cheques só pelo servidor (API `banking/ledger`, detalhes em `docs/BANCOS-CONCILIACAO-FLUXO.md`); `bancos` e `lancBanco` fecham nas regras. A tela ainda é a antiga.
+  - Bancos (v244): contas bancárias, extrato e compensação de cheques só pelo servidor (API `banking/ledger`, detalhes em `docs/BANCOS-CONCILIACAO-FLUXO.md`); `bancos` e `lancBanco` fecham nas regras.
+  - Bancos em React (v245, `web/modules/banking/`, ligado em `web/erp/banking.tsx` em `#bancos-app`):
+    - cartões, aviso de bancos repetidos, busca, tabela com Conciliar, Extrato, Integrações e menu "Mais" (Editar conta, Compartilhar, Excluir conta);
+    - formulário da conta e extrato (totais, novo lançamento, filtros, páginas, editar e excluir);
+    - o cálculo do extrato virou `domain/ledger.ts`, testado contra o `bank-ledger.js` antigo, que continua só para a conciliação;
+    - saíram do `app-core.js` a tabela, o formulário, o extrato e o menu antigos (`renderBancos` ficou vazio, como em Contas a Pagar); `verExtratoBanco`, `editBanco`, `excluirBanco` e `om('banco')` abrem as janelas novas;
+    - o `Dialog` dos módulos React passou para `web/shared/ui/Dialog.tsx`.
 - **Ordem das próximas migrações:**
-  1. Tela de Bancos (contas e extrato) em React; depois o resto do controle de cheques (`chequesControle`, cadastro e edição) no servidor.
+  1. Resto do controle de cheques (`chequesControle`: cadastro e edição) no servidor e a tela de Cheques em React.
   2. Compra sucata (hoje metade navegador, metade servidor).
   3. Balança rodoviária.
   4. Painel e Fluxo de caixa.

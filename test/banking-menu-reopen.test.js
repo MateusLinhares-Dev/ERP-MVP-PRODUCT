@@ -11,13 +11,11 @@ function fakeDatabase(){
   return {raw,ref:path=>({async get(){return {val:()=>get(path)??null};},async transaction(fn){const previous=get(path)??null;const after=fn(previous);if(after===undefined)return {committed:false,snapshot:{val:()=>previous}};set(path,after);return {committed:true,snapshot:{val:()=>after}};}})};
 }
 test('More menu lives outside bank table and retains actions',()=>{
-  const source=read('public/legacy/app-core.js');
-  assert.match(source, /data-bank-more=/);
-  assert.match(source,/document\.body\.appendChild\(popover\)/);
-  assert.match(source,/\['_?Editar conta','editBanco'\]/);
-  assert.match(source,/\['Compartilhar','compartilharBanco'\]/);
-  assert.match(source,/\['Excluir conta','excluirBanco'\]/);
-  assert.doesNotMatch(source, /<details class="erp-bank-row-more">/);
+  const source=read('web/modules/banking/ui/BankingWorkspace.tsx');
+  assert.match(source,/data-bank-more=\{row\.cod\}/);
+  assert.match(source,/className="erp-bank-more-popover"[\s\S]*document\.body,/);
+  for(const label of ['Editar conta','Compartilhar','Excluir conta'])assert.ok(source.includes(label),label);
+  assert.doesNotMatch(source,/<details className="erp-bank-row-more">/);
   const css=read('public/modules/banking/bank-integrations.css');
   assert.match(css,/\.erp-bank-more-popover\{position:fixed/);
 });

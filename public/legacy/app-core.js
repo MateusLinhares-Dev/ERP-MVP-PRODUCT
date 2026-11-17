@@ -435,32 +435,6 @@ function _cpParaObjeto(){
   });
   return obj;
 }
-let _cpMigracaoEmAndamento=false;
-
-function _cpMigrarParaFormatoPorChave(){
-  if(_cpMigracaoEmAndamento || !window._fbDB) return;
-  _cpMigracaoEmAndamento=true;
-  return window._fbDB.ref('erp/contasPagar').transaction(function(atual){
-    if(!Array.isArray(atual)) return;
-    const destino={};
-    let duplicado=false;
-    atual.forEach(function(conta){
-      if(!conta || typeof conta!=='object')return;
-      const id=String(conta.id||_cpIdDeterministico(conta));
-      if(Object.prototype.hasOwnProperty.call(destino,id)){
-        duplicado=true;
-        return;
-      }
-      destino[id]=Object.assign({},conta,{id});
-    });
-    if(duplicado)return;
-    return destino;
-  },undefined,false).then(function(result){
-    if(result?.committed)console.info('Contas a Pagar migradas por transação confirmada.');
-  }).catch(function(error){
-    console.warn('Migração de Contas a Pagar não confirmada:',error);
-  }).finally(function(){_cpMigracaoEmAndamento=false;});
-}
 
 function _cpCarregarDeRemoto(remotoContasPagar, confiavel){
   const remotoEhArray=Array.isArray(remotoContasPagar);
@@ -475,7 +449,6 @@ function _cpCarregarDeRemoto(remotoContasPagar, confiavel){
       if(!rc.id) rc.id=_cpIdDeterministico(rc);
       CONTAS_PAGAR.push(rc);
     });
-    if(remotoEhArray && vals.length) _cpMigrarParaFormatoPorChave();
     return;
   }
 
@@ -490,7 +463,6 @@ function _cpCarregarDeRemoto(remotoContasPagar, confiavel){
     if(!loc){ CONTAS_PAGAR.push(rc); porIdLocal[rc.id]=rc; return; }
     if(Number(rc._upd||0) > Number(loc._upd||0)) Object.assign(loc,rc);
   });
-  if(remotoEhArray) _cpMigrarParaFormatoPorChave();
 }
 let CONTAS_PAGAR_DELETED = new Set();
 function _novoIdCP(){ return 'CP'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -503,24 +475,11 @@ function _cpIdDeterministico(c){
 }
 
 function _cpTombstoneDoCliente(id){ return Boolean(id) && !String(id).startsWith('CPPO_'); }
-function _cpDeletedParaObjeto(){ const obj={}; CONTAS_PAGAR_DELETED.forEach(function(id){ if(_cpTombstoneDoCliente(id)) obj[id]=true; }); return obj; }
-let _cpDeletedMigrando=false;
-function _cpDeletedMigrar(){
-  if(_cpDeletedMigrando || !window._fbDB) return;
-  _cpDeletedMigrando=true;
-  try{
-    window._fbDB.ref('erp/contasPagarDeleted').update(_cpDeletedParaObjeto())
-      .then(function(){ console.info('contasPagarDeleted migrado pro formato por-chave na nuvem.'); })
-      .catch(function(e){ console.warn('Falha ao migrar contasPagarDeleted:', e); })
-      .finally(function(){ _cpDeletedMigrando=false; });
-  }catch(e){ _cpDeletedMigrando=false; }
-}
 function _cpDeletedCarregarDeRemoto(remotoBruto){
   if(Array.isArray(remotoBruto)){
     if(!remotoBruto.length) return;
     remotoBruto.forEach(function(id){ if(_cpTombstoneDoCliente(id)) CONTAS_PAGAR_DELETED.add(id); });
     try{ localStorage.setItem('mm_cp_deletados', JSON.stringify([...CONTAS_PAGAR_DELETED])); }catch(e){}
-    _cpDeletedMigrar();
     return;
   }
   if(remotoBruto && typeof remotoBruto==='object'){
@@ -601,6 +560,7 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
     if(idx>=0) lista.splice(idx,1);
   }
   function migrar(){
+    if(['fornecedores','clientes','contasReceber','vendas','bancos','lancBanco'].indexOf(nome)>=0) return;
     if(migracaoEmAndamento || !window._fbDB) return;
     migracaoEmAndamento=true;
     try{
@@ -3754,14 +3714,6 @@ function _erpRefreshCompanySources(){
   try{_popularEmpresasDespesa();}catch(e){}
 }
 window.__erpRefreshCompanySources=_erpRefreshCompanySources;
-function _bcPreencheEndereco(selId, endId){
-  const sel=document.getElementById(selId), end=document.getElementById(endId);
-  if(!sel||!end) return;
-  if(end.value.trim()) return; 
-  const info=EMPRESAS_INFO[sel.value];
-  if(info && info.endereco) end.value=info.endereco;
-}
-
 const FORMS={
   compra:`<h3>🛒 Nova Entrada de Compra</h3>
     <div class="fg"><label>Nº Ticket</label><input placeholder="T004"></div>
@@ -3920,20 +3872,6 @@ const FORMS={
     <div class="fg"><label>Ano</label><input id="nv-ano" type="number" placeholder="2020"></div>
     <div class="fg"><label>Capacidade</label><input id="nv-cap" placeholder="15t"></div>
     <div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarNovoVeiculo()">💾 Salvar</button></div>`,
-  banco:`<h3>🏦 Nova Conta Bancária</h3>
-    <div class="fg"><label>Empresa dona da conta</label><select id="bc-empresa" onchange="_bcPreencheEndereco('bc-empresa','bc-endereco')">${_empresasOptions()}</select></div>
-    <div class="fg"><label>Banco</label><input id="bc-banco" placeholder="Nome do banco"></div>
-    <div class="fg"><label>Tipo</label><select id="bc-tipo"><option>Conta Corrente</option><option>Poupança</option><option>Caixa</option><option>Aplicação</option><option>Conta Terceiro</option></select></div>
-    <div class="fg"><label>Titular / Dono</label><input id="bc-titular" placeholder="Razão social ou nome do terceiro"></div>
-    <div class="fg" id="bc-cpfcnpj-fg" style="display:none"><label>CPF/CNPJ do Terceiro</label><input id="bc-cpfcnpj" class="mask-doc" placeholder="000.000.000-00"></div>
-    <div class="fg"><label>Agência</label><input id="bc-agencia" placeholder="0101"></div>
-    <div class="fg"><label>Conta</label><input id="bc-conta" placeholder="12345-6"></div>
-    <div class="fg"><label>PIX</label><input id="bc-pix" class="mask-pix" placeholder="CNPJ, CPF ou telefone"></div>
-    <div class="fg"><label>Endereço</label><input id="bc-endereco" placeholder="Rua, número, bairro, cidade/UF, CEP"></div>
-    <div class="fg"><label>Saldo Inicial R$</label><input id="bc-saldo" type="text" placeholder="Ex: 1.524.205,97" value="0,00"></div>
-    <div class="fg"><label>Saldo lançado em <span style="font-weight:400;color:var(--gray)">(dia do saldo inicial — pode ser uma data passada)</span></label><input id="bc-data" type="date"></div>
-    <div class="fg"><label>Obs.</label><input id="bc-obs" placeholder="Observação opcional"></div>
-    <div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button><button class="btn-save" onclick="salvarBanco()">💾 Salvar</button></div>`,
   cheque:`<h3 style="margin-bottom:12px">📋 Lançar Cheques</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
       <div class="fg" style="margin:0"><label>Fornecedor / Emitente</label>
@@ -5459,75 +5397,6 @@ async function _criarSnapshotManual(){
   }catch(error){showToast('Falha ao criar snapshot: '+error.message,'error',7000);}
 }
 
-function _snapshotLimparTombstones(){
-  try{ TICKETS_DELETED.clear(); localStorage.setItem('mm_tickets_deletados','[]'); }catch(e){}
-  try{ FORN_DELETED.clear(); localStorage.setItem('mm_fornecedores_deleted','[]'); }catch(e){}
-  try{ CONTAS_PAGAR_DELETED.clear(); localStorage.setItem('mm_cp_deletados','[]'); }catch(e){}
-  ['bancos','lancBanco','fornecedores','clientes','contasReceber','vales','ponto','epi','frota','manutencao','viagem','combustivel','agendaEntregas','almoxa','almoxaMov','historico'].forEach(function(nome){ try{ localStorage.setItem('mm_'+nome+'_deletados','[]'); }catch(e){} });
-  [
-    typeof _syncBancos!=='undefined'?_syncBancos:null,
-    typeof _syncLancBanco!=='undefined'?_syncLancBanco:null,
-    typeof _syncFornecedores!=='undefined'?_syncFornecedores:null,
-    typeof _syncClientes!=='undefined'?_syncClientes:null,
-    typeof _syncContasReceber!=='undefined'?_syncContasReceber:null,
-    typeof _syncVales!=='undefined'?_syncVales:null,
-    typeof _syncPonto!=='undefined'?_syncPonto:null,
-    typeof _syncEpi!=='undefined'?_syncEpi:null,
-    typeof _syncFrota!=='undefined'?_syncFrota:null,
-    typeof _syncManutencao!=='undefined'?_syncManutencao:null,
-    typeof _syncViagem!=='undefined'?_syncViagem:null,
-    typeof _syncCombustivel!=='undefined'?_syncCombustivel:null,
-    typeof _syncAgenda!=='undefined'?_syncAgenda:null,
-    typeof _syncAlxItens!=='undefined'?_syncAlxItens:null,
-    typeof _syncAlxMov!=='undefined'?_syncAlxMov:null,
-    typeof _syncHistorico!=='undefined'?_syncHistorico:null
-  ].filter(Boolean).forEach(function(sync){ try{ sync.deletedSet.clear(); }catch(e){} });
-}
-
-function _snapshotPersistirExato(s){
-  if(!window._fbDB) return Promise.reject(new Error('Firebase não conectado'));
-  _snapshotLimparTombstones();
-  const refs={
-    tickets: s.tickets||{},
-    adiantamentos: s.adiantamentos||{},
-    cheques: s.cheques||{},
-    adtCli: s.adtCli||{},
-    chequesCli: s.chequesCli||{},
-    bancos: (typeof _syncBancos!=='undefined'?_syncBancos.paraObjeto():{}),
-    lancBanco: (typeof _syncLancBanco!=='undefined'?_syncLancBanco.paraObjeto():{}),
-    fornecedores: (typeof _syncFornecedores!=='undefined'?_syncFornecedores.paraObjeto():{}),
-    clientes: (typeof _syncClientes!=='undefined'?_syncClientes.paraObjeto():{}),
-    contasPagar: (typeof _cpParaObjeto==='function'?_cpParaObjeto():{}),
-    contasReceber: (typeof _syncContasReceber!=='undefined'?_syncContasReceber.paraObjeto():{}),
-    estoque: s.estoque||{},
-    historico: (typeof _syncHistorico!=='undefined'?_syncHistorico.paraObjeto():{}),
-    funcEdit: Array.isArray(s.funcEdit)?s.funcEdit:[],
-    folha: s.folha||{},
-    vales: (typeof _syncVales!=='undefined'?_syncVales.paraObjeto():{}),
-    ponto: (typeof _syncPonto!=='undefined'?_syncPonto.paraObjeto():{}),
-    epi: (typeof _syncEpi!=='undefined'?_syncEpi.paraObjeto():{}),
-    frota: (typeof _syncFrota!=='undefined'?_syncFrota.paraObjeto():{}),
-    manutencao: (typeof _syncManutencao!=='undefined'?_syncManutencao.paraObjeto():{}),
-    viagem: (typeof _syncViagem!=='undefined'?_syncViagem.paraObjeto():{}),
-    combustivel: (typeof _syncCombustivel!=='undefined'?_syncCombustivel.paraObjeto():{}),
-    agendaEntregas: (typeof _syncAgenda!=='undefined'?_syncAgenda.paraObjeto():{}),
-    almoxa: (typeof _syncAlxItens!=='undefined'?_syncAlxItens.paraObjeto():{}),
-    almoxaMov: (typeof _syncAlxMov!=='undefined'?_syncAlxMov.paraObjeto():{})
-  };
-  const tombstones=[
-    'ticketsDeleted','ticketsDeletedV2','fornDeleted','fornDeletedV2','contasPagarDeleted','contasPagarDeletedV2',
-    'bancosDeleted','bancosDeletedV2','lancBancoDeleted','lancBancoDeletedV2','fornecedoresDeleted','fornecedoresDeletedV2',
-    'clientesDeleted','clientesDeletedV2','contasReceberDeleted','contasReceberDeletedV2','valesDeleted','valesDeletedV2',
-    'pontoDeleted','pontoDeletedV2','epiDeleted','epiDeletedV2','frotaDeleted','frotaDeletedV2','manutencaoDeleted','manutencaoDeletedV2',
-    'viagemDeleted','viagemDeletedV2','combustivelDeleted','combustivelDeletedV2','agendaEntregasDeleted','agendaEntregasDeletedV2',
-    'almoxaDeleted','almoxaDeletedV2','almoxaMovDeleted','almoxaMovDeletedV2','historicoDeleted','historicoDeletedV2'
-  ];
-  const ops=Object.keys(refs).map(function(k){ return window._fbDB.ref('erp/'+k).set(refs[k]); });
-  tombstones.forEach(function(k){ ops.push(window._fbDB.ref('erp/'+k).remove()); });
-  ops.push(window._fbDB.ref('erp/_ts').set(Date.now()));
-  return Promise.all(ops);
-}
-
 async function restaurarSnapshot(dataKey){
   if(!_usuarioAtualEhElaine()){alert('Apenas a Elaine pode restaurar snapshots.');return;}
   if(!window._fbDB || !firebase.auth().currentUser){alert('Firebase desconectado.');return;}
@@ -5813,84 +5682,6 @@ async function salvarEditVale(idx){
     cm();renderVales();showToast('Vale atualizado e confirmado no Firebase.','success');
     return true;
   }catch(error){showToast('Não foi possível atualizar o vale: '+error.message,'error',7000);return false;}
-}
-
-function _bancoValorMonetarioValido(valor){
-  return Number.isFinite(valor) && valor>0 && Number.isSafeInteger(Math.round(valor*100));
-}
-
-function _movimentoPertenceAdiantamento(movement){
-  if(!movement)return false;
-  if(movement.source==='advance'||movement.advanceCode)return true;
-  if(/^Adiantamento: /i.test(String(movement.descricao||'')))return true;
-  try{
-    return Object.values(ADT_POR_FORN||{}).some(list=>
-      (Array.isArray(list)?list:Object.values(list||{})).some(a=>a&&a.movBancoId===movement.id));
-  }catch(e){return false;}
-}
-function _bancoMovimentoDoServidor(mov){
-  return Boolean(mov)&&(/^LB-(PG|REP)-/.test(String(mov.id||''))||Boolean(mov.payableId));
-}
-function _bancoMovimentoAutomatico(mov){
-  if(!mov) return false;
-  if(_bancoMovimentoDoServidor(mov)||_movimentoPertenceAdiantamento(mov)) return true;
-  if(/^LB-(VD|CR|CHQ)-/.test(String(mov.id||''))||mov.saleId||mov.receivableId||mov.source==='cheque'||mov.chequeId) return true;
-  try{ return Object.values(CHQ_CTRL||{}).some(c=>c&&c.movBancoId===mov.id); }catch(e){ return false; }
-}
-function _bloquearEdicaoMovimentoAdiantamento(movement){
-  const pagamento=_bancoMovimentoDoServidor(movement);
-  if(!pagamento&&!_movimentoPertenceAdiantamento(movement))return false;
-  const msg=pagamento&&/^LB-REP-/.test(String(movement.id||''))
-    ?'Este movimento foi lançado pelo PIX de repasse a fornecedor (Ficha do fornecedor → Dinheiro recebido / Valor a repassar). Ele não pode ser alterado pelo extrato.'
-    :pagamento
-    ?'Este movimento foi lançado pelo pagamento de uma conta a pagar. Para desfazer, exclua o pagamento no Histórico de pagamentos da conta (🕒) — assim a conta e o banco ficam certos.'
-    :'Este movimento pertence a um adiantamento. Edite ou exclua o adiantamento em Financeiro → Adiantamentos para manter o banco conciliado.';
-  if(typeof showToast==='function')showToast(msg,'error',8000);
-  else alert(msg);
-  return true;
-}
-
-function editLancBanco(id, cod){
-  const l=LANC_BANCO_DB.find(x=>x.id===id);
-  if(!l){alert('Lançamento não encontrado.');return;}
-  if(_bloquearEdicaoMovimentoAdiantamento(l))return;
-  om('editLancBanco');
-  const body=document.getElementById('modal-body');
-  if(!body) return;
-  body.innerHTML=`<h3>✏️ Editar Lançamento Bancário</h3>
-    <div class="fg"><label>Data</label><input type="date" id="elb-data" value="${window.erpBankLedger?.isoDate(l.data)||''}"></div>
-    <div class="fg"><label>Descrição</label><input id="elb-desc" value="${esc(l.descricao||'')}"></div>
-    <div class="fg"><label>Tipo</label>
-      <select id="elb-tipo">
-        <option value="Entrada" ${l.tipo==='Entrada'||l.tipo==='Crédito'?'selected':''}>Entrada</option>
-        <option value="Saída" ${l.tipo!=='Entrada'&&l.tipo!=='Crédito'?'selected':''}>Saída</option>
-      </select>
-    </div>
-    <div class="fg"><label>Valor R$</label><input type="number" id="elb-valor" step="0.01" value="${Number(l.valor).toFixed(2)}"></div>
-    <div style="display:flex;gap:10px;margin-top:14px">
-      <button class="btn-save" onclick="salvarEditLancBanco('${id}','${cod}')">💾 Salvar</button>
-      <button class="btn-cancel" onclick="cm()">Cancelar</button>
-    </div>`;
-}
-
-async function salvarEditLancBanco(id, cod){
-  const l=LANC_BANCO_DB.find(x=>x&&x.id===id);
-  if(!l){alert('Não encontrado.');return;}
-  if(_bloquearEdicaoMovimentoAdiantamento(l))return;
-  const data=document.getElementById('elb-data').value;
-  const descricao=document.getElementById('elb-desc').value.trim();
-  const tipo=document.getElementById('elb-tipo').value;
-  const valor=Number(document.getElementById('elb-valor').value);
-  if(!data || !window.erpBankLedger?.isoDate(data) || !descricao || !['Entrada','Saída'].includes(tipo) || !_bancoValorMonetarioValido(valor)){
-    alert('Preencha data, descrição, tipo e valor válido. O valor deve caber com precisão em centavos.');
-    return;
-  }
-  try{
-    await _bancoApi({action:'update-entry',id,expected:{data:l.data,descricao:l.descricao,tipo:l.tipo,valor:l.valor},entry:{data,descricao,tipo,valor}});
-    cm();
-    verExtratoBanco(cod);
-    showToast('Lançamento atualizado.','success');
-  }catch(error){ alert('Não foi possível salvar o lançamento. '+error.message); }
 }
 
 function excluirAdiantamento(fornCod, adtCod){
@@ -16771,164 +16562,7 @@ function _bancoDataCriacao(b){
   return maisAntigo ? new Date(maisAntigo.ts).toLocaleDateString('pt-BR') : null;
 }
 
-let _erpBankMorePopover=null;
-let _erpBankMoreAnchor=null;
-function _erpBankMoreClose(){
-  if(_erpBankMoreAnchor)_erpBankMoreAnchor.setAttribute('aria-expanded','false');
-  if(_erpBankMorePopover)_erpBankMorePopover.remove();
-  _erpBankMorePopover=null;_erpBankMoreAnchor=null;
-}
-function _erpBankMoreOpen(button){
-  if(_erpBankMoreAnchor===button){_erpBankMoreClose();return;}
-  _erpBankMoreClose();
-  const bankCode=button.dataset.bankMore;
-  if(!BANCOS_DB.some(bank=>bank.cod===bankCode))return;
-  const popover=document.createElement('div');
-  popover.className='erp-bank-more-popover';
-  popover.setAttribute('role','menu');
-  popover.setAttribute('aria-label','Ações adicionais da conta bancária');
-  const actions=[['Editar conta','editBanco'],['Compartilhar','compartilharBanco'],['Excluir conta','excluirBanco']];
-  actions.forEach(([label,fnName])=>{
-    const option=document.createElement('button');
-    option.type='button';option.setAttribute('role','menuitem');option.textContent=label;
-    if(fnName==='excluirBanco')option.className='danger';
-    option.addEventListener('click',()=>{
-      const index=BANCOS_DB.findIndex(bank=>bank.cod===bankCode);
-      _erpBankMoreClose();
-      if(index<0)return;
-      const action=window[fnName];
-      if(typeof action==='function')action(index);
-    });
-    popover.appendChild(option);
-  });
-  popover.dataset.bankCode=bankCode;
-  document.body.appendChild(popover);
-  _erpBankMorePopover=popover;_erpBankMoreAnchor=button;
-  button.setAttribute('aria-expanded','true');
-  _erpBankMorePosicionar();
-  popover.querySelector('button')?.focus({preventScroll:true});
-}
-function _erpBankMorePosicionar(){
-  const popover=_erpBankMorePopover, button=_erpBankMoreAnchor;
-  if(!popover||!button)return;
-  const box=button.getBoundingClientRect();
-  const menuHeight=popover.getBoundingClientRect().height||145;
-  const top=box.bottom+menuHeight+6>window.innerHeight?box.top-menuHeight-6:box.bottom+6;
-  popover.style.top=Math.max(8,top)+'px';
-  popover.style.left=Math.max(8,Math.min(box.right-popover.offsetWidth,window.innerWidth-popover.offsetWidth-8))+'px';
-}
-function _erpBankMoreReancorar(){
-  if(!_erpBankMorePopover)return;
-  const code=_erpBankMorePopover.dataset.bankCode;
-  const novo=[...document.querySelectorAll('#tb-bancos button[data-bank-more]')].find(function(b){ return b.dataset.bankMore===code; });
-  if(!novo||!BANCOS_DB.some(function(bank){ return bank.cod===code; })){ _erpBankMoreClose(); return; }
-  _erpBankMoreAnchor=novo;
-  novo.setAttribute('aria-expanded','true');
-  _erpBankMorePosicionar();
-}
-if(typeof document!=='undefined'&&!window.__ERP_BANK_MORE_EVENTS__){
-  window.__ERP_BANK_MORE_EVENTS__=true;
-  document.addEventListener('pointerdown',event=>{
-    if(_erpBankMorePopover&&!_erpBankMorePopover.contains(event.target)&&!_erpBankMoreAnchor?.contains(event.target))_erpBankMoreClose();
-  });
-  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&_erpBankMorePopover){_erpBankMoreClose();}});
-  window.addEventListener('resize',_erpBankMoreClose);
-  window.addEventListener('scroll',function(event){
-    if(!_erpBankMorePopover||!_erpBankMoreAnchor)return;
-    const alvo=event.target;
-    if(_erpBankMorePopover.contains(alvo))return;
-    if(alvo===document||alvo===document.documentElement||alvo===document.body||(alvo&&alvo.contains&&alvo.contains(_erpBankMoreAnchor)))_erpBankMoreClose();
-  },true);
-}
-
-function renderBancos(){
-  const tbody=document.getElementById('tb-bancos');
-  if(!tbody){ if(typeof _erpBankMoreClose==='function') _erpBankMoreClose(); return; }
-
-  if(!window.__ERP_BANKS_CLOUD_READY__){
-    if(typeof _erpBankMoreClose==='function') _erpBankMoreClose();
-    tbody.innerHTML='<tr><td colspan="11" style="text-align:center;padding:20px">Carregando contas do Firebase...</td></tr>';
-    const kpi=document.querySelector('#tab-contas_banco .kpi-val');
-    if(kpi) kpi.textContent='—';
-    return;
-  }
-  const ledger=window.erpBankLedger;
-  const fmt=v=>ledger?ledger.brl(v):Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
-  const entriesByCode=new Map();
-  LANC_BANCO_DB.forEach(entry=>{if(!entry)return;const code=String(entry.bancoCod??'');if(!entriesByCode.has(code))entriesByCode.set(code,[]);entriesByCode.get(code).push(entry);});
-  const balanceByCode=new Map(BANCOS_DB.map(b=>[b.cod,ledger?ledger.statement({openingBalance:b.saldo||0,bankCode:b.cod,entries:entriesByCode.get(String(b.cod??''))||[]}):null]));
-  const empCor={}; _cfgFinanceCompanies().forEach(function(n){ empCor[n]=_cfgFinanceCompanyColor(n); });
-  if(BANCOS_DB.length===0){
-    tbody.innerHTML='<tr><td colspan="11" style="color:var(--gray);text-align:center;padding:20px">Nenhuma conta cadastrada</td></tr>';
-    const kpi=document.querySelector('#tab-contas_banco .kpi-val'); if(kpi)kpi.textContent='0';
-    const saldo=document.querySelectorAll('#tab-contas_banco .kpi-val')[1]; if(saldo)saldo.textContent='R$ 0,00';
-    return;
-  }
-  tbody.innerHTML=BANCOS_DB.map((b,i)=>{
-    const _empresaVisual=b.empresa||_empresaPorTexto([b.banco,b.titular,b.pix,b.cpfcnpj].filter(Boolean).join(' '));
-    const isTerceiro=b.tipo==='Conta Terceiro';
-    const summary=balanceByCode.get(b.cod);
-    const saldoAtual=summary?.closingBalance??Number(b.saldo||0);
-    const saldoSign=ledger?ledger.sign(saldoAtual):Math.sign(saldoAtual);
-    const saldoColor=saldoSign<0?'color:#c0392b':saldoSign===0?'color:#999':'color:#1a5e2a';
-    return '<tr>'
-      +'<td style="font-size:.78rem;color:var(--gray)">'+esc(b.cod)+'</td>'
-      +'<td><b>'+esc(b.banco)+'</b>'+(b.agencia?' <small>Ag '+esc(b.agencia)+'</small>':'')+' – <small>'+esc(b.conta||'—')+'</small></td>'
-      +'<td><span class="b '+(isTerceiro?'b-pend':'b-zerado')+'">'+esc(b.tipo)+'</span></td>'
-      +'<td>'+esc(b.titular)+'<br><span style="font-size:.68rem;font-weight:700;color:'+(empCor[_empresaVisual]||'#888')+'">'+esc(_empresaVisual||_empresaPrincipalChave())+'</span></td>'
-      +'<td style="font-size:.78rem">'+esc(b.cpfcnpj||'—')+'</td>'
-      +'<td style="text-align:right;color:var(--gray);font-size:.82rem">R$ '+fmt(b.saldo)+'</td>'
-      +'<td style="font-size:.78rem;color:var(--gray);white-space:nowrap">'+(_bancoDataCriacao(b)||'<span style="color:#bbb">—</span>')+'</td>'
-      +'<td style="text-align:right;font-weight:700;'+saldoColor+'">R$ '+fmt(saldoAtual)+'</td>'
-      +'<td style="font-size:.78rem">'+esc(b.pix||'—')+'</td>'
-      +'<td style="font-size:.78rem">'+esc(b.obs||'—')+'</td>'
-      +'<td class="erp-bank-table-actions">'
-        +'<div class="erp-bank-actionbar">'
-        +'<button type="button" class="erp-bank-action-primary" data-bank-reconcile="'+esc(b.cod)+'" title="Abrir conciliação bancária">Conciliar</button>'
-        +'<button type="button" class="erp-bank-action" onclick="verExtratoBanco(&#39;'+b.cod+'&#39;)" title="Ver extrato">Extrato</button>'
-        +'<button type="button" class="erp-bank-action" data-bank-integration="'+esc(b.cod)+'" title="Configurar bancos e Open Finance">Integrações</button>'
-        +'<button type="button" class="erp-bank-more-trigger" data-bank-more="'+esc(b.cod)+'" aria-haspopup="menu" aria-expanded="false" title="Outras ações da conta">Mais ▾</button></div></td>'
-
-    +'</tr>';
-  }).join('');
-
-  if(typeof tbody.addEventListener==='function' && !tbody.dataset?.reconcileBound){
-    tbody.addEventListener('click',function(event){
-      const button=event.target.closest('button[data-bank-reconcile]');
-      if(button&&tbody.contains(button))window.erpReconciliationOpen(button.dataset.bankReconcile);
-      const integrate=event.target.closest('button[data-bank-integration]');
-      if(integrate&&tbody.contains(integrate))window.erpBankIntegrationsOpen(integrate.dataset.bankIntegration);
-      const more=event.target.closest('button[data-bank-more]');
-      if(more&&tbody.contains(more))_erpBankMoreOpen(more);
-    });
-    if(tbody.dataset)tbody.dataset.reconcileBound='true';
-  }
-  try{ if(typeof _erpBankMoreReancorar==='function') _erpBankMoreReancorar(); }catch(e){ if(typeof _erpBankMoreClose==='function') _erpBankMoreClose(); }
-  const kpiTotal=document.querySelector('#tab-contas_banco .kpi-val');
-  if(kpiTotal) kpiTotal.textContent=BANCOS_DB.length;
-  const kpiSaldo=document.querySelectorAll('#tab-contas_banco .kpi-val')[1];
-  
-  const saldoTotalAtual=ledger
-    ?ledger.addMoney(BANCOS_DB.map(b=>balanceByCode.get(b.cod).closingBalance))
-    :BANCOS_DB.reduce((s,b)=>s+Number(b.saldo||0),0);
-  if(kpiSaldo) kpiSaldo.textContent='R$ '+fmt(saldoTotalAtual);
-  const kpiSubs=document.querySelectorAll('#tab-contas_banco .kpi-sub');
-  if(kpiSubs[0]) kpiSubs[0].textContent=BANCOS_DB.length?'Contas cadastradas no sistema':'Nenhuma conta cadastrada';
-  if(kpiSubs[1]) kpiSubs[1].textContent=[...balanceByCode.values()].some(value=>value?.hasUnsafeLegacyValues||value?.invalidValues)
-    ?'Revise lançamentos antigos fora da precisão ou inválidos':'Saldo consolidado atualizado';
-
-}
-
-function _proximoCodBanco(){
-  let max=0;
-  BANCOS_DB.forEach(function(b){
-    const m=/^BC-(\d+)$/.exec((b&&b.cod)||'');
-    if(m) max=Math.max(max, parseInt(m[1],10));
-  });
-  let n=max+1, cod='BC-'+String(n).padStart(3,'0');
-  while(BANCOS_DB.some(function(b){ return b&&b.cod===cod; })){ n++; cod='BC-'+String(n).padStart(3,'0'); }
-  return cod;
-}
+function renderBancos(){}
 
 function _bancosPrepararTombstonesCloud(){
   if(window.__ERP_BANKS_TOMBSTONES_INIT__) return;
@@ -16988,115 +16622,6 @@ async function recarregarBancosDoBanco(){
   }
 }
 
-async function salvarBanco(){
-  const banco=document.getElementById('bc-banco')?.value.trim();
-  if(!banco){alert('Informe o nome do banco!');return;}
-  const tipo=document.getElementById('bc-tipo')?.value||'Conta Corrente';
-  const valor=id=>document.getElementById(id)?.value.trim()||'';
-  const dados={
-    banco,tipo,
-    empresa:document.getElementById('bc-empresa')?.value||_empresaPrincipalChave(),
-    titular:valor('bc-titular')||_empresaPrincipalRazao(),
-    cpfcnpj:tipo==='Conta Terceiro'?valor('bc-cpfcnpj'):'',
-    agencia:valor('bc-agencia'),conta:valor('bc-conta'),pix:valor('bc-pix'),endereco:valor('bc-endereco'),
-    saldo:_parseValorBR(document.getElementById('bc-saldo')?.value),
-    obs:valor('bc-obs'),criadoEm:valor('bc-data')
-  };
-  const btn=document.querySelector('#modal-body .btn-save');if(btn)btn.disabled=true;
-  try{
-    const r=await _bancoApi({action:'create-account',account:dados});
-    cm();
-    registrarHistorico('Banco','Criado',banco+' — saldo inicial R$ '+Number(r.account?.saldo||0).toLocaleString('pt-BR',{minimumFractionDigits:2}),null,{bancoCod:r.account?.cod||''});
-    showToast('✅ Conta bancária '+(r.account?.cod||'')+' confirmada no servidor!','success');
-  }catch(error){
-    alert('Não foi possível salvar a conta bancária. Nada foi gravado. '+error.message);
-  }finally{if(btn)btn.disabled=false;}
-}
-
-function editBanco(idx){
-  const b=BANCOS_DB[idx]; if(!b) return;
-  const tipoOpts=['Conta Corrente','Poupança','Caixa','Aplicação','Conta Terceiro']
-    .map(t=>'<option'+(t===b.tipo?' selected':'')+'>'+t+'</option>').join('');
-  const body=document.getElementById('modal-body');
-  body.className='modal';
-  body.innerHTML=
-    '<h3>✏️ Editar Conta – '+esc(b.banco)+'</h3>'+
-    '<input type="hidden" id="eb-idx" value="'+idx+'">'+
-    '<div class="fg"><label>Código <span style="font-weight:400;color:#888;font-size:.78rem">(só mude se este código estiver duplicado em outra conta — mudar aqui atualiza junto o extrato/lançamentos já vinculados a esta conta)</span></label><input id="eb-cod" value="'+esc(b.cod||'')+'"></div>'+
-    '<div class="fg"><label>Empresa dona da conta</label><select id="eb-empresa" onchange="_bcPreencheEndereco(&#39;eb-empresa&#39;,&#39;eb-endereco&#39;)">'+_empresasOptions(b.empresa)+'</select></div>'+
-    '<div class="fg"><label>Banco</label><input id="eb-banco" value="'+esc(b.banco)+'"></div>'+
-    '<div class="fg"><label>Tipo</label><select id="eb-tipo" onchange="toggleCpfCnpj(&#39;eb-cpfcnpj-fg&#39;,this.value)">'+tipoOpts+'</select></div>'+
-    '<div class="fg"><label>Titular / Dono</label><input id="eb-titular" value="'+esc(b.titular||'')+'"></div>'+
-    '<div class="fg" id="eb-cpfcnpj-fg" style="display:'+(b.tipo==='Conta Terceiro'?'block':'none')+'"><label>CPF/CNPJ do Terceiro</label><input id="eb-cpfcnpj" class="mask-doc" value="'+esc(b.cpfcnpj||'')+'"></div>'+
-    '<div class="fg"><label>Agência</label><input id="eb-agencia" value="'+esc(b.agencia||'')+'"></div>'+
-    '<div class="fg"><label>Conta</label><input id="eb-conta" value="'+esc(b.conta||'')+'"></div>'+
-    '<div class="fg"><label>PIX</label><input id="eb-pix" class="mask-pix" value="'+esc(b.pix||'')+'"></div>'+
-    '<div class="fg"><label>Endereço</label><input id="eb-endereco" placeholder="Rua, número, bairro, cidade/UF, CEP" value="'+esc(b.endereco||'')+'"></div>'+
-    '<div class="fg"><label>Saldo Inicial R$</label><input id="eb-saldo" type="text" placeholder="Ex: 1.524.205,97" value="'+Number(b.saldo||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'"></div>'+
-    '<div class="fg"><label>Saldo lançado em <span style="font-weight:400;color:var(--gray)">(dia do saldo inicial — pode ser uma data passada)</span></label><input id="eb-data" type="date" value="'+(b.criadoEm?String(b.criadoEm).slice(0,10):'')+'"></div>'+
-    '<div class="fg"><label>Obs.</label><input id="eb-obs" value="'+esc(b.obs||'')+'"></div>'+
-    '<div class="modal-ft">'+
-    '<button class="btn-cancel" onclick="cm()">Cancelar</button>'+
-    '<button class="btn-save" onclick="salvarEditBanco()">💾 Salvar</button></div>';
-  document.getElementById('modal-ov').classList.add('open');
-}
-
-async function salvarEditBanco(){
-  const idx=parseInt(document.getElementById('eb-idx').value);
-  const b=BANCOS_DB[idx]; if(!b) return;
-  const saldoAntes=b.saldo;
-  const valor=id=>document.getElementById(id)?.value.trim()||'';
-  const tipo=document.getElementById('eb-tipo').value;
-  const dados={
-    empresa:document.getElementById('eb-empresa')?.value||_empresaPrincipalChave(),
-    banco:valor('eb-banco'),tipo,titular:valor('eb-titular'),
-    cpfcnpj:tipo==='Conta Terceiro'?valor('eb-cpfcnpj'):'',
-    agencia:valor('eb-agencia'),conta:valor('eb-conta'),pix:valor('eb-pix'),endereco:valor('eb-endereco'),
-    saldo:_parseValorBR(document.getElementById('eb-saldo').value),
-    obs:valor('eb-obs')
-  };
-  if(valor('eb-data')) dados.criadoEm=valor('eb-data');
-  const novoCod=valor('eb-cod');
-  if(novoCod && novoCod!==b.cod) dados.cod=novoCod;
-  const btn=document.querySelector('#modal-body .btn-save');if(btn)btn.disabled=true;
-  try{
-    const r=await _bancoApi({action:'update-account',id:b.id||b.cod,expectedUpdate:b._upd,account:dados});
-    const nova=r.account||b;
-    if(r.codeChange) registrarHistorico('Banco','Código alterado',(nova.banco||'')+' — código "'+r.codeChange.from+'" trocado para "'+r.codeChange.to+'" ('+r.codeChange.movedEntries+' lançamento(s) junto; corrige duplicidade)',null,{bancoCodAntigo:r.codeChange.from,bancoCodNovo:r.codeChange.to});
-    if(Number(saldoAntes||0).toFixed(2)!==Number(nova.saldo||0).toFixed(2))
-      registrarHistorico('Banco','Saldo Inicial alterado',(nova.banco||'')+' — de R$ '+Number(saldoAntes||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+' para R$ '+Number(nova.saldo||0).toLocaleString('pt-BR',{minimumFractionDigits:2}),null,{bancoCod:nova.cod});
-    cm();
-    showToast('✅ Conta atualizada no servidor!','success');
-  }catch(error){
-    alert('Não foi possível salvar a conta. Nada foi alterado. '+error.message);
-  }finally{if(btn)btn.disabled=false;}
-}
-
-async function excluirBanco(idx){
-  const conta=BANCOS_DB[idx]; if(!conta) return;
-  const cod=String(conta.cod||'');
-  const movimentos=cod?LANC_BANCO_DB.filter(l=>l&&String(l.bancoCod||'')===cod).length:0;
-  let adiantamentos=0;
-  try{
-    Object.values(typeof ADT_POR_FORN!=='undefined'&&ADT_POR_FORN||{}).forEach(lista=>{
-      (Array.isArray(lista)?lista:Object.values(lista||{})).forEach(a=>{
-        if(a&&cod&&String(a.bancoCod||'')===cod&&String(a.status||'Pendente')==='Pendente')adiantamentos++;
-      });
-    });
-  }catch(e){}
-  if(movimentos||adiantamentos){
-    alert('Esta conta possui '+movimentos+' lançamento(s) no extrato'+(adiantamentos?' e '+adiantamentos+' adiantamento(s) pendente(s)':'')+
-      '. Para preservar saldos e histórico ela não pode ser excluída. Edite a conta ou remova/transfira os lançamentos antes.');
-    return;
-  }
-  if(!confirm('Excluir esta conta bancária?')) return;
-  try{
-    await _bancoApi({action:'delete-account',id:conta.id||conta.cod});
-    cm();
-    showToast('Conta bancária excluída.','success');
-  }catch(error){ alert('Não foi possível excluir a conta. '+error.message); }
-}
-
 window.erpReconciliationSources=function(){
   return {
     banks:BANCOS_DB.filter(Boolean).map(b=>({cod:String(b.cod||''),name:String(b.banco||'Conta'),account:String(b.conta||'')}))
@@ -17124,6 +16649,17 @@ async function _bancoApi(payload){
   return result;
 }
 window.erpBankLedgerRequest=_bancoApi;
+window.erpBankingSnapshot=function(){
+  const advance=[],cheque=[];
+  try{ Object.values(ADT_POR_FORN||{}).forEach(function(l){ (Array.isArray(l)?l:Object.values(l||{})).forEach(function(a){ if(a&&a.movBancoId) advance.push(String(a.movBancoId)); }); }); }catch(e){}
+  try{ Object.values(CHQ_CTRL||{}).forEach(function(c){ if(c&&c.movBancoId) cheque.push(String(c.movBancoId)); }); }catch(e){}
+  return {ready:Boolean(window.__ERP_BANKS_CLOUD_READY__),banks:BANCOS_DB,entries:LANC_BANCO_DB,advanceMovementIds:advance,chequeMovementIds:cheque};
+};
+window.erpBankingCompanyOf=function(b){ return (b&&b.empresa)||_empresaPorTexto([b&&b.banco,b&&b.titular,b&&b.pix,b&&b.cpfcnpj].filter(Boolean).join(' '))||_empresaPrincipalChave(); };
+window.erpBankingCreatedAt=function(b){ return _bancoDataCriacao(b)||''; };
+window.erpBankingAddressOf=function(c){ const info=(EMPRESAS_INFO||{})[c]; return info&&info.endereco?String(info.endereco):''; };
+window.erpBankingCompanies=function(){ return _cfgRegisteredCompanies(); };
+window.erpBankingMain=function(){ return {company:_empresaPrincipalChave(),holder:_empresaPrincipalRazao()}; };
 function _bancoTirarLocal(id){
   const i=LANC_BANCO_DB.findIndex(function(l){ return l&&l.id===id; });
   if(i>=0) _syncLancBanco.remover(i);
@@ -17154,118 +16690,6 @@ function _bancoAplicarResultado(r){
   try{ rebuildBancosDropdowns(); }catch(e){}
   if(/cheque/.test(String(r.action||''))) try{ renderChequesCompensar(); }catch(e){}
 }
-let _extratoBancoAberto='';
-function verExtratoBanco(cod){
-  const banco=BANCOS_DB.find(b=>b.cod===cod);if(!banco)return;
-  const ledger=window.erpBankLedger;
-  if(!ledger){console.error('Extrato bancário indisponível.');return;}
-  const statement=ledger.statement({openingBalance:banco.saldo,bankCode:cod,entries:LANC_BANCO_DB.filter(l=>l&&l.bancoCod===cod)});
-  const money=value=>'R$ '+ledger.brl(value);
-  const normalizar=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-  const dataBR=(date,entry)=>date?date.slice(8,10)+'/'+date.slice(5,7)+'/'+date.slice(0,4):String(entry.data||'—');
-  const linhas=statement.rows.map(row=>({...row,texto:normalizar([dataBR(row.date,row.entry),row.entry.descricao,row.incoming?'entrada':'saida',ledger.brl(row.amount)].join(' '))})).reverse();
-  if(_extratoBancoAberto!==cod){_erpReiniciarPagina('extrato-banco');_extratoBancoAberto=cod;}
-  const body=document.getElementById('modal-body');
-  body.className='modal erp-bank-statement';
-  body.style.maxWidth='min(1080px,calc(100vw - 32px))';
-  body.innerHTML=
-    '<header class="erp-statement-header"><div><h3>Extrato bancário</h3><p>'+esc(banco.banco||'Conta bancária')+'</p></div></header>'+
-    '<div class="erp-statement-totals">'+
-      '<div><small>Saldo inicial</small><strong>'+money(statement.openingBalance)+'</strong></div>'+
-      '<div><small>Entradas</small><strong>'+money(statement.credits)+'</strong></div>'+
-      '<div><small>Saídas</small><strong>'+money(statement.debits)+'</strong></div>'+
-      '<div><small>Saldo atual</small><strong>'+money(statement.closingBalance)+'</strong></div></div>'+
-    (statement.hasUnsafeLegacyValues?'<p class="erp-ledger-precision-warning" role="status">Existem valores antigos acima do limite de precisão do JavaScript. O extrato soma os valores armazenados sem perder novos centavos, mas os dígitos originais desses registros podem já ter sido arredondados. Revise esses lançamentos.</p>':'')+
-    (statement.invalidValues?'<p class="erp-ledger-precision-warning" role="status">Existem '+statement.invalidValues+' valores bancários inválidos. Foram desconsiderados no cálculo; revise os registros.</p>':'')+
-    '<details class="erp-statement-entry"><summary>Novo lançamento</summary>'+
-      '<div class="erp-statement-entry-fields">'+
-      '<label>Data<input type="date" id="lb-data"></label>'+
-      '<label class="erp-statement-wide">Descrição<input type="text" id="lb-desc" maxlength="240" placeholder="Descrição da movimentação"></label>'+
-      '<label>Tipo<select id="lb-tipo"><option value="Entrada">Entrada</option><option value="Saída">Saída</option></select></label>'+
-      '<label>Valor (R$)<input type="number" id="lb-valor" placeholder="0,00" min="0.01" step="0.01"></label>'+
-      '<button type="button" class="btn-save" id="erp-bank-add">Registrar</button></div></details>'+
-    '<div class="erp-statement-filters">'+
-      '<input type="search" id="erp-bank-search" aria-label="Buscar movimentações" placeholder="Buscar descrição, data ou valor">'+
-      '<select id="erp-bank-kind" aria-label="Tipo de movimentação"><option value="">Todas</option><option value="entrada">Entradas</option><option value="saida">Saídas</option></select>'+
-      '<label>De<input type="date" id="erp-bank-from"></label><label>Até<input type="date" id="erp-bank-to"></label>'+
-      '<span id="erp-bank-result-count" aria-live="polite"></span></div>'+
-    '<div class="erp-statement-table-wrap"><table class="erp-statement-table">'+
-      '<thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Saldo acumulado</th><th>Ações</th></tr></thead>'+
-      '<tbody id="erp-bank-rows"></tbody></table></div>'+
-    '<div class="modal-ft"><button class="btn-cancel" onclick="cm()">Fechar</button></div>';
-  const search=body.querySelector('#erp-bank-search'),kind=body.querySelector('#erp-bank-kind');
-  const from=body.querySelector('#erp-bank-from'),to=body.querySelector('#erp-bank-to'),count=body.querySelector('#erp-bank-result-count');
-  const tbody=body.querySelector('#erp-bank-rows');
-  const desenhar=()=>{
-    const query=normalizar(search.value);
-    const filtradas=linhas.filter(row=>(!query||row.texto.includes(query))&&(!kind.value||(row.incoming?'entrada':'saida')===kind.value)&&
-      (!from.value||row.date>=from.value)&&(!to.value||(row.date&&row.date<=to.value)));
-    const pagina=_erpPaginarDados('extrato-banco',filtradas,'erp-bank-rows',desenhar);
-    tbody.innerHTML=pagina.length?pagina.map(({entry,date,incoming,amount,balance})=>{
-      const travado=_bancoMovimentoAutomatico(entry);
-      return '<tr data-date="'+esc(date)+'" data-type="'+(incoming?'entrada':'saida')+'">'+
-        '<td>'+esc(dataBR(date,entry))+'</td>'+
-        '<td class="erp-ledger-description">'+esc(entry.descricao||'—')+'</td>'+
-        '<td><span class="erp-entry-kind '+(incoming?'is-income':'is-expense')+'">'+(incoming?'Entrada':'Saída')+'</span></td>'+
-        '<td class="erp-money '+(incoming?'is-income':'is-expense')+'">'+(incoming?'+ ':'- ')+money(amount)+'</td>'+
-        '<td class="erp-money">'+money(balance)+'</td>'+
-        '<td class="erp-row-actions">'+(travado
-          ?'<small title="Lançado por um pagamento ou adiantamento. Altere pela tela de origem.">Automático</small>'
-          :'<button type="button" class="btn-edit" data-bank-action="edit" data-id="'+esc(entry.id||'')+'" aria-label="Editar lançamento" title="Editar lançamento">Editar</button>'+
-           '<button type="button" class="btn-edit-danger" data-bank-action="delete" data-id="'+esc(entry.id||'')+'" aria-label="Excluir lançamento" title="Excluir lançamento">Excluir</button>')+'</td></tr>';
-    }).join(''):'<tr><td colspan="6" class="erp-statement-empty">'+(linhas.length?'Nenhum lançamento para os filtros escolhidos.':'Nenhum lançamento para esta conta.')+'</td></tr>';
-    count.textContent=filtradas.length+' de '+linhas.length+' lançamentos';
-  };
-  [search,kind,from,to].forEach(element=>element.addEventListener('input',()=>{_erpReiniciarPagina('extrato-banco');desenhar();}));
-  body.querySelector('#erp-bank-add').addEventListener('click',()=>salvarLancBanco(cod));
-  tbody.addEventListener('click',event=>{
-    const button=event.target.closest('button[data-bank-action]');if(!button)return;
-    if(button.dataset.bankAction==='edit')editLancBanco(button.dataset.id,cod);
-    else if(button.dataset.bankAction==='delete')excluirLancBanco(button.dataset.id,cod);
-  });
-  desenhar();
-  document.getElementById('modal-ov').classList.add('open');
-}
-
-async function salvarLancBanco(cod){
-  const data=document.getElementById('lb-data')?.value;
-  const desc=document.getElementById('lb-desc')?.value.trim();
-  const tipo=document.getElementById('lb-tipo')?.value;
-  const valor=Number(document.getElementById('lb-valor')?.value);
-  if(!data){alert('Informe a data!');return;}
-  if(!desc){alert('Informe a descrição!');return;}
-  if(!['Entrada','Saída'].includes(tipo)){alert('Selecione um tipo de movimentação válido.');return;}
-  if(!_bancoValorMonetarioValido(valor)){
-    alert('Informe um valor positivo e dentro do limite de precisão em centavos.');
-    return;
-  }
-  const btn=document.getElementById('erp-bank-add');if(btn)btn.disabled=true;
-  try{
-    await _bancoApi({action:'add-entry',bankCode:cod,entry:{data,descricao:desc,tipo,valor}});
-    verExtratoBanco(cod);
-    showToast('Lançamento registrado no servidor.','success');
-  }catch(error){
-    alert('Não foi possível registrar o lançamento. '+error.message);
-  }finally{if(btn&&btn.isConnected)btn.disabled=false;}
-}
-
-async function excluirLancBanco(id,cod){
-  const l=LANC_BANCO_DB.find(x=>x&&x.id===id);
-  if(!l)return;
-  if(_bloquearEdicaoMovimentoAdiantamento(l))return;
-  if(!confirm('Excluir este lançamento?'))return;
-  try{
-    await _bancoApi({action:'delete-entry',id,expected:{data:l.data,descricao:l.descricao,tipo:l.tipo,valor:l.valor}});
-    verExtratoBanco(cod);
-    showToast('Lançamento excluído.','success');
-  }catch(error){ alert('Não foi possível excluir o lançamento. '+error.message); }
-}
-
-function toggleCpfCnpj(fgId, tipo){
-  const fg=document.getElementById(fgId);
-  if(fg) fg.style.display=tipo==='Conta Terceiro'?'block':'none';
-}
-
 function rebuildBancosDropdowns(){
   ['cr-banco','ecr-banco','cp-banco','ecp-banco'].forEach(id=>{
     const sel=document.getElementById(id);

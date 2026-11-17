@@ -52,7 +52,7 @@ test('PIX: mensagem contém titular específico da conta, país e tipo',()=>{
   assert.match(supplierSrc,/CPF\/CNPJ do titular:/);
   assert.match(supplierSrc,/Tipo de conta:/);
   assert.match(supplierSrc,/WhatsApp/);
-  assert.match(supplierSrc,/hasCanonical/);
+  assert.match(supplierSrc,/api\.list\('fornecedor',String\(f\.cod\|\|''\)\)/,'a janela de PIX usa a mesma lista do cadastro de contas');
 });
 
 test('Bancos: só confirma o salvamento depois da nuvem e impede contas repetidas',()=>{

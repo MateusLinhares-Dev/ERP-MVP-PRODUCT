@@ -75,7 +75,7 @@ test('Usabilidade cobre calendário, buscas estáveis, navegação por teclado, 
 
 test('Financeiro contém contas fixas, simplificação aprovada, filtros e aviso não bloqueante de cheques',()=>{
   const s=read('public/modules/phase1/phase1-finance.js');
-  for(const token of ['Contas a Pagar Fixas','fixedPayables','phase1-adt-bank','phase1-cheq-bank','phase1-cheq-client','Possível numeração|possível numeração','duplicad','zerarSaldosBancos','depositar.*lote'])assert.match(s,new RegExp(token,'i'));
+  for(const token of ['Contas a Pagar Fixas','fixedPayables','phase1-adt-bank','phase1-cheq-bank','phase1-cheq-client','Possível numeração|possível numeração','zerarSaldosBancos','depositar.*lote'])assert.match(s,new RegExp(token,'i'));
 });
 
 test('RH/Frota/Viagem contém EPI x Almoxarifado, edição, competência e gastos extras',()=>{

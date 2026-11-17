@@ -99,7 +99,7 @@ test('A interface integra com Bancos e não cria lançamentos bancários adicion
   const code=load('public/modules/banking/reconciliation-ui.js');
   const core=load('public/legacy/app-core.js');
   const boot=load('public/app/bootstrap.js');
-  assert.match(core,/erpReconciliationOpen/);
+  assert.match(load('web/erp/banking.tsx'),/erpReconciliationOpen/);
   assert.match(core,/erpReconciliationSources/);
   assert.match(boot,/reconciliation-domain\.js/);
   assert.match(boot,/reconciliation-ui\.js/);
