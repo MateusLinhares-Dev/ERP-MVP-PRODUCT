@@ -78,16 +78,11 @@ export function pathKey(value: unknown): string {
 }
 
 export function amount(value: unknown): number {
-  if (
-    typeof value !== 'number' ||
-    !Number.isFinite(value) ||
-    value <= 0 ||
-    value > 1000000000 ||
-    Math.round(value * 100) / 100 !== value
-  ) {
+  const scaled = typeof value === 'number' && Number.isFinite(value) ? value * 100 : Number.NaN;
+  const cents = Math.round(scaled);
+  if (!Number.isFinite(scaled) || Math.abs(cents - scaled) > 0.000001 || cents <= 0 || cents > 100000000000)
     failure(422, 'INVALID_AMOUNT', 'Informe um valor válido em centavos.');
-  }
-  return value;
+  return cents / 100;
 }
 
 export function isoDate(value: unknown): string {

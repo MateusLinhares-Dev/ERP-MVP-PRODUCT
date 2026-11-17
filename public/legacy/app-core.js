@@ -8469,7 +8469,7 @@ function _adtChqLer(){
   document.querySelectorAll('#adt-chq-rows .adt-chq-row').forEach(function(r){
     const b=r.querySelector('.rb')?.value||'';
     const n=(r.querySelector('.rn')?.value||'').trim();
-    const v=_adtParseVal(r.querySelector('.rv')?.value||'');
+    const v=_r2(_adtParseVal(r.querySelector('.rv')?.value||''));
     const d=r.querySelector('.rd')?.value||'';
     const venc=r.querySelector('.rvenc')?.value||'';
     const cli=(r.querySelector('.rcli')?.value||'').trim();
@@ -10602,7 +10602,7 @@ async function salvarAdiantamento(){
   const obs=document.getElementById('adt-obs')?.value.trim()||'';
   const fornCod=document.getElementById('adt-forn')?.value||'';
   if(_ehCheque&&_chqLista.length){
-    const somaChq=_chqLista.reduce((s,c)=>s+(c.v||0),0);
+    const somaChq=_r2(_chqLista.reduce((s,c)=>s+(c.v||0),0));
     if(somaChq>0)valor=somaChq;
   }
   if(_ehCheque&&!_chqLista.length){alert('Adicione pelo menos um cheque na lista (banco, nº e valor).');return false;}
