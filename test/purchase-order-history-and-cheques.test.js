@@ -201,3 +201,27 @@ test('fornecedor renomeado: pesagens e sessão do Balanceiro acham o fornecedor 
   assert.match(load,/const fornObj=_fornPorNome\(fornNome\);[\s\S]*_ticketDoForn\(t,fornObj,fornNome\)/);
   assert.match(extract(core,'function balIniciarNovaSessao(){','const sessId'),/_ticketDoForn\(t,fornSel,fornNome\)/);
 });
+
+test('lançamento manual puxa o preço da tabela do fornecedor ao escolher o material, sem trocar preço digitado',()=>{
+  const code=extract(purchase,'function tablePrice(code,mat){','function supplierForTicket(ticket){');
+  const ctx={PRECOS_FORN_DATA:{F42:{'ALUMINIO DURO LIMPO':9.5,'Bronze ':46,COBRE:0,_datas:{'ALUMINIO DURO LIMPO':'17/11/2026'}}}};
+  runInNewContext(code+';this.price=tablePrice;this.fill=fillTablePrices;',ctx);
+  assert.equal(ctx.price('F42','aluminio duro limpo'),9.5);
+  assert.equal(ctx.price('F42','BRONZE'),46);
+  assert.equal(ctx.price('F42','COBRE'),0);
+  assert.equal(ctx.price('F42','_datas'),0);
+  assert.equal(ctx.price('F99','BRONZE'),0);
+  const state={supplierCode:'F42',items:[{mat:'Bronze',preco:0},{mat:'ALUMINIO DURO LIMPO',preco:12},{mat:'',preco:0},{mat:'aluminio duro limpo',preco:3,tablePrice:true}]};
+  ctx.fill(state);
+  assert.equal(JSON.stringify(state.items.map(i=>i.preco)),JSON.stringify([46,12,0,9.5]));
+  const handler=extract(purchase,'global.phase4PurchaseItem=function(index,field,value){','global.phase4PurchaseAddItem=function(){');
+  assert.match(handler,/if\(field==='preco'\)item\.tablePrice=false;/);
+  assert.match(handler,/if\(field==='mat'&&\(!\(Number\(item\.preco\|\|0\)>0\)\|\|item\.tablePrice\)\)\{\s*const price=tablePrice\(state\.supplierCode,item\.mat\);/);
+  assert.match(purchase,/next\.sourceTicketKeys=\[\];\s*if\(!next\.items\?\.length\)next\.items=\[newItem\(\)\];\s*fillTablePrices\(next\);/);
+});
+
+test('janela Contas / PIX do fornecedor leva ao cadastro onde a conta é editada ou excluída',()=>{
+  const compat=readFileSync(new URL('../public/legacy/supplier-compat.js',import.meta.url),'utf8');
+  assert.match(compat,/id="forn-pix-edit">✏️ Editar ou excluir contas<\/button>/);
+  assert.match(compat,/window\.phase3OpenPartyBanks\('fornecedor',String\(f\.cod\|\|''\),String\(f\.nome\|\|''\)\)/);
+});

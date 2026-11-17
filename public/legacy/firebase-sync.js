@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-17-1700-v243-fornecedor-renomeado';
+  const _APP_BUILD = '2026-11-17-2000-v244-bancos-so-servidor';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -981,7 +981,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
 
         afazeresDeleted: [..._syncAfazeres.deletedSet],
         valesDeleted: [..._syncVales.deletedSet],
-        lancBancoDeleted: [..._syncLancBanco.deletedSet],
         viagemDeleted: [..._syncViagem.deletedSet],
         combustivelDeleted: [..._syncCombustivel.deletedSet],
         tanqueDeleted: [..._syncTanque.deletedSet],
@@ -989,7 +988,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         manutencaoDeleted: [..._syncManutencao.deletedSet],
         almoxaDeleted: [..._syncAlxItens.deletedSet],
         almoxaMovDeleted: [..._syncAlxMov.deletedSet],
-        bancosDeleted: [..._syncBancos.deletedSet],
         despGrupoDeleted: [..._syncDespGrupo.deletedSet],
         coordNotasDeleted: [..._syncAlxNotas.deletedSet],
         contratosDeleted: [..._syncContratos.deletedSet],
@@ -1061,22 +1059,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       _patchIncremental(dados, 'fornDespesa', _syncFornDespesa.paraObjeto(), _syncFornDespesa.deletedSet);
       _patchIncremental(dados, 'afazeres', _syncAfazeres.paraObjeto(), _syncAfazeres.deletedSet);
       delete dados.valesDeleted;
-      const _lancamentosLegados=_syncLancBanco.paraObjeto();
-      const _idsDeAdiantamentosAPI=new Set();
-      try{ Object.values(ADT_POR_FORN||{}).forEach(list=>{
-        (Array.isArray(list)?list:Object.values(list||{})).forEach(a=>{
-          if(a&&a.movBancoId)_idsDeAdiantamentosAPI.add(String(a.movBancoId));
-        });
-      }); }catch(e){}
-      Object.keys(_lancamentosLegados).forEach(id=>{
-        const movement=_lancamentosLegados[id];
-        if(_idsDeAdiantamentosAPI.has(String(id))||movement?.source==='advance'||movement?.advanceCode||
-          /^Adiantamento: /i.test(String(movement?.descricao||''))||
-          String(id).startsWith('LB-PG-')||String(id).startsWith('LB-VD-')||String(id).startsWith('LB-CR-')||String(movement?.payableId||'').startsWith('CPPO_'))delete _lancamentosLegados[id];
-      });
-      const _tombstonesBancoLegado=new Set([..._syncLancBanco.deletedSet].filter(id=>
-        !_idsDeAdiantamentosAPI.has(String(id))&&!String(id).startsWith('LB-PG-')&&!String(id).startsWith('LB-VD-')&&!String(id).startsWith('LB-CR-')));
-      _patchIncremental(dados,'lancBanco',_lancamentosLegados,_tombstonesBancoLegado);
       _patchIncremental(dados, 'viagem', _syncViagem.paraObjeto(), _syncViagem.deletedSet);
       _patchIncremental(dados, 'combustivel', _syncCombustivel.paraObjeto(), _syncCombustivel.deletedSet);
       _patchIncremental(dados, 'tanque', _syncTanque.paraObjeto(), _syncTanque.deletedSet);
@@ -1084,8 +1066,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       _patchIncremental(dados, 'manutencao', _syncManutencao.paraObjeto(), _syncManutencao.deletedSet);
       _patchIncremental(dados, 'almoxa', _syncAlxItens.paraObjeto(), _syncAlxItens.deletedSet);
       _patchIncremental(dados, 'almoxaMov', _syncAlxMov.paraObjeto(), _syncAlxMov.deletedSet);
-      if(window.__ERP_BANKS_CLOUD_READY__)
-        _patchIncremental(dados, 'bancos', _syncBancos.paraObjeto(), _syncBancos.deletedSet);
       _patchIncremental(dados, 'despGrupo', _syncDespGrupo.paraObjeto(), _syncDespGrupo.deletedSet);
       _patchIncremental(dados, 'coordNotas', _syncAlxNotas.paraObjeto(), _syncAlxNotas.deletedSet);
       _patchIncremental(dados, 'contratos', _syncContratos.paraObjeto(), _syncContratos.deletedSet);

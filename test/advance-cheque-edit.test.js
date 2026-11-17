@@ -136,3 +136,24 @@ test('tela: editar adiantamento em cheque abre a correção dos cheques', () => 
   const core = readFileSync(new URL('../public/legacy/app-core.js', import.meta.url), 'utf8');
   assert.match(core, /action:'cheques'/);
 });
+
+test('"De quem veio?": trocar só a empresa do adiantamento grava no servidor e não mexe em valor, banco nem cheques', async () => {
+  srv.reset(baseData());
+  srv.seed('erp/adiantamentos/F1', [
+    { cod: 'A1', valor: 500, status: 'Pendente', forma: 'PIX', bancoCod: 'B1', bancoNome: 'Sicredi', movBancoId: 'LB-1', empresa: 'Manuela Metais', _empresaAuto: true },
+    { cod: 'A2', valor: 80, status: 'Quitado', forma: 'PIX' },
+  ]);
+  const result = await mod.changeAdvance(identity, { action: 'company', operationId: randomUUID(), fornCod: 'F1', adtCod: 'A1', empresa: '  RHID Reciclagem ' }, { db });
+  assert.equal(result.action, 'company');
+  assert.equal(result.entries.length, 2);
+  const stored = await advanceOf('F1', 'A1');
+  assert.deepEqual([stored.empresa, stored.valor, stored.bancoCod, stored.movBancoId, stored._empresaAuto], ['RHID Reciclagem', 500, 'B1', 'LB-1', undefined]);
+  assert.equal((await advanceOf('F1', 'A2')).status, 'Quitado');
+  assert.ok((await viaSdk('erp/_ts')) > 1);
+  assert.deepEqual(locks(), []);
+  await assert.rejects(mod.changeAdvance(identity, { action: 'company', operationId: randomUUID(), fornCod: 'F1', adtCod: 'A9', empresa: 'X' }, { db }), { code: 'ADVANCE_CHANGED' });
+  assert.deepEqual(locks(), [], 'trava liberada mesmo quando recusa');
+  await assert.rejects(mod.changeAdvance({ ...identity, canFinance: false, canAdvances: false }, { action: 'company', operationId: randomUUID(), fornCod: 'F1', adtCod: 'A1', empresa: 'X' }, { db }), { status: 403 });
+  const core = readFileSync(new URL('../public/legacy/app-core.js', import.meta.url), 'utf8');
+  assert.match(core, /await _adtCommitTransacional\(\{action:'company',fornCod,adtCod,empresa\}\);/);
+});

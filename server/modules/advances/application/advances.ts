@@ -662,6 +662,8 @@ async function restoreConfirmedDelete(identity: Identity, context: RestoreContex
 export async function changeAdvance(identity: Identity, input: Row, deps: AdvanceDeps = {}) {
   if (input && typeof input === 'object' && !Array.isArray(input) && clean(input.action, 10) === 'cheques')
     return editAdvanceCheques(identity, input, deps);
+  if (input && typeof input === 'object' && !Array.isArray(input) && clean(input.action, 10) === 'company')
+    return editAdvanceCompany(identity, input, deps);
   const { db, now = () => Date.now(), uuid = randomUUID } = deps;
   requireFinance(identity);
   const instance = await resolveDatabase(db);
@@ -976,6 +978,62 @@ const sameCheque = (cheque: ChequeRecord, fingerprint: string | undefined): bool
   (chequeFingerprint(cheque) === fingerprint ||
     chequeFingerprint({ ...cheque, s: 'A', cd: '' }) === fingerprint ||
     chequeFingerprint({ ...cheque, s: 'C', cd: cheque.d || '' }) === fingerprint);
+
+async function editAdvanceCompany(
+  identity: Identity,
+  input: Row,
+  { db, now = () => Date.now(), uuid = randomUUID }: AdvanceDeps,
+) {
+  requireFinance(identity);
+  const instance = await resolveDatabase(db);
+  const fornCod = pathKey(input.fornCod);
+  const adtCod = pathKey(input.adtCod);
+  const empresa = clean(input.empresa, 120);
+  const owner = uuid();
+  const lockRef = instance.ref('erpFinanceAdvanceLocks/' + fornCod);
+  const operationKey = /^[a-f\d-]{36}$/i.test(clean(input.operationId, 40))
+    ? operationKeyOf(identity, pathKey(input.operationId))
+    : 'company-' + owner;
+  if (
+    !(await acquireAdvanceLock(lockRef, owner, now, { db: instance, operationKey, fornCod, kind: 'change' }))
+  )
+    throw inProgress(
+      'Outra alteração financeira ainda está em processamento. Aguarde alguns segundos.',
+      (await lockRef.get()).val(),
+      now,
+    );
+  let committed = false;
+  try {
+    const entries = advanceRecords((await instance.ref('erp/adiantamentos/' + fornCod).get()).val());
+    if (entries.filter((advance) => String(advance.cod) === adtCod).length !== 1)
+      failure(409, 'ADVANCE_CHANGED', 'Adiantamento não encontrado ou duplicado. Atualize os dados.');
+    const next = entries.map((advance) => {
+      if (String(advance.cod) !== adtCod) return advance;
+      const copy: Row = { ...advance, empresa };
+      delete copy._empresaAuto;
+      return copy as AdvanceRecord;
+    });
+    await commitAdvanceAndRelease(
+      instance,
+      { ['adiantamentos/' + fornCod]: next, _ts: now() },
+      [fornCod],
+      owner,
+      now,
+    );
+    committed = true;
+    return {
+      action: 'company',
+      fornCod,
+      newFornCod: fornCod,
+      adtCod,
+      empresa,
+      entries: next,
+      targetEntries: null,
+    };
+  } finally {
+    if (!committed) await releaseAdvanceLocks([lockRef], owner);
+  }
+}
 
 async function editAdvanceCheques(
   identity: Identity,

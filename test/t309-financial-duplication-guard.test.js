@@ -40,5 +40,5 @@ test('sincronizador não reenvia CPPO, tickets criados pela API e saídas bancá
   const code=readFileSync(new URL('../public/legacy/firebase-sync.js',import.meta.url),'utf8');
   assert.doesNotMatch(code,/_patchIncremental\(dados, 'contasPagar'/,'nenhuma conta a pagar (CPPO ou não) sai do navegador');
   assert.match(code,/TICKETS_DB\[k\]\?\._purchaseOperationId/);
-  assert.match(code,/String\(id\)\.startsWith\('LB-PG-'\)/);
+  assert.doesNotMatch(code,/_patchIncremental\(dados,\s*'(lancBanco|bancos)'/,'nenhum lançamento bancário sai do navegador');
 });

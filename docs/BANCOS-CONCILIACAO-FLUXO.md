@@ -19,7 +19,6 @@ O cálculo é feito em uma passada só, e não mais 48 passadas por ano.
   - antes, as telas que escolhem o banco pelo nome mostravam um só, e a entrada caía sempre no primeiro;
   - agora aparecem separados, por exemplo "Sicredi — B1" e "Sicredi — B2";
   - o lançamento vai para a conta escolhida.
-- **`registrarMovBanco`** procura primeiro pelo código da conta, depois pelo nome.
 - **Editar conta a pagar e marcar "Pago"** lança a saída na conta escolhida pelo código, e não pelo nome. O pagamento também passa a ficar no histórico da conta.
 - **Extrato:**
   - mostra 25 por página, com opção de 50 ou 100;
@@ -57,7 +56,8 @@ A sincronização da tela antiga **não grava** alguns dados, porque eles perten
 - todos os adiantamentos;
 - tickets de compra confirmados (`_purchaseOperationId`);
 - contas de compra (`CPPO_…`) e contas ligadas a esses tickets;
-- saídas de pagamento (`LB-PG-…`) e de adiantamento.
+- saídas de pagamento (`LB-PG-…`) e de adiantamento;
+- desde a v244, todas as contas bancárias e todo o extrato (ver a seção acima).
 
 Qualquer botão que mude esses dados só na tela parece funcionar, mas volta ao recarregar. Foram corrigidos:
 
@@ -72,8 +72,43 @@ Qualquer botão que mude esses dados só na tela parece funcionar, mas volta ao 
 | Ficha do fornecedor → Excluir compra confirmada | Apagava só o ticket e deixava a conta de compra no servidor | Usa a exclusão segura do pedido, que confere pagamentos e devolve adiantamentos |
 | Impureza em compra confirmada | Mudava só na tela | Avisa para usar Editar no Histórico de compras |
 | Formulário de adiantamento aberto pela Ficha | Ficava atrás da janela da Ficha | A Ficha se esconde e volta ao fechar |
+| Adiantamentos → "De quem veio?" (empresa na lista) | Mostrava "definida", mas voltava depois do F5 | Ação `company` em `advance-change`: o servidor troca só a empresa (v244) |
 
 Também foi removido código sem uso: "marcar compra paga" (sem botão) e `_aplicarAdiantamentosCP` (sem chamadas).
+
+## Contas bancárias e extrato: só o servidor grava (17/11/2026, v244)
+
+Desde a v244 o navegador não grava mais `bancos` nem `lancBanco` (nem as marcas de exclusão `bancosDeleted`/`lancBancoDeleted`). Tudo passa pela API `POST /api/banking/ledger` (`server/modules/banking/application/bank-ledger.ts`, regras puras em `domain/bank-ledger-rules.ts`):
+
+| Ação | O que faz | Onde na tela |
+|---|---|---|
+| `create-account` | Cria a conta com o próximo código `BC-NNN`. Recusa conta repetida (mesmo banco, agência, conta e empresa). | Contas bancárias → + Nova Conta |
+| `update-account` | Edita a conta. O CPF/CNPJ só fica em "Conta Terceiro". Recusa se outra tela alterou antes (`expectedUpdate`). | Editar conta |
+| `delete-account` | Exclui a conta e grava `bancosDeletedV2/<id>`. Bloqueia se houver lançamento no extrato ou adiantamento pendente. | Mais → Excluir conta |
+| `add-entry`, `update-entry`, `delete-entry` | Lançamento manual do extrato. Editar e excluir mandam a versão que a tela viu e são recusados se o lançamento mudou. Excluir grava `lancBancoDeletedV2/<id>`. | Extrato → Novo lançamento, Editar, Excluir |
+| `clear-cheques` | Compensa um ou vários cheques do controle: marca `s:'C'` e a data, e lança a saída (`LB-CHQ-…`, `source:'cheque'`) na conta ligada ao banco do cheque. | Cheques a compensar → Compensar e Depositar em lote |
+| `reopen-cheque`, `delete-cheque` | Voltam o cheque para "A compensar" ou o excluem, tirando a saída do extrato. | Cheques a compensar → Reabrir, Excluir |
+
+Regras:
+- **Lançamentos automáticos não se mexem pelo extrato.** São os pagamentos (`LB-PG-`), repasses (`LB-REP-`), vendas (`LB-VD-`), recebimentos (`LB-CR-`), adiantamentos e cheques compensados. O servidor recusa e diz em qual tela desfazer; o extrato mostra "Automático".
+- **Trocar o código da conta** só é aceito quando o código está repetido em outra conta (para corrigir duplicidade). Os lançamentos com o código antigo passam para o novo. Fora disso o servidor recusa, porque pagamentos e adiantamentos guardam o código.
+- **Cheques:**
+  - cheque de adiantamento segue a regra automática: cheque de terceiro não baixa o banco; cheque próprio baixa se o adiantamento ainda não saiu do banco;
+  - cheque antigo marcado "desconta da compra" continua perguntando;
+  - sem acesso a Bancos (`canBanking`), o cheque é compensado sem lançar no extrato e a tela avisa;
+  - reabrir ou excluir um cheque que já saiu do banco exige acesso a Bancos;
+  - cheque de adiantamento só sai pelo módulo Adiantamentos.
+- O resto do controle de cheques (`chequesControle`: cadastrar e editar cheque) continua gravado pela tela.
+- Saíram as ferramentas escondidas "Sincronizar adiantamentos/pagamentos com o banco" e "Zerar saldos": gravavam adiantamentos e contas a pagar pela tela, o que não funciona mais desde que esses dados passaram para o servidor.
+- `bancosCorrigeEmpresa` só ajusta a exibição e não grava mais.
+- **Snapshots:** restaurar um snapshot pela tela não consegue regravar `bancos` e `lancBanco`, assim como já acontecia com fornecedores, clientes, vendas, contas a receber e contas a pagar.
+
+**Ordem de implantação** (a mesma da v242):
+1. Publique o código.
+2. Espere todos recarregarem (v244).
+3. Só então rode `npm run deploy:rules:prod`.
+
+Uma aba antiga que ainda grava o extrato teria esse envio recusado pelas regras novas.
 
 ## Sincronização: fornecedor (ou outro registro) sumindo
 

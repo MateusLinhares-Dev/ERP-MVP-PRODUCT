@@ -301,7 +301,7 @@
       },
       "lancBancoDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)"
+        ".write": false
       },
       "viagemDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
@@ -337,7 +337,7 @@
       },
       "bancosDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)"
+        ".write": false
       },
       "despGrupoDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
@@ -450,7 +450,7 @@
       },
       "lancBanco": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)"
+        ".write": false
       },
       "viagem": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFleet == true)",
@@ -490,7 +490,7 @@
       },
       "bancos": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)"
+        ".write": false
       },
       "despGrupo": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
@@ -589,6 +589,10 @@
         ".write": false
       },
       "payableOperations": {
+        ".read": false,
+        ".write": false
+      },
+      "bankLedgerOperations": {
         ".read": false,
         ".write": false
       },
@@ -751,11 +755,11 @@
       },
       "bancosDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)"
+        ".write": false
       },
       "lancBancoDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canBanking == true)"
+        ".write": false
       },
       "vendasDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canSales == true)",
@@ -848,6 +852,10 @@
       ".write": false
     },
     "erpSupplierRepasseLocks": {
+      ".read": false,
+      ".write": false
+    },
+    "erpBankLedgerLocks": {
       ".read": false,
       ".write": false
     },
