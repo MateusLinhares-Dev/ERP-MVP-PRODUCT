@@ -98,38 +98,14 @@ test('compras antigas, lançadas sem o servidor, continuam sendo reconciliadas',
   assert.equal(payables[0].valor, 700);
 });
 
-function dedupeContext(payables) {
-  const context = { CONTAS_PAGAR: payables, CONTAS_PAGAR_DELETED: new Set(), localStorage: { setItem() {} }, showToast() {} };
-  runInNewContext(
-    slice(core, 'function _cpTombstoneDoCliente(id){', '\nfunction _cpDeletedParaObjeto') +
-      slice(core, 'function _removerCPporIndice(idx){', 'async function _mesclarContasPagarComNuvem(') +
-      ';this.auto=_cpAutoLimparDuplicatas;this.exact=_cpLimparDuplicatasExatas;',
-    context,
-  );
-  return context;
-}
-
-test('parcelas de mesmo valor não são apagadas como "duplicatas"', () => {
-  const payables = installments('T700', [333.33, 333.33, 333.34]);
-  const context = dedupeContext(payables);
-  assert.equal(context.auto(), false);
-  assert.equal(context.exact(), false);
-  assert.equal(payables.length, 3);
-  assert.equal(context.CONTAS_PAGAR_DELETED.size, 0);
-});
-
-test('duplicatas reais de contas antigas continuam sendo limpas', () => {
-  const payables = [
-    { id: 'CPA', ticket: 'T1', valor: 50, status: 'Pendente', desc: 'x', venc: '01/11/2026' },
-    { id: 'CPB', ticket: 'T1', valor: 50, status: 'Pendente', desc: 'x', venc: '01/11/2026' },
-  ];
-  const context = dedupeContext(payables);
-  assert.equal(context.auto(), true);
-  assert.deepEqual(
-    payables.map((row) => row.id),
-    ['CPA'],
-  );
-  assert.ok(context.CONTAS_PAGAR_DELETED.has('CPB'));
+test('navegador não apaga nem mescla contas a pagar (só o servidor grava; parcelas iguais nunca somem)', () => {
+  for (const name of ['_cpAutoLimparDuplicatas', '_cpLimparDuplicatasExatas', '_mesclarContasPagarComNuvem', '_removerCPporIndice'])
+    assert.doesNotMatch(core, new RegExp('function ' + name + '\\('), name);
+  const sync = read('public/legacy/firebase-sync.js');
+  assert.doesNotMatch(sync, /_patchIncremental\(dados, 'contasPagar'|contasPagarDeleted\/'\+id|_mesclarContasPagarComNuvem/);
+  const rules = JSON.parse(read('database.rules.json')).rules.erp;
+  assert.equal(rules.contasPagar['.write'], false);
+  assert.equal(rules.contasPagarDeleted['.write'], false);
 });
 
 test('detalhe antigo da compra não altera compra confirmada pelo servidor', () => {
@@ -155,7 +131,7 @@ test('marca de excluída nunca esconde conta de pedido de compra (CPPO), nem vin
   assert.deepEqual(Object.keys(context.toObject()).sort(), ['CP2', 'CPX1']);
   assert.match(core, /JSON\.parse\(_cpd\)\.forEach\(id=>\{ if\(_cpTombstoneDoCliente\(id\)\) CONTAS_PAGAR_DELETED\.add\(id\); \}\)/);
   const sync = read('public/legacy/firebase-sync.js');
-  assert.match(sync, /filter\(function\(id\)\{ return !String\(id\)\.startsWith\('CPPO_'\); \}\)\.forEach\(function\(id\)\{ dados\['contasPagarDeleted\/'\+id\] = true; \}\)/);
+  assert.doesNotMatch(sync, /dados\['contasPagarDeleted\/'\+id\]/, 'o navegador não grava marca de exclusão: quem exclui é o servidor');
 });
 
 test('lixeira de Contas a Pagar não apaga parcela de pedido de compra', () => {

@@ -30,7 +30,6 @@ interface LegacyPayables {
   erpPayablesRequest?: (payload: Record<string, unknown>) => Promise<unknown>;
   erpPayablesCompanyOf?: (raw: Raw) => string;
   erpPayablesFromPurchase?: (raw: Raw) => boolean;
-  erpPayablesHygiene?: () => void;
   erpPayablesSuppliers?: (kind: string) => string[];
   erpPayablesOnlyPurchases?: () => boolean;
   erpFinanceCompanies?: () => string[];
@@ -159,11 +158,6 @@ export function installPayables(): void {
   function render(): void {
     const target = document.getElementById('contas-pagar-app');
     if (!target) return;
-    try {
-      legacy().erpPayablesHygiene?.();
-    } catch (error) {
-      console.warn('[Contas a Pagar] limpeza de duplicadas', error);
-    }
     if (!root || host !== target) {
       target.replaceChildren();
       root = createRoot(target);

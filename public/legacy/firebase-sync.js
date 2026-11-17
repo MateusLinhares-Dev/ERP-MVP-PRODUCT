@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-17-1000-v241-adiantamento-centavos';
+  const _APP_BUILD = '2026-11-17-1700-v243-fornecedor-renomeado';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -914,7 +914,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     const _agoraPre=Date.now();
     const _pularChecagens = window._fbUltimaChecagemRemota && (_agoraPre - window._fbUltimaChecagemRemota) < 20000;
     if(!_pularChecagens) window._fbUltimaChecagemRemota=_agoraPre;
-    if(!_pularChecagens) try{ await _mesclarContasPagarComNuvem(); }catch(e){}
 
     if(!_pularChecagens) try{
       await Promise.all([
@@ -1060,14 +1059,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       _patchIncremental(dados, 'pontoBatidas', _syncPontoBatidas.paraObjeto(), _syncPontoBatidas.deletedSet);
       _patchIncremental(dados, 'folha', FOLHA_DB, null);
       _patchIncremental(dados, 'fornDespesa', _syncFornDespesa.paraObjeto(), _syncFornDespesa.deletedSet);
-      const _contasLegadas=_cpParaObjeto();
-      Object.keys(_contasLegadas).forEach(id=>{
-        const tk=String(_contasLegadas[id]?.ticket||'').trim();
-        if(String(id).startsWith('CPPO_')||(tk&&TICKETS_DB?.[tk]?._purchaseOperationId))delete _contasLegadas[id];
-      });
-      const _tombstonesCPLegadas=new Set([...CONTAS_PAGAR_DELETED].filter(id=>!String(id).startsWith('CPPO_')));
-      _patchIncremental(dados, 'contasPagar', _contasLegadas, _tombstonesCPLegadas);
-      Object.keys(_cpDeletedParaObjeto()).filter(function(id){ return !String(id).startsWith('CPPO_'); }).forEach(function(id){ dados['contasPagarDeleted/'+id] = true; });
       _patchIncremental(dados, 'afazeres', _syncAfazeres.paraObjeto(), _syncAfazeres.deletedSet);
       delete dados.valesDeleted;
       const _lancamentosLegados=_syncLancBanco.paraObjeto();

@@ -21,7 +21,24 @@ export interface PayableFields {
   formaPrevista?: string;
   venc?: string;
   valor?: number;
+  origem?: PayableOrigin;
+  despId?: string;
+  contratoId?: string;
+  folhaMes?: string;
+  ticket?: string;
+  fornCod?: string;
 }
+
+export const PAYABLE_ORIGINS = [
+  'folha',
+  'despesas_grupo',
+  'combustivel',
+  'tanque',
+  'contrato',
+  'compra_antiga',
+] as const;
+export type PayableOrigin = (typeof PAYABLE_ORIGINS)[number];
+const LINK_FIELDS = ['despId', 'contratoId', 'folhaMes', 'ticket', 'fornCod'] as const;
 
 export interface Installments {
   count: number;
@@ -53,6 +70,7 @@ export const paymentsOf = (row: Row): Row[] =>
 export function cleanPayableFields(
   input: unknown,
   requireAll: boolean,
+  options: { links?: boolean } = {},
 ): { fields: PayableFields; problem?: Problem } {
   const source = isRow(input) ? input : {};
   const fields: PayableFields = {};
@@ -90,13 +108,30 @@ export function cleanPayableFields(
     if (!due) return fail('INVALID_DATE', 'Informe o vencimento.');
     fields.venc = toBRDate(due);
   }
+  if (options.links && 'origem' in source) {
+    const origin = text(source.origem, 30);
+    if (!(PAYABLE_ORIGINS as readonly string[]).includes(origin))
+      return fail('INVALID_ORIGIN', 'Origem da conta a pagar inválida.');
+    fields.origem = origin as PayableOrigin;
+  }
+  if (options.links)
+    for (const field of LINK_FIELDS) {
+      if (!(field in source)) continue;
+      const value = text(source[field], 81);
+      if (value.length > 80 || !/^[A-Za-z0-9_-]*$/.test(value))
+        return fail('INVALID_LINK', `Vínculo ${field} inválido.`);
+      if (value) fields[field] = value;
+    }
   if ('desc' in fields && !fields.desc) return fail('DESCRIPTION_REQUIRED', 'Informe a descrição.');
-  if ('empresa' in fields && !fields.empresa)
-    return fail('COMPANY_REQUIRED', 'Selecione a empresa responsável por esta conta.');
+  if ('empresa' in fields && !fields.empresa) {
+    if (!fields.origem) return fail('COMPANY_REQUIRED', 'Selecione a empresa responsável por esta conta.');
+    delete fields.empresa;
+  }
   if (requireAll) {
     if (!fields.desc) return fail('DESCRIPTION_REQUIRED', 'Informe a descrição.');
     if (fields.valor == null) return fail('INVALID_AMOUNT', 'Informe um valor maior que zero.');
-    if (!fields.empresa) return fail('COMPANY_REQUIRED', 'Selecione a empresa responsável por esta conta.');
+    if (!fields.empresa && !fields.origem)
+      return fail('COMPANY_REQUIRED', 'Selecione a empresa responsável por esta conta.');
   }
   return { fields };
 }

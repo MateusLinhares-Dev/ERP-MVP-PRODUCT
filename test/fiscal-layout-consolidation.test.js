@@ -18,5 +18,5 @@ test('certificados exibem funcionário e curso em lista acessível em vez de op�
 });
 test('cache local de contratos omite anexos antigos e não bloqueia o salvamento remoto',()=>{
   assert.match(contract,/delete item\.arquivoBase64/);
-  assert.match(contract,/await db\.ref\('erp'\)\.update\(patch\)/);
+  assert.match(contract,/await db\.ref\('erp'\)\.update\(\{\['contratos\/'\+id\]:contrato\}\)/);
 });

@@ -7,6 +7,7 @@ import {
   cleanSupplier,
   documentKey,
   duplicateDocument,
+  formerNames,
   nameKey,
   nextSupplierCode,
   supplierEntries,
@@ -130,6 +131,8 @@ async function updateOne(db: Database, identity: Identity, input: Row, now: () =
       alteradoPor: text(identity.erpUser || identity.uid, 80),
       _upd: now(),
     };
+    const former = 'nome' in fields ? formerNames(match.record, fields.nome) : null;
+    if (former) supplier.nomesAnteriores = former;
     key = match.key;
     updates['erp/fornecedores/' + match.key] = supplier;
   }

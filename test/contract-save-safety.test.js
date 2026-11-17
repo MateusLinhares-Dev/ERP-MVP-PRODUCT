@@ -9,7 +9,7 @@ const end=src.indexOf('function renderContratos(){',begin);
 assert.ok(begin>0 && end>begin,'Salvamento de contratos encontrado');
 const unit=src.slice(begin,end);
 
-function setup({update, file=null, input={}}={}){
+function setup({update, file=null, input={}, cpFail=false}={}){
   const values={
     'ct-desc':'Contrato teste','ct-forn':'Fornecedor teste','ct-ini':'2026-10-28','ct-fim':'2026-10-30',
     'ct-valor':'123','ct-debito':'Não','ct-banco':'','ct-obs':'',
@@ -27,15 +27,16 @@ function setup({update, file=null, input={}}={}){
     getElementById:id=>id==='ct-arquivo'?{files:file?[file]:[]}:id==='ct-arquivo-status'?status:({value:values[id]}),
     querySelector:selector=>selector.includes('ct-lanc')?{value:input.lancOpt||'nao'}:button,
   };
-  const contracts=[],payables=[];
+  const contracts=[],payables=[],cpCalls=[];
   const context={window,document,CONTRATOS_DB:contracts,CONTAS_PAGAR:payables,BANCOS_DB:[],
-    _hojeISO:()=> '2026-10-28',_novoIdCP:(()=>{let i=0;return()=> 'CP'+(++i);})(),
+    _hojeISO:()=> '2026-10-28',
+    _cpApi:async payload=>{cpCalls.push(payload);if(cpFail)throw Error('Seu perfil não pode alterar Contas a Pagar.');const rows=Array.from({length:payload.installments?payload.installments.count:1},(_,i)=>({id:'CPS'+i}));payables.push(...rows);return {action:'create',payables:rows};},
     saveContratos(){},saveContasPagar(){},renderContratos(){},renderContasPagar(){},renderDashboard(){},renderFluxo(){},
     showToast:(...args)=>toasts.push(args),cm:()=>{cancelled=true;},console:{error(){},warn(){}},
     Date,Number,Math,Promise,
   };
   runInNewContext(unit,context);
-  return {save:context.salvarContrato,pending,database,toasts,contracts,payables,button,status,uploads,isClosed:()=>cancelled};
+  return {save:context.salvarContrato,pending,database,toasts,contracts,payables,cpCalls,button,status,uploads,isClosed:()=>cancelled};
 }
 
 test('duplo clique não cria contratos ou parcelas duplicadas',async()=>{
@@ -48,8 +49,21 @@ test('duplo clique não cria contratos ou parcelas duplicadas',async()=>{
   assert.equal(ctx.pending.length,1);
   assert.equal(ctx.contracts.length,1);
   assert.equal(ctx.payables.length,2);
-  assert.equal(Object.keys(ctx.pending[0]).length,3,'contrato + duas parcelas em update atômico');
+  assert.equal(Object.keys(ctx.pending[0]).length,1,'só o contrato vai direto ao Firebase');
+  assert.equal(ctx.cpCalls.length,1,'parcelas pedidas uma vez ao servidor');
+  assert.deepEqual(JSON.parse(JSON.stringify(ctx.cpCalls[0].installments)),{count:2,day:31,firstMonth:'2026-10'});
+  assert.equal(ctx.cpCalls[0].payable.origem,'contrato');
+  assert.match(ctx.cpCalls[0].payable.contratoId,/^CT/);
   assert.equal(ctx.toasts.at(-1)?.[1],'success');
+});
+
+test('contrato salvo e parcelas recusadas pelo servidor: avisa para lançar em Contas a Pagar',async()=>{
+  const ctx=setup({input:{lancOpt:'avista'},cpFail:true});
+  await ctx.save();
+  assert.equal(ctx.contracts.length,1);
+  assert.equal(ctx.cpCalls[0].payable.venc,'2026-10-29');
+  assert.equal(ctx.toasts.at(-1)?.[1],'error');
+  assert.match(ctx.toasts.at(-1)?.[0],/Contrato salvo, mas as contas a pagar não foram lançadas/);
 });
 
 test('falha remota não adiciona contrato local nem declara sucesso',async()=>{
@@ -57,6 +71,7 @@ test('falha remota não adiciona contrato local nem declara sucesso',async()=>{
   await ctx.save();
   assert.equal(ctx.contracts.length,0);
   assert.equal(ctx.payables.length,0);
+  assert.equal(ctx.cpCalls.length,0,'sem contrato, nenhuma parcela é pedida');
   assert.equal(ctx.toasts.at(-1)?.[1],'error');
   assert.equal(ctx.isClosed(),false);
   assert.equal(ctx.button.disabled,false);

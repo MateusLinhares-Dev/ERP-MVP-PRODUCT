@@ -26,14 +26,30 @@ Ordem: **🕒 Excluir o pagamento → excluir a compra no Histórico de compras 
 - Compra com adiantamento marcado na hora do lançamento (sem pagamento depois) se exclui direto, e o adiantamento volta.
 - Ainda não se desfazem pela tela: compra paga com cheque ou com crédito do fornecedor no lançamento.
 
-## O que ainda grava pelo navegador
+## Só o servidor grava (desde a v242)
 
-A sincronização do navegador continua mandando `contasPagar` criadas por outras telas, até cada uma passar para o servidor:
+Toda conta a pagar é criada, alterada e excluída por `POST /api/finance/payables` (ou pelas APIs de pagamento e de pedido de compra). As regras do Firebase fecham `contasPagar` e `contasPagarDeleted` (`.write: false`).
 
-- Folha de pagamento (`fecharFolha`), Despesas do grupo (`salvarDespesa`), Combustível (posto e tanque), Contratos (`salvarContrato`), Contas fixas (`phase1FixedGenerate`);
-- detalhe da compra antiga (`adicionarItemTicket`, `lancarValorCompra`, `salvarCompra`) e a parte local de `csConfirmarEntrada`.
+As outras telas pedem ao servidor e informam a **origem** (`origem`), com o vínculo quando há. Com origem, a empresa é opcional:
 
-Por isso as regras ainda não fecham `contasPagar` para o navegador. A sincronização só reenvia o que mudou (`_fbFiltrarJaEnviado`), e é assim que o pagamento pelo servidor já convivia com ela.
+| Origem | Quem pede | Vínculo |
+|---|---|---|
+| `folha` | Fechar folha (`fecharFolha`); vence dia 05 do mês seguinte | `folhaMes` |
+| `despesas_grupo` | Despesas do grupo (`salvarDespesa`); excluir a despesa exclui a conta (`excluirDespesa`) | `despId` |
+| `combustivel` | Abastecimento no posto (`salvarCombustivel`) | o abastecimento guarda `contaPagarId` |
+| `tanque` | Reabastecimento do tanque (`salvarTanque`); excluir o registro exclui a conta (`excluirTanque`) | o registro guarda `contaPagarId` |
+| `contrato` | Contrato à vista ou parcelado (`salvarContrato`): grava o contrato e depois pede as parcelas | `contratoId` |
+| `compra_antiga` | Detalhe de compra antiga, sem pedido no servidor (`_cpAjustarCompraAntiga`) | `ticket`, `fornCod` |
+
+- A edição (`update`) não troca origem nem vínculo.
+- Excluir ticket pela Balança ou pela Ficha do fornecedor pede ao servidor a exclusão das contas do ticket (`_cpExcluirDaOrigem`).
+- Se o servidor recusar (por exemplo, a conta tem pagamento), a despesa ou o registro do tanque **não** é excluído e a mensagem diz o motivo.
+- Saíram do navegador:
+  - a "mescla com a nuvem" que lia todas as contas antes de cada gravação (`_mesclarContasPagarComNuvem`);
+  - a limpeza automática de duplicadas, que apagava contas;
+  - o envio de `contasPagar`/`contasPagarDeleted` pela sincronização.
+- A sincronização só **lê** contas a pagar.
+- **Publicação das regras:** só depois que todos estiverem na v242 ou mais nova. Uma aba com código antigo tentaria gravar `contasPagar`: desde a v235 a gravação recusada vai para a quarentena (veja `ARCHITECTURE.md`), mas abas anteriores à v235 travariam a sincronização.
 
 ## Tela (React)
 
@@ -84,4 +100,4 @@ Por isso as regras ainda não fecham `contasPagar` para o navegador. A sincroniz
   - a Ficha do fornecedor (`erpPayablesReverse(id, índice)`).
 - **Código:** regras em `web/modules/payables/domain/payment.ts` e fluxo em `web/modules/payables/application/payments.ts`, testados sem navegador (`payment-status-verification-ui`, `payment-lock-recovery`, `payables-advance-reconciliation`).
 
-Próximo passo: levar para o servidor quem ainda cria conta a pagar pelo navegador (folha, despesas, combustível, contratos, contas fixas) e fechar `contasPagar` nas regras.
+

@@ -422,11 +422,11 @@
       },
       "contasPagar": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+        ".write": false
       },
       "contasPagarDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+        ".write": false
       },
       "contasReceber": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",

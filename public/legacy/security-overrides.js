@@ -211,7 +211,7 @@
       await window.secureAuth.verifyAdminPassword(pwd);
     }catch(e){ if(err){err.textContent='Senha incorreta.';err.style.display='block';} return; }
     cm(); _ticketExcluir(tid);
-    for(let i=CONTAS_PAGAR.length-1;i>=0;i--){ const cp=CONTAS_PAGAR[i]; if(cp.ticket===tid||(cp.obs&&cp.obs.indexOf('Ticket '+tid)>=0)) _removerCPporIndice(i); }
+    try{ _cpExcluirDaOrigem(CONTAS_PAGAR.filter(cp=>cp&&(cp.ticket===tid||(cp.obs&&cp.obs.indexOf('Ticket '+tid)>=0))).map(cp=>cp.id),'O ticket foi excluído, mas a conta a pagar dele não'); }catch(e){}
     saveDB(); renderBalanceiro(); balRenderHistorico(); try{renderTickets();}catch(e){} showToast('🗑️ Ticket '+tid+' excluído!','warn',3000);
   };
  

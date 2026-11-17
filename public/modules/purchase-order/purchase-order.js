@@ -49,12 +49,25 @@ function suppliers(){
 function materials(){
   try{return (METAIS||[]).slice();}catch(e){return [];}
 }
+function nameKey(name){
+  return String(name||'').replace(/\s+/g,' ').trim().toLocaleUpperCase('pt-BR');
+}
 function supplierByName(name){
-  const target=String(name||'').trim().toLocaleUpperCase('pt-BR');
+  const target=nameKey(name);
   if(!target)return null;
   return suppliers().find(function(f){
-    return String(f.nome||'').trim().toLocaleUpperCase('pt-BR')===target;
+    return nameKey(f.nome)===target;
   })||null;
+}
+function supplierForTicket(ticket){
+  const list=suppliers();
+  const code=String(ticket?.fornecedorCod||ticket?.fornCod||'').trim();
+  const byCode=code?list.find(function(f){return String(f.cod||'').trim()===code;}):null;
+  if(byCode)return byCode;
+  const target=nameKey(ticket?.fornecedor||ticket?.fornecedorNome||ticket?.forn);
+  if(!target)return null;
+  return list.find(function(f){return nameKey(f.nome)===target;})||
+    list.find(function(f){return (Array.isArray(f.nomesAnteriores)?f.nomesAnteriores:[]).some(function(n){return nameKey(n)===target;});})||null;
 }
 function jsonDataset(body,key,fallback){
   try{
@@ -1563,9 +1576,8 @@ function isoDate(value){
 }
 function stateForExistingTicket(key,cloudTicket){
   const ticket=cloudTicket||tickets()[key];if(!ticket)return null;
-  const supplierName=String(ticket.fornecedor||ticket.fornecedorNome||ticket.forn||'').trim();
-  const supplier=supplierByName(supplierName);
-  if(!supplier)throw new Error('Fornecedor do pedido não está mais ativo no cadastro.');
+  const supplier=supplierForTicket(ticket);
+  if(!supplier)throw new Error('O fornecedor deste pedido ('+(String(ticket.fornecedor||ticket.fornecedorNome||ticket.forn||'').trim()||'sem nome')+') não está ativo no cadastro. Reative-o em Fornecedores para editar o pedido.');
   const po=ticket.pedidoCompra||{};
   const items=ticketItemsForOrder(ticket);
   items.forEach(function(item,index){
@@ -1702,8 +1714,7 @@ function afterConfirmedPurchaseEdit(ticket,state,totals){
 }
 function stateForSourceTicket(ticketKey){
   const t=tickets()[ticketKey];if(!t)return null;
-  const supplierName=String(t.fornecedor||t.fornecedorNome||t.forn||'').trim();
-  const supplier=supplierByName(supplierName);
+  const supplier=supplierForTicket(t);
   if(!supplier)return null;
   const fin=financialData(null,supplier.cod||'',[ticketKey]);
   let items=ticketItemsForOrder(t);

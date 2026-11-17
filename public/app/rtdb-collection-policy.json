@@ -879,10 +879,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canFinance"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "contasPagarDeleted": {
@@ -893,10 +891,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canFinance"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "contasReceber": {

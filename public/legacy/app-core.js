@@ -688,98 +688,11 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
 }
 
 function _cpIdxPorId(id){ return id ? CONTAS_PAGAR.findIndex(c=>c && c.id===id) : -1; }
-function _removerCPporIndice(idx){
-  const c = CONTAS_PAGAR[idx];
-  if(c && _cpTombstoneDoCliente(c.id)){
-    CONTAS_PAGAR_DELETED.add(c.id);
-    try{ localStorage.setItem('mm_cp_deletados', JSON.stringify([...CONTAS_PAGAR_DELETED])); }catch(e){}
-  }
-  CONTAS_PAGAR.splice(idx,1);
-}
-
-function _cpGeridaPeloServidor(c){
-  return Boolean(c) && String(c.id||'').startsWith('CPPO_');
-}
 function _compraConfirmadaNoServidor(t){
   return Boolean(t && t._purchaseOperationId);
 }
 function _avisarCompraDoServidor(){
   showToast('Esta compra foi confirmada pelo servidor. Para mudar valores, adiantamentos ou parcelas, use Editar no Histórico de compras.','info',7000);
-}
-
-function _cpAutoLimparDuplicatas(){
-  const porChave={};
-  CONTAS_PAGAR.forEach(function(c,i){
-    if(!c || !c.ticket || c.status==='Pago' || _cpGeridaPeloServidor(c)) return;
-    const chave=c.ticket+'|'+c.status+'|'+Number(c.valor||0).toFixed(2);
-    (porChave[chave]=porChave[chave]||[]).push(i);
-  });
-  const remover=[];
-  Object.keys(porChave).forEach(function(chave){
-    const idxs=porChave[chave];
-    if(idxs.length>1) idxs.slice(1).forEach(i=>remover.push(i));
-  });
-  if(!remover.length) return false;
-  remover.sort((a,b)=>b-a).forEach(function(i){ _removerCPporIndice(i); });
-  return true;
-}
-
-function _cpLimparDuplicatasExatas(){
-  const vistos={};
-  const remover=[];
-  CONTAS_PAGAR.forEach(function(c,i){
-    if(!c || _cpGeridaPeloServidor(c)) return;
-    const chave=[c.ticket||'', c.desc||'', c.cred||'', Number(c.valor||0).toFixed(2), c.venc||'', c.status||'', c.dataPgto||''].join('|');
-    if(Object.prototype.hasOwnProperty.call(vistos,chave)){
-      remover.push(i);
-    } else {
-      vistos[chave]=i;
-    }
-  });
-  if(!remover.length) return false;
-  remover.sort((a,b)=>b-a).forEach(function(i){ _removerCPporIndice(i); });
-  return true;
-}
-async function _mesclarContasPagarComNuvem(){
-  if(!window._fbDB) return;
-  try{
-    const [snap, snapDel] = await Promise.all([
-      new Promise((resolve,reject)=>{ window._fbDB.ref('erp/contasPagar').once('value', s=>resolve(s), e=>reject(e)); }),
-      new Promise((resolve,reject)=>{ window._fbDB.ref('erp/contasPagarDeleted').once('value', s=>resolve(s), e=>reject(e)); })
-    ]);
-
-    const remotoDel = snapDel && snapDel.val ? snapDel.val() : null;
-    _cpDeletedCarregarDeRemoto(remotoDel);
-    if(remotoDel){
-      for(let i=CONTAS_PAGAR.length-1;i>=0;i--){
-        const c=CONTAS_PAGAR[i];
-        if(c && c.id && CONTAS_PAGAR_DELETED.has(c.id)) CONTAS_PAGAR.splice(i,1);
-      }
-    }
-    const remotoBruto = snap && snap.val ? snap.val() : null;
-
-    const remoto = Array.isArray(remotoBruto) ? remotoBruto
-      : (remotoBruto && typeof remotoBruto==='object' ? Object.values(remotoBruto).filter(Boolean) : null);
-    if(!remoto || !remoto.length) return;
-    const porIdLocal = {};
-    CONTAS_PAGAR.forEach(function(c){ if(c && c.id) porIdLocal[c.id]=c; });
-
-    const chavesTicketLocais = new Set(CONTAS_PAGAR.filter(c=>c&&c.ticket).map(c=>c.ticket+'|'+c.status));
-    remoto.forEach(function(rc){
-      if(!rc) return;
-      if(rc.id && CONTAS_PAGAR_DELETED.has(rc.id)) return;
-      if(rc.id && porIdLocal[rc.id]){
-
-        if(Number(rc._upd||0) > Number(porIdLocal[rc.id]._upd||0)){
-          Object.assign(porIdLocal[rc.id], rc);
-        }
-        return;
-      }
-      if(!rc.id && rc.ticket && chavesTicketLocais.has(rc.ticket+'|'+rc.status)) return;
-      CONTAS_PAGAR.push(rc); 
-    });
-    try{ _cpAutoLimparDuplicatas(); }catch(e){}
-  }catch(e){ console.warn('_mesclarContasPagarComNuvem falhou:', e); }
 }
 
 function populateFornSelects(){
@@ -6952,27 +6865,16 @@ function fecharFolha(){
   });
 
   if(totalLiq<=0){alert('Nenhum valor a lançar na folha de '+nomeMes+'.');return;}
-  const jaExiste=CONTAS_PAGAR.find(c=>c.cat==='Folha de Pagamento'&&c.obs&&c.obs.includes(nomeMes));
+  const jaExiste=CONTAS_PAGAR.find(c=>c&&(c.folhaMes===mes||(c.cat==='Folha de Pagamento'&&c.obs&&c.obs.includes(nomeMes))));
   if(jaExiste){
     if(!confirm('Já existe uma conta a pagar de Folha para '+nomeMes+'. Deseja criar mesmo assim?')) return;
   }
-  const vencISO=ano+'-'+mn+'-05'; 
-  const vencDt=new Date(vencISO); vencDt.setMonth(vencDt.getMonth()+1);
-  const vencFmt=vencDt.toLocaleDateString('pt-BR');
-  const lancFmt=new Date().toLocaleDateString('pt-BR');
-  CONTAS_PAGAR.push({ id:_novoIdCP(),
-    lancto:lancFmt, desc:'Folha de Pagamento – '+nomeMes,
-    cred:'Funcionários', cat:'Folha de Pagamento',
-    bancoCod:'', bancoNome:'',
-    venc:vencFmt, valor:totalLiq,
-    status:'Pendente', dataPgto:'',
-    obs:'Gerado automaticamente – Folha '+nomeMes
-  });
-  saveContasPagar();
-  renderContasPagar();
-  renderFluxo();
-  renderDashboard();
-  showToast('Folha de '+nomeMes+' lancada em Contas a Pagar! Total Liquido: R$ '+fmt(totalLiq),'success');
+  let vencAno=Number(ano), vencMes=Number(mn)+1;
+  if(vencMes>12){ vencMes=1; vencAno++; }
+  const vencFmt='05/'+String(vencMes).padStart(2,'0')+'/'+vencAno;
+  _cpApi({action:'create',payable:{desc:'Folha de Pagamento – '+nomeMes,cred:'Funcionários',cat:'Folha de Pagamento',tipoForn:'despesa',venc:vencFmt,valor:_r2(totalLiq),obs:'Gerado automaticamente – Folha '+nomeMes,origem:'folha',folhaMes:mes}})
+    .then(function(){ showToast('Folha de '+nomeMes+' lançada em Contas a Pagar! Total líquido: R$ '+fmt(totalLiq),'success'); })
+    .catch(function(error){ showToast('A folha não foi lançada em Contas a Pagar: '+error.message,'error',9000); });
 }
 
 function renderFolha(){
@@ -9518,21 +9420,7 @@ function adicionarItemTicket(){
     return s + Number(it.total!=null?it.total:liq*Number(it.preco||0));
   },0) + Number(t.acrescimo||0);
   t.saldoPagar=_r2(t.totalGeral - Number(t.adiantamento||0) + Number(t.saldoAnterior||0));
-  const cpExistente=CONTAS_PAGAR.find(cp=>cp.ticket===t.ticket && cp.status==='Pendente');
-  if(cpExistente){
-    cpExistente.valor=Math.max(t.saldoPagar,0);
-    cpExistente._upd=Date.now();
-    saveContasPagar(); renderContasPagar();
-  } else if(t.saldoPagar>0){
-    CONTAS_PAGAR.push({ id:_novoIdCP(),
-      lancto:t.data, desc:'Compra Sucata – Ticket '+t.ticket+' – '+(t.fornecedor||''),
-      cred:t.fornecedor||'', cat:'Compra de Sucata', bancoCod:'', bancoNome:'', tipoForn:'compra',
-      venc:t.data, valor:t.saldoPagar, status:'Pendente',
-      dataPgto:'', obs:'Gerado automaticamente – Ticket '+t.ticket, ticket:t.ticket,
-      fornCod:t.fornecedorCod||''
-    });
-    saveContasPagar(); renderContasPagar();
-  }
+  _cpAjustarCompraAntiga(t,{valor:t.saldoPagar,desc:'Compra Sucata – Ticket '+t.ticket+' – '+(t.fornecedor||''),obs:'Gerado automaticamente – Ticket '+t.ticket});
   saveDB();
   showToast('✅ Item adicionado à compra!','success');
   if(matEl) matEl.value=''; if(brEl) brEl.value=''; if(lqEl) lqEl.value=''; if(prEl) prEl.value='';
@@ -9565,21 +9453,7 @@ function lancarValorCompra(sinal){
   t.acrescimo=t.acrescimos.reduce(function(s,a){ return s+Number(a.v||0); },0);
   _recalcTotaisCompra(t);
 
-  try{
-    const cpPend=CONTAS_PAGAR.find(function(cp){ return cp.ticket===t.ticket && cp.status==='Pendente'; });
-    if(cpPend){
-      cpPend.valor=Math.max(Number(t.saldoPagar||0),0);
-      cpPend._upd=Date.now();
-      saveContasPagar(); try{ renderContasPagar(); }catch(e){}
-    } else if(v>0){
-      CONTAS_PAGAR.push({ id:_novoIdCP(), lancto:t.data,
-        desc:'Valor extra – Ticket '+t.ticket+' – '+(t.fornecedor||''),
-        cred:t.fornecedor||'', cat:'Compra de Sucata', bancoCod:'', bancoNome:'', tipoForn:'compra',
-        venc:t.data, valor:Math.max(v,0), status:'Pendente', dataPgto:'',
-        obs:'Valor extra adicionado à compra'+(obs?(' – '+obs):''), ticket:t.ticket, fornCod:t.fornecedorCod||'' });
-      saveContasPagar(); try{ renderContasPagar(); }catch(e){}
-    }
-  }catch(e){ console.warn('acrescimo CP',e); }
+  _cpAjustarCompraAntiga(t,v>0?{valor:v,desc:'Valor extra – Ticket '+t.ticket+' – '+(t.fornecedor||''),obs:'Valor extra adicionado à compra'+(obs?(' – '+obs):'')}:null);
   saveDB();
   showToast((v<0?'➖ Valor de R$ '+Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2})+' tirado da compra!':'✅ Valor de R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2})+' adicionado à compra!'),'success');
   if(vEl) vEl.value=''; if(oEl) oEl.value='';
@@ -16635,35 +16509,25 @@ async function salvarContrato(){
       if(!existing){await storageRef.put(file,{contentType:file.type});uploadedNow=true;}
       contrato.arquivoStoragePath=storagePath;
     }
-    const contas=[];
-    const hojeFmt=contrato.dataCad.split('-').reverse().join('/');
-    const bankCode=contrato.banco;
-    const bankName=bankCode?((BANCOS_DB||[]).find(b=>b.cod===bankCode)?.banco||''):'';
-    const base={cred:forn,bancoCod:bankCode,bancoNome:bankName,valor,status:'Pendente',dataPgto:'',contratoId:id};
-    if(lancOpt==='avista'){
-      contas.push({...base,id:'CP'+id.slice(2)+'_1',lancto:hojeFmt,desc,cat:value('ct-av-cat')||'Outros',venc:venc.split('-').reverse().join('/'),obs:'Contrato: '+desc});
-    }
-    if(lancOpt==='parcelado'){
-      const [year,initialMonth]=month.split('-').map(Number);
-      for(let i=0;i<installments;i++){
-        const absolute=year*12+(initialMonth-1)+i;
-        const y=Math.floor(absolute/12),m=absolute%12+1;
-        const end=new Date(Date.UTC(y,m,0)).getUTCDate();
-        const due=String(Math.min(day,end)).padStart(2,'0')+'/'+String(m).padStart(2,'0')+'/'+y;
-        contas.push({...base,id:'CP'+id.slice(2)+'_'+(i+1),lancto:hojeFmt,desc:desc+' ('+(i+1)+'/'+installments+')',cat:value('ct-parc-cat')||'Outros',venc:due,obs:'Contrato: '+desc});
-      }
-    }
-    const patch={['contratos/'+id]:contrato};
-    for(const cp of contas)patch['contasPagar/'+cp.id]=cp;
-    await db.ref('erp').update(patch);
+    const bancoContrato=(BANCOS_DB||[]).find(b=>b&&(b.cod===contrato.banco||b.banco===contrato.banco));
+    const baseCP={cred:forn,tipoForn:'despesa',valor,bancoCod:bancoContrato?bancoContrato.cod:'',obs:'Contrato: '+desc,origem:'contrato',contratoId:id};
+    let pedidoCP=null;
+    if(lancOpt==='avista') pedidoCP={action:'create',payable:{...baseCP,desc,cat:value('ct-av-cat')||'Outros',venc}};
+    if(lancOpt==='parcelado') pedidoCP={action:'create',payable:{...baseCP,desc,cat:value('ct-parc-cat')||'Outros'},installments:{count:installments,day,firstMonth:month}};
+    await db.ref('erp').update({['contratos/'+id]:contrato});
     committed=true;
     if(!CONTRATOS_DB.some(c=>c?.id===id))CONTRATOS_DB.push(contrato);
-    for(const cp of contas)if(!CONTAS_PAGAR.some(c=>c?.id===cp.id))CONTAS_PAGAR.push(cp);
-    try{saveContratos();if(contas.length)saveContasPagar();}catch(e){console.warn('Registro remoto confirmado; falha de cache secundário.',e);}
-    try{renderContratos();if(contas.length)renderContasPagar();renderFluxo();renderDashboard();}catch(e){console.warn('Contrato gravado; falha ao atualizar tela.',e);}
+    let criadas=0,falhaCP='';
+    if(pedidoCP){
+      try{ const resposta=await _cpApi(pedidoCP); criadas=(resposta&&resposta.payables||[]).length; }
+      catch(error){ falhaCP=String(error&&error.message||'erro desconhecido'); }
+    }
+    try{saveContratos();}catch(e){console.warn('Registro remoto confirmado; falha de cache secundário.',e);}
+    try{renderContratos();renderFluxo();renderDashboard();}catch(e){console.warn('Contrato gravado; falha ao atualizar tela.',e);}
     if(status)status.textContent='Documento e contrato gravados com sucesso.';
     try{cm();}catch(e){}
-    showToast(contas.length?'Contrato salvo e '+contas.length+' lançamento(s) criado(s) em Contas a Pagar.':'Contrato salvo no Firebase.','success');
+    if(falhaCP) showToast('Contrato salvo, mas as contas a pagar não foram lançadas ('+falhaCP+'). Lance em Contas a Pagar.','error',12000);
+    else showToast(criadas?'Contrato salvo e '+criadas+' lançamento(s) criado(s) em Contas a Pagar.':'Contrato salvo no Firebase.','success');
   }catch(error){
     console.error('[Contratos] Falha no salvamento:',error);
     if(uploadedNow&&!committed)console.warn('[Contratos] Confira o registro remoto antes de remover eventual anexo pendente:',storagePath);
@@ -16939,10 +16803,28 @@ async function _cpApi(payload){
   return result;
 }
 window.erpPayablesRequest=_cpApi;
+function _cpAjustarCompraAntiga(t, extra){
+  try{
+    const pend=CONTAS_PAGAR.find(function(cp){ return cp&&cp.ticket===t.ticket&&cp.status==='Pendente'; });
+    const saldo=_r2(Math.max(Number(t.saldoPagar||0),0));
+    let pedido=null;
+    if(pend){ if(saldo>0&&_r2(Number(pend.valor||0))!==saldo) pedido={action:'update',id:pend.id,payable:{valor:saldo}}; }
+    else if(extra&&_r2(extra.valor)>0) pedido={action:'create',payable:{desc:extra.desc,cred:t.fornecedor||'',cat:'Compra de Sucata',tipoForn:'compra',venc:t.data,valor:_r2(extra.valor),obs:extra.obs||'',origem:'compra_antiga',ticket:String(t.ticket||''),fornCod:String(t.fornecedorCod||'')}};
+    if(!pedido) return Promise.resolve(null);
+    return _cpApi(pedido).catch(function(error){ showToast('A compra foi alterada, mas a conta a pagar não foi atualizada: '+error.message,'error',9000); return null; });
+  }catch(error){ return Promise.resolve(null); }
+}
+function _cpExcluirDaOrigem(ids, aviso){
+  const lista=[...new Set((ids||[]).filter(Boolean))];
+  if(!lista.length) return Promise.resolve(true);
+  return _cpApi({action:'delete',ids:lista}).then(function(){ return true; }).catch(function(error){
+    showToast((aviso||'A conta a pagar vinculada não foi excluída')+': '+error.message,'error',9000);
+    return false;
+  });
+}
 window.erpPayablesList=function(){ return CONTAS_PAGAR; };
 window.erpPayablesCompanyOf=function(c){ return _cpEmpresa(c); };
 window.erpPayablesFromPurchase=function(c){ return _cpGravadaPeloServidor(c); };
-window.erpPayablesHygiene=function(){ try{ if(_cpAutoLimparDuplicatas()) saveContasPagar(); }catch(e){} try{ if(_cpLimparDuplicatasExatas()) saveContasPagar(); }catch(e){} };
 window.erpPayablesSuppliers=function(kind){ return kind==='compra'?(getFornAtivos()||[]).map(function(f){ return f&&f.nome; }):(FORNECEDORES_DESPESA||[]).map(function(f){ return f&&(f.nome||f.razao); }); };
 window.erpPayablesPaymentContext=function(id){
   const c=CONTAS_PAGAR[_cpIdxPorId(id)]; if(!c) return null;
@@ -18270,24 +18152,11 @@ function salvarDespesa(){
   saveDespDB();
   
   if(gerarCP){
-    const hoje=data.split('-').reverse().join('/');
-    const vencFmt=venc?venc.split('-').reverse().join('/'):(data.split('-').reverse().join('/'));
-    CONTAS_PAGAR.push({ id:_novoIdCP(),
-      lancto:hoje,
-      desc:(desc||forn.toUpperCase()),
-      cred:forn.toUpperCase(),
-      cat:cat,
-      bancoCod:'',bancoNome:banco||'',
-      venc:vencFmt,
-      valor,
-      status:'Pendente',
-      dataPgto:'',
-      obs:'Origem: Despesas Grupo – '+emp,
-      origem:'despesas_grupo',
-      despId
-    });
-    saveContasPagar();
-    renderContasPagar();
+    _cpApi({action:'create',payable:{desc:(desc||forn.toUpperCase()),cred:forn.toUpperCase(),cat:cat,tipoForn:'despesa',venc:venc||data,valor:_r2(valor),formaPrevista:String(forma||'').slice(0,40),obs:'Origem: Despesas Grupo – '+emp+(banco?' | Banco: '+banco.toUpperCase():''),origem:'despesas_grupo',despId:despId}})
+      .catch(function(error){
+        const d=DESP_DB.find(x=>x.id===despId); if(d){ d.cpGerado=false; saveDespDB(); }
+        showToast('Despesa salva, mas a conta a pagar não foi gerada: '+error.message,'error',9000);
+      });
   }
   
   document.getElementById('f-forn').value='';
@@ -18376,18 +18245,15 @@ function exportarPDF(){
   w.document.close();
 }
 
-function excluirDespesa(id){
+async function excluirDespesa(id){
   const d=DESP_DB.find(x=>x.id===id);
   if(!d) return;
   const msg='Excluir esta despesa?'+(d.cpGerado?'\n\nAtenção: a Conta a Pagar vinculada também será excluída.':'');
   if(!confirm(msg)) return;
+  if(d.cpGerado&&!(await _cpExcluirDaOrigem(CONTAS_PAGAR.filter(c=>c&&c.despId===id).map(c=>c.id),'A despesa não foi excluída porque a conta a pagar dela não pôde ser excluída'))) return;
   const i=DESP_DB.findIndex(x=>x.id===id);
   if(i>=0) _syncDespGrupo.remover(i);
   
-  if(d.cpGerado){
-    const ci=CONTAS_PAGAR.findIndex(c=>c.despId===id);
-    if(ci>=0){ _removerCPporIndice(ci); saveContasPagar(); renderContasPagar(); }
-  }
   saveDespDB();
   despAtualizar();
   renderHistorico();
@@ -19463,7 +19329,7 @@ function initDespesas(){
             entries.push({ data:sdData, tipo:'saldo_devedor_pendente', sinal:1, raw:{valor:sdValor, data:sdData} });
           }
         }
-        Object.values(TICKETS_DB).filter(function(tk){ return tk.fornecedorCod===cod||tk.fornecedor===forn.nome; }).forEach(function(tk){
+        Object.values(TICKETS_DB).filter(function(tk){ return tk.fornecedorCod===cod||_ticketDoForn(tk,forn,forn.nome); }).forEach(function(tk){
           entries.push({ data:tk.data, tipo:'compra', sinal:-1, status:tk.status, raw:tk });
           if(Number(tk.saldoAnterior||0)>0){
             entries.push({ data:tk.data, tipo:'saldo_anterior', sinal:1, raw:{valor:tk.saldoAnterior, ticket:tk.ticket} });
@@ -19851,8 +19717,7 @@ function initDespesas(){
         if(tipo==='compra'){
           _ticketExcluir(id);
           
-          var idx=CONTAS_PAGAR.findIndex(function(cp){return cp.ticket===id;});
-          if(idx>=0){ _removerCPporIndice(idx); saveContasPagar(); }
+          _cpExcluirDaOrigem(CONTAS_PAGAR.filter(function(cp){return cp&&cp.ticket===id;}).map(function(cp){return cp.id;}),'A compra foi excluída, mas a conta a pagar dela não');
           saveDB();
           try{renderTickets();}catch(e){}
           try{renderContasPagar();}catch(e){}
@@ -20251,7 +20116,7 @@ function initDespesas(){
         const rod=document.getElementById('cru-km-rod'); if(rod) rod.textContent='—';
         const kml=document.getElementById('cru-kml-show'); if(kml) kml.textContent='—';
       }
-      function salvarCombustivel(){
+      async function salvarCombustivel(){
         const data=document.getElementById('cru-data').value;
         const caminhao=(document.getElementById('cru-caminhao').value||'').trim();
         const motorista=(document.getElementById('cru-motorista').value||'').trim();
@@ -20284,21 +20149,11 @@ function initDespesas(){
           let cpIdCru='';
           
           if(fonte==='Posto Externo' && total>0){
-            const hoje=new Date().toLocaleDateString('pt-BR');
-            CONTAS_PAGAR.push({
-              id:'CP_CR_'+cruId,
-              lancto:hoje,
-              desc:'⛽ Combustível Posto – '+litros+' L'+(posto?' – '+posto:'')+(caminhao?' – '+caminhao:''),
-              forn:posto||'Posto de combustível',
-              venc:data,
-              valor:total,
-              status:'Pendente',
-              dataPgto:'',
-              obs:'Abastecimento externo: '+litros+' L × R$'+fmt(preco)+'/L'+(caminhao?' | '+caminhao:'')+(motorista?' | '+motorista:''),
-              origem:'combustivel'
-            });
-            saveContasPagar();
-            cpIdCru='CP_CR_'+cruId;
+            let _cpCru;
+            try{
+              _cpCru=await _cpApi({action:'create',payable:{desc:'⛽ Combustível Posto – '+litros+' L'+(posto?' – '+posto:'')+(caminhao?' – '+caminhao:''),cred:posto||'Posto de combustível',cat:'Combustível',tipoForn:'despesa',venc:data,valor:_r2(total),obs:'Abastecimento externo: '+litros+' L × R$'+fmt(preco)+'/L'+(caminhao?' | '+caminhao:'')+(motorista?' | '+motorista:''),origem:'combustivel'}});
+            }catch(error){ showToast('Abastecimento não salvo: a conta a pagar do posto não foi criada ('+error.message+').','error',9000); return; }
+            cpIdCru=String(_cpCru&&_cpCru.payables&&_cpCru.payables[0]&&_cpCru.payables[0].id||'');
           }
           COMBUSTIVEL_DB.push({id:cruId,data,caminhao,motorista,posto,tipo,fonte,km,kmAnt,kmRod,litros,preco,total,kml,obs,contaPagarId:cpIdCru});
           saveDB();
@@ -20411,7 +20266,7 @@ function initDespesas(){
         try{ fbSalvar(); }catch(e){}
       }
 
-      function salvarTanque(){
+      async function salvarTanque(){
         const data=document.getElementById('tk-data').value;
         const tipo=document.getElementById('tk-tipo').value;
         const litros=parseFloat(document.getElementById('tk-litros').value)||0;
@@ -20424,21 +20279,11 @@ function initDespesas(){
         const id='TK'+agora;
         let contaPagarId='';
         if(tipo==='entrada' && total>0){
-          const hoje=new Date().toLocaleDateString('pt-BR');
-          CONTAS_PAGAR.push({
-            id:'CP_TK_'+id,
-            lancto:hoje,
-            desc:'⛽ Combustível Tanque – '+litros+' L'+(forn?' – '+forn:''),
-            forn:forn||'Fornecedor combustível',
-            venc:data,
-            valor:total,
-            status:'Pendente',
-            dataPgto:'',
-            obs:'Reabastecimento tanque empresa – '+litros+' L × R$'+fmt(preco)+'/L',
-            origem:'tanque'
-          });
-          saveContasPagar();
-          contaPagarId='CP_TK_'+id;
+          let _cpTk;
+          try{
+            _cpTk=await _cpApi({action:'create',payable:{desc:'⛽ Combustível Tanque – '+litros+' L'+(forn?' – '+forn:''),cred:forn||'Fornecedor combustível',cat:'Combustível',tipoForn:'despesa',venc:data,valor:_r2(total),obs:'Reabastecimento tanque empresa – '+litros+' L × R$'+fmt(preco)+'/L',origem:'tanque'}});
+          }catch(error){ showToast('Reabastecimento não salvo: a conta a pagar não foi criada ('+error.message+').','error',9000); return; }
+          contaPagarId=String(_cpTk&&_cpTk.payables&&_cpTk.payables[0]&&_cpTk.payables[0].id||'');
         }
         TANQUE_DB.push({id,tipo,data,litros,preco,total,fornecedor:forn,obs,contaPagarId,createdAt:agora,createdBy:_tanqueUsuarioAtual(),updatedAt:agora,updatedBy:_tanqueUsuarioAtual()});
         saveTanque();
@@ -20448,15 +20293,14 @@ function initDespesas(){
         showToast(tipo==='entrada'?'Reabastecimento registrado! Conta a Pagar criada.':'Saldo inicial registrado!','success');
       }
 
-      function excluirTanque(id){
+      async function excluirTanque(id){
         if(!confirm('Excluir este registro do tanque?')) return;
-        const idx=TANQUE_DB.findIndex(t=>t.id===id);
+        let idx=TANQUE_DB.findIndex(t=>t.id===id);
         if(idx!==-1){
           const reg=TANQUE_DB[idx];
-          if(reg.contaPagarId){
-            const cp=CONTAS_PAGAR.findIndex(c=>c.id===reg.contaPagarId);
-            if(cp!==-1){ _removerCPporIndice(cp); saveContasPagar(); }
-          }
+          if(reg.contaPagarId&&!(await _cpExcluirDaOrigem([reg.contaPagarId],'O registro não foi excluído porque a conta a pagar dele não pôde ser excluída'))) return;
+          idx=TANQUE_DB.findIndex(t=>t.id===id);
+          if(idx===-1) return;
           _syncTanque.remover(idx);
           saveTanque();
           renderTanque(); try{renderSaidasTanque();}catch(e){} try{renderHistoricoEntradasTanque();}catch(e){}
@@ -21383,10 +21227,7 @@ function _balConfirmarExclusao(){
   return;
   cm();
   _ticketExcluir(tid);
-  for(var _i=CONTAS_PAGAR.length-1;_i>=0;_i--){
-    var _cp=CONTAS_PAGAR[_i];
-    if(_cp.ticket===tid||(_cp.obs&&_cp.obs.indexOf('Ticket '+tid)>=0)) _removerCPporIndice(_i);
-  }
+  _cpExcluirDaOrigem(CONTAS_PAGAR.filter(function(_cp){ return _cp&&(_cp.ticket===tid||(_cp.obs&&_cp.obs.indexOf('Ticket '+tid)>=0)); }).map(function(_cp){ return _cp.id; }),'O ticket foi excluído, mas a conta a pagar dele não');
   saveDB(); renderBalanceiro(); balRenderHistorico();
   try{ renderTickets(); }catch(e){}
   showToast('🗑️ Ticket '+tid+' excluído!','warn',3000);
@@ -21709,13 +21550,34 @@ function balPopularFornDatalist(){
       .map(f=>`<option value="${esc(f.nome||'')}">${esc(f.nome||'')}</option>`).join('');
 }
 
+function _fornChaveNome(nome){
+  return String(nome||'').replace(/\s+/g,' ').trim().toLocaleUpperCase('pt-BR');
+}
+function _fornPorNome(nome){
+  const alvo=_fornChaveNome(nome);
+  if(!alvo) return null;
+  const lista=getFornAtivos();
+  return lista.find(f=>_fornChaveNome(f.nome)===alvo)
+    ||lista.find(f=>(Array.isArray(f.nomesAnteriores)?f.nomesAnteriores:[]).some(n=>_fornChaveNome(n)===alvo))
+    ||null;
+}
+function _ticketDoForn(t,forn,nome){
+  if(!t) return false;
+  const cod=String(forn?.cod||'').trim();
+  const tc=String(t.fornecedorCod||t.fornCod||'').trim();
+  if(cod&&tc) return tc===cod;
+  const nomes=new Set([nome,forn?.nome,...(Array.isArray(forn?.nomesAnteriores)?forn.nomesAnteriores:[])].map(_fornChaveNome).filter(Boolean));
+  return [t.fornecedor,t.fornecedorNome,t.forn].some(n=>nomes.has(_fornChaveNome(n)));
+}
+
 function balIniciarNovaSessao(){
   const sel = document.getElementById('bal-novo-forn');
   const fornNome = (sel?.value||'').trim();
   if(!fornNome){ showToast('Selecione o fornecedor!','error'); return; }
 
+  const fornSel = _fornPorNome(fornNome);
   const existente = Object.entries(TICKETS_DB).find(([k,t])=>
-    t._balSessao && (t.fornecedor===fornNome||t.fornecedorNome===fornNome||t.forn===fornNome)
+    t._balSessao && _ticketDoForn(t,fornSel,fornNome)
   );
   if(existente){
     balSelecionarTicket(existente[0]);
@@ -22505,14 +22367,13 @@ function csCarregarForn(forceName){
   const body=document.getElementById('cs-lanc-body'); if(!body) return;
   if(!fornNome){ body.innerHTML='<p style="color:#aaa;font-style:italic;text-align:center;padding:40px">Selecione um fornecedor para ver as pesagens.</p>'; return; }
 
+  const fornObj=_fornPorNome(fornNome);
+  const fornCod=fornObj?.cod||'';
   const tickets=Object.entries(TICKETS_DB).filter(([k,t])=>
-    (t.fornecedor===fornNome||t.fornecedorNome===fornNome||t.forn===fornNome)&&
+    _ticketDoForn(t,fornObj,fornNome)&&
     t._balFinalizado&&t.status==='Aguard. Preço'&&!t._balSessao&&!t._rodEntrada
   );
   if(!tickets.length){ body.innerHTML='<p style="color:#aaa;font-style:italic;text-align:center;padding:40px">Nenhuma pesagem pendente para '+esc(fornNome)+'.</p>'; return; }
-
-  const fornObj=FORNECEDORES.find(f=>f.nome.trim()===fornNome.trim());
-  const fornCod=fornObj?.cod||'';
   
   const adtsTodos=(fornCod?ADT_POR_FORN[fornCod]||[]:Object.values(ADT_POR_FORN).flat()).filter(a=>a.status!=='Quitado');
   const adts=adtsTodos.filter(a=>a.forma!=='Cheque');
