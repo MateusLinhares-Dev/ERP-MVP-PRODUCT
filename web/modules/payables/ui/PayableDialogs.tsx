@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
+import { Dialog } from '../../../shared/ui/Dialog.js';
 import { toFieldText } from '../../../shared/domain/decimal.js';
 import { messageOf } from '../../../shared/domain/errors.js';
 import { formatAmount } from '../../../shared/domain/money.js';
 import { formRequest, installmentPreview } from '../domain/payables.js';
 import type { PayableForm, PayableKind, PayableRow } from '../domain/payables.js';
 import type { PayablesPort } from './ports.js';
+
+export { Dialog };
 
 const CATEGORIES = [
   'Aluguel',
@@ -31,38 +33,6 @@ const CATEGORIES = [
   'Peças e Insumos',
   'Outros',
 ];
-
-export function Dialog({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose(): void;
-  children: ReactNode;
-}) {
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
-  return createPortal(
-    <div className="erp-cp-overlay" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="erp-cp-dialog">
-        <header>
-          <h3>{title}</h3>
-          <button type="button" aria-label="Fechar" onClick={onClose}>
-            ✕
-          </button>
-        </header>
-        {children}
-      </div>
-    </div>,
-    document.body,
-  );
-}
 
 function Field({ label, children, wide }: { label: string; children: ReactNode; wide?: boolean }) {
   return (

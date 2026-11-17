@@ -50,19 +50,14 @@ test('movimento faltante ou com identificador errado nunca é excluído por apro
   assert.equal(db.get('erp/adiantamentos/F1').length,1);
 });
 
-test('extrato bancário bloqueia a edição/exclusão direta de movimentos de adiantamentos',()=>{
-  const core=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
-  const start=core.indexOf('function _movimentoPertenceAdiantamento('),end=core.indexOf('function editLancBanco(',start);
-  assert.ok(start>0&&end>start);
-  const alerts=[];
-  const context={ADT_POR_FORN:{F1:[{cod:'A1',movBancoId:'LB-OLD'}]},showToast:(m)=>alerts.push(m)};
-  runInNewContext(core.slice(start,end)+';this.isProtected=_movimentoPertenceAdiantamento;this.block=_bloquearEdicaoMovimentoAdiantamento;',context);
-  assert.equal(context.isProtected({id:'LB-1',descricao:'Adiantamento: Fornecedor de teste'}),true);
-  assert.equal(context.isProtected({id:'LB-OLD',descricao:'Descricao alterada'}),true);
-  assert.equal(context.isProtected({id:'LB-OTHER',descricao:'Compra independente'}),false);
-  assert.equal(context.block({id:'LB-OLD'}),true);
-  assert.match(alerts[0],/Financeiro/);
-  assert.match(core,/function excluirLancBanco\(id,cod\)\{[\s\S]{0,230}_bloquearEdicaoMovimentoAdiantamento/);
+test('extrato bancário bloqueia a edição/exclusão direta de movimentos de adiantamentos',async()=>{
+  const { isAutomatic } = await import('../web/modules/banking/domain/statement-view.ts');
+  const links={advanceMovementIds:new Set(['LB-OLD']),chequeMovementIds:new Set()};
+  assert.equal(isAutomatic({id:'LB-1',descricao:'Adiantamento: Fornecedor de teste'},links),true);
+  assert.equal(isAutomatic({id:'LB-OLD',descricao:'Descricao alterada'},links),true);
+  assert.equal(isAutomatic({id:'LB-OTHER',descricao:'Compra independente'},links),false);
+  const { lockedMovement } = await import('../server/modules/banking/domain/bank-ledger-rules.ts');
+  assert.match(lockedMovement({id:'LB-OLD'},links).message,/Financeiro → Adiantamentos/);
 });
 
 test('sincronização geral não envia extrato nem contas bancárias: só o servidor grava',()=>{

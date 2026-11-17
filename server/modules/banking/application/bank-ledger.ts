@@ -41,6 +41,7 @@ interface StoredAccount {
 
 const LOCK_ROOT = 'erpBankLedgerLocks/';
 const ACCOUNTS_LOCK = LOCK_ROOT + 'accounts';
+const CHEQUES_LOCK = LOCK_ROOT + 'cheques';
 const clean = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const text = (value: unknown, max = 200): string =>
   String(value ?? '')
@@ -421,85 +422,81 @@ async function clearCheques(context: Context, body: Row) {
       }),
     ).values(),
   ];
-  return lock(
-    context,
-    items.map((item) => LOCK_ROOT + 'c-' + item.id),
-    async () => {
-      const [control, deleted, accounts] = await Promise.all([
-        read(context.db, 'erp/chequesControle'),
-        read(context.db, 'erp/chequesControle_del'),
-        loadAccounts(context.db),
-      ]);
-      const controlRows = isRow(control) ? control : {};
-      const deletedRows = isRow(deleted) ? deleted : {};
-      const advanceCache = new Map<string, unknown>();
-      const now = context.now();
-      const updates: Row = {};
-      const cleared: { id: string; movBancoId: string }[] = [];
-      const movements: Row[] = [];
-      const skipped: string[] = [];
-      const warnings: string[] = [];
-      for (const [index, item] of items.entries()) {
-        const cheque = controlRows[item.id];
-        if (!isRow(cheque) || deletedRows[item.id] || !chequeOpen(cheque)) {
-          skipped.push(item.id);
-          continue;
-        }
-        const supplier = safeKey(cheque.fornCod, 120);
-        if (cheque.advanceCode && supplier && !advanceCache.has(supplier))
-          advanceCache.set(supplier, await read(context.db, 'erp/adiantamentos/' + supplier));
-        const auto = chequeAutoDebit(cheque, supplier ? advanceCache.get(supplier) : null);
-        const debit = auto ?? (typeof item.debit === 'boolean' ? item.debit : !cheque.dc);
-        let movementId = '';
-        if (debit && !cheque.movBancoId) {
-          const cents = centsOf(Number(cheque.v));
-          const bank = bankByCode(accounts, item.bankCode);
-          const number = text(cheque.n) || item.id;
-          if (!canBank(context.identity))
-            warnings.push(
-              `Cheque nº ${number}: seu usuário não tem acesso a Bancos, a saída não foi lançada no extrato.`,
-            );
-          else if (!bank)
-            warnings.push(
-              `Cheque nº ${number}: o banco do cheque não tem conta bancária ligada, a saída não foi lançada no extrato.`,
-            );
-          else if (cents === null)
-            warnings.push(`Cheque nº ${number}: valor inválido, a saída não foi lançada no extrato.`);
-          else {
-            movementId = 'LB-CHQ-' + now.toString(36) + index.toString(36) + '-' + shortId(context);
-            const movement: Row = {
-              id: movementId,
-              bancoCod: accountCode(bank) || item.bankCode,
-              data: dateBR,
-              descricao: chequeDescription(cheque, mode, dateBR),
-              tipo: 'Saida',
-              valor: cents / 100,
-              source: 'cheque',
-              chequeId: item.id,
-              criadoPor: actor(context.identity),
-              _upd: now,
-            };
-            movements.push(movement);
-            updates['erp/lancBanco/' + movementId] = movement;
-          }
-        }
-        updates['erp/chequesControle/' + item.id + '/s'] = 'C';
-        updates['erp/chequesControle/' + item.id + '/cd'] = dateBR;
-        if (movementId) updates['erp/chequesControle/' + item.id + '/movBancoId'] = movementId;
-        cleared.push({ id: item.id, movBancoId: movementId || text(cheque.movBancoId) });
+  return lock(context, [CHEQUES_LOCK], async () => {
+    const [control, deleted, accounts] = await Promise.all([
+      read(context.db, 'erp/chequesControle'),
+      read(context.db, 'erp/chequesControle_del'),
+      loadAccounts(context.db),
+    ]);
+    const controlRows = isRow(control) ? control : {};
+    const deletedRows = isRow(deleted) ? deleted : {};
+    const advanceCache = new Map<string, unknown>();
+    const now = context.now();
+    const updates: Row = {};
+    const cleared: { id: string; movBancoId: string }[] = [];
+    const movements: Row[] = [];
+    const skipped: string[] = [];
+    const warnings: string[] = [];
+    for (const [index, item] of items.entries()) {
+      const cheque = controlRows[item.id];
+      if (!isRow(cheque) || deletedRows[item.id] || !chequeOpen(cheque)) {
+        skipped.push(item.id);
+        continue;
       }
-      if (cleared.length) {
-        updates['erp/_ts'] = now;
-        await context.db.ref().update(clean(updates));
+      const supplier = safeKey(cheque.fornCod, 120);
+      if (cheque.advanceCode && supplier && !advanceCache.has(supplier))
+        advanceCache.set(supplier, await read(context.db, 'erp/adiantamentos/' + supplier));
+      const auto = chequeAutoDebit(cheque, supplier ? advanceCache.get(supplier) : null);
+      const debit = auto ?? (typeof item.debit === 'boolean' ? item.debit : !cheque.dc);
+      let movementId = '';
+      if (debit && !cheque.movBancoId) {
+        const cents = centsOf(Number(cheque.v));
+        const bank = bankByCode(accounts, item.bankCode);
+        const number = text(cheque.n) || item.id;
+        if (!canBank(context.identity))
+          warnings.push(
+            `Cheque nº ${number}: seu usuário não tem acesso a Bancos, a saída não foi lançada no extrato.`,
+          );
+        else if (!bank)
+          warnings.push(
+            `Cheque nº ${number}: o banco do cheque não tem conta bancária ligada, a saída não foi lançada no extrato.`,
+          );
+        else if (cents === null)
+          warnings.push(`Cheque nº ${number}: valor inválido, a saída não foi lançada no extrato.`);
+        else {
+          movementId = 'LB-CHQ-' + now.toString(36) + index.toString(36) + '-' + shortId(context);
+          const movement: Row = {
+            id: movementId,
+            bancoCod: accountCode(bank) || item.bankCode,
+            data: dateBR,
+            descricao: chequeDescription(cheque, mode, dateBR),
+            tipo: 'Saida',
+            valor: cents / 100,
+            source: 'cheque',
+            chequeId: item.id,
+            criadoPor: actor(context.identity),
+            _upd: now,
+          };
+          movements.push(movement);
+          updates['erp/lancBanco/' + movementId] = movement;
+        }
       }
-      return { action: 'clear-cheques', date: dateBR, cleared, movements, skipped, warnings };
-    },
-  );
+      updates['erp/chequesControle/' + item.id + '/s'] = 'C';
+      updates['erp/chequesControle/' + item.id + '/cd'] = dateBR;
+      if (movementId) updates['erp/chequesControle/' + item.id + '/movBancoId'] = movementId;
+      cleared.push({ id: item.id, movBancoId: movementId || text(cheque.movBancoId) });
+    }
+    if (cleared.length) {
+      updates['erp/_ts'] = now;
+      await context.db.ref().update(clean(updates));
+    }
+    return { action: 'clear-cheques', date: dateBR, cleared, movements, skipped, warnings };
+  });
 }
 
 async function reopenCheque(context: Context, body: Row) {
   const id = requireKey(body.id, 'Cheque inválido. Atualize a lista.');
-  return lock(context, [LOCK_ROOT + 'c-' + id], async () => {
+  return lock(context, [CHEQUES_LOCK], async () => {
     const cheque = await loadCheque(context.db, id);
     if (chequeOpen(cheque)) return { action: 'reopen-cheque', id, removedMovementId: '' };
     const updates: Row = {};
@@ -515,7 +512,7 @@ async function reopenCheque(context: Context, body: Row) {
 
 async function deleteCheque(context: Context, body: Row) {
   const id = requireKey(body.id, 'Cheque inválido. Atualize a lista.');
-  return lock(context, [LOCK_ROOT + 'c-' + id], async () => {
+  return lock(context, [CHEQUES_LOCK], async () => {
     const cheque = await loadCheque(context.db, id);
     if (cheque.advanceCode)
       fail(

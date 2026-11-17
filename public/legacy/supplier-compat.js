@@ -15,7 +15,7 @@
   function _accountList(f){
     if(!f)return [];
     const api=window.ERPPartyBanks;
-    const hasOfficial=!!(api&&typeof api.hasCanonical==='function'&&api.hasCanonical('fornecedor',String(f.cod||'')));
+    const hasOfficial=!!(api&&typeof api.list==='function');
     const out=[];
     const sources=hasOfficial?[api.list('fornecedor',String(f.cod||''))]:[f.contas,f.contasBancarias,f.contas_bancarias,f.contasPix,f.dadosBancarios];
     sources.forEach(src=>{

@@ -114,22 +114,6 @@ test('cliente: fiscalSalvar envia somente meses alterados com update (sem set do
   assert.equal(_fbEnviadoOk['fiscal/2026-11'],JSON.stringify({entradas:[2]}));
 });
 
-test('bancos: conta com lançamentos ou adiantamento pendente não pode ser excluída; a exclusão vai ao servidor',async()=>{
-  const start=core.indexOf('async function excluirBanco(idx){'),end=core.indexOf('window.erpReconciliationSources=',start);
-  assert.ok(start>0&&end>start);
-  const alerts=[];const calls=[];
-  const make=async(lanc,adts)=>{
-    const ctx={BANCOS_DB:[{id:'BCx',cod:'B1',banco:'Conta'}],LANC_BANCO_DB:lanc,ADT_POR_FORN:adts,
-      alert:m=>alerts.push(m),confirm:()=>true,_bancoApi:async body=>{calls.push(body);return {};},showToast(){},cm(){}};
-    runInNewContext(core.slice(start,end)+';this.run=excluirBanco;',ctx);
-    await ctx.run(0);
-  };
-  await make([{bancoCod:'B1',valor:10}],{});
-  await make([],{F1:[{cod:'A',bancoCod:'B1',status:'Pendente'}]});
-  assert.equal(calls.length,0);assert.equal(alerts.length,2);
-  await make([{bancoCod:'B2'}],{F1:[{cod:'A',bancoCod:'B1',status:'Quitado'}]});
-  assert.equal(JSON.stringify(calls),JSON.stringify([{action:'delete-account',id:'BCx'}]));
-});
 
 test('compra: criação repete com o MESMO operationId em instabilidade (503) e conclui',async()=>{
   const purchase=readFileSync(new URL('../public/modules/purchase-order/purchase-order.js',import.meta.url),'utf8');

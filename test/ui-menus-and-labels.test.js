@@ -7,12 +7,10 @@ const sync = readFileSync(new URL('../public/legacy/firebase-sync.js', import.me
 const html = readFileSync(new URL('../public/index.template.html', import.meta.url), 'utf8');
 
 test('menu "Mais" das contas bancárias não fecha quando outro computador grava', () => {
-  const start = core.indexOf('function renderBancos(){');
-  const head = core.slice(start, start + 400);
-  assert.doesNotMatch(head.split('\n').slice(0, 3).join('\n'), /_erpBankMoreClose\(\);\s*$/m, 'não fecha logo ao começar a desenhar');
-  assert.match(core, /try\{ if\(typeof _erpBankMoreReancorar==='function'\) _erpBankMoreReancorar\(\); \}catch\(e\)\{/);
-  assert.match(core, /function _erpBankMoreReancorar\(\)\{[\s\S]*?_erpBankMoreAnchor=novo;/);
-  assert.doesNotMatch(core, /window\.addEventListener\('scroll',_erpBankMoreClose,true\)/, 'rolagem em outra área não fecha o menu');
+  const workspace = readFileSync(new URL('../web/modules/banking/ui/BankingWorkspace.tsx', import.meta.url), 'utf8');
+  assert.match(workspace, /const \[menu, setMenu\] = useState<Menu \| null>\(null\);/, 'o menu é estado do React e sobrevive ao redesenho');
+  assert.match(workspace, /window\.addEventListener\('scroll', follow, true\)/, 'rolar a página ou a tabela move o menu junto com o botão');
+  assert.match(workspace, /if \(!anchor\.isConnected\) return null;/, 'só fecha quando o botão sai da tela');
   assert.match(sync, /const _FB_MENUS_ABERTOS='\.erp-bank-more-popover, details\.erp-actions-dropdown\[open\], details\.erp-rec-more-actions\[open\]';/);
   assert.equal((sync.match(/document\.querySelector\(_FB_MENUS_ABERTOS\)/g) || []).length, 2, 'recarga adiada com menu aberto');
 });
@@ -46,8 +44,9 @@ test('aviso de contas bancárias antigas: compara por id, código ou banco+agên
 });
 
 test('cartões de Bancos e Contas a Pagar não ficam presos em "Aguardando…"', () => {
-  assert.match(core, /kpiSubs\[0\]\.textContent=BANCOS_DB\.length\?'Contas cadastradas no sistema'/);
-  assert.match(core, /kpiSubs\[1\]\.textContent=\[\.\.\.balanceByCode\.values\(\)\]/);
+  const banking = readFileSync(new URL('../web/modules/banking/ui/BankingWorkspace.tsx', import.meta.url), 'utf8');
+  assert.match(banking, /kpis\.count\s*\?\s*'Contas cadastradas no sistema'\s*:\s*'Nenhuma conta cadastrada'/);
+  assert.match(banking, /'Saldo consolidado atualizado'/);
   const workspace = readFileSync(new URL('../web/modules/payables/ui/PayablesWorkspace.tsx', import.meta.url), 'utf8');
   assert.match(workspace, /Nada em aberto no mês/);
   assert.doesNotMatch(html, /Aguardando lançamentos/);

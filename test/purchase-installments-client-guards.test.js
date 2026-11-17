@@ -117,18 +117,17 @@ test('detalhe antigo da compra não altera compra confirmada pelo servidor', () 
 });
 
 test('marca de excluída nunca esconde conta de pedido de compra (CPPO), nem vinda do Firebase nem do navegador', () => {
-  const context = { CONTAS_PAGAR_DELETED: new Set(), localStorage: { setItem() {} }, _cpDeletedMigrar() {} };
+  const context = { CONTAS_PAGAR_DELETED: new Set(), localStorage: { setItem() {} } };
   runInNewContext(
-    slice(core, 'function _cpTombstoneDoCliente(id){', 'let _cpDeletedMigrando') +
+    slice(core, 'function _cpTombstoneDoCliente(id){', 'function _cpDeletedCarregarDeRemoto(remotoBruto){') +
       slice(core, 'function _cpDeletedCarregarDeRemoto(remotoBruto){', 'function _criarSincroniaPorChave(') +
-      ';this.load=_cpDeletedCarregarDeRemoto;this.toObject=_cpDeletedParaObjeto;',
+      ';this.load=_cpDeletedCarregarDeRemoto;',
     context,
   );
   context.load({ 'CPPO_T827843-7': true, CPX1: true });
   context.load(['CPPO_T1', 'CP2']);
   assert.deepEqual([...context.CONTAS_PAGAR_DELETED].sort(), ['CP2', 'CPX1']);
-  context.CONTAS_PAGAR_DELETED.add('CPPO_T5');
-  assert.deepEqual(Object.keys(context.toObject()).sort(), ['CP2', 'CPX1']);
+  assert.doesNotMatch(core, /ref\('erp\/contasPagarDeleted'\)\.update/, 'o navegador não regrava marcas de exclusão');
   assert.match(core, /JSON\.parse\(_cpd\)\.forEach\(id=>\{ if\(_cpTombstoneDoCliente\(id\)\) CONTAS_PAGAR_DELETED\.add\(id\); \}\)/);
   const sync = read('public/legacy/firebase-sync.js');
   assert.doesNotMatch(sync, /dados\['contasPagarDeleted\/'\+id\]/, 'o navegador não grava marca de exclusão: quem exclui é o servidor');

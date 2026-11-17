@@ -1,0 +1,128 @@
+.erp-bk .tcard-hdr {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.erp-bk-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.erp-bk-table-wrap {
+  overflow-x: auto;
+}
+
+.erp-bk-empty {
+  text-align: center;
+  padding: 20px;
+  color: var(--gray, #888);
+}
+
+.erp-bk-muted {
+  color: var(--gray, #777);
+  font-size: 0.78rem;
+}
+
+.erp-bk-small {
+  font-size: 0.78rem;
+}
+
+.erp-bk-right {
+  text-align: right;
+}
+
+.erp-bk-nowrap {
+  white-space: nowrap;
+}
+
+.erp-bk-balance {
+  font-weight: 700;
+}
+
+.erp-bk-balance.is-negative {
+  color: #c0392b;
+}
+
+.erp-bk-balance.is-zero {
+  color: #999;
+}
+
+.erp-bk-balance.is-positive {
+  color: #1a5e2a;
+}
+
+.erp-bk-company {
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.erp-cp-dialog.erp-bank-statement {
+  width: min(1080px, 100%);
+}
+
+.erp-cp-dialog.erp-bk-account-dialog {
+  width: min(720px, 100%);
+}
+
+.erp-bk-statement-bank {
+  margin: -4px 0 12px;
+  color: #607267;
+}
+
+.erp-bk-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.erp-bk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: #566a5b;
+  min-width: 0;
+}
+
+.erp-bk-field.wide {
+  grid-column: 1 / -1;
+}
+
+.erp-bk-field small {
+  font-weight: 400;
+  color: #888;
+}
+
+.erp-bk-field input,
+.erp-bk-field select {
+  height: 38px;
+  border: 1px solid #cfdcd3;
+  border-radius: 6px;
+  padding: 0 10px;
+  font: inherit;
+  font-weight: 400;
+  color: #1f2d24;
+  background: #fff;
+}
+
+.erp-bk-error {
+  color: #b3261e;
+  font-size: 0.82rem;
+  margin: 10px 0 0;
+}
+
+.erp-statement-entry-fields.erp-bk-edit-entry {
+  border-top: 0;
+  padding: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 640px) {
+  .erp-bk-grid,
+  .erp-statement-entry-fields.erp-bk-edit-entry {
+    grid-template-columns: 1fr;
+  }
+}
