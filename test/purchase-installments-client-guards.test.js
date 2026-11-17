@@ -159,25 +159,11 @@ test('marca de excluída nunca esconde conta de pedido de compra (CPPO), nem vin
 });
 
 test('lixeira de Contas a Pagar não apaga parcela de pedido de compra', () => {
-  const messages = [];
-  const payables = installments('T701', [100, 200]);
-  const context = {
-    CONTAS_PAGAR: payables,
-    CONTAS_PAGAR_DELETED: new Set(),
-    localStorage: { setItem() {} },
-    showToast: (message) => messages.push(message),
-    confirmarAcao: () => assert.fail('não deve pedir confirmação'),
-    document: { createElement: () => assert.fail('não deve abrir modal') },
-  };
-  runInNewContext(
-    slice(core, 'function _cpTombstoneDoCliente(id){', '\nfunction _cpDeletedParaObjeto') +
-      slice(core, 'function _cpIdxPorId(id){', 'function _cpLimparDuplicatasExatas(') +
-      slice(core, 'function excluirContaPagar(idx, id){', 'function cpExcluirApenas(') +
-      ';this.excluir=excluirContaPagar;',
-    context,
-  );
-  context.excluir(0, 'CPPO_T701-1');
-  assert.equal(payables.length, 2);
-  assert.equal(context.CONTAS_PAGAR_DELETED.size, 0);
-  assert.match(messages[0], /Histórico de compras/);
+  const workspace = readFileSync(new URL('../web/modules/payables/ui/PayablesWorkspace.tsx', import.meta.url), 'utf8');
+  const remove = workspace.slice(workspace.indexOf('const askDelete = useCallback('), workspace.indexOf('const askEdit = useCallback('));
+  assert.match(remove, /if \(row\.fromPurchase\) return port\.notify\(PURCHASE_MESSAGE, 'info'\);/);
+  const bulk = workspace.slice(workspace.indexOf('const deleteSelected = () => {'), workspace.indexOf('const pickDay ='));
+  assert.match(bulk, /row\.fromPurchase/);
+  const actions = readFileSync(new URL('../web/modules/payables/ui/actions.ts', import.meta.url), 'utf8');
+  assert.match(actions, /Histórico de compras/);
 });

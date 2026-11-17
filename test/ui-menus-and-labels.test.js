@@ -48,5 +48,7 @@ test('aviso de contas bancárias antigas: compara por id, código ou banco+agên
 test('cartões de Bancos e Contas a Pagar não ficam presos em "Aguardando…"', () => {
   assert.match(core, /kpiSubs\[0\]\.textContent=BANCOS_DB\.length\?'Contas cadastradas no sistema'/);
   assert.match(core, /kpiSubs\[1\]\.textContent=\[\.\.\.balanceByCode\.values\(\)\]/);
-  assert.match(core, /const subs=document\.querySelectorAll\('#tab-contas_pagar \.kpi-sub'\);/);
+  const workspace = readFileSync(new URL('../web/modules/payables/ui/PayablesWorkspace.tsx', import.meta.url), 'utf8');
+  assert.match(workspace, /Nada em aberto no mês/);
+  assert.doesNotMatch(html, /Aguardando lançamentos/);
 });

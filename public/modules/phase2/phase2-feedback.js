@@ -358,7 +358,7 @@ if(typeof originalChqSave==='function')global.chqSalvarModal=function(){
 
 let ownerBills={};
 function simplifyPayables(){
-  const tab=$('#tab-contas_pagar');if(!tab)return;
+  const tab=$('#tab-contas_pagar');if(!tab||$('#contas-pagar-app'))return;
   $('#phase1-payable-tabs')?.remove();const oldFixed=$('#phase1-fixed-panel');if(oldFixed)oldFixed.remove();
   const current=$('#phase1-payable-current');if(current){while(current.firstChild)tab.appendChild(current.firstChild);current.remove();}
   const todayPanel=$('#cp-hoje-panel');if(todayPanel&&!todayPanel.closest('details.phase2-cp-today')){

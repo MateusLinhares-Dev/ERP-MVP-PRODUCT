@@ -329,3 +329,19 @@ test('cheque de terceiro sem emitente é rejeitado antes de movimentar caixa',as
   await assert.rejects(()=>createAdvance(finance,third,{db}),{code:'CHEQUE_DRAWER_REQUIRED'});
   assert.equal(db.updates,0);
 });
+
+test('8 cheques de terceiro somando R$ 117.900,80 (soma com resíduo de ponto flutuante) são aceitos e gravados em centavos',async()=>{
+  const db=fakeDb();
+  const values=[6353.60,14737.65,21012.30,9988.15,18450.40,6353.60,23005.10,18000.00];
+  const total=values.reduce((sum,value)=>sum+value,0);
+  assert.notEqual(total,117900.8,'a soma em JavaScript tem resíduo, como na tela');
+  const cheques=values.map((v,index)=>({b:'terceiros',n:String(380+index),v,d:'2026-11-17',venc:'2026-12-08',cli:'fundipeças'}));
+  const result=await createAdvance(finance,{...chequeInput,operationId:'5f7d1c0e-1111-4c4c-9a9a-1b2c3d4e5f60',forma:'Cheque de Terceiro',valor:total,cheques},{db});
+  assert.equal(result.advance.valor,117900.8);
+  assert.equal(result.cheques.length,8);
+  assert.equal(db.updates,1);
+  await assert.rejects(()=>createAdvance(finance,{...chequeInput,operationId:'5f7d1c0e-2222-4c4c-9a9a-1b2c3d4e5f60',valor:600.001},{db}),{code:'INVALID_AMOUNT'});
+  const core=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
+  assert.match(core,/const somaChq=_r2\(_chqLista\.reduce\(\(s,c\)=>s\+\(c\.v\|\|0\),0\)\);/);
+  assert.match(core,/const v=_r2\(_adtParseVal\(r\.querySelector\('\.rv'\)\?\.value\|\|''\)\);/);
+});

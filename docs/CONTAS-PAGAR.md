@@ -35,12 +35,53 @@ A sincronização do navegador continua mandando `contasPagar` criadas por outra
 
 Por isso as regras ainda não fecham `contasPagar` para o navegador. A sincronização só reenvia o que mudou (`_fbFiltrarJaEnviado`), e é assim que o pagamento pelo servidor já convivia com ela.
 
-## Tela
+## Tela (React)
 
-Ainda é a tela antiga (`renderContasPagar`), chamando a API por `_cpApi` / `window.erpPayablesRequest`:
+`web/modules/payables/`, ligada em `web/erp/payables.tsx` e montada em `#contas-pagar-app`.
 
-- o formulário de nova conta não tem mais "Status": toda conta nasce pendente;
-- a edição mostra a situação, mas não a muda, e trava o valor de conta paga;
-- excluir (uma, parcelas do grupo, selecionadas) passa pela API.
+- **Topo:** "Vencem hoje" (recolhível) e os cartões: a pagar no mês, vence hoje, atrasadas e pagas no mês. O valor pago conta o que saiu do banco mais o adiantamento compensado.
+- **Calendário** (abre e fecha): dias com contas em aberto, com quantidade e total. Clicar num dia limpa os outros filtros e mostra só aquele dia.
+- **Filtros:**
+  - tipo: Todos, Fornecedores (compra), Despesas;
+  - mês (‹ ›, ou todos os meses) e empresa;
+  - em "Mais filtros": situação, categoria, forma de pagamento e valor mínimo/máximo;
+  - busca sem acento e período de vencimento (o período solta o mês);
+  - dias como atalho.
+- **Tabela:** agrupada por dia com o total do dia; em Despesas, também por empresa, na ordem da configuração. Paginada.
+- **Ações por linha:**
+  - ✏️ editar;
+  - ✅ pagar e 🕒 histórico de pagamentos (veja "Pagar e desfazer pagamento" abaixo);
+  - 🗑 excluir: em parcela de grupo, pergunta "só esta / esta + pendentes / todas"; parcelas com pagamento ficam.
+- **Seleção e exclusão em lote:** conta de pedido de compra ou com pagamento é barrada na tela antes de ir ao servidor.
+- **Lançar/editar:** lançar pode ser avulsa ou parcelada, com prévia das datas. O credor tem lista de sugestões (fornecedores de compra ou de despesa) e aceita texto livre. Ao escolher o banco, a empresa é preenchida. A edição não muda a situação e não reenvia o valor de conta paga.
+- **Regras puras** em `web/modules/payables/domain/payables.ts`, testadas em `test/payables-web.test.js`. As datas das parcelas vêm da mesma regra do servidor (`server/modules/payables/domain/payable-rules.ts`).
+- **Do código antigo ficou** o que a ilha usa por `window`:
+  - `erpPayablesList` e `erpPayablesRequest`;
+  - `erpPayablesCompanyOf` (`_cpEmpresa`) e `erpPayablesFromPurchase`;
+  - `erpPayablesHygiene` (limpeza de duplicadas, que rodava a cada desenho);
+  - `erpPayablesSuppliers` e `erpPayablesOnlyPurchases` (perfil que só vê compras);
+  - `erpPayablesPaymentContext` (fornecedor, compra e adiantamentos da conta);
+  - `erpPayablesApply` (aplica pagamento, estorno ou confirmação nas listas antigas: contas, adiantamentos, compras, extrato);
+  - `erpFinanceCompanies` e `erpFinanceCompanyColor`.
+- Saíram os remendos da phase3 (calendário, período, vencimentos de hoje), e a phase2 não mexe mais na aba.
 
-Próximo passo: a tela em React.
+### Pagar e desfazer pagamento (React, desde a v240)
+
+- **Janela de pagamento:**
+  - valor a quitar (até o saldo) e data;
+  - adiantamento a abater, que começa em 0 e vai até o crédito disponível do fornecedor para essa compra (adiantamento preso a outra compra não conta e gera aviso);
+  - "Débito bancário nesta operação", com a conta bancária obrigatória só se houver débito;
+  - botões "Compensar adiantamento" e "✅ Confirmar pagamento".
+- **Operação idempotente:** cada tentativa guarda o `operationId` por 3 minutos. Se a resposta se perder (rede ou erro 5xx), a mensagem manda usar "🔎 Verificar situação", e uma nova tentativa reaproveita a mesma operação, sem pagar duas vezes.
+- **Baixa em andamento:** com `PAYMENT_IN_PROGRESS`, os botões travam pelo tempo que o servidor mandar, e "Verificar situação" consulta `GET /api/finance/payables-status`:
+  - confirmado: aplica e fecha;
+  - em processamento: trava;
+  - pendente: libera;
+  - situação divergente ou conta sumida: trava e pede revisão.
+- **🕒 Histórico:** lista os pagamentos e exclui qualquer um (banco ou adiantamento), avisando o que volta.
+- **Quem chama de fora, sem trocar de aba (as janelas abrem por cima de qualquer aba):**
+  - o "Pagar" do Histórico de compras (`abrirBaixaCompraNoFinanceiro` → `pagarContaRapido`);
+  - a Ficha do fornecedor (`erpPayablesReverse(id, índice)`).
+- **Código:** regras em `web/modules/payables/domain/payment.ts` e fluxo em `web/modules/payables/application/payments.ts`, testados sem navegador (`payment-status-verification-ui`, `payment-lock-recovery`, `payables-advance-reconciliation`).
+
+Próximo passo: levar para o servidor quem ainda cria conta a pagar pelo navegador (folha, despesas, combustível, contratos, contas fixas) e fechar `contasPagar` nas regras.

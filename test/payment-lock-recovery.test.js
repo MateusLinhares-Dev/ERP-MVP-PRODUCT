@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {payPayable,inspectPayablePayment} from '../server/modules/payables/application/payables.js';
+import {createPendingPayments,submitPayment} from '../web/modules/payables/application/payments.ts';
 
 const actor={uid:'erp:elaine',erpUser:'elaine',erpAccess:true,canPayables:true};
 const op='6b3e5d56-51e2-418c-9b09-804142c88d8f';
@@ -83,23 +84,19 @@ test('duas chamadas simultâneas com o mesmo UUID terminam com apenas uma movime
 });
 
 test('interface mostra conflito em linguagem compreensível e não reenvia com lock ativo',async()=>{
-  const core=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
-  const start=core.indexOf('async function confirmarPagarCP('),end=core.indexOf('function confirmarAcao(',start);
-  assert.ok(start>=0&&end>start);
-  const messages=[],modal={dataset:{paymentOperation:op},querySelectorAll:()=>[{disabled:false}]};
-  const fields={'modal-body':modal,'pcp-id':{value:'CP-T275'},'pcp-valor-pagar':{value:'230'},'pcp-adt':{value:'0',max:'0'},'pcp-banco':{value:'BC-005'},'pcp-data':{value:'2026-11-05'},'pcp-forn-cod':{value:'FT'},'pcp-obs':{value:''}};
-  const payable={id:'CP-T275',valor:230,status:'Pendente',pagamentos:[]};let calls=0;
-  const user={uid:'elaine',getIdToken:async()=> 'token'};
-  const scope={document:{getElementById:id=>fields[id]},CONTAS_PAGAR:[payable],_cpIdxPorId:()=>0,
-    firebase:{auth:()=>({currentUser:user})},fetch:async()=>{calls++;return {ok:false,json:async()=>({code:'PAYMENT_IN_PROGRESS',retryAfterSeconds:90,message:'Outra baixa deste título está em andamento.'})};},
-    showToast:(msg)=>messages.push(msg),console};
-  runInNewContext('const _cpPendingPayments=new Map();'+core.slice(start,end)+';this.submit=confirmarPagarCP;',scope);
-  await scope.submit('pagar-tudo');await scope.submit('pagar-tudo');
-  assert.equal(calls,1);assert.equal(messages.length,2);
-  assert.match(messages[0],/Há uma baixa em processamento/);
-  assert.match(messages[1],/Aguarde/);
-  assert.ok(Number(modal.dataset.paymentLockedUntil)>Date.now()+80000,'bloqueio local deve respeitar 90 segundos do servidor');
-  assert.doesNotMatch(messages.join(' '),/PAYMENT_IN_PROGRESS/);
+  let calls=0,clock=Date.now();
+  const deps={gateway:{pay:async()=>{calls++;const error=Object.assign(new Error('Outra baixa deste título está em andamento.'),{code:'PAYMENT_IN_PROGRESS',status:409,retryAfterSeconds:90});throw error;}},ledger:{apply(){}},pending:createPendingPayments(()=>clock,()=>op),now:()=>clock};
+  const body={...payment};
+  const first=await submitPayment(deps,body);
+  const second=await submitPayment(deps,body);
+  assert.equal(calls,1);
+  assert.match(first.message,/Há uma baixa em processamento/);
+  assert.match(second.message,/Aguarde/);
+  assert.ok(deps.pending.blockedSeconds('CP-T275')>80,'bloqueio local deve respeitar 90 segundos do servidor');
+  assert.equal(deps.pending.operation('CP-T275'),op,'nova tentativa reaproveita a mesma operação');
+  assert.doesNotMatch(first.message+second.message,/PAYMENT_IN_PROGRESS/);
+  const network=await submitPayment({...deps,pending:createPendingPayments(()=>clock,()=>'n1'),gateway:{pay:async()=>{throw Object.assign(new Error('x'),{code:'NETWORK_ERROR',status:0});}}},{...body,operationId:'n1'});
+  assert.match(network.message,/Verificar situação/);
 });
 
 test('duas pessoas com UUID diferentes não lançam duas baixas durante bloqueio ativo',async()=>{

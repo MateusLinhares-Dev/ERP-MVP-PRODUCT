@@ -4,6 +4,8 @@ import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {payPayable} from '../server/modules/payables/application/payables.js';
 import {changeAdvance} from '../server/modules/advances/application/advances.js';
+import {paymentRequest} from '../web/modules/payables/domain/payment.ts';
+import {createPendingPayments,submitPayment,verifyPayment,reversePayment} from '../web/modules/payables/application/payments.ts';
 
 const actor={uid:'erp:thais',erpUser:'thais',erpAccess:true,canPayables:true,canAdvances:true,canBanking:false};
 const operationId='cebcaa20-2e4a-4e32-8e08-41ad07415dc0';
@@ -102,53 +104,33 @@ test('registro parcialmente compensado não pode ser editado nem excluído apaga
 });
 
 test('navegador envia a data correta para a API e não exige banco se compensação for integral',async()=>{
-  const start=core.indexOf('async function confirmarPagarCP(');
-  const end=core.indexOf('function confirmarAcao(',start);
-  assert.ok(start>0&&end>start);
-  const elems={
-    'modal-body':{dataset:{paymentOperation:operationId},querySelectorAll:()=>[]},
-    'pcp-id':{value:'CP-T089'},'pcp-valor-pagar':{value:'8703.5'},'pcp-adt':{value:'8703.5',max:'8703.5'},
-    'pcp-banco':{value:'BC-007'},'pcp-data':{value:'2026-11-04'},'pcp-forn-cod':{value:'F089'},'pcp-obs':{value:''}
-  };
-  let sent=null,closed=false;
-  const payable={id:'CP-T089',valor:8703.50,status:'Pendente',ticket:'T089',fornCod:'F089'};
-  const ctx={
-    document:{getElementById:id=>elems[id]},CONTAS_PAGAR:[payable],ADT_POR_FORN:{F089:[]},TICKETS_DB:{},
-    _cpIdxPorId:()=>0,firebase:{auth:()=>({currentUser:{uid:'user1',getIdToken:async()=> 'token'}})},
-    fetch:async(url,opts)=>{sent={url,body:JSON.parse(opts.body)};return {ok:true,json:async()=>({payable:{...payable,status:'Pago'},advanceEntries:[],fornCod:'F089'})};},
-    showToast(){},renderContasPagar(){},renderAdiantamentos(){},renderTickets(){},renderFluxo(){},renderDashboard(){},
-    cm(){closed=true;},console
-  };
-  runInNewContext('const _cpPendingPayments=new Map();'+core.slice(start,end)+';this.submit=confirmarPagarCP;',ctx);
-  await ctx.submit('pagar-tudo');
-  assert.equal(sent.body.date,'2026-11-04');
-  assert.equal(sent.body.amount,0);
-  assert.equal(sent.body.bankCode,'');
-  assert.equal(sent.body.advanceAmount,8703.50);
-  assert.equal(closed,true);
+  const row={id:'CP-T089',amount:8703.50,status:'Pendente',payments:0};
+  const plan=paymentRequest({total:'8703.5',advance:'8703.5',date:'2026-11-04',bank:'BC-007',notes:''},row,'pay',{fornCod:'F089',advanceLimit:8703.5,operationId});
+  assert.equal(plan.ok,true);
+  assert.equal(plan.payload.date,'2026-11-04');
+  assert.equal(plan.payload.amount,0);
+  assert.equal(plan.payload.bankCode,'');
+  assert.equal(plan.payload.advanceAmount,8703.50);
+  assert.deepEqual(plan.payload.expected,{valor:8703.5,status:'Pendente',paymentsCount:0});
+  let sent=null,applied=null;
+  const deps={gateway:{pay:async(body)=>{sent=body;return {payable:{id:'CP-T089',status:'Pago'},advanceEntries:[],fornCod:'F089'};}},ledger:{apply:(kind,result)=>{applied=[kind,result.payable.status];}},pending:createPendingPayments(()=>1,()=>'x'),now:()=>1};
+  const outcome=await submitPayment(deps,plan.payload);
+  assert.equal(outcome.kind,'done');
+  assert.equal(sent.advanceAmount,8703.50);
+  assert.deepEqual(applied,['payment','Pago']);
 });
 
 test('pagamento bancário envia data e banco sem referência JavaScript indefinida',async()=>{
-  const start=core.indexOf('async function confirmarPagarCP(');
-  const end=core.indexOf('function confirmarAcao(',start);
-  const elems={
-    'modal-body':{dataset:{paymentOperation:operationId},querySelectorAll:()=>[]},
-    'pcp-id':{value:'CP-T080'},'pcp-valor-pagar':{value:'2794.80'},'pcp-adt':null,
-    'pcp-banco':{value:'BC-007'},'pcp-data':{value:'2026-11-03'},'pcp-forn-cod':{value:'F080'},'pcp-obs':{value:''}
-  };
-  const payable={id:'CP-T080',valor:2794.80,status:'Pendente',ticket:'T080',fornCod:'F080'};
-  let sent=null;
-  const ctx={document:{getElementById:id=>elems[id]},CONTAS_PAGAR:[payable],ADT_POR_FORN:{},TICKETS_DB:{},
-    _cpIdxPorId:()=>0,firebase:{auth:()=>({currentUser:{uid:'user1',getIdToken:async()=> 'token'}})},
-    fetch:async(url,opts)=>{sent=JSON.parse(opts.body);return {ok:true,json:async()=>({payable:{...payable,status:'Pago'}})};},
-    showToast(){},renderContasPagar(){},renderAdiantamentos(){},renderTickets(){},renderFluxo(){},renderDashboard(){},cm(){},console
-  };
-  runInNewContext('const _cpPendingPayments=new Map();'+core.slice(start,end)+';this.submit=confirmarPagarCP;',ctx);
-  await ctx.submit('pagar-tudo');
-  assert.equal(sent.date,'2026-11-03');
-  assert.equal(sent.bankCode,'BC-007');
-  assert.equal(sent.amount,2794.80);
-  assert.equal(sent.advanceAmount,0);
+  const row={id:'CP-T080',amount:2794.80,status:'Pendente',payments:0};
+  const plan=paymentRequest({total:'2794.80',advance:'',date:'2026-11-03',bank:'BC-007',notes:''},row,'pay',{fornCod:'F080',advanceLimit:0,operationId});
+  assert.equal(plan.payload.date,'2026-11-03');
+  assert.equal(plan.payload.bankCode,'BC-007');
+  assert.equal(plan.payload.amount,2794.80);
+  assert.equal(plan.payload.advanceAmount,0);
+  assert.equal(paymentRequest({total:'2794.80',advance:'',date:'2026-11-03',bank:'',notes:''},row,'pay',{fornCod:'F080',advanceLimit:0,operationId}).message,'Selecione a conta bancária autorizada.');
+  assert.equal(paymentRequest({total:'2794.80',advance:'',date:'',bank:'BC-007',notes:''},row,'pay',{fornCod:'F080',advanceLimit:0,operationId}).message,'Informe uma data válida.');
+  assert.equal(paymentRequest({total:'3000',advance:'',date:'2026-11-03',bank:'BC-007',notes:''},row,'pay',{fornCod:'F080',advanceLimit:0,operationId}).message,'Confira o valor e a compensação informados.');
+  assert.equal(paymentRequest({total:'100',advance:'50',date:'2026-11-03',bank:'',notes:''},row,'pay',{fornCod:'F080',advanceLimit:10,operationId}).ok,false,'adiantamento acima do disponível');
 });
 
 test('conta legada sem código mantém compensação quando fornecedor é verificado pelo nome',async()=>{

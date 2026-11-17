@@ -47,7 +47,7 @@ test('tela: 🕒 permite excluir pagamento com adiantamento e atualiza os adiant
   const core = readFileSync(new URL('../public/legacy/app-core.js', import.meta.url), 'utf8');
   assert.doesNotMatch(core, /Este pagamento usou adiantamento/);
   assert.match(core, /ADT_POR_FORN\[result\.fornCod\]=result\.advanceEntries/);
-  assert.match(core, /voltam para o adiantamento do fornecedor/);
+  assert.match(readFileSync(new URL('../web/modules/payables/ui/PaymentDialogs.tsx', import.meta.url), 'utf8'), /voltam para o adiantamento do fornecedor/);
   const remove = readFileSync(new URL('../server/modules/purchases/application/delete-purchase-order.ts', import.meta.url), 'utf8');
   assert.match(remove, /return Boolean\(payable\.dataPgto \|\| payable\.movBancoIdCP\);/);
   assert.match(remove, /operation\.kind === 'reversal' \? -1 : 1/);

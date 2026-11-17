@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
+import {paymentRequest} from '../web/modules/payables/domain/payment.ts';
 
 const purchase=readFileSync(new URL('../public/modules/purchase-order/purchase-order.js',import.meta.url),'utf8');
 const core=readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
@@ -66,12 +67,10 @@ test('usuário não vê consulta técnica do Firebase no histórico',()=>{
 });
 
 test('baixa envia a data escolhida sem referência a date inexistente',()=>{
-  const begin=core.indexOf('async function confirmarPagarCP(');
-  const end=core.indexOf('function confirmarAcao(',begin);
-  const source=core.slice(begin,end);
-  assert.match(source,/const paymentDate=document\.getElementById\('pcp-data'\)/);
-  assert.match(source,/date:paymentDate/);
-  assert.doesNotMatch(source,/date:date\b|date:data\b/);
+  const plan=paymentRequest({total:'50',advance:'0',date:'2026-11-07',bank:'BC-1',notes:''},{id:'CP1',amount:50,status:'Pendente',payments:0},'pay',{fornCod:'F1',advanceLimit:0,operationId:'op'});
+  assert.equal(plan.payload.date,'2026-11-07');
+  const source=readFileSync(new URL('../web/modules/payables/domain/payment.ts',import.meta.url),'utf8');
+  assert.match(source,/date: form\.date/);
 });
 
 test('front publicado carrega os assets com revisão para não usar o JavaScript antigo',()=>{

@@ -108,13 +108,9 @@ test('correção manual de adiantamento é override exato e não é desfeita pel
   has('purchaseAdvanceOverride','_phase3AdvanceOverride={total:novo,ignoredCodes','override?.ignoredCodes','if(override)return override.total','correcaoAdiantamento');
 });
 
-test('calendário de Contas a Pagar limpa filtros conflitantes antes de filtrar o dia',()=>{
-  has('resetPayableCalendarFilters','_cpFiltroTipo=\'todos\'','_cpMesFiltro=\'\'','_cpFiltroEmpresa=\'\'','_cpFiltroDia=iso||\'\'','Filtrado pelo calendário');
-});
-
-test('intervalo de Contas a Pagar deixa de ficar preso ao mês e Vencimentos de hoje nunca abre vazio',()=>{
-  has('bindPayableRange','fixPayableToday','Nenhuma conta vencendo hoje.','_cpMesFiltro=\'\';_cpFiltroDia=\'\'');
-  assert.ok(css.includes('.p3-payable-today-empty'));
+test('Contas a Pagar saiu dos remendos da phase3 (calendário, período e vencimentos de hoje estão na tela React)',()=>{
+  assert.ok(!js.includes('resetPayableCalendarFilters')&&!js.includes('bindPayableRange')&&!js.includes('fixPayableToday'));
+  assert.match(phase2,/if\(!tab\|\|\$\('#contas-pagar-app'\)\)return;/);
 });
 
 test('agenda recarrega direto da nuvem depois do login e ao abrir Calendário',()=>{

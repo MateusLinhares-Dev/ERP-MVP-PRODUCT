@@ -883,43 +883,6 @@ if(typeof legacyCorrectPurchaseAdvance==='function')global.salvarAdiantamentoCom
   setTimeout(()=>global.abrirDetalheCompra?.(key),40);
 };
 
-function payableISO(v){return toISO(v);}
-function resetPayableCalendarFilters(iso){
-  try{_cpFiltroTipo='todos';_cpMesFiltro='';_cpFiltroEmpresa='';_cpFiltroDia=iso||'';}catch(e){}
-  ['cp-filtro-cat','cp-filtro-banco','cp-filtro-valor-min','cp-filtro-valor-max','cp-busca','cp-filtro-de','cp-filtro-ate'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  const op=$('#cp-filtro-opcao');if(op)op.value='todas';
-  [['cp-tipo-todos',true],['cp-tipo-compra',false],['cp-tipo-despesa',false]].forEach(([id,on])=>{const b=$('#'+id);if(!b)return;b.style.background=on?'#1a3a2a':'#fff';b.style.color=on?'#fff':'#1a3a2a';});
-}
-const legacyCpCalFiltrarDia=global.cpCalFiltrarDia;
-if(typeof legacyCpCalFiltrarDia==='function')global.cpCalFiltrarDia=function(iso){
-  resetPayableCalendarFilters(iso);
-  try{renderContasPagar?.();}catch(e){}
-  notify('Filtrado pelo calendário: '+toBR(iso),'info',2500);
-};
-function bindPayableRange(){
-  ['#cp-filtro-de','#cp-filtro-ate'].forEach(sel=>{const el=$(sel);if(!el||el.dataset.p3range==='1')return;el.dataset.p3range='1';el.addEventListener('change',()=>{try{_cpMesFiltro='';_cpFiltroDia='';}catch(e){}setTimeout(()=>renderContasPagar?.(),0);});});
-}
-function fixPayableToday(){
-  const details=$('details.phase2-cp-today'),panel=$('#cp-hoje-panel'),list=$('#cp-hoje-lista');if(!details||!panel||!list)return;
-  let source=[];try{source=typeof _cpVisiveis==='function'?_cpVisiveis():(CONTAS_PAGAR||[]);}catch(e){try{source=CONTAS_PAGAR||[];}catch(_e){source=[];}}
-  const now=today(),due=source.filter(c=>c&&c.status!=='Pago'&&payableISO(c.venc)===now);
-  panel.style.display='block';
-  if(!due.length)list.innerHTML='<div class="p3-payable-today-empty">Nenhuma conta vencendo hoje.</div>';
-  const summary=details.querySelector('summary'),hint=summary?.querySelector('span');if(hint)hint.textContent=due.length?`${due.length} conta(s) · clique para ver`:'nenhuma hoje · clique para ver';
-  if(summary&&summary.dataset.p3today!=='1'){
-    summary.dataset.p3today='1';summary.addEventListener('click',()=>setTimeout(()=>{
-      if(!details.open)return;
-      let current=[];
-      try{const src=typeof _cpVisiveis==='function'?_cpVisiveis():(CONTAS_PAGAR||[]);current=src.filter(c=>c&&c.status!=='Pago'&&payableISO(c.venc)===today());}catch(e){}
-      if(current.length){resetPayableCalendarFilters(today());try{renderContasPagar?.();}catch(e){}details.open=true;}
-      else{panel.style.display='block';list.innerHTML='<div class="p3-payable-today-empty">Nenhuma conta vencendo hoje.</div>';}
-    },0));
-  }
-}
-const legacyRenderPayables=global.renderContasPagar;
-if(typeof legacyRenderPayables==='function')global.renderContasPagar=function(){
-  const r=legacyRenderPayables.apply(this,arguments);setTimeout(()=>{bindPayableRange();fixPayableToday();},0);return r;
-};
 function rebuildSelect(sel,allLabel=false,valueMode='mat'){if(!sel)return;const cur=sel.value,items=getEmployees(),sig=items.map(f=>`${f.mat}|${f.nome}|${f.status}`).join('~')+'|'+allLabel+'|'+valueMode;const actual=Array.from(sel.options).slice(allLabel||sel.options[0]?.value===''?1:0).map(o=>o.value).join('~'),expected=items.map(f=>valueMode==='nome'?(f.nome||f.mat):(f.mat||f.nome)).join('~');if(sel.dataset.p3sig===sig&&actual===expected)return;sel.innerHTML=(allLabel?'<option value="">— Todos —</option>':'<option value="">— Selecione —</option>')+items.map(f=>{const val=valueMode==='nome'?(f.nome||f.mat):(f.mat||f.nome);return `<option value="${esc(val||'')}">${esc(f.nome||'')} ${f.mat?'('+esc(f.mat)+')':''}</option>`;}).join('');sel.dataset.p3sig=sig;if(cur&&Array.from(sel.options).some(o=>o.value===cur))sel.value=cur;}
 function fixOperationalEmployees(){rebuildSelect($('#p2epi-func'));rebuildSelect($('#alx-func-sel'),true);rebuildSelect($('#vg-motorista'),false,'nome');rebuildSelect($('#vg-fil-mot'),true,'nome');rebuildSelect($('#adv-mat'));const part=$('#reu-partic-list');if(part){const checked=new Set($$('input:checked',part).map(x=>x.value));part.innerHTML=getEmployees().map(f=>`<label><input type="checkbox" value="${esc(f.mat)}" ${checked.has(f.mat)?'checked':''}> ${esc(f.nome)}${f.cargo?` — <small>${esc(f.cargo)}</small>`:''}</label>`).join('');}}
 global.phase2EpiDeliver=function(){const mat=$('#p2epi-func')?.value||'',idx=Number($('#p2epi-item')?.value),qty=Number($('#p2epi-qtd')?.value)||0,deliveryDate=$('#p2epi-date')?.value||today(),ca=String($('#p2epi-ca')?.value||'').trim(),reason=$('#p2epi-reason')?.value||'Primeira entrega',obs=String($('#p2epi-obs')?.value||'').trim();let item=null,emp=null;try{item=ALX_ITENS?.[idx];emp=(FUNCIONARIOS||[]).find(f=>f.mat===mat);}catch(e){}if(!mat||!item){notify('Selecione funcionário e EPI.','error');return;}if(!(qty>0)||!Number.isInteger(qty)){notify('A quantidade deve ser inteira.','error');return;}const before=Number(item.qtd||0);if(qty>before){notify(`Estoque insuficiente. Disponível: ${before} ${item.un||'un'}.`,'error');return;}const movId='EPI-MOV-'+Date.now(),epiId='epi_'+Date.now();item.qtd=before-qty;try{ALX_MOV.unshift({id:movId,item:item.nome,itemId:item.id||'',tipo:'saida',qtd:qty,data:deliveryDate,mat:mat,resp:emp?.nome||mat,obs:'Entrega de EPI'+(obs?' — '+obs:''),origem:'EPI',epiId:epiId,before:before,after:item.qtd,ts:new Date().toISOString()});EPI_DB.push({id:epiId,mat:mat,data:toBR(deliveryDate),epi:item.nome,qtd:qty,atividade:'',risco:'',ca:ca,motivo:reason+(obs?' — '+obs:''),_almoxMovId:movId});saveAlmoxa?.();saveEpi?.();alxRenderItens?.();renderEpi?.();notify('Entrega registrada. O estoque foi baixado uma única vez.','success');phase2AlxEpiOpen?.(mat);}catch(e){console.error(e);notify('Não foi possível registrar a entrega: '+e.message,'error',7000);}};
@@ -997,7 +960,7 @@ function fixCoordination(){
   if(type&&type.options.length<5)type.innerHTML='<option value="reuniao">Reunião</option><option value="dds">DDS — Diálogo Diário de Segurança</option><option value="treinamento">Treinamento</option><option value="inspecao">Inspeção / Segurança</option><option value="outro">Outro</option>';
 }
 
-function apply(){captureTicketMappings();fixPriceSearches();decorateCheque();enhanceAdvanceTickets();reconcileKnownLinkedAdvances();bindPayableRange();fixPayableToday();fixOperationalEmployees();patchMaintenanceModal();bindMaintFilter();removeCasaGloria();fixCoordination();hideLegacyCalendarUi();const owner=$('#phase2-owner-bills');if(owner&&owner.offsetParent!==null&&owner.dataset.p3owner!=='1')renderOwnerBillsV3();if($('#tab-afazeres')&&!$('#phase3-calendar'))renderCalendar();}
+function apply(){captureTicketMappings();fixPriceSearches();decorateCheque();enhanceAdvanceTickets();reconcileKnownLinkedAdvances();fixOperationalEmployees();patchMaintenanceModal();bindMaintFilter();removeCasaGloria();fixCoordination();hideLegacyCalendarUi();const owner=$('#phase2-owner-bills');if(owner&&owner.offsetParent!==null&&owner.dataset.p3owner!=='1')renderOwnerBillsV3();if($('#tab-afazeres')&&!$('#phase3-calendar'))renderCalendar();}
 if(global.Phase1Dom)global.Phase1Dom.register(apply);else setInterval(apply,1200);
 const legacySwitchTabPhase3=global.switchTab;
 if(typeof legacySwitchTabPhase3==='function')global.switchTab=function(tabId){

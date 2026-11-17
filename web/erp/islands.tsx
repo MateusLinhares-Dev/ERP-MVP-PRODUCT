@@ -19,6 +19,7 @@ import { installSuppliers } from './suppliers.js';
 import { installSales } from './sales.js';
 import { installCustomers } from './customers.js';
 import { installReceivables } from './receivables.js';
+import { installPayables } from './payables.js';
 
 const CHEQUE_REPORT = 'adt-cheques-report';
 const roots = new Map<string, Root>();
@@ -241,4 +242,5 @@ installAdvanceReview(api);
 installSuppliers();
 installCustomers();
 installReceivables();
+installPayables();
 installSales();
