@@ -2511,7 +2511,8 @@ function imprimirExtrato(){
       <td>${tk.status==='Pago'?'✅ Pago':'⏳ Pendente'}</td>
     </tr>`).join('');
 
-  const win=window.open('','_blank','width=800,height:1000');
+  const win=window.open('','_blank','width=800,height=1000');
+  if(!win){ _avisarPopupBloqueado(); return; }
   win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
   <meta charset="UTF-8"><title>Extrato – ${fornNome}</title>
   <style>
@@ -2967,6 +2968,7 @@ function imprimirFichaAdiantamentos(){
     </tr>`).join('');
 
   const win=window.open('','_blank','width=750,height=900');
+  if(!win){ _avisarPopupBloqueado(); return; }
   win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
   <meta charset="UTF-8"><title>Ficha Adiantamentos – ${fornNome}</title>
   <style>
@@ -3104,6 +3106,7 @@ function imprimirCanhoto(){
   }
 
   const win=window.open('','_blank','width=700,height=900');
+  if(!win){ _avisarPopupBloqueado(); return; }
   win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
   <meta charset="UTF-8"><title>Recibo ${tk.ticket} – ${_empresaPrincipalLabel()}</title>
   <style>
@@ -3619,6 +3622,11 @@ function _documentHeaderConfig(key){
   const all=(ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.documentHeaders)||{};
   return all[key]||{};
 }
+function _avisarPopupBloqueado(){
+  const msg='O navegador bloqueou a janela de impressão. Permita pop-ups para este site e tente de novo.';
+  try{ showToast(msg,'error',9000); }catch(e){ try{ alert(msg); }catch(_){} }
+}
+
 function _legacyRepairConfig(key){
   const all=(ERP_BUSINESS_CONFIG&&ERP_BUSINESS_CONFIG.legacyRepairs)||{};
   return all[key]||{};
@@ -5985,6 +5993,7 @@ function epiGerarRecibo(id){
     ?`<img src="${e.assinatura}" style="max-height:60px;display:block;margin:0 auto">`
     :`<div style="border-top:1.5px solid #333;width:260px;margin:0 auto 4px;"></div><div style="text-align:center;font-size:11px;color:#555">Assinatura do Colaborador</div>`;
   const win=window.open('','_blank','width=620,height=440');
+  if(!win){ _avisarPopupBloqueado(); return; }
   win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Recibo EPI</title>
   <style>body{font-family:Arial,sans-serif;padding:24px;font-size:13px}
   .hdr{text-align:center;border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:14px}
@@ -6085,6 +6094,7 @@ function epiImprimirFicha(){
 
   html+=`</body></html>`;
   const win=window.open('','_blank','width=900,height=650');
+  if(!win){ _avisarPopupBloqueado(); return; }
   win.document.write(html);
   win.document.close();
   setTimeout(()=>win.print(),500);
@@ -6172,6 +6182,7 @@ function epiImprimirRelatorioMensal(){
   </body></html>`;
 
   const win=window.open('','_blank','width=1000,height=700');
+  if(!win){ _avisarPopupBloqueado(); return; }
   win.document.write(html);
   win.document.close();
   setTimeout(()=>win.print(),500);
@@ -9544,6 +9555,7 @@ function imprimirPrecosForn(){
       <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:700">R$ ${fmt(val)}/kg</td>
     </tr>`)).join('');
   const win=window.open('','_blank');
+  if(!win){ _avisarPopupBloqueado(); return; }
   win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
     <title>Tabela de Preços – ${fornNome}</title>
     <style>body{font-family:Arial,sans-serif;max-width:600px;margin:30px auto;color:#222}
@@ -12157,6 +12169,7 @@ function imprimirPrecosCli(){
       <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:700">R$ ${fmt(val)}/kg</td>
     </tr>`).join('');
   const win=window.open('','_blank');
+  if(!win){ _avisarPopupBloqueado(); return; }
   win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
     <title>Tabela de Preços – ${cliNome}</title>
     <style>body{font-family:Arial,sans-serif;max-width:600px;margin:30px auto;color:#222}
@@ -13814,12 +13827,10 @@ function _supLog(msg, tipo='info'){
   log.scrollTop=log.scrollHeight;
 }
 
-const CHQ_SEED = [];
 var CHQ_CTRL = {};
 var _chqDel = {};
 var _chqInited = false;
 
-var _CHQ_ENSURE = [];
 var _chqFbanco = 'TODOS';
 var _chqFsit = 'A';        
 var _chqFbusca = '';
@@ -13852,18 +13863,6 @@ function chqInit(){
   if(!db){ setTimeout(chqInit, 2000); return; }
   _chqInited=true;
   _chqDelRef().on('value', function(s){ _chqDel=s.val()||{}; });
-
-  function _chqRepararBase(){
-    _chqRef().once('value').then(function(s){
-      var cur=s.val()||{};
-      var falta={};
-      CHQ_SEED.forEach(function(o){ if(!cur[o.id] && !_chqDel[o.id]) falta[o.id]=o; });
-      _CHQ_ENSURE.forEach(function(o){ if(!cur[o.id] && !_chqDel[o.id]) falta[o.id]=o; });
-      var ks=Object.keys(falta);
-      if(ks.length){ _chqRef().update(falta).then(function(){ console.info('Cheques controle: '+ks.length+' incluídos/reparados.'); }).catch(function(e){ console.warn('reparo cheques',e); }); }
-    }).catch(function(){});
-  }
-  _chqDelRef().once('value').then(function(s){ _chqDel=s.val()||{}; _chqRepararBase(); }).catch(function(){ _chqRepararBase(); });
   _chqRef().on('value', function(s){
     var v=s.val()||{}; var m={};
     Object.keys(v).forEach(function(k){ if(!_chqDel[k]) m[k]=v[k]; });
@@ -13919,11 +13918,9 @@ function chqToggleDesconto(id){
 function chqToggleCompra(id){
   var c=CHQ_CTRL[id]; if(!c) return;
   if(c.advanceCode){ showToast('Cheque do adiantamento '+c.advanceCode+': o vínculo com a compra é controlado pelo próprio adiantamento.','info'); return; }
-  var novo=!c.dc; c.dc=novo; try{ renderChequesCompensar(); }catch(e){}
-  var r=_chqRef(); if(!r) return;
-  r.child(id).update({dc: novo?true:null})
-    .then(function(){ showToast(novo?'Marcado: desconta da compra 🛒':'Desmarcado','success'); })
-    .catch(function(e){ showToast('Erro: '+e.message,'error'); });
+  _bancoApi({action:'toggle-cheque-discount',id:id})
+    .then(function(r){ showToast(r.cheque&&r.cheque.dc?'Marcado: desconta da compra 🛒':'Desmarcado','success'); })
+    .catch(function(e){ showToast('Erro: '+e.message,'error',8000); });
 }
 
 function renderChequesCompensar(){
@@ -14021,15 +14018,7 @@ function renderChequesCompensar(){
   h+='<input type="text" placeholder="🔍 Nº ou cliente..." value="'+esc(_chqFbuscaTexto)+'" data-chq-busca="1" oninput="chqSetBusca(this.value)" style="font-size:.82rem;padding:6px 10px;border:1px solid #ddd;border-radius:7px;min-width:170px">';
   if(!_chqSec){
 
-    var _rpComp=_legacyRepairConfig('gratusSicrediComplete');
-    var _rpAcredi=_legacyRepairConfig('gratusAcredi');
-    if(_rpComp&&_rpComp.bank&&Array.isArray(_rpComp.records)&&_rpComp.records.length){
-      h+='<button class="btn-edit" onclick="chqCompletarGratusSicredi()" title="'+esc(_rpComp.buttonTitle||'Completar cheques configurados sem sobrescrever registros existentes.')+'" style="margin-left:auto;background:#2980b9;color:#fff">'+esc(_rpComp.buttonLabel||'➕ Aplicar complementação')+'</button>';
-    }
     h+='<button class="btn-edit" onclick="chqSincronizarAbaAntiga()" title="Traz os cheques reais da aba antiga (fornecedor, valor, bom para) e marca os de adiantamento" style="margin-left:auto;background:#8e44ad;color:#fff">🔄 Sincronizar aba antiga</button>';
-    if(_rpAcredi&&_rpAcredi.bank&&Array.isArray(_rpAcredi.records)&&_rpAcredi.records.length){
-      h+='<button class="btn-edit" onclick="chqCorrigirAcredi()" title="'+esc(_rpAcredi.buttonTitle||'Aplicar correção de cheques configurada no Firebase.')+'" style="background:#1565c0;color:#fff">'+esc(_rpAcredi.buttonLabel||'🔧 Aplicar correção')+'</button>';
-    }
   }
   h+='<button class="btn-add"'+(_chqSec?' style="margin-left:auto"':'')+' onclick="chqNovo()">+ Novo Cheque</button>';
   h+='<button class="btn-add" onclick="chqRemessa()" title="Lançar vários cheques de uma vez (uma remessa: números em sequência)" style="background:#1a4a7c">📦 Remessa (vários)</button>';
@@ -14350,22 +14339,6 @@ function _chqModal(id){
   _chqBindDestinoAutocomplete(ov);
 }
 
-function chqCorrigirAcredi(){
-  var cfg=_legacyRepairConfig('gratusAcredi');
-  if(!cfg.bank){ showToast('Configuração de correção não encontrada no Firebase.','error'); return; }
-  if(!confirm(cfg.confirmText||'Confirmar correção?')) return;
-  var r=_chqRef(); if(!r){ showToast('Firebase não conectado','error'); return; }
-  var batch={}, n=0, cancel=(cfg.cancelIfPending||[]).map(String), keep=(cfg.keepPending||[]).map(String);
-  Object.keys(CHQ_CTRL).forEach(function(id){
-    var c=CHQ_CTRL[id]; if(!c || c.b!==cfg.bank) return;
-    var num=String(c.n);
-    if(cancel.indexOf(num)>=0 && (c.s||'A')==='A'){ c.s='X'; c.cd=''; batch[id]=c; n++; }
-    else if(keep.indexOf(num)>=0 && (c.s||'A')!=='C'){ c.s='A'; c.cd=''; batch[id]=c; n++; }
-  });
-  if(!n){ showToast('Nada a corrigir (cheques não encontrados).','info'); return; }
-  try{ renderChequesCompensar(); }catch(e){}
-  r.update(batch).then(function(){ showToast(cfg.successText||'✔ Correção aplicada.','success',8000); }).catch(function(e){ showToast('Erro: '+e.message,'error'); });
-}
 function chqNovo(){ _chqModal(null); }
 function chqEditar(id){
   var c=CHQ_CTRL[id];
@@ -14432,26 +14405,14 @@ function chqRemessaSalvar(){
   var dc=!!document.getElementById('chqr-dc').checked;
   if(ini<1){ showToast('Informe o número inicial do cheque','error'); return; }
   if(qtd<1||qtd>200){ showToast('Quantidade deve ser entre 1 e 200','error'); return; }
-  var r=_chqRef(); if(!r){ showToast('Firebase não conectado','error'); return; }
-  var slug=_cfgChequeBankSlug(b);
-  
-  var existentes={};
-  Object.keys(CHQ_CTRL).forEach(function(x){ var cc=CHQ_CTRL[x]; if(cc&&cc.b===b) existentes[String(cc.n)]=true; });
-  var batch={}, add=0, pulou=0;
-  for(var i=0;i<qtd;i++){
-    var num=String(ini+i);
-    if(existentes[num]){ pulou++; continue; }
-    var cid='CC'+slug+num, base=cid, k=1;
-    while(CHQ_CTRL[cid]||batch[cid]){ k++; cid=base+'_'+k; }
-    var obj={id:cid,b:b,n:num,c:cli,v:val,d:d,venc:venc,cd:(s==='C'?d:''),s:s,dc:dc};
-    CHQ_CTRL[cid]=obj; batch[cid]=obj; add++;
-  }
-  if(!add){ showToast('Nada a lançar — esses números já existem nesse banco.','info',6000); return; }
-  try{ renderChequesCompensar(); }catch(e){}
-  r.update(batch).then(function(){
-    chqFecharModal();
-    showToast('✔ Remessa lançada: '+add+' cheque(s)'+(pulou?' ('+pulou+' já existiam, pulei)':'')+'.','success',7000);
-  }).catch(function(e){ showToast('Erro: '+e.message,'error'); });
+  _bancoApi({action:'batch-cheques',slug:_cfgChequeBankSlug(b),start:ini,count:qtd,s:s,dc:dc,cheque:{b:b,c:cli,v:val,d:d,venc:venc}})
+    .then(function(r){
+      var add=(r.cheques||[]).length, pulou=(r.skipped||[]).length;
+      if(!add){ showToast('Nada a lançar — esses números já existem nesse banco.','info',6000); return; }
+      chqFecharModal();
+      showToast('✔ Remessa lançada: '+add+' cheque(s)'+(pulou?' ('+pulou+' já existiam, pulei)':'')+'.','success',7000);
+    })
+    .catch(function(e){ showToast('Erro: '+e.message,'error',8000); });
 }
 function _chqParseVal(s){
   s=String(s||'').trim().replace(/[^0-9.,]/g,'');
@@ -14469,84 +14430,17 @@ function chqSalvarModal(){
   var venc=(document.getElementById('chqm-venc')?.value||'').trim();
   var cd=(document.getElementById('chqm-cd').value||'').trim();
   if(!n){ showToast('Preencha o número do cheque','error'); return; }
-  var r=_chqRef(); if(!r){ showToast('Firebase não conectado','error'); return; }
-  if(!id){
-    var slug=_cfgChequeBankSlug(b);
-    id='CC'+slug+n; var base=id, k=1;
-    while(CHQ_CTRL[id]){ k++; id=base+'_'+k; }
-  }
   var nomeNorm=function(v){return String(v||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();};
   var chosenCode=(document.getElementById('chqm-destino-cod')?.value||'').trim();
   var chosenType=(document.getElementById('chqm-destino-tipo')?.value||'').trim();
   var destinos=_chqCadastroDestinos();
   var _selected=destinos.find(function(x){return x.cod===chosenCode&&x.tipo===chosenType&&nomeNorm(x.nome)===nomeNorm(cli);});
   if(!_selected){var _matches=destinos.filter(function(x){return nomeNorm(x.nome)===nomeNorm(cli);});if(_matches.length===1)_selected=_matches[0];}
-  var obj={id:id,b:b,n:n,c:cli,v:val,d:d,venc:venc,cd:cd,s:s};
-  if(_selected && _selected.tipo==='Cliente'){
-    obj.clienteNome=_selected.nome;obj.clienteCod=_selected.cod;
-  }
-  if(_selected && _selected.tipo.indexOf('Fornecedor')===0){
-    obj.fornecedorNome=_selected.nome;obj.fornecedorCod=_selected.cod;obj.dest=cli;
-  }
-  if(CHQ_CTRL[id] && nomeNorm(CHQ_CTRL[id].c)===nomeNorm(cli)){
-    ['dc','movBancoId','origem','fornecedorCod','fornecedorNome','clienteCod','clienteNome','dest'].forEach(function(field){
-      if(obj[field]==null&&CHQ_CTRL[id][field]!=null)obj[field]=CHQ_CTRL[id][field];
-    });
-  }
-  
-  if(CHQ_CTRL[id]&&CHQ_CTRL[id].dc) obj.dc=CHQ_CTRL[id].dc;
-  CHQ_CTRL[id]=obj; try{ renderChequesCompensar(); }catch(e){}
-  r.child(id).set(obj)
+  var destino=_selected?{tipo:_selected.tipo,cod:_selected.cod,nome:_selected.nome}:null;
+  _bancoApi({action:'save-cheque',id:id||'',slug:_cfgChequeBankSlug(b),cheque:{b:b,n:n,c:cli,v:val,d:d,venc:venc,cd:cd,s:s},destino:destino})
     .then(function(){ chqFecharModal(); showToast('Cheque salvo ✔','success'); })
-    .catch(function(e){ showToast('Erro: '+e.message,'error'); });
+    .catch(function(e){ showToast('Erro: '+e.message,'error',9000); });
 }
-
-var _CHQ_FIX_GS=[];
-
-function chqCorrigirGratusSicredi(){
-  var cfg=_legacyRepairConfig('gratusSicrediDefinitive');
-  if(!cfg.bank){ showToast('Configuração de correção não encontrada no Firebase.','error'); return; }
-  if(!confirm(cfg.confirmText||'Confirmar correção?')) return;
-  var r=_chqRef(); if(!r){ showToast('Firebase não conectado','error'); return; }
-  var idPorNum={};
-  Object.keys(CHQ_CTRL).forEach(function(id){ var c=CHQ_CTRL[id]; if(c&&c.b===cfg.bank) idPorNum[String(c.n)]=id; });
-  var batch={};
-  (cfg.records||_CHQ_FIX_GS||[]).forEach(function(o){
-    var id=idPorNum[String(o.n)]||o.id;
-    var no={id:id,b:o.b,n:o.n,c:o.c,v:o.v,d:o.d,cd:o.cd,s:o.s,dc:o.dc};
-    var ex=CHQ_CTRL[id]; if(ex&&ex.movBancoId) no.movBancoId=ex.movBancoId;
-    batch[id]=no; CHQ_CTRL[id]=no;
-  });
-  try{ renderChequesCompensar(); }catch(e){}
-  r.update(batch).then(function(){ showToast(cfg.successText||'✔ Correção aplicada.','success',8000); }).catch(function(e){ showToast('Erro: '+e.message,'error'); });
-}
-
-function chqCompletarGratusSicredi(){
-  var cfg=_legacyRepairConfig('gratusSicrediComplete');
-  if(!cfg.bank){ showToast('Configuração de correção não encontrada no Firebase.','error'); return; }
-  if(!confirm(cfg.confirmText||'Confirmar complementação?')) return;
-  var r=_chqRef(); if(!r){ showToast('Firebase não conectado','error'); return; }
-  var idPorNum={};
-  Object.keys(CHQ_CTRL).forEach(function(id){ var c=CHQ_CTRL[id]; if(c&&c.b===cfg.bank) idPorNum[String(c.n)]=id; });
-  var batch={}, add=0, corr=0, jaTinha=0;
-  var novos=Array.isArray(cfg.records)?cfg.records:[];
-  novos.forEach(function(o){
-    if(idPorNum[String(o.n)]){ jaTinha++; return; } 
-    var id='CC'+_cfgChequeBankSlug(cfg.bank)+o.n;
-    var no={id:id, b:cfg.bank, n:o.n, c:o.c, v:o.v, d:'', cd:o.cd, s:'C', dc:false};
-    batch[id]=no; CHQ_CTRL[id]=no; add++;
-  });
-  Object.keys(cfg.valueCorrections||{}).forEach(function(num){ var idc=idPorNum[String(num)]; if(idc&&CHQ_CTRL[idc]){ CHQ_CTRL[idc].v=Number(cfg.valueCorrections[num])||0; batch[idc]=CHQ_CTRL[idc]; corr++; } });
-  var corrSit=Array.isArray(cfg.statusCorrections)?cfg.statusCorrections:[];
-  corrSit.forEach(function(o){
-    var idc=idPorNum[String(o.n)];
-    if(idc && CHQ_CTRL[idc] && CHQ_CTRL[idc].s!==String(o.status||'C')){ CHQ_CTRL[idc].s=String(o.status||'C'); CHQ_CTRL[idc].cd=o.cd||''; batch[idc]=CHQ_CTRL[idc]; corr++; }
-  });
-  if(!add && !corr){ showToast('Nada a fazer — os cheques já estão todos lá e certos.','info'); return; }
-  try{ renderChequesCompensar(); }catch(e){}
-  r.update(batch).then(function(){ showToast('✔ Correção aplicada: '+add+' cheque(s) adicionado(s)'+(jaTinha?(' ('+jaTinha+' já existiam)'):'')+(corr?(' + '+corr+' correção(ões)'):'')+'.','success',8000); }).catch(function(e){ showToast('Erro: '+e.message,'error'); });
-}
-
 function chqSincronizarAbaAntiga(){
   if(typeof CHEQUES_POR_FORN==='undefined'){ showToast('A aba antiga de Cheques não carregou. Recarregue a página.','error'); return; }
   var slug=Object.fromEntries(_cfgChequeBanks().map(function(x){return [x.name,x.slug||'XX'];}));
@@ -14578,21 +14472,25 @@ function chqSincronizarAbaAntiga(){
 
   var fantasmasIds=[], fantasmasLbl=[];
   Object.keys(CHQ_CTRL).forEach(function(id){
-    var c=CHQ_CTRL[id]; if(!c||(c.s||'A')!=='A'||!bancosOld[c.b]) return;
+    var c=CHQ_CTRL[id]; if(!c||(c.s||'A')!=='A'||!bancosOld[c.b]||c.advanceCode||c.movBancoId) return;
     if(!reais[c.b+'|'+String(c.n)]){ fantasmasIds.push(id); fantasmasLbl.push(String(c.n)+' ('+c.b+')'); }
   });
   var msg='Trazer os dados reais da aba antiga:\n\n• '+nov+' cheque(s) novo(s)\n• '+atu+' corrigido(s) (fornecedor / valor / bom para)\n\nTodos marcados como "desconta da compra 🛒". Cheque compensado continua compensado.';
   if(fantasmasIds.length) msg+='\n\n⛔ E vou marcar '+fantasmasIds.length+' cheque(s) como "NÃO EXISTE" (números que não estão na sua lista real): '+fantasmasLbl.slice(0,14).join(', ')+(fantasmasLbl.length>14?'...':'')+'.\nEles continuam aparecendo na lista, cinza, só pra você ver a sequência. Não somam no total.';
   msg+='\n\nConfirmar?';
   if(!confirm(msg)) return;
-  var r=_chqRef(); if(!r){ showToast('Firebase não conectado','error'); return; }
-  
-  fantasmasIds.forEach(function(id){ var c=CHQ_CTRL[id]; if(c){ c.s='N'; batch[id]={id:id,b:c.b,n:c.n,c:'',v:(+c.v||0),d:'',cd:'',s:'N',dc:false}; } });
-  Object.keys(batch).forEach(function(id){ CHQ_CTRL[id]=batch[id]; });
-  try{ renderChequesCompensar(); }catch(e){}
-  r.update(batch)
-    .then(function(){ showToast('✔ Sincronizado! '+nov+' novos, '+atu+' corrigidos'+(fantasmasIds.length?', '+fantasmasIds.length+' marcados "não existe"':'')+'.','success',7000); })
-    .catch(function(e){ showToast('Erro: '+e.message,'error'); });
+  var itens=Object.keys(batch).map(function(id){ return batch[id]; });
+  var lotes=[];
+  for(var i=0;i<itens.length;i+=200) lotes.push({items:itens.slice(i,i+200),ghosts:[]});
+  for(var g=0;g<fantasmasIds.length;g+=200) lotes.push({items:[],ghosts:fantasmasIds.slice(g,g+200)});
+  var tot={created:0,updated:0,marked:0,kept:0};
+  lotes.reduce(function(p,lote){
+    return p.then(function(){ return _bancoApi({action:'import-legacy-cheques',items:lote.items,ghosts:lote.ghosts}).then(function(r){
+      tot.created+=r.created||0; tot.updated+=r.updated||0; tot.marked+=r.marked||0; tot.kept+=(r.kept||[]).length;
+    }); });
+  },Promise.resolve())
+    .then(function(){ showToast('✔ Sincronizado! '+tot.created+' novos, '+tot.updated+' corrigidos'+(tot.marked?', '+tot.marked+' marcados "não existe"':'')+(tot.kept?'. '+tot.kept+' cheque(s) de adiantamento ou já debitados foram preservados':'')+'.','success',9000); })
+    .catch(function(e){ showToast('Erro: '+e.message,'error',9000); });
 }
 
 function cheqExportarJSON(){
@@ -16681,6 +16579,8 @@ function _bancoAplicarResultado(r){
   if(r.action==='delete-entry'&&r.id) _bancoTirarLocal(r.id);
   if(r.removedMovementId) _bancoTirarLocal(r.removedMovementId);
   if(typeof CHQ_CTRL==='object'&&CHQ_CTRL){
+    if(r.cheque&&r.cheque.id) CHQ_CTRL[r.cheque.id]=r.cheque;
+    (Array.isArray(r.cheques)?r.cheques:[]).forEach(function(c){ if(c&&c.id) CHQ_CTRL[c.id]=c; });
     (r.cleared||[]).forEach(function(c){ const x=CHQ_CTRL[c.id]; if(x){ x.s='C'; x.cd=r.date||x.cd; if(c.movBancoId) x.movBancoId=c.movBancoId; } });
     if(r.action==='reopen-cheque'&&CHQ_CTRL[r.id]){ const x=CHQ_CTRL[r.id]; x.s='A'; x.cd=''; delete x.movBancoId; }
     if(r.action==='delete-cheque'){ try{ _chqDel[r.id]=true; }catch(e){} delete CHQ_CTRL[r.id]; }
@@ -17422,6 +17322,7 @@ function exportarPDF(){
   <script>window.onload=()=>window.print()<\/script>
   </body></html>`;
   const w=window.open('','_blank');
+  if(!w){ _avisarPopupBloqueado(); return; }
   w.document.write(html);
   w.document.close();
 }
@@ -18400,6 +18301,7 @@ function initDespesas(){
         var kpisHtml = document.getElementById('fc-kpis')?document.getElementById('fc-kpis').innerHTML:'';
         var tbodyHtml = document.getElementById('fc-tbody')?document.getElementById('fc-tbody').innerHTML:'';
         var w = window.open('','_blank');
+        if(!w){ _avisarPopupBloqueado(); return; }
         w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ficha — '+titulo+'</title>'
           +'<style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#6a1b9a;color:#fff;padding:6px 8px}td{padding:5px 8px;border-bottom:1px solid #eee}h2{color:#6a1b9a}.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}.kpi-box{background:#f9f5ff;border-left:3px solid #8e44ad;padding:8px 12px;border-radius:6px;font-size:11px}</style>'
           +'</head><body>'
@@ -18666,6 +18568,7 @@ function initDespesas(){
         var filtAte=(document.getElementById('ff-ate')||{}).value||'';
         var periodo=filtDe||filtAte?((filtDe?filtDe.split('-').reverse().join('/'):'inicio')+' ate '+(filtAte?filtAte.split('-').reverse().join('/'):'hoje')):'Todo o periodo';
         var win=window.open('','_blank','width=900,height=700');
+        if(!win){ _avisarPopupBloqueado(); return; }
         win.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Ficha - '+titulo+'</title>'
           +'<style>body{font-family:Arial,sans-serif;margin:0;padding:20px;font-size:12px}.hdr{display:flex;justify-content:space-between;border-bottom:3px solid #1a5e2a;padding-bottom:10px;margin-bottom:14px}.empresa{font-size:16px;font-weight:900;color:#1a5e2a}.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}table{width:100%;border-collapse:collapse}th{background:#1a5e2a;color:#fff;padding:6px 8px;text-align:left;font-size:11px}td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px}.footer{margin-top:14px;border-top:1px solid #ddd;padding-top:6px;font-size:9px;color:#aaa;text-align:center}@media print{.no-print{display:none}}</style></head><body>'
           +'<div class="no-print" style="margin-bottom:10px"><button onclick="window.print()" style="background:#1a5e2a;color:#fff;border:none;padding:7px 18px;border-radius:5px;cursor:pointer;margin-right:6px">Imprimir</button><button onclick="window.close()" style="background:#e74c3c;color:#fff;border:none;padding:7px 14px;border-radius:5px;cursor:pointer">Fechar</button></div>'
@@ -23271,6 +23174,7 @@ function coordImprimirTudo(){
   }
 
   const w=window.open('','_blank','width=900,height=700');
+  if(!w){ _avisarPopupBloqueado(); return; }
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Coordenação — Impressão</title>
     <style>${css}</style></head><body>${body}
     <script>window.onload=function(){window.print();}<\/script>
@@ -24100,6 +24004,7 @@ function coordExecutarImpressao(){
 
   cm();
   const w=window.open('','_blank','width=860,height=720');
+  if(!w){ _avisarPopupBloqueado(); return; }
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
   <title>Ficha — ${esc2(f.nome)}</title>
   <style>

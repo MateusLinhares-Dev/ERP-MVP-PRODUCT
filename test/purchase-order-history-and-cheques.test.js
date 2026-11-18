@@ -19,7 +19,7 @@ test('cheque oferece clientes e fornecedores ativos com destino identificável',
   assert.ok(found.some(x=>x.nome==='JOAO ELIAS'&&x.tipo==='Fornecedor'&&x.cod==='F3'));
   assert.ok(found.some(x=>x.nome==='CLIENTE TESTE'&&x.tipo==='Cliente'));
   assert.ok(!found.some(x=>x.nome==='FORN INATIVO'));
-  assert.match(core,/obj\.fornecedorCod=_selected\.cod/);
+  assert.match(core,/var destino=_selected\?\{tipo:_selected\.tipo,cod:_selected\.cod,nome:_selected\.nome\}:null;/);
   assert.doesNotMatch(core,/id=\"chqm-clientes-list\"/);
   assert.match(core,/id=\"chqm-destino-opcoes\"/);
 });
@@ -38,7 +38,7 @@ test('cheque usa fornecedores ativos da mesma fonte da aba Fornecedores, mesmo c
 
 test('cheque salva o código do fornecedor escolhido, não o código de cliente com nome parecido',async()=>{
   const code=extract(core,'function _chqCadastroDestinos(){','function _chqBindDestinoAutocomplete(ov){')+'\n'+
-    extract(core,'function chqSalvarModal(){','var _CHQ_FIX_GS=[];');
+    extract(core,'function chqSalvarModal(){','function chqSincronizarAbaAntiga(){');
   const form={
     'chqm-id':'','chqm-b':'as','chqm-n':'200','chqm-c':'JOAO ELIAS',
     'chqm-v':'1500,00','chqm-s':'A','chqm-d':'27/10/2026',
@@ -52,15 +52,16 @@ test('cheque salva o código do fornecedor escolhido, não o código de cliente 
     getFornAtivos(){return ctx.FORNECEDORES;},
     document:{getElementById(id){return form[id]===undefined?null:{value:form[id]};}},
     _chqParseVal(s){return Number(String(s).replace(',','.'));},
-    _chqRef(){return {child(){return {set(obj){saved=obj;return Promise.resolve();}}}};},
+    _bancoApi(body){saved=JSON.parse(JSON.stringify(body));return Promise.resolve({});},
     _cfgChequeBankSlug(){return 'AS';},
     CHQ_CTRL:{},renderChequesCompensar(){},chqFecharModal(){},showToast(){}
   };
   runInNewContext(code+'\nchqSalvarModal()',ctx);
   await new Promise(resolve=>setImmediate(resolve));
-  assert.equal(saved.fornecedorCod,'F003');
-  assert.equal(saved.fornecedorNome,'JOAO ELIAS');
-  assert.equal(saved.clienteCod,undefined);
+  assert.equal(saved.action,'save-cheque');
+  assert.deepEqual(saved.destino,{tipo:'Fornecedor',cod:'F003',nome:'JOAO ELIAS'});
+  assert.deepEqual(saved.cheque,{b:'as',n:'200',c:'JOAO ELIAS',v:1500,d:'27/10/2026',venc:'28/10/2026',cd:'',s:'A'});
+  assert.equal(saved.slug,'AS');
 });
 
 test('adiantamentos recém-cadastrados prevalecem sobre dataset financeiro vazio',()=>{

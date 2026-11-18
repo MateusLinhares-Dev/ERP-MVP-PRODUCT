@@ -67,6 +67,39 @@ const alertUser=(message,type='error')=>{if(typeof global.showToast==='function'
     return true;
   }
 
+  const brl=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  function purchasesUsingAdvance(advanceCode){
+    const out=[];
+    try{
+      Object.entries(typeof TICKETS_DB!=='undefined'&&TICKETS_DB?TICKETS_DB:{}).forEach(([key,t])=>{
+        const receipt=t&&t.reciboFinanceiro;
+        if(!receipt||Number(receipt.versao)!==2)return;
+        (receipt.adiantamentos||[]).forEach(row=>{
+          if(String(row?.cod||'')===String(advanceCode)&&Number(row.valorAplicado||0)>0)
+            out.push({key,ticket:String(t.ticket||key),valor:Number(row.valorAplicado||0),expected:{adiantamento:t.adiantamento,saldoPagar:t.saldoPagar,totalGeral:t.totalGeral}});
+        });
+      });
+    }catch(_){}
+    return out;
+  }
+  async function detachThenDelete(supplierCode, advanceCode, button, uses){
+    if(typeof global.erpPurchaseDetachAdvance!=='function'){alertUser('Abra Compra Sucata uma vez e tente de novo: o serviço de compras ainda não carregou.');return false;}
+    const lista=uses.map(u=>'• Pedido '+u.ticket+': R$ '+brl(u.valor)).join('\n');
+    const pergunta='Este adiantamento está abatido em compra:\n'+lista+'\n\n'+
+      'Para excluí-lo, primeiro ele precisa sair da compra:\n'+
+      '• o valor volta para o adiantamento;\n'+
+      '• o saldo a pagar da compra aumenta no mesmo valor (a conta em Contas a Pagar acompanha).\n\n'+
+      'Tirar o adiantamento '+(uses.length>1?'dessas compras':'dessa compra')+' agora?';
+    if(!global.confirm(pergunta))return false;
+    try{
+      for(const use of uses) await global.erpPurchaseDetachAdvance(use.key,advanceCode,use.expected);
+    }catch(error){
+      alertUser(String(error?.message||'Não foi possível tirar o adiantamento da compra. Nada foi alterado.'));
+      return false;
+    }
+    alertUser('Adiantamento '+advanceCode+' retirado da compra e livre de novo (Pendente). O saldo a pagar do pedido foi atualizado.','success');
+    return deleteAdvance(supplierCode, advanceCode, button);
+  }
   async function deleteAdvance(supplierCode, advanceCode, button) {
     const key = supplierCode + '::' + advanceCode;
     if (deleting.has(key)) return false;
@@ -76,6 +109,7 @@ const alertUser=(message,type='error')=>{if(typeof global.showToast==='function'
     const record = matches[0];
     if (!global.confirm(`Excluir o adiantamento ${advanceCode} de ${supplierCode}?\nO adiantamento e o movimento bancário vinculado serão removidos juntos.`)) return false;
     deleting.add(key);
+    let detachUses = null;
     const previous = button?.textContent;
     if (button) button.textContent = 'Excluindo…';
     try {
@@ -109,18 +143,21 @@ const alertUser=(message,type='error')=>{if(typeof global.showToast==='function'
       }else if(code==='DATABASE_UNAVAILABLE'||code==='SESSION_EXPIRED'||code==='NETWORK_ERROR'){
         alertUser(message||'A conexão oscilou e a exclusão não foi confirmada. Tente novamente em alguns segundos.');
       }else if(code==='ADVANCE_ALREADY_COMPENSATED'){
-        alertUser('Este adiantamento já foi utilizado. A exclusão exige uma conciliação financeira autorizada.');
+        const uses=purchasesUsingAdvance(advanceCode);
+        if(uses.length) detachUses=uses;
+        else alertUser('Este adiantamento já foi utilizado e não está abatido em nenhuma compra deste sistema. Se ele pagou uma conta em Contas a Pagar, exclua esse pagamento no 🕒 Histórico de pagamentos da conta: o valor volta para o adiantamento e depois ele pode ser excluído.');
       }else if(error?.status===403||code.toLowerCase()==='permission_denied'||/permission_denied/i.test(message)){
         alertUser('Você não tem permissão para excluir este adiantamento. Solicite autorização ao responsável financeiro.');
       }else{
         console.warn('advance.delete.rejected',{code,status:error?.status,reason:message});
         alertUser('Não foi possível concluir a exclusão. Nenhuma alteração foi confirmada. Solicite suporte ao administrador.');
       }
-      return false;
+      if(!detachUses)return false;
     } finally {
       deleting.delete(key);
       if (button?.isConnected) button.textContent = previous;
     }
+    return detachThenDelete(supplierCode, advanceCode, button, detachUses);
   }
 
   global.excluirAdiantamentoLista = function (button) {

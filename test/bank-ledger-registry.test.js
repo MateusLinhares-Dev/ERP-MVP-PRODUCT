@@ -220,3 +220,79 @@ test('endpoint POST /api/banking/ledger chama o servidor', () => {
   const source = readFileSync(new URL('../api/banking/ledger.ts', import.meta.url), 'utf8');
   assert.match(source, /changeBankLedger\(identity, body as Body\)/);
 });
+
+test('cadastro de cheque: cria com código do banco, recusa número repetido e não deixa mexer em cheque de adiantamento', async () => {
+  srv.reset(baseData());
+  const created = await call({ action: 'save-cheque', slug: 'SIC', cheque: { b: 'Sicredi', n: '900', c: 'FERRO VELHO', v: 1500.5, d: '17/11/2026', venc: '2026-12-17', cd: '', s: 'A' }, destino: { tipo: 'Cliente', cod: 'C9', nome: 'ferro velho' } });
+  assert.equal(created.cheque.id, 'CCSIC900');
+  const stored = await viaSdk('erp/chequesControle/CCSIC900');
+  assert.deepEqual([stored.b, stored.n, stored.v, stored.venc, stored.s, stored.clienteCod, stored.alteradoPor], ['Sicredi', '900', 1500.5, '17/12/2026', 'A', 'C9', 'elaine']);
+  await assert.rejects(call({ action: 'save-cheque', cheque: { b: ' sicredi ', n: '0900', c: 'X', v: 1, s: 'A' } }), (error) => error.code === 'CHEQUE_ALREADY_EXISTS' && /FERRO VELHO/.test(error.message));
+  const supplierCheque = await call({ action: 'save-cheque', slug: 'SIC', cheque: { b: 'Sicredi', n: '910', c: 'JOAO ELIAS', v: 1, s: 'A' }, destino: { tipo: 'Fornecedor', cod: 'F003', nome: 'JOAO ELIAS' } });
+  assert.deepEqual([supplierCheque.cheque.fornecedorCod, supplierCheque.cheque.fornecedorNome, supplierCheque.cheque.dest, supplierCheque.cheque.clienteCod], ['F003', 'JOAO ELIAS', 'JOAO ELIAS', undefined]);
+  const renamed = await call({ action: 'save-cheque', id: supplierCheque.cheque.id, cheque: { b: 'Sicredi', n: '910', c: 'OUTRO NOME', v: 1, s: 'A' } });
+  assert.equal(renamed.cheque.fornecedorCod, undefined, 'trocar o destino por texto tira o vínculo antigo');
+  await call({ action: 'save-cheque', cheque: { b: 'Cheque de Terceiro', n: '1', c: 'A', v: 1, s: 'A' } });
+  await call({ action: 'save-cheque', cheque: { b: 'Cheque de Terceiro', n: '1', c: 'B', v: 2, s: 'A' } });
+  await assert.rejects(call({ action: 'save-cheque', id: 'CC3', cheque: { b: 'Sicredi', n: '103', c: 'X', v: 300, s: 'A' } }), { code: 'CHEQUE_FROM_ADVANCE' });
+  await assert.rejects(call({ action: 'save-cheque', cheque: { b: 'Sicredi', n: '901', c: 'X', v: 1.005, s: 'A' } }), { code: 'INVALID_AMOUNT' });
+  await assert.rejects(call({ action: 'save-cheque', cheque: { b: 'Sicredi', n: '901', c: 'X', v: 1, s: 'A', d: '31/02/2026' } }), { code: 'INVALID_DATE' });
+  await assert.rejects(call({ action: 'save-cheque', cheque: { b: 'Sicredi', n: '901', c: 'X', v: 1, s: 'Z' } }), { code: 'INVALID_STATUS' });
+  await assert.rejects(call({ action: 'save-cheque', cheque: { b: 'Sicredi', n: '901', c: 'X', v: 1, s: 'A' } }, { ...identity, canFinance: false }), { code: 'FINANCE_REQUIRED' });
+});
+
+test('editar cheque que já saiu do banco: só aceita destino e datas de saída/vencimento; banco, valor e situação pedem Reabrir', async () => {
+  srv.reset(baseData());
+  const cleared = await call({ action: 'clear-cheques', date: '2026-11-17', cheques: [{ id: 'CC1', bankCode: 'BC-001' }] });
+  const movementId = cleared.movements[0].id;
+  const base = { b: 'Sicredi', n: '101', c: 'CLIENTE X', v: 250.5, d: '', venc: '', cd: '17/11/2026', s: 'C' };
+  for (const change of [{ v: 260 }, { s: 'A' }, { s: 'X' }, { b: 'Itaú' }, { n: '102' }, { cd: '18/11/2026' }])
+    await assert.rejects(call({ action: 'save-cheque', id: 'CC1', cheque: { ...base, ...change } }), { code: 'CHEQUE_ALREADY_DEBITED' }, JSON.stringify(change));
+  const ok = await call({ action: 'save-cheque', id: 'CC1', cheque: { ...base, c: 'CLIENTE CERTO', venc: '20/11/2026' } });
+  assert.equal(ok.cheque.movBancoId, movementId, 'o vínculo com o extrato continua');
+  const stored = await viaSdk('erp/chequesControle/CC1');
+  assert.deepEqual([stored.c, stored.venc, stored.s, stored.movBancoId], ['CLIENTE CERTO', '20/11/2026', 'C', movementId]);
+  const legacyEdit = await call({ action: 'save-cheque', id: 'CC5', cheque: { b: 'Sicredi', n: '105', c: '', v: 40, d: '', venc: '', cd: '', s: 'A' } });
+  assert.equal(legacyEdit.cheque.s, 'A', 'compensado à mão, sem saída no banco, pode voltar a compensar');
+});
+
+test('remessa de cheques: números em sequência, pula os que já existem; desconta da compra liga e desliga', async () => {
+  srv.reset(baseData());
+  const batch = await call({ action: 'batch-cheques', slug: 'SIC', start: 104, count: 4, s: 'C', dc: true, cheque: { b: 'Sicredi', c: 'AF SUCATAS', v: 4990, d: '05/11/2026', venc: '' } });
+  assert.deepEqual(batch.skipped, ['104', '105']);
+  assert.deepEqual(batch.cheques.map((c) => [c.id, c.n, c.s, c.cd, c.dc]), [['CCSIC106', '106', 'C', '05/11/2026', true], ['CCSIC107', '107', 'C', '05/11/2026', true]]);
+  assert.equal((await viaSdk('erp/chequesControle/CCSIC107')).v, 4990);
+  await assert.rejects(call({ action: 'batch-cheques', start: 1, count: 201, cheque: { b: 'Sicredi', v: 1 } }), { code: 'INVALID_COUNT' });
+  const on = await call({ action: 'toggle-cheque-discount', id: 'CC1' });
+  assert.equal(on.cheque.dc, true);
+  const off = await call({ action: 'toggle-cheque-discount', id: 'CC1' });
+  assert.equal(off.cheque.dc, undefined);
+  assert.equal((await viaSdk('erp/chequesControle/CC1')).dc, undefined);
+  await assert.rejects(call({ action: 'toggle-cheque-discount', id: 'CC3' }), { code: 'CHEQUE_FROM_ADVANCE' });
+});
+
+test('sincronizar aba antiga pelo servidor: não estraga cheque de adiantamento nem cheque que já saiu do banco', async () => {
+  srv.reset(baseData());
+  srv.seed('erp/chequesControle/CC6', { id: 'CC6', n: '106', b: 'Sicredi', v: 70, s: 'A', movBancoId: 'LB-X' });
+  srv.seed('erp/chequesControle_del/CCDEL', true);
+  const result = await call({ action: 'import-legacy-cheques',
+    items: [
+      { id: 'CC1', b: 'Sicredi', n: '101', c: 'NOVO NOME', v: 999, d: '01/11/2026', cd: '', s: 'A' },
+      { id: 'CC3', b: 'Sicredi', n: '103', c: 'ESTRAGARIA', v: 1, s: 'X' },
+      { id: 'CC6', b: 'Sicredi', n: '106', c: 'SÓ O NOME', v: 1, s: 'X' },
+      { id: 'CCNOVO7', b: 'Sicredi', n: '107', c: 'NOVO', v: 10, s: 'A' },
+      { id: 'CCDEL', b: 'Sicredi', n: '108', c: 'APAGADO', v: 10, s: 'A' },
+    ],
+    ghosts: ['CC2', 'CC4', 'CC5'] });
+  assert.deepEqual([result.created, result.updated, result.marked], [1, 2, 1]);
+  const cc1 = await viaSdk('erp/chequesControle/CC1');
+  assert.deepEqual([cc1.c, cc1.v, cc1.dc], ['NOVO NOME', 999, true]);
+  const cc3 = await viaSdk('erp/chequesControle/CC3');
+  assert.deepEqual([cc3.c, cc3.v, cc3.s, cc3.advanceCode], [undefined, 300, 'A', 'A2'], 'cheque de adiantamento intacto');
+  const cc6 = await viaSdk('erp/chequesControle/CC6');
+  assert.deepEqual([cc6.c, cc6.v, cc6.s, cc6.movBancoId], ['SÓ O NOME', 70, 'A', 'LB-X'], 'já saiu do banco: só o nome muda');
+  assert.equal((await viaSdk('erp/chequesControle/CC2')).s, 'N');
+  assert.equal((await viaSdk('erp/chequesControle/CC2')).c, 'CLIENTE Y', 'marcar "não existe" não apaga os outros dados');
+  assert.equal((await viaSdk('erp/chequesControle/CC4')).s, 'A', 'cheque de adiantamento nunca vira "não existe"');
+  assert.equal(await viaSdk('erp/chequesControle/CCDEL'), null);
+});

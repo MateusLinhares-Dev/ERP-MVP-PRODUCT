@@ -40,8 +40,8 @@ const explicit=new Set(Object.keys(current.rules.erp).filter((key)=>!key.startsW
 const metadata=new Set(['_ts','_user','_untomb']);
 const directNodes={
   listaCompras:{read:'canShoppingList',write:'canShoppingList'},
-  chequesControle:{read:'canFinance',write:'canFinance'},
-  chequesControle_del:{read:'canFinance',write:'canFinance'},
+  chequesControle:{read:'canFinance',write:false},
+  chequesControle_del:{read:'canFinance',write:false},
   ticketsDeletedV2:{read:'canPurchasing',write:'canPurchasing'},
   advanceBackups:{read:'admin',write:'admin'}
 };
@@ -98,7 +98,7 @@ candidate.rules.erp.supplierOperations={'.read':false,'.write':false};
 candidate.rules.erp.customerOperations={'.read':false,'.write':false};
 for(const [node,access] of Object.entries(directNodes)){
   if(candidate.rules.erp[node])throw new Error(`Regra direta duplicada: ${node}`);
-  const grant=(perm)=>perm==='admin'?`${auth} && auth.token.admin == true`:`${auth} && auth.token.${perm} == true`;
+  const grant=(perm)=>perm===false?false:perm==='admin'?`${auth} && auth.token.admin == true`:`${auth} && auth.token.${perm} == true`;
   candidate.rules.erp[node]={'.read':grant(access.read),'.write':grant(access.write)};
 }
 candidate.rules.erp.documentCategories={

@@ -74,6 +74,7 @@ export function refundAdvanceReceipt(
   excess: number,
   ticketNo: string,
   at: number,
+  onlyCode = '',
 ): AdvanceRefund {
   const receipt = clone((previous.reciboFinanceiro ?? {}) as FinancialReceipt);
   const appliedTotal = assertRefundable(previous, receipt);
@@ -93,7 +94,7 @@ export function refundAdvanceReceipt(
   let remaining = excess;
   for (let index = rows.length - 1; index >= 0 && remaining > 0; index--) {
     const row = rows[index];
-    if (!row) continue;
+    if (!row || (onlyCode && String(row.cod || '') !== onlyCode)) continue;
     const applied = cash(Number(row.valorAplicado || 0));
     const take = Math.min(applied, remaining);
     if (!take) continue;

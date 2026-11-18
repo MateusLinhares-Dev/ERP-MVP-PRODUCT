@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-17-2330-v246-contas-pix-iguais';
+  const _APP_BUILD = '2026-11-18-1000-v248-tirar-adiantamento-da-compra';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -378,10 +378,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           if(typeof FISCAL_NCM_OVERRIDE_2026!=='undefined') FISCAL_NCM_OVERRIDE_2026=cfg.fiscalData.ncmOverride2026||{};
         }catch(_e){}
       }
-      try{
-        var rep=cfg.legacyRepairs||{};
-        if(typeof _CHQ_FIX_GS!=='undefined') _CHQ_FIX_GS=((rep.gratusSicrediDefinitive||{}).records||[]);
-      }catch(_e){}
     }catch(e){ console.warn('config negócio:', e); }
   }
 

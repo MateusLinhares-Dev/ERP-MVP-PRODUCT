@@ -610,11 +610,11 @@
       },
       "chequesControle": {
         ".read": "auth != null && auth.token.erpAccess == true && auth.token.canFinance == true",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.canFinance == true"
+        ".write": false
       },
       "chequesControle_del": {
         ".read": "auth != null && auth.token.erpAccess == true && auth.token.canFinance == true",
-        ".write": "auth != null && auth.token.erpAccess == true && auth.token.canFinance == true"
+        ".write": false
       },
       "ticketsDeletedV2": {
         ".read": "auth != null && auth.token.erpAccess == true && auth.token.canPurchasing == true",

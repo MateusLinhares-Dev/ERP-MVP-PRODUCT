@@ -3,7 +3,21 @@ import type { Database } from 'firebase-admin/database';
 import { actorKey, type Identity } from '../../../shared/auth/identity.js';
 import { toBRDate, toISODate } from '../../../shared/domain/dates.js';
 import { fail } from '../../../shared/errors/app-error.js';
-import { withLocks } from '../../../shared/firebase/locks.js';
+import { batchCheques, importLegacyCheques, saveCheque, toggleChequeDiscount } from './cheque-control.js';
+import {
+  CHEQUES_LOCK,
+  LOCK_ROOT,
+  actor,
+  clean,
+  findMovement,
+  lock,
+  read,
+  requireKey,
+  rows,
+  shortId,
+  text,
+  type Context,
+} from './ledger-support.js';
 import {
   MAX_CHEQUES,
   centsOf,
@@ -27,44 +41,15 @@ export interface BankLedgerDeps {
   uuid?: () => string;
 }
 
-interface Context {
-  db: Database;
-  identity: Identity;
-  now: () => number;
-  uuid: () => string;
-}
-
 interface StoredAccount {
   key: string;
   record: Row;
 }
 
-const LOCK_ROOT = 'erpBankLedgerLocks/';
 const ACCOUNTS_LOCK = LOCK_ROOT + 'accounts';
-const CHEQUES_LOCK = LOCK_ROOT + 'cheques';
-const clean = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
-const text = (value: unknown, max = 200): string =>
-  String(value ?? '')
-    .trim()
-    .slice(0, max);
-const actor = (identity: Identity): string => text(identity.erpUser || identity.uid, 80);
-const shortId = (context: Context, size = 8): string => context.uuid().replace(/-/g, '').slice(0, size);
 
 async function database(db?: Database): Promise<Database> {
   return db ?? (await import('../../../shared/firebase/firebase-admin.js')).getFirebaseAdmin().db;
-}
-
-async function read(db: Database, path: string): Promise<unknown> {
-  return (await db.ref(path).get()).val();
-}
-
-function rows(raw: unknown): [string, Row][] {
-  if (Array.isArray(raw))
-    return raw
-      .map((value, index): [string, unknown] => [String(index), value])
-      .filter((pair): pair is [string, Row] => isRow(pair[1]));
-  if (isRow(raw)) return Object.entries(raw).filter((pair): pair is [string, Row] => isRow(pair[1]));
-  return [];
 }
 
 function idList(raw: unknown): Set<string> {
@@ -77,26 +62,6 @@ function idList(raw: unknown): Set<string> {
     );
   return new Set();
 }
-
-function requireKey(value: unknown, message: string): string {
-  const key = safeKey(value);
-  if (!key) fail(422, 'INVALID_REFERENCE', message);
-  return key;
-}
-
-const lock = <T>(context: Context, paths: string[], work: () => Promise<T>) =>
-  withLocks(
-    context.db,
-    paths,
-    {
-      now: context.now,
-      uuid: context.uuid,
-      code: 'BANK_LEDGER_IN_PROGRESS',
-      message:
-        'Esta conta ou lançamento está sendo alterado em outra tela. Aguarde alguns segundos e tente de novo.',
-    },
-    work,
-  );
 
 async function loadAccounts(db: Database): Promise<StoredAccount[]> {
   const [raw, deletedOld, deletedNew] = await Promise.all([
@@ -127,16 +92,6 @@ function bankByCode(accounts: StoredAccount[], code: string): StoredAccount | un
     accounts.find((account) => accountCode(account) === code) ??
     accounts.find((account) => accountId(account) === code)
   );
-}
-
-async function findMovement(db: Database, id: string): Promise<{ path: string; row: Row } | null> {
-  const direct = await read(db, 'erp/lancBanco/' + id);
-  if (isRow(direct) && (direct.id == null || String(direct.id) === id))
-    return { path: id, row: { ...direct, id } };
-  const found = rows(await read(db, 'erp/lancBanco')).find(
-    ([path, row]) => String(row.id ?? '') === id || path === id,
-  );
-  return found ? { path: found[0], row: { ...found[1], id } } : null;
 }
 
 function advanceRecords(raw: unknown): Row[] {
@@ -543,6 +498,10 @@ const ACTIONS: Record<
   'clear-cheques': { claim: 'canFinance', run: clearCheques },
   'reopen-cheque': { claim: 'canFinance', run: reopenCheque },
   'delete-cheque': { claim: 'canFinance', run: deleteCheque },
+  'save-cheque': { claim: 'canFinance', run: saveCheque },
+  'batch-cheques': { claim: 'canFinance', run: batchCheques },
+  'toggle-cheque-discount': { claim: 'canFinance', run: toggleChequeDiscount },
+  'import-legacy-cheques': { claim: 'canFinance', run: importLegacyCheques },
 };
 
 export async function changeBankLedger(identity: Identity, input: unknown, deps: BankLedgerDeps = {}) {
