@@ -110,6 +110,49 @@ Regras:
 
 Uma aba antiga que ainda grava o extrato teria esse envio recusado pelas regras novas.
 
+## Tirar adiantamento de uma compra (18/11/2026, v248)
+
+Pedido da cliente: apagar um adiantamento que já estava abatido numa notinha (ex.: R$ 3.424,95 na T269), sem quebrar a compra.
+
+A ação nova `POST /api/finance/purchase-advance-detach` (`server/modules/purchases/application/detach-purchase-advance.ts`) tira **um** adiantamento de **uma** compra, numa gravação só:
+- **Adiantamento:** volta a ficar Pendente com o valor que estava abatido naquela compra (`refundAdvanceReceipt` com o código do adiantamento). O histórico fica em `devolucoesCompra`.
+- **Compra:** o abatimento (`adiantamento`) cai, o saldo a pagar sobe no mesmo valor e o recibo registra a devolução (`reciboFinanceiro.devolucoes`). O total dos itens não muda.
+- **Contas a Pagar:** com parcela única, a conta da compra sobe; parcelado, a última parcela em aberto sobe; compra já quitada ganha uma conta nova com a diferença (`CP-AJUSTE-…`, a mesma regra da correção de compra paga).
+- **Proteções:**
+  - mesmas travas da edição de compra e dos adiantamentos;
+  - recusa se a compra mudou em outra tela;
+  - repetir a mesma operação não devolve duas vezes;
+  - compra paga com cheque ou crédito antigo continua pedindo conciliação;
+  - é preciso acesso a Compras e a Adiantamentos (ou Financeiro).
+
+Onde a cliente usa:
+- **Adiantamentos → 🗑:** se o adiantamento está abatido em compra, a tela mostra o(s) pedido(s) e o valor e oferece tirar da compra. Depois disso, a exclusão normal continua (com a confirmação de sempre).
+- **Compra Sucata → Histórico → Editar pedido:** o quadro Pagamento lista os adiantamentos abatidos, cada um com o botão "Tirar desta compra". A tela reabre o pedido já atualizado.
+- Adiantamento usado para pagar uma conta em Contas a Pagar (não uma compra) continua pelo 🕒 Excluir pagamento.
+
+## Controle de cheques só pelo servidor (18/11/2026, v247)
+
+Desde a v247 o navegador também não grava `chequesControle` nem `chequesControle_del` (regras com `.write: false`). A aba "Cheques a compensar" continua igual, mas cada ação vai à API `banking/ledger`:
+
+| Ação | Botão |
+|---|---|
+| `save-cheque` | + Novo Cheque e Editar (formulário) |
+| `batch-cheques` | 📦 Remessa (vários): números em sequência, pula os que já existem no banco |
+| `toggle-cheque-discount` | 🛒 desconta da compra |
+| `import-legacy-cheques` | 🔄 Sincronizar aba antiga (enviado em lotes de 200) |
+| `clear-cheques`, `reopen-cheque`, `delete-cheque` | Compensar, depositar em lote, Reabrir, Excluir (v244) |
+
+Problemas corrigidos junto:
+- **Editar cheque que já saiu do banco:** o formulário deixava trocar valor, banco, número, situação ou data de compensação sem mexer no extrato. A saída ficava sobrando ou com valor diferente. Agora o servidor recusa e pede Reabrir antes (o valor volta ao banco). Destino, data de saída e vencimento continuam editáveis.
+- **Cheque de adiantamento:** não se edita nem se marca/desmarca "desconta da compra" pelo controle; corrige-se pelo próprio adiantamento.
+- **Número repetido no mesmo banco:** o servidor recusa, com a mesma regra dos adiantamentos (`chequeIdentity`). "Cheque de Terceiro" pode repetir.
+- **🔄 Sincronizar aba antiga:**
+  - antes, ela marcava como "NÃO EXISTE" cheques que não estavam na aba antiga, inclusive os criados pelos adiantamentos, e regravava o cheque apagando o vínculo com o adiantamento;
+  - agora o servidor preserva os cheques de adiantamento e, nos que já saíram do banco, muda só o nome e a data;
+  - ao marcar "não existe", mantém os outros dados do cheque.
+- **Saíram** os botões de correção de uma vez só ("➕ Completar Gratus Sicredi", "🔧 Corrigir Acredi" e a correção definitiva do Gratus Sicredi). Eles aplicavam conferências de agosto e dezembro de 2025, e rodar de novo hoje podia desfazer compensações e cancelamentos feitos depois. A configuração `legacyRepairs` no Firebase deixou de ser usada para isso.
+- **Saiu** a rotina de "reparo" que rodava ao abrir a aba (`_chqRepararBase`), que estava vazia.
+
 ## Tela de Bancos em React (17/11/2026, v245)
 
 A aba Contas Bancárias é React (`web/modules/banking/`) e grava pela mesma API `banking/ledger`. Nada muda para a cliente, exceto:

@@ -79,3 +79,29 @@ test('a tela não cria nem apaga lançamento do extrato por conta própria',()=>
   assert.doesNotMatch(core,/function registrarMovBanco/);
   assert.doesNotMatch(core,/LANC_BANCO_DB\.push\(\{id,bancoCod:cod/);
 });
+
+test('remessa e "desconta da compra" vão ao servidor; a tela não grava chequesControle direto', async () => {
+  const batchCode = slice('function chqRemessaSalvar(){', 'function _chqParseVal(s){');
+  const toggleCode = slice('function chqToggleCompra(id){', 'function renderChequesCompensar(){');
+  const calls = [];
+  const fields = { 'chqr-b': 'Sicredi', 'chqr-c': 'AF SUCATAS', 'chqr-ini': '180', 'chqr-qtd': '3', 'chqr-v': '4.990,00', 'chqr-d': '05/11/2026', 'chqr-venc': '', 'chqr-s': 'A', 'chqr-dc': true };
+  const ctx = {
+    CHQ_CTRL: { C1: { n: '1' }, C2: { n: '2', advanceCode: 'A9' } }, calls, toasts: [],
+    document: { getElementById: (id) => (id in fields ? { value: fields[id], checked: fields[id] } : null) },
+    _chqParseVal: (v) => Number(String(v).replace(/\./g, '').replace(',', '.')),
+    _cfgChequeBankSlug: () => 'SIC', chqFecharModal() {}, showToast(m, t) { ctx.toasts.push([t, m]); },
+    _bancoApi: async (body) => { calls.push(JSON.parse(JSON.stringify(body))); return body.action === 'batch-cheques' ? { cheques: [{ id: 'X' }, { id: 'Y' }], skipped: ['182'] } : { cheque: { dc: true } }; },
+  };
+  runInNewContext(batchCode + toggleCode, ctx);
+  ctx.chqRemessaSalvar();
+  ctx.chqToggleCompra('C1');
+  ctx.chqToggleCompra('C2');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(calls, [
+    { action: 'batch-cheques', slug: 'SIC', start: 180, count: 3, s: 'A', dc: true, cheque: { b: 'Sicredi', c: 'AF SUCATAS', v: 4990, d: '05/11/2026', venc: '' } },
+    { action: 'toggle-cheque-discount', id: 'C1' },
+  ]);
+  assert.match(ctx.toasts.find((t) => t[0] === 'success')[1], /2 cheque\(s\) \(1 já existiam, pulei\)/);
+  assert.doesNotMatch(core, /_chqRef\(\)\.update\(|_chqRef\(\)\.child\(|r\.child\(id\)\.(set|update|remove)\(|dr\.child\(id\)\.set\(/);
+  assert.doesNotMatch(core, /function chqCorrigirAcredi|function chqCompletarGratusSicredi|_CHQ_FIX_GS/);
+});

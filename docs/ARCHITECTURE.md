@@ -203,8 +203,10 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
     - o cálculo do extrato virou `domain/ledger.ts`, testado contra o `bank-ledger.js` antigo, que continua só para a conciliação;
     - saíram do `app-core.js` a tabela, o formulário, o extrato e o menu antigos (`renderBancos` ficou vazio, como em Contas a Pagar); `verExtratoBanco`, `editBanco`, `excluirBanco` e `om('banco')` abrem as janelas novas;
     - o `Dialog` dos módulos React passou para `web/shared/ui/Dialog.tsx`.
+  - Controle de cheques (v247): `chequesControle` só pelo servidor (cadastro, edição, remessa, "desconta da compra", sincronizar aba antiga). A tela ainda é a antiga.
+  - Impressões (v247): as 13 janelas de impressão que não conferiam se o navegador bloqueou o pop-up agora avisam (`_avisarPopupBloqueado`); um teste impede novas sem essa conferência.
 - **Ordem das próximas migrações:**
-  1. Resto do controle de cheques (`chequesControle`: cadastro e edição) no servidor e a tela de Cheques em React.
+  1. Tela "Cheques a compensar" em React; depois a aba antiga de Cheques (`cheques`, `chequesCli`) no servidor.
   2. Compra sucata (hoje metade navegador, metade servidor).
   3. Balança rodoviária.
   4. Painel e Fluxo de caixa.

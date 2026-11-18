@@ -132,3 +132,8 @@
 .phase4-ticket-lookup button{min-height:37px}
 #phase4-ticket-lookup-result{flex:1 1 240px;min-width:180px;max-width:100%;font-size:.76rem;line-height:1.45;color:#475e4e;overflow-wrap:anywhere}
 @media(max-width:620px){.phase4-ticket-lookup{align-items:stretch}.phase4-ticket-lookup input{flex:1}.phase4-ticket-lookup button{flex:1}}
+.phase4-po-applied-advances{margin-top:10px;border:1px solid #dfe8e2;border-radius:9px;padding:10px 12px;background:#f8fbf9;display:grid;gap:6px;font-size:.82rem}
+.phase4-po-applied-advances>b{color:#1a3a2a}
+.phase4-po-applied-advance{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.phase4-po-applied-advance span{flex:1 1 220px;color:#4d5b53}
+.phase4-po-applied-advance strong{color:#1a3a2a}

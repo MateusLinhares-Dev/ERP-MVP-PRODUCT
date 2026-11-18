@@ -63,14 +63,15 @@ test('regras ativas bloqueiam qualquer coleção desconhecida',()=>{
 });
 
 test('operações diretas continuam declaradas e separadas por domínio',()=>{
-  for(const node of ['listaCompras','chequesControle','chequesControle_del','advanceBackups']){
+  for(const node of ['listaCompras','chequesControle','chequesControle_del','advanceBackups'])
     assert.equal(typeof rules.erp[node]?.['.read'],'string',node);
-    assert.equal(typeof rules.erp[node]?.['.write'],'string',node);
-  }
+  for(const node of ['listaCompras','advanceBackups'])assert.equal(typeof rules.erp[node]?.['.write'],'string',node);
+  for(const node of ['chequesControle','chequesControle_del'])assert.equal(rules.erp[node]['.write'],false,node+': só o servidor grava');
   assert.equal(rules.erp.ticketsDeletedV2['.write'],false);
   assert.equal(serverPermit('listaCompras','read',{erpAccess:true,...buildSecurityClaims({tabs:['lista_compras']})}),true);
   assert.equal(serverPermit('chequesControle','write',{erpAccess:true,...buildSecurityClaims({tabs:['lista_compras']})}),false);
-  assert.equal(serverPermit('chequesControle','write',{erpAccess:true,...buildSecurityClaims({tabs:['cheques_compensar']})}),true);
+  assert.equal(serverPermit('chequesControle','write',{erpAccess:true,...buildSecurityClaims({tabs:['cheques_compensar']})}),false);
+  assert.equal(serverPermit('chequesControle','read',{erpAccess:true,...buildSecurityClaims({tabs:['cheques_compensar']})}),true);
   assert.equal(serverPermit('advanceBackups','write',{erpAccess:true,admin:false}),false);
   assert.equal(serverPermit('advanceBackups','write',{erpAccess:true,admin:true}),true);
 });

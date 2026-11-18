@@ -3,3 +3,4 @@ export { deletePurchaseOrder, type DeletePurchaseInput } from './application/del
 export { editPurchaseOrder } from './application/edit-purchase-order.js';
 export { refundAdvanceReceipt } from './domain/advance-refund.js';
 export * from './domain/installments.js';
+export { detachPurchaseAdvance } from './application/detach-purchase-advance.js';

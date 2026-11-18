@@ -419,7 +419,12 @@ function paymentHtml(state){
       'Adiantamentos/abatimentos: R$ '+money(advances)+'. '+
       (previouslySettled>0.005?'Outras baixas ou ajustes já considerados: R$ '+money(previouslySettled)+'. ':'')+
       'Saldo original: '+(balance<0?'crédito R$ ':'R$ ')+money(Math.abs(balance))+'. '+
-      'A edição dos itens não cria uma nova baixa nem reutiliza pagamentos. Alterações financeiras protegidas exigem conciliação.</div>';
+      'A edição dos itens não cria uma nova baixa nem reutiliza pagamentos. Alterações financeiras protegidas exigem conciliação.</div>'+
+      ((state.appliedAdvances||[]).length?'<div class="phase4-po-applied-advances"><b>Adiantamentos abatidos nesta compra</b>'+
+        state.appliedAdvances.map(function(a){
+          return '<div class="phase4-po-applied-advance"><span>'+esc(a.cod)+(a.data?' · '+esc(a.data):'')+(a.forma?' · '+esc(a.forma):'')+'</span><strong>R$ '+money(a.valor)+'</strong>'+
+            '<button type="button" class="btn-edit" onclick="phase4PurchaseDetachAdvance(\''+esc(a.cod)+'\')" title="O valor volta para o adiantamento e o saldo a pagar desta compra aumenta">Tirar desta compra</button></div>';
+        }).join('')+'</div>':'');
   }
   const adts=(state.adts||[]).map(function(a,index){
     return '<label class="phase4-po-pay-row"><input type="checkbox" id="csadt-'+index+'" value="'+Number(a.valor||0)+'" onchange="phase4PurchaseRecalc()"><span><b>'+esc(a.cod||'Adiantamento')+'</b><small>'+esc(a.data||'')+' · '+esc(a.forma||a.bancoNome||'')+'</small></span><strong>R$ '+money(a.valor)+'</strong></label>';
@@ -1607,6 +1612,59 @@ function isoDate(value){
   const match=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(date);
   return match?match[3]+'-'+match[2]+'-'+match[1]:today();
 }
+async function purchaseDetachAdvance(ticketNo,adtCod,expected){
+  const current=global.firebase?.auth?.()?.currentUser;
+  if(!current||typeof current.getIdToken!=='function')throw new Error('Sessão expirada. Entre novamente.');
+  const operationId=global.crypto?.randomUUID?.()||('00000000-0000-4000-8000-'+String(Date.now()).padStart(12,'0').slice(-12));
+  const payload=JSON.stringify({operationId,ticketNo,adtCod,expected:expected||undefined});
+  let response=null,result={},networkError=null;
+  for(let attempt=1;attempt<=3;attempt++){
+    networkError=null;
+    try{
+      const token=await current.getIdToken();
+      response=await fetch('/api/finance/purchase-advance-detach',{method:'POST',credentials:'same-origin',cache:'no-store',
+        headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:payload});
+      result=await response.json().catch(()=>({}));
+    }catch(error){networkError=error;response=null;result={};}
+    const transient=networkError||(response&&([502,503,504].includes(response.status)||(response.status===409&&result.code==='EDIT_IN_PROGRESS')));
+    if(!transient||attempt===3)break;
+    await new Promise(function(resolve){setTimeout(resolve,attempt*1500);});
+  }
+  if(networkError)throw new Error('Sem resposta do servidor. Confira o pedido no Histórico antes de repetir.');
+  if(!response.ok){const error=new Error(result.message||'O servidor não confirmou a retirada do adiantamento.');error.code=result.code;throw error;}
+  if(!result.ticket||String(result.ticket.ticket||ticketNo)!==String(ticketNo))throw new Error('A resposta do servidor não confirmou o pedido.');
+  TICKETS_DB[ticketNo]=result.ticket;
+  try{if(typeof _ticketsSnapJSON!=='undefined')_ticketsSnapJSON[ticketNo]=JSON.stringify(result.ticket);}catch(e){}
+  if(result.advances&&result.fornCod&&typeof ADT_POR_FORN!=='undefined')ADT_POR_FORN[result.fornCod]=Array.isArray(result.advances)?result.advances:Object.values(result.advances);
+  if(result.payable&&result.payable.id&&typeof CONTAS_PAGAR!=='undefined'){
+    const index=CONTAS_PAGAR.findIndex(function(row){return String(row?.id||'')===String(result.payable.id);});
+    if(index>=0)CONTAS_PAGAR[index]=result.payable;else CONTAS_PAGAR.push(result.payable);
+  }
+  try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Adiantamento retirado da compra',adtCod+' — R$ '+money(result.valor)+' voltou para o adiantamento; saldo a pagar do pedido '+ticketNo+' agora R$ '+money(result.ticket.saldoPagar),null,{ticket:ticketNo,adtCod:adtCod});}catch(e){}
+  ['renderTickets','renderAdiantamentos','renderContasPagar','renderDashboard','renderFluxo'].forEach(function(name){try{if(typeof global[name]==='function')global[name]();}catch(e){}});
+  return result;
+}
+global.erpPurchaseDetachAdvance=purchaseDetachAdvance;
+global.phase4PurchaseDetachAdvance=async function(adtCod){
+  const body=document.getElementById('cs-lanc-body');
+  const state=body?currentState(body):null;
+  if(!state?.editKey)return;
+  const row=(state.appliedAdvances||[]).find(function(a){return a.cod===adtCod;});
+  if(!row)return;
+  const ticket=state.ticketSnapshot?JSON.parse(state.ticketSnapshot):{};
+  const message='Tirar o adiantamento '+adtCod+' do pedido '+state.orderNumber+'?\n\n'+
+    '• R$ '+money(row.valor)+' voltam a ficar disponíveis no adiantamento (ele pode ser usado em outra compra ou excluído).\n'+
+    '• O saldo a pagar deste pedido aumenta R$ '+money(row.valor)+' e a conta em Contas a Pagar acompanha.\n\n'+
+    'Alterações nos itens que ainda não foram salvas serão descartadas.';
+  if(!confirm(message))return;
+  try{
+    await purchaseDetachAdvance(state.editKey,adtCod,{adiantamento:ticket.adiantamento,saldoPagar:ticket.saldoPagar,totalGeral:ticket.totalGeral});
+    try{showToast('R$ '+money(row.valor)+' voltou para o adiantamento '+adtCod+'. O saldo a pagar do pedido foi atualizado.','success',8000);}catch(e){}
+    await global.phase4PurchaseEditTicket(state.editKey);
+  }catch(error){
+    try{showToast(error.message||'Não foi possível tirar o adiantamento.','error',9000);}catch(e){}
+  }
+};
 function stateForExistingTicket(key,cloudTicket){
   const ticket=cloudTicket||tickets()[key];if(!ticket)return null;
   const supplier=supplierForTicket(ticket);
@@ -1631,6 +1689,7 @@ function stateForExistingTicket(key,cloudTicket){
     dueDate:isoDate(ticket.vencimentoSaldo||po.vencimentoSaldo||ticket.data),
     sourceTicketKeys:[],adts:[],cheques:[],previousCredit:0,
     appliedAdvance:Number(ticket.adiantamento||0)||0,
+    appliedAdvances:Number(ticket.reciboFinanceiro?.versao)===2?(ticket.reciboFinanceiro?.adiantamentos||[]).filter(function(row){return Number(row?.valorAplicado||0)>0;}).map(function(row){return {cod:String(row.cod||''),valor:Number(row.valorAplicado||0),data:String(row.data||''),forma:String(row.forma||'')};}):[],
     advanceRefundable:Number(ticket.reciboFinanceiro?.versao)===2&&
       (ticket.reciboFinanceiro?.adiantamentos||[]).some(function(row){return Number(row?.valorAplicado||0)>0;})&&
       !(ticket.reciboFinanceiro?.cheques||[]).some(function(row){return Number(row?.valorAplicado||0)>0;})&&

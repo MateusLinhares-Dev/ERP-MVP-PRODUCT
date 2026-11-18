@@ -51,3 +51,16 @@ test('cartões de Bancos e Contas a Pagar não ficam presos em "Aguardando…"',
   assert.match(workspace, /Nada em aberto no mês/);
   assert.doesNotMatch(html, /Aguardando lançamentos/);
 });
+
+test('impressões não quebram quando o navegador bloqueia a janela: avisam para permitir pop-ups', () => {
+  const unguarded = [];
+  for (const match of core.matchAll(/(?:const|var|let)\s+(\w+)\s*=\s*window\.open\(/g)) {
+    const tail = core.slice(match.index + match[0].length, match.index + match[0].length + 260);
+    const name = match[1];
+    if (!new RegExp('if\\s*\\(\\s*!\\s*' + name + '\\b|' + name + '\\s*\\?\\.|if\\s*\\(\\s*' + name + '\\s*\\)').test(tail))
+      unguarded.push(core.slice(0, match.index).split('\n').length);
+  }
+  assert.deepEqual(unguarded, [], 'linhas sem conferência: ' + unguarded.join(', '));
+  assert.match(core, /function _avisarPopupBloqueado\(\)\{[\s\S]*Permita pop-ups para este site/);
+  assert.doesNotMatch(core, /height:1000'/);
+});
