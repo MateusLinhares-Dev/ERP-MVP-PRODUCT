@@ -7251,6 +7251,30 @@ function adtTipoTab(tipo){
 
 function saveAdtCli(){ localStorage.setItem('mm_adt_cli', JSON.stringify(ADT_CLI)); fbSalvar(); }
 function saveChequesCli(){ localStorage.setItem('mm_cheques_cli', JSON.stringify(CHEQUES_CLI)); fbSalvar(); }
+async function _cliCreditoApi(payload){
+  const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
+  if(!user) throw new Error('Sessão expirada. Entre novamente.');
+  const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
+  let response;
+  try{
+    response=await fetch('/api/finance/client-credits',{method:'POST',credentials:'same-origin',
+      headers:{Authorization:'Bearer '+await user.getIdToken(),'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }catch(e){ throw new Error('Sem conexão com o servidor. Confira a internet e tente de novo.'); }
+  const result=await response.json().catch(function(){ return {}; });
+  if(!response.ok){ const error=new Error(result.message||'O servidor não confirmou a alteração.'); error.code=result.code; throw error; }
+  if(result.cliente&&Array.isArray(result.advances)) ADT_CLI[result.cliente]=result.advances;
+  if(result.cliente&&Array.isArray(result.cheques)) CHEQUES_CLI[result.cliente]=result.cheques;
+  try{ localStorage.setItem('mm_adt_cli',JSON.stringify(ADT_CLI)); localStorage.setItem('mm_cheques_cli',JSON.stringify(CHEQUES_CLI)); }catch(e){}
+  ['renderAdtCli','renderChequesCli','renderFluxo','renderDashboard'].forEach(function(n){ try{ if(typeof window[n]==='function') window[n](); }catch(e){} });
+  return result;
+}
+window.erpClientCreditRequest=_cliCreditoApi;
+function _cliChequeAt(cliNome,num,banco,idx){
+  const lista=CHEQUES_CLI[cliNome]||[];
+  const i=Number(idx);
+  if(Number.isInteger(i)&&lista[i]&&String(lista[i].num)===String(num)&&String(lista[i].banco||'')===String(banco||'')) return lista[i];
+  return lista.find(function(x){ return String(x.num)===String(num)&&String(x.banco||'')===String(banco||''); })||null;
+}
 
 let _fcAba='extrato';
 let _fcCliente='';
@@ -7443,26 +7467,20 @@ function _popularClientesSel(){
   ['adtcli-cli','cheqcli-cli'].forEach(id=>{ const s=document.getElementById(id); if(s) s.innerHTML=opts; });
 }
 
-function salvarAdiantamentoCli(){
+async function salvarAdiantamentoCli(){
   const cliNome=document.getElementById('adtcli-cli')?.value||'';
   const valor=parseFloat(document.getElementById('adtcli-valor')?.value)||0;
   const data=document.getElementById('adtcli-data')?.value||'';
   if(!cliNome||valor<=0||!data){showToast('⚠️ Preencha cliente, valor e data!','error');return;}
-  if(!ADT_CLI[cliNome]) ADT_CLI[cliNome]=[];
-  const cod='ADTC'+String(Date.now()).slice(-6);
-  const dataFmt=data.split('-').reverse().join('/');
-  const bancoCod=document.getElementById('adtcli-banco')?.value||'';
-  const bancoNome=bancoCod?((_erpBankDirectory.banks.find(b=>b.cod===bancoCod)?.banco)||''):'';
-  ADT_CLI[cliNome].push({
-    cod, data:dataFmt, valor,
-    forma: document.getElementById('adtcli-forma')?.value||'PIX',
-    bancoCod, bancoNome,
-    vinculo: document.getElementById('adtcli-vinculo')?.value.trim()||'',
-    obs:     document.getElementById('adtcli-obs')?.value.trim()||'',
-    status: 'Pendente'
-  });
-  saveAdtCli();
-  renderAdtCli();
+  try{
+    await _cliCreditoApi({action:'create-advance',cliente:cliNome,advance:{
+      valor,data,
+      forma:document.getElementById('adtcli-forma')?.value||'PIX',
+      bancoCod:document.getElementById('adtcli-banco')?.value||'',
+      vinculo:document.getElementById('adtcli-vinculo')?.value.trim()||'',
+      obs:document.getElementById('adtcli-obs')?.value.trim()||''
+    }});
+  }catch(error){ showToast('Adiantamento não registrado: '+error.message,'error',9000); return; }
   cm();
   showToast('✅ Adiantamento de '+cliNome+' registrado! R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2}),'success');
 }
@@ -7501,37 +7519,35 @@ function renderAdtCli(){
   if(k2) k2.textContent=aplic.length;
 }
 
-function excluirAdtCli(cliNome,cod){
+async function excluirAdtCli(cliNome,cod){
   const adt=(ADT_CLI[cliNome]||[]).find(a=>a&&a.cod===cod);
   if(adt&&((Array.isArray(adt.usos)&&adt.usos.length)||adt.status==='Quitado'||adt.status==='Aplicado')){
     alert('Este adiantamento já foi usado em venda'+(adt.vinculo?' ('+adt.vinculo+')':'')+'. Para devolver o valor, exclua ou edite a venda. Depois, se precisar, exclua o adiantamento.');
     return;
   }
   if(!confirm('Excluir este adiantamento?')) return;
-  if(ADT_CLI[cliNome]) ADT_CLI[cliNome]=ADT_CLI[cliNome].filter(a=>a.cod!==cod);
-  saveAdtCli(); renderAdtCli();
+  try{ await _cliCreditoApi({action:'delete-advance',cliente:cliNome,cod}); }
+  catch(error){ showToast(error.message,'error',9000); return; }
   showToast('Adiantamento excluído.','warn');
 }
 
-function salvarChequeCli(){
+async function salvarChequeCli(){
   const cliNome=document.getElementById('cheqcli-cli')?.value||'';
   const valor=parseFloat(document.getElementById('cheqcli-valor')?.value)||0;
   const num=(document.getElementById('cheqcli-num')?.value||'').trim();
   if(!cliNome||valor<=0||!num){showToast('⚠️ Preencha cliente, nº cheque e valor!','error');return;}
-  if(!CHEQUES_CLI[cliNome]) CHEQUES_CLI[cliNome]=[];
-  const data=document.getElementById('cheqcli-data')?.value||'';
-  const bomPara=document.getElementById('cheqcli-bompara')?.value||'';
-  CHEQUES_CLI[cliNome].push({
-    num, data: data?data.split('-').reverse().join('/'):'',
-    bomPara: bomPara?bomPara.split('-').reverse().join('/'):'',
-    valor,
-    banco:   document.getElementById('cheqcli-banco')?.value.trim()||'',
-    tipo:    document.getElementById('cheqcli-tipo')?.value||'Adiantamento',
-    vinculo: document.getElementById('cheqcli-vinculo')?.value.trim()||'',
-    obs:     document.getElementById('cheqcli-obs')?.value.trim()||'',
-    status: 'Pendente'
-  });
-  saveChequesCli(); renderChequesCli(); cm();
+  try{
+    await _cliCreditoApi({action:'create-cheques',cliente:cliNome,cheques:[{
+      num,valor,
+      data:document.getElementById('cheqcli-data')?.value||'',
+      bomPara:document.getElementById('cheqcli-bompara')?.value||'',
+      banco:document.getElementById('cheqcli-banco')?.value.trim()||'',
+      tipo:document.getElementById('cheqcli-tipo')?.value||'Adiantamento',
+      vinculo:document.getElementById('cheqcli-vinculo')?.value.trim()||'',
+      obs:document.getElementById('cheqcli-obs')?.value.trim()||''
+    }]});
+  }catch(error){ showToast('Cheque não lançado: '+error.message,'error',9000); return; }
+  cm();
   showToast('✅ Cheque de '+cliNome+' lançado!','success');
 }
 
@@ -7541,7 +7557,7 @@ function renderChequesCli(){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const all=[];
   Object.entries(CHEQUES_CLI).forEach(([cliNome,lista])=>{
-    lista.forEach(c=>all.push({...c,cliNome}));
+    lista.forEach((c,i)=>all.push({...c,cliNome,_idx:i}));
   });
   all.sort((a,b)=>(a.bomPara||a.data).localeCompare(b.bomPara||b.data));
   if(all.length===0){
@@ -7571,41 +7587,37 @@ function renderChequesCli(){
       <td>${stHtml}</td>
       <td style="font-size:.78rem">${esc(c.obs||'—')}</td>
       <td style="white-space:nowrap">
-        <button onclick="editarChequeCli(${_jsArg(c.cliNome)},${_jsArg(c.num)})" class="btn-edit" style="font-size:.72rem" title="Editar cheque">✏️</button>
-        <button onclick="alterarStatusChequeCli(${_jsArg(c.cliNome)},${_jsArg(c.num)})" class="btn-edit" style="font-size:.72rem" title="Alterar status">🔄</button>
-        <button onclick="excluirChequeCli(${_jsArg(c.cliNome)},${_jsArg(c.num)})" class="btn-edit-danger" title="Excluir">🗑️</button>
+        <button onclick="editarChequeCli(${_jsArg(c.cliNome)},${_jsArg(c.num)},${_jsArg(c.banco||'')},${c._idx})" class="btn-edit" style="font-size:.72rem" title="Editar cheque">✏️</button>
+        <button onclick="alterarStatusChequeCli(${_jsArg(c.cliNome)},${_jsArg(c.num)},${_jsArg(c.banco||'')},${c._idx})" class="btn-edit" style="font-size:.72rem" title="Alterar status">🔄</button>
+        <button onclick="excluirChequeCli(${_jsArg(c.cliNome)},${_jsArg(c.num)},${_jsArg(c.banco||'')},${c._idx})" class="btn-edit-danger" title="Excluir">🗑️</button>
       </td>
     </tr>`;
   }).join('');
 }
 
-function alterarStatusChequeCli(cliNome,num){
-  const lista=CHEQUES_CLI[cliNome]||[];
-  const c=lista.find(x=>x.num===num);
+async function alterarStatusChequeCli(cliNome,num,banco,idx){
+  const c=_cliChequeAt(cliNome,num,banco,idx);
   if(!c) return;
+  if(c.status==='Quitado'){ showToast('Este cheque foi usado na venda '+(c.vinculo||'')+'. Para mudar a situação, desfaça pela venda.','info',8000); return; }
   const ops=['Pendente','Compensado','Devolvido','Pago (após devolução)'];
-  const cur=ops.indexOf(c.status);
-  const novo=ops[(cur+1)%ops.length];
+  const novo=ops[(ops.indexOf(c.status||'Pendente')+1)%ops.length];
+  let motivo='';
   if(novo==='Devolvido'){
-    const motivo=prompt('Motivo da devolução do cheque nº '+num+' (ex: sem fundos, sustado, divergência...):', c.motivoDevolucao||'');
-    if(motivo===null) return; 
-    c.motivoDevolucao=(motivo||'').trim();
-  } else if(novo==='Pendente'){
-    c.motivoDevolucao=''; 
+    const resposta=prompt('Motivo da devolução do cheque nº '+num+' (ex: sem fundos, sustado, divergência...):', c.motivoDevolucao||'');
+    if(resposta===null) return;
+    motivo=(resposta||'').trim();
   }
-  c.status=novo;
-  saveChequesCli(); renderChequesCli();
-  try{renderFluxo();}catch(e){}
+  try{ await _cliCreditoApi({action:'cycle-cheque-status',cliente:cliNome,num,banco:banco||'',index:idx,expectedStatus:c.status||'Pendente',motivo}); }
+  catch(error){ showToast(error.message,'error',9000); }
 }
-function excluirChequeCli(cliNome,num){
+async function excluirChequeCli(cliNome,num,banco,idx){
   if(!confirm('Excluir este cheque?')) return;
-  if(CHEQUES_CLI[cliNome]) CHEQUES_CLI[cliNome]=CHEQUES_CLI[cliNome].filter(c=>c.num!==num);
-  saveChequesCli(); renderChequesCli();
+  try{ await _cliCreditoApi({action:'delete-cheque',cliente:cliNome,num,banco:banco||'',index:idx}); showToast('Cheque excluído.','warn'); }
+  catch(error){ showToast(error.message,'error',9000); }
 }
 
-function editarChequeCli(cliNome,num){
-  const lista=CHEQUES_CLI[cliNome]||[];
-  const c=lista.find(x=>x.num===num);
+function editarChequeCli(cliNome,num,banco,idx){
+  const c=_cliChequeAt(cliNome,num,banco,idx);
   if(!c){ try{showToast('Cheque não encontrado.','error');}catch(e){} return; }
   const toISO=d=> d&&String(d).indexOf('/')>=0 ? String(d).split('/').reverse().join('-') : (d||'');
   const old=document.getElementById('modal-edit-cheqcli'); if(old) old.remove();
@@ -7622,41 +7634,30 @@ function editarChequeCli(cliNome,num){
       '<div class="fg" style="margin:0"><label>Banco / Agência</label><input id="ecc-banco" value="'+esc(c.banco||'')+'"></div>'+
       '<div class="fg" style="margin:0"><label>Emitente (nome no cheque)</label><input id="ecc-emitente" value="'+esc(c.emitente||'')+'"></div>'+
       '<div class="fg" style="margin:0"><label>Tipo</label><select id="ecc-tipo"><option'+(c.tipo==='Adiantamento'?' selected':'')+'>Adiantamento</option><option'+(c.tipo==='Pagamento'?' selected':'')+'>Pagamento</option></select></div>'+
-      '<div class="fg" style="margin:0"><label>Status</label><select id="ecc-status"><option'+(c.status==='Pendente'?' selected':'')+'>Pendente</option><option'+(c.status==='Compensado'?' selected':'')+'>Compensado</option><option'+(c.status==='Devolvido'?' selected':'')+'>Devolvido</option><option'+(c.status==='Pago (após devolução)'?' selected':'')+'>Pago (após devolução)</option></select></div>'+
+      '<div class="fg" style="margin:0"><label>Status</label><select id="ecc-status">'+(c.status==='Quitado'?'<option value="Quitado" selected>Quitado (usado em venda)</option>':'')+'<option'+(c.status==='Pendente'?' selected':'')+'>Pendente</option><option'+(c.status==='Compensado'?' selected':'')+'>Compensado</option><option'+(c.status==='Devolvido'?' selected':'')+'>Devolvido</option><option'+(c.status==='Pago (após devolução)'?' selected':'')+'>Pago (após devolução)</option></select></div>'+
       '<div class="fg" style="margin:0;grid-column:1/-1"><label>Vinculado à Venda/NF</label><input id="ecc-vinculo" value="'+esc(c.vinculo||'')+'"></div>'+
       '<div class="fg" style="margin:0;grid-column:1/-1"><label>Motivo da devolução <span style="font-weight:400;color:#888;font-size:.8rem">(só se Devolvido)</span></label><input id="ecc-motivo" value="'+esc(c.motivoDevolucao||'')+'" placeholder="Ex: sem fundos, sustado..."></div>'+
       '<div class="fg" style="margin:0;grid-column:1/-1"><label>Obs.</label><input id="ecc-obs" value="'+esc(c.obs||'')+'"></div>'+
     '</div>'+
     '<div class="modal-ft" style="margin-top:14px">'+
       '<button class="btn-cancel" onclick="document.getElementById(\'modal-edit-cheqcli\').remove()">Cancelar</button>'+
-      '<button class="btn-save" onclick="salvarEdicaoChequeCli('+_jsArg(cliNome)+','+_jsArg(c.num)+')">💾 Salvar</button>'+
+      '<button class="btn-save" onclick="salvarEdicaoChequeCli('+_jsArg(cliNome)+','+_jsArg(c.num)+','+_jsArg(c.banco||'')+','+Number(idx)+')">💾 Salvar</button>'+
     '</div>';
   ov.appendChild(box); document.body.appendChild(ov);
 }
-function salvarEdicaoChequeCli(cliNome,numOrig){
-  const lista=CHEQUES_CLI[cliNome]||[];
-  const c=lista.find(x=>x.num===numOrig);
+async function salvarEdicaoChequeCli(cliNome,numOrig,bancoOrig,idx){
+  const c=_cliChequeAt(cliNome,numOrig,bancoOrig,idx);
   if(!c){ try{showToast('Cheque não encontrado.','error');}catch(e){} return; }
   const g=id=>document.getElementById(id);
-  const toBR=d=> d? String(d).split('-').reverse().join('/') : '';
   const novoNum=(g('ecc-num').value||'').trim();
   const valor=parseFloat(g('ecc-valor').value)||0;
   if(!novoNum||valor<=0){ alert('Informe número e valor do cheque.'); return; }
-  c.num=novoNum;
-  c.valor=valor;
-  c.data=toBR(g('ecc-data').value);
-  c.bomPara=toBR(g('ecc-bompara').value);
-  c.banco=(g('ecc-banco').value||'').trim();
-  c.emitente=(g('ecc-emitente').value||'').trim();
-  c.tipo=g('ecc-tipo').value;
-  c.status=g('ecc-status').value;
-  c.vinculo=(g('ecc-vinculo').value||'').trim();
-  c.motivoDevolucao=(g('ecc-motivo').value||'').trim();
-  c.obs=(g('ecc-obs').value||'').trim();
-  if(c.status!=='Devolvido' && c.status!=='Pago (após devolução)') c.motivoDevolucao=''; 
-  saveChequesCli();
+  const cheque={num:novoNum,valor,data:g('ecc-data').value||'',bomPara:g('ecc-bompara').value||'',
+    banco:(g('ecc-banco').value||'').trim(),emitente:(g('ecc-emitente').value||'').trim(),tipo:g('ecc-tipo').value,
+    status:g('ecc-status').value,vinculo:(g('ecc-vinculo').value||'').trim(),motivoDevolucao:(g('ecc-motivo').value||'').trim(),obs:(g('ecc-obs').value||'').trim()};
+  try{ await _cliCreditoApi({action:'update-cheque',cliente:cliNome,num:numOrig,banco:bancoOrig||'',index:idx,cheque}); }
+  catch(error){ showToast(error.message,'error',9000); return; }
   const m=document.getElementById('modal-edit-cheqcli'); if(m) m.remove();
-  renderChequesCli(); try{renderFluxo();}catch(e){}
   try{showToast('Cheque atualizado!','success');}catch(e){}
 }
 
@@ -10641,7 +10642,7 @@ function downloadTemplateChequesCli(){
   _baixarTemplateEstatico('/templates/cheques_clientes.xlsx','cheques_clientes.xlsx');
 }
 
-function salvarChequesCli(){
+async function salvarChequesCli(){
   const cliSel=document.getElementById('cheqcli-cli');
   const cliNome=cliSel?cliSel.value:'';
   if(!cliNome){alert('Selecione o cliente!');return;}
@@ -10650,28 +10651,20 @@ function salvarChequesCli(){
   const vinculoPad=(document.getElementById('cheqcli-vinculo')?.value||'').trim();
   const rows=document.querySelectorAll('#cheqcli-rows tr');
   if(rows.length===0){alert('Adicione ao menos um cheque!');return;}
-  if(!CHEQUES_CLI[cliNome]) CHEQUES_CLI[cliNome]=[];
-  let salvos=0;
+  const cheques=[];
   rows.forEach(tr=>{
     const inputs=tr.querySelectorAll('input');
     const num=(inputs[0]?.value||'').trim();
     const valor=parseFloat(inputs[1]?.value)||0;
-    const bomParaISO=inputs[2]?.value||'';
-    const banco=((inputs[3]?.value||'').trim())||bancoPad;
-    const vinculo=((inputs[4]?.value||'').trim())||vinculoPad;
-    const emitente=(inputs[5]?.value||'').trim();
-    if(!num||valor<=0) return; 
-    const bomFmt=bomParaISO?bomParaISO.split('-').reverse().join('/'):'';
-    const statusImport=tr.dataset.statusImport==='Compensado'?'Compensado':'Pendente';
-    CHEQUES_CLI[cliNome].push({ num, data:'', bomPara:bomFmt, valor, banco, tipo:tipoPad, vinculo, emitente, obs:'', status:statusImport, motivoDevolucao:'' });
-    salvos++;
+    if(!num||valor<=0) return;
+    cheques.push({num,valor,data:'',bomPara:inputs[2]?.value||'',banco:((inputs[3]?.value||'').trim())||bancoPad,
+      vinculo:((inputs[4]?.value||'').trim())||vinculoPad,emitente:(inputs[5]?.value||'').trim(),tipo:tipoPad,obs:'',
+      status:tr.dataset.statusImport==='Compensado'?'Compensado':'Pendente'});
   });
-  if(salvos===0){alert('Nenhum cheque válido (informe número e valor)!');return;}
-  saveChequesCli();
-  try{renderChequesCli();}catch(e){}
-  try{renderAdtCli();}catch(e){}
-  try{renderFluxo();}catch(e){}
-  try{renderDashboard();}catch(e){}
+  if(!cheques.length){alert('Nenhum cheque válido (informe número e valor)!');return;}
+  const salvos=cheques.length;
+  try{ await _cliCreditoApi({action:'create-cheques',cliente:cliNome,cheques}); }
+  catch(error){ showToast('Cheques não lançados: '+error.message,'error',9000); return; }
   cm();
   try{showToast(salvos+' cheque(s) de '+cliNome+' salvos!','success');}catch(e){}
 }

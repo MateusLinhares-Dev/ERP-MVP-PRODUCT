@@ -408,6 +408,63 @@ function sourceTicketsHtml(state){
     }).join('')+
   '</div>';
 }
+function openPurchasePayables(key){
+  try{
+    const ticket=tickets()[key]||{};
+    const number=String(ticket.ticket||key);
+    return (CONTAS_PAGAR||[]).filter(function(cp){
+      return cp&&String(cp.ticket||'')===number&&String(cp.status||'')!=='Pago'&&Number(cp.valor||0)>0.005;
+    }).sort(function(a,b){return String(a.id||'').localeCompare(String(b.id||''),'pt-BR',{numeric:true});});
+  }catch(e){return [];}
+}
+function freeSupplierAdvance(code,key){
+  try{
+    const number=String((tickets()[key]||{}).ticket||key);
+    return (ADT_POR_FORN?.[code]||[]).filter(function(a){
+      return a&&String(a.status||'')==='Pendente'&&(!String(a.ticket||'').trim()||String(a.ticket).trim()===number);
+    }).reduce(function(sum,a){return sum+Math.max(0,Number(a.valor||0));},0);
+  }catch(e){return 0;}
+}
+function freeAdvanceHtml(state){
+  if(!state.editKey||!tickets()[state.editKey]?._purchaseOperationId)return '';
+  const open=openPurchasePayables(state.editKey).reduce(function(sum,cp){return sum+Number(cp.valor||0);},0);
+  const free=freeSupplierAdvance(state.supplierCode,state.editKey);
+  if(open<=0.005||free<=0.005)return '';
+  const use=Math.min(open,free);
+  return '<div class="phase4-po-free-advance"><span>Adiantamento livre deste fornecedor: <b>R$ '+money(free)+'</b>. '+
+    'Usar R$ '+money(use)+' quita '+(use>=open-0.005?'o saldo desta compra':'parte do saldo desta compra')+' e sobra R$ '+money(free-use)+' de adiantamento.</span>'+
+    '<button type="button" class="btn-save" onclick="phase4PurchaseUseAdvance()">Usar adiantamento nesta compra</button></div>';
+}
+global.phase4PurchaseUseAdvance=async function(){
+  const body=document.getElementById('cs-lanc-body');
+  const state=body?currentState(body):null;
+  if(!state?.editKey)return;
+  if(typeof global.erpPayablesCompensateAdvance!=='function'){try{showToast('Abra Contas a Pagar uma vez e tente de novo.','error');}catch(e){}return;}
+  const payables=openPurchasePayables(state.editKey);
+  const open=payables.reduce(function(sum,cp){return sum+Number(cp.valor||0);},0);
+  const free=freeSupplierAdvance(state.supplierCode,state.editKey);
+  let remaining=Math.round(Math.min(open,free)*100)/100;
+  if(remaining<=0)return;
+  const message='Usar R$ '+money(remaining)+' do adiantamento de '+state.supplierName+' no pedido '+state.orderNumber+'?\n\n'+
+    '• Saldo a pagar do pedido: de R$ '+money(open)+' para R$ '+money(open-remaining)+'.\n'+
+    '• Adiantamento livre do fornecedor: de R$ '+money(free)+' para R$ '+money(free-remaining)+'.\n\n'+
+    'O banco não é mexido (o dinheiro do adiantamento já saiu). Para desfazer, use o 🕒 Histórico de pagamentos da conta em Contas a Pagar.\n'+
+    'Alterações nos itens que ainda não foram salvas serão descartadas.';
+  if(!confirm(message))return;
+  for(const cp of payables){
+    if(remaining<=0.005)break;
+    const portion=Math.round(Math.min(remaining,Number(cp.valor||0))*100)/100;
+    const outcome=await global.erpPayablesCompensateAdvance(cp.id,portion);
+    if(!outcome||outcome.kind!=='done'){
+      try{showToast((outcome&&outcome.message)||'Não foi possível usar o adiantamento.','error',9000);}catch(e){}
+      break;
+    }
+    remaining=Math.round((remaining-portion)*100)/100;
+  }
+  try{showToast('Adiantamento usado no pedido '+state.orderNumber+'. Saldo e adiantamento atualizados.','success',8000);}catch(e){}
+  try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Adiantamento usado após o fechamento',state.orderNumber,null,{ticket:state.orderNumber});}catch(e){}
+  await global.phase4PurchaseEditTicket(state.editKey);
+};
 function paymentHtml(state){
   if(state.editKey){
     const advances=Math.max(0,Number(state.appliedAdvance||0));
@@ -420,6 +477,7 @@ function paymentHtml(state){
       (previouslySettled>0.005?'Outras baixas ou ajustes já considerados: R$ '+money(previouslySettled)+'. ':'')+
       'Saldo original: '+(balance<0?'crédito R$ ':'R$ ')+money(Math.abs(balance))+'. '+
       'A edição dos itens não cria uma nova baixa nem reutiliza pagamentos. Alterações financeiras protegidas exigem conciliação.</div>'+
+      freeAdvanceHtml(state)+
       ((state.appliedAdvances||[]).length?'<div class="phase4-po-applied-advances"><b>Adiantamentos abatidos nesta compra</b>'+
         state.appliedAdvances.map(function(a){
           return '<div class="phase4-po-applied-advance"><span>'+esc(a.cod)+(a.data?' · '+esc(a.data):'')+(a.forma?' · '+esc(a.forma):'')+'</span><strong>R$ '+money(a.valor)+'</strong>'+

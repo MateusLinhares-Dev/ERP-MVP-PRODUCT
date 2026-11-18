@@ -558,11 +558,11 @@
       },
       "adtCli": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+        ".write": false
       },
       "chequesCli": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+        ".write": false
       },
       "fcLanc": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
@@ -593,6 +593,10 @@
         ".write": false
       },
       "bankLedgerOperations": {
+        ".read": false,
+        ".write": false
+      },
+      "clientCreditOperations": {
         ".read": false,
         ".write": false
       },

@@ -11,7 +11,7 @@ import {
   verifyPayment,
 } from '../modules/payables/application/payments.js';
 import type { PaymentDeps } from '../modules/payables/application/payments.js';
-import { reversalRequest } from '../modules/payables/domain/payment.js';
+import { advanceOptions, paymentRequest, reversalRequest } from '../modules/payables/domain/payment.js';
 import type { PaymentContext } from '../modules/payables/domain/payment.js';
 import { payableRows } from '../modules/payables/domain/payables.js';
 import { PayablesWorkspace } from '../modules/payables/ui/PayablesWorkspace.js';
@@ -200,6 +200,33 @@ export function installPayables(): void {
     excluirContaPagar: (index: unknown, id?: unknown) => send({ kind: 'delete', id: idAt(index, id) }),
     pagarContaRapido: (index: unknown, id?: unknown) => send({ kind: 'pay', id: idAt(index, id) }, false),
     verHistoricoPagamentosCP: (id: unknown) => send({ kind: 'history', id: String(id ?? '') }, false),
+    erpPayablesCompensateAdvance: async (id: unknown, amount: unknown) => {
+      const row = rowsNow().find((item) => item.id === String(id ?? ''));
+      if (!row) return { kind: 'error', message: 'Conta a pagar não encontrada. Atualize a tela.' };
+      const context = legacy().erpPayablesPaymentContext?.(row.id) ?? {
+        fornCod: '',
+        ticket: '',
+        advances: [],
+      };
+      const options = advanceOptions(context, row.amount);
+      const value = Math.min(Number(amount) || 0, options.limit);
+      if (!(value > 0))
+        return { kind: 'error', message: 'Não há adiantamento livre deste fornecedor para usar.' };
+      const plan = paymentRequest(
+        {
+          total: value.toFixed(2),
+          advance: value.toFixed(2),
+          date: todayISO(),
+          bank: '',
+          notes: 'Adiantamento usado pela compra',
+        },
+        row,
+        'advance-only',
+        { fornCod: context.fornCod, advanceLimit: options.limit, operationId: window.crypto.randomUUID() },
+      );
+      if (!plan.ok) return { kind: 'error', message: plan.message };
+      return submitPayment(deps, plan.payload);
+    },
     erpPayablesReverse: (id: unknown, index: unknown) => {
       const row = rowsNow().find((item) => item.id === String(id ?? ''));
       return reversePayment(

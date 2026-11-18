@@ -202,22 +202,54 @@ function byClient(map: Record<string, Raw[]>, client: string): Raw[] {
   return Array.isArray(list) ? list.filter(isRaw) : [];
 }
 
+export const chequeBankKey = (value: unknown): string => foldAccents(text(value)).replace(/\s+/g, ' ').trim();
+
+export const openClientCheque = (row: Raw): boolean =>
+  !CLOSED_CHEQUE.has(text(row.status) || 'Pendente') && amount(row.valor) > 0 && Boolean(text(row.num));
+
+export function chequeRefs(rows: readonly Raw[]): string[] {
+  const byNumber = new Map<string, number>();
+  for (const row of rows) byNumber.set(text(row.num), (byNumber.get(text(row.num)) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  return rows.map((row) => {
+    const num = text(row.num);
+    if ((byNumber.get(num) ?? 0) < 2) return num;
+    const base = num + '@' + chequeBankKey(row.banco);
+    const nth = seen.get(base) ?? 0;
+    seen.set(base, nth + 1);
+    return nth ? base + '#' + nth : base;
+  });
+}
+
+export function findChequeByRef(rows: readonly Raw[], ref: string, open: boolean): Raw | undefined {
+  const [head = '', nthText = '0'] = ref.split('#');
+  const at = head.indexOf('@');
+  const num = at >= 0 ? head.slice(0, at) : head;
+  const bank = at >= 0 ? head.slice(at + 1) : null;
+  const nth = Number(nthText) || 0;
+  const matches = rows.filter(
+    (row) =>
+      text(row.num) === num &&
+      (bank === null || chequeBankKey(row.banco) === bank) &&
+      (open ? openClientCheque(row) : text(row.status) === 'Quitado'),
+  );
+  return matches[bank === null ? 0 : nth];
+}
+
 export function clientCredits(data: SalesData, client: string): ClientCredit[] {
   if (!text(client)) return [];
-  const cheques = byClient(data.clientCheques, client)
-    .filter(
-      (row) => !CLOSED_CHEQUE.has(text(row.status) || 'Pendente') && amount(row.valor) > 0 && text(row.num),
-    )
-    .map<ClientCredit>((row) => ({
-      kind: 'cheque',
-      ref: text(row.num),
-      date: text(row.bomPara) || text(row.data),
-      amount: amount(row.valor),
-      detail: [text(row.bomPara) ? 'bom para ' + text(row.bomPara) : '', text(row.banco)]
-        .filter(Boolean)
-        .join(' · '),
-      bank: text(row.banco),
-    }));
+  const openCheques = byClient(data.clientCheques, client).filter(openClientCheque);
+  const refs = chequeRefs(openCheques);
+  const cheques = openCheques.map<ClientCredit>((row, index) => ({
+    kind: 'cheque',
+    ref: refs[index] ?? text(row.num),
+    date: text(row.bomPara) || text(row.data),
+    amount: amount(row.valor),
+    detail: [text(row.bomPara) ? 'bom para ' + text(row.bomPara) : '', text(row.banco)]
+      .filter(Boolean)
+      .join(' · '),
+    bank: text(row.banco),
+  }));
   const advances = byClient(data.clientAdvances, client)
     .filter(
       (row) => (text(row.status) || 'Pendente') === 'Pendente' && amount(row.valor) > 0 && text(row.cod),
