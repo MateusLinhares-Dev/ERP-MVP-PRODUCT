@@ -144,8 +144,10 @@ const alertUser=(message,type='error')=>{if(typeof global.showToast==='function'
         alertUser(message||'A conexão oscilou e a exclusão não foi confirmada. Tente novamente em alguns segundos.');
       }else if(code==='ADVANCE_ALREADY_COMPENSATED'){
         const uses=purchasesUsingAdvance(advanceCode);
+        const oldTicket=String(record.ticket||record.ticketOrigem||'').trim();
         if(uses.length) detachUses=uses;
-        else alertUser('Este adiantamento já foi utilizado e não está abatido em nenhuma compra deste sistema. Se ele pagou uma conta em Contas a Pagar, exclua esse pagamento no 🕒 Histórico de pagamentos da conta: o valor volta para o adiantamento e depois ele pode ser excluído.');
+        else if(oldTicket) alertUser('Este adiantamento foi usado no pedido '+oldTicket+', lançado antes do recibo financeiro atual: ele não pode ser tirado automaticamente. Nada foi alterado. Peça a conciliação ao responsável pelo financeiro.');
+        else alertUser('Este adiantamento já foi utilizado e não está abatido em nenhuma compra. Se ele pagou uma conta em Contas a Pagar, exclua esse pagamento no 🕒 Histórico de pagamentos da conta: o valor volta para o adiantamento e depois ele pode ser excluído.');
       }else if(error?.status===403||code.toLowerCase()==='permission_denied'||/permission_denied/i.test(message)){
         alertUser('Você não tem permissão para excluir este adiantamento. Solicite autorização ao responsável financeiro.');
       }else{

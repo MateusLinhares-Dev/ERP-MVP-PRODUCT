@@ -1321,10 +1321,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canFinance"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "chequesCli": {
@@ -1335,10 +1333,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canFinance"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "fcLanc": {

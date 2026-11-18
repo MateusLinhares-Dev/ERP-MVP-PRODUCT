@@ -1,5 +1,5 @@
 import { fromCents, toCents } from '../../../shared/domain/money.js';
-import { amount, isRaw, text } from './sales.js';
+import { amount, findChequeByRef, isRaw, text } from './sales.js';
 import type { Raw } from './sales.js';
 
 export interface CreditUseInput {
@@ -32,7 +32,7 @@ export function applyCredits(
   for (const use of uses) {
     const value = round(use.amount);
     if (use.kind === 'cheque') {
-      const cheque = nextCheques.find((item) => text(item.num) === use.ref);
+      const cheque = findChequeByRef(nextCheques, use.ref, true);
       if (!cheque || CLOSED_CHEQUE.has(text(cheque.status) || 'Pendente'))
         return {
           advances: nextAdvances,
@@ -120,7 +120,7 @@ export function restoreCredits(
       if (text(advance.vinculo) === ref) advance.vinculo = '';
       restored++;
     } else {
-      const cheque = nextCheques.find((item) => text(item.num) === used.num);
+      const cheque = findChequeByRef(nextCheques, text(used.num), false);
       if (!cheque || text(cheque.status) !== 'Quitado') continue;
       cheque.status = 'Pendente';
       if (text(cheque.vinculo) === ref) cheque.vinculo = '';

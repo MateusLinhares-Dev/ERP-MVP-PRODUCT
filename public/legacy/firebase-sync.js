@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-18-1000-v248-tirar-adiantamento-da-compra';
+  const _APP_BUILD = '2026-11-18-1700-v250-usar-adiantamento-na-notinha';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -1083,8 +1083,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(window.__ERP_FINANCE_CLOUD_READY__)
         _patchIncremental(dados, 'fcSaldoIni', FC_SALDO_INI, _DEL_SETS.fcSaldoIni);
       if(window.__ERP_FINANCE_CLOUD_READY__){
-        _patchIncremental(dados, 'adtCli', ADT_CLI, null);
-        _patchIncremental(dados, 'chequesCli', CHEQUES_CLI, null);
         _patchIncremental(dados, 'fcLanc', FC_LANC, null);
       }
 

@@ -38,6 +38,7 @@ before(async () => {
   mod = {
     ...(await import('../server/modules/purchases/index.js')),
     ...(await import('../server/modules/advances/application/advances.js')),
+    ...(await import('../server/modules/payables/application/payables.js')),
   };
 });
 after(async () => {
@@ -149,4 +150,131 @@ test('endpoint e telas: API própria, tela da compra e lista de adiantamentos of
   assert.match(confirms[1], /Pedido T269: R\$ 3\.424,95/);
   assert.match(confirms[1], /saldo a pagar da compra aumenta/);
   assert.ok(toasts.some(([kind, message]) => kind === 'success' && /retirado da compra/.test(message)));
+});
+
+const pay = (payableId, valor, amount) =>
+  mod.payPayable(identity, { payableId, operationId: randomUUID(), bankCode: 'B1', date: today, amount, expected: { valor, status: 'Pendente', paymentsCount: 0 } }, { db });
+
+test('pagamento parcial já feito pelo banco continua pago: tirar o adiantamento só aumenta o que falta', async () => {
+  srv.reset(baseData());
+  const code = await advance(300);
+  await create(ticket('T600', 1000), [code]);
+  await pay('CPPO_T600', 700, 200);
+  const before = await viaSdk('erp/contasPagar/CPPO_T600');
+  assert.deepEqual([before.valor, before.valorPago, (before.pagamentos || []).length], [500, 200, 1]);
+  assert.equal((await viaSdk('erp/tickets/T600')).saldoPagar, 500);
+  await detach('T600', code);
+  const after = await viaSdk('erp/contasPagar/CPPO_T600');
+  assert.deepEqual([after.valor, after.valorPago, after.status, (after.pagamentos || []).length], [800, 200, 'Pendente', 1], 'o pagamento de R$ 200 fica registrado');
+  const t = await viaSdk('erp/tickets/T600');
+  assert.deepEqual([t.saldoPagar, t.adiantamento, t.status], [800, 0, 'Parcial']);
+  const movements = Object.values((await viaSdk('erp/lancBanco')) || {});
+  assert.equal(movements.filter((m) => m.payableId === 'CPPO_T600').length, 1, 'a saída do banco do pagamento continua');
+});
+
+test('compra quitada pelo banco e pelo adiantamento: tirar o adiantamento cria a conta só da parte dele', async () => {
+  srv.reset(baseData());
+  const code = await advance(400);
+  await create(ticket('T610', 1000), [code]);
+  await pay('CPPO_T610', 600, 600);
+  assert.equal((await viaSdk('erp/tickets/T610')).status, 'Pago');
+  await detach('T610', code);
+  const rows = await payables('T610');
+  assert.deepEqual(rows.map((r) => [r[0].replace(/-[a-f0-9]{8}$/, ''), r[1], r[2]]), [['CP-AJUSTE-T610', 400, 'Pendente'], ['CPPO_T610', 600, 'Pago']]);
+  const t = await viaSdk('erp/tickets/T610');
+  assert.deepEqual([t.saldoPagar, t.status], [400, 'Parcial']);
+});
+
+test('extrato e histórico: o movimento do adiantamento continua até ele ser excluído; compra e adiantamento guardam a devolução', async () => {
+  srv.reset(baseData());
+  const code = await advance(250);
+  const movementId = (await advanceOf(code)).movBancoId;
+  assert.ok(movementId);
+  await create(ticket('T620', 1000), [code]);
+  await detach('T620', code);
+  assert.ok(await viaSdk('erp/lancBanco/' + movementId), 'o dinheiro saiu do banco de verdade: o movimento fica');
+  const freed = await advanceOf(code);
+  assert.deepEqual(freed.devolucoesCompra.map((d) => [d.ticket, d.valor]), [['T620', 250]]);
+  const t = await viaSdk('erp/tickets/T620');
+  assert.deepEqual(t.reciboFinanceiro.devolucoes.at(-1).adiantamentos, [{ cod: code, valor: 250 }]);
+  assert.deepEqual(t.reciboFinanceiro.adiantamentos.map((r) => [r.cod, r.valorOriginal, r.valorAplicado]), [[code, 250, 0]], 'a linha do recibo fica, com aplicado zero');
+  await mod.changeAdvance(identity, { action: 'delete', operationId: randomUUID(), fornCod: 'F1', adtCod: code, expected: freed }, { db });
+  assert.equal(await viaSdk('erp/lancBanco/' + movementId), null, 'excluir o adiantamento tira a saída do banco');
+});
+
+test('depois de tirar: editar e excluir a compra funcionam e não devolvem o adiantamento de novo', async () => {
+  srv.reset(baseData());
+  const a = await advance(300);
+  const b = await advance(200);
+  await create(ticket('T630', 1000), [a, b]);
+  await detach('T630', a);
+  const expectedTicket = await viaSdk('erp/tickets/T630');
+  const next = structuredClone(expectedTicket);
+  next.itens[0].preco = 900; next.itens[0].total = 900; next.totalProdutos = 900; next.totalGeral = 900;
+  await mod.editPurchaseOrder(identity, { operationId: randomUUID(), ticketNo: 'T630', expectedTicket, ticket: next }, { db });
+  const edited = await viaSdk('erp/tickets/T630');
+  assert.deepEqual([edited.totalGeral, edited.adiantamento, edited.saldoPagar], [900, 200, 700]);
+  assert.deepEqual(await payables('T630'), [['CPPO_T630', 700, 'Pendente']]);
+  assert.deepEqual([(await advanceOf(a)).valor, (await advanceOf(a)).status], [300, 'Pendente']);
+  await mod.deletePurchaseOrder(identity, { operationId: randomUUID(), ticketNo: 'T630', expectedTotal: 900, expectedSupplier: 'F1' }, { db });
+  assert.equal(await viaSdk('erp/tickets/T630'), null);
+  assert.deepEqual([(await advanceOf(a)).valor, (await advanceOf(a)).status], [300, 'Pendente'], 'o já devolvido não volta duas vezes');
+  assert.deepEqual([(await advanceOf(b)).valor, (await advanceOf(b)).status], [200, 'Pendente'], 'o que estava na compra volta normalmente');
+  assert.deepEqual(await payables('T630'), []);
+});
+
+test('adiantamento dividido entre duas compras: tirar de uma não mexe na outra', async () => {
+  srv.reset(baseData());
+  const code = await advance(1000);
+  await create(ticket('T640', 600), [code]);
+  await create(ticket('T641', 2000), [code]);
+  const used = await advanceOf(code);
+  assert.deepEqual([used.status, used.valorCompensado], ['Quitado', 1000]);
+  await detach('T640', code);
+  const partial = await advanceOf(code);
+  assert.deepEqual([partial.status, partial.valor, partial.valorCompensado], ['Pendente', 600, 400]);
+  const other = await viaSdk('erp/tickets/T641');
+  assert.deepEqual([other.adiantamento, other.saldoPagar], [400, 1600], 'a outra compra continua com os R$ 400');
+  assert.deepEqual([(await viaSdk('erp/tickets/T640')).saldoPagar], [600]);
+  await detach('T641', code);
+  const free = await advanceOf(code);
+  assert.deepEqual([free.status, free.valor, free.valorCompensado], ['Pendente', 1000, 0]);
+});
+
+test('compra antiga sem recibo novo: recusa com explicação e não altera nada', async () => {
+  srv.reset(baseData());
+  const code = await advance(100);
+  await create(ticket('T650', 1000), [code]);
+  const legacy = await viaSdk('erp/tickets/T650');
+  legacy.reciboFinanceiro.versao = 1;
+  srv.seed('erp/tickets/T650', legacy);
+  await assert.rejects(detach('T650', code), { code: 'ADVANCE_RECONCILIATION_REQUIRED' });
+  assert.equal((await viaSdk('erp/tickets/T650')).saldoPagar, 900);
+  assert.equal((await advanceOf(code)).status, 'Quitado');
+  assert.deepEqual(locks(), []);
+});
+
+test('notinha já salva: usar adiantamento lançado depois (caso T353) pelo mesmo caminho de Contas a Pagar', async () => {
+  const { runInNewContext } = await import('node:vm');
+  const purchase = readFileSync(new URL('../public/modules/purchase-order/purchase-order.js', import.meta.url), 'utf8');
+  const start = purchase.indexOf('function openPurchasePayables(key){');
+  const end = purchase.indexOf('global.phase4PurchaseUseAdvance=async function(){', start);
+  assert.ok(start > 0 && end > start);
+  const ctx = {
+    TICKETS_DB: { T353: { ticket: 'T353', _purchaseOperationId: 'op' }, T001: { ticket: 'T001' } },
+    CONTAS_PAGAR: [{ id: 'CPPO_T353', ticket: 'T353', status: 'Pendente', valor: 18116.16 }, { id: 'CPPO_T001', ticket: 'T001', status: 'Pendente', valor: 10 }],
+    ADT_POR_FORN: { F1: [{ cod: 'A1', status: 'Quitado', valor: 52506.24, ticket: 'T353' }, { cod: 'A2', status: 'Pendente', valor: 150093.96 }, { cod: 'A3', status: 'Pendente', valor: 99, ticket: 'T999' }] },
+    money: (v) => Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+  };
+  ctx.tickets = () => ctx.TICKETS_DB;
+  runInNewContext(purchase.slice(start, end), ctx);
+  const html = ctx.freeAdvanceHtml({ editKey: 'T353', supplierCode: 'F1' });
+  assert.match(html, /R\$ 150\.093,96/);
+  assert.match(html, /Usar R\$ 18\.116,16 quita o saldo desta compra e sobra R\$ 131\.977,80/);
+  assert.equal(ctx.freeAdvanceHtml({ editKey: 'T001', supplierCode: 'F1' }), '', 'compra antiga sem confirmação do servidor: segue por Contas a Pagar');
+  ctx.CONTAS_PAGAR[0].status = 'Pago';
+  assert.equal(ctx.freeAdvanceHtml({ editKey: 'T353', supplierCode: 'F1' }), '', 'sem saldo, sem aviso');
+  const island = readFileSync(new URL('../web/erp/payables.tsx', import.meta.url), 'utf8');
+  assert.match(island, /erpPayablesCompensateAdvance: async/);
+  assert.match(island, /'advance-only'/);
 });

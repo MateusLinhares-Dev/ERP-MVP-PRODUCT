@@ -110,6 +110,15 @@ Regras:
 
 Uma aba antiga que ainda grava o extrato teria esse envio recusado pelas regras novas.
 
+## Usar adiantamento lançado depois da notinha (18/11/2026, v250)
+
+Caso da cliente (T353): a notinha de R$ 70.622,40 foi fechada usando R$ 52.506,24 de adiantamento (sobraram R$ 18.116,16). Depois chegou um adiantamento novo de R$ 150.093,96, e a notinha não oferecia usá-lo.
+
+- **Regra:** a regra de Contas a Pagar não muda: "Pagar → Compensar adiantamento" (`payPayable` com `advanceAmount`, sem banco). Ela usa os adiantamentos Pendentes do fornecedor que não estão presos a outra compra, divide o que sobra (`compensacao_cp`) e pode ser desfeita pelo 🕒 (o adiantamento volta inteiro).
+- **Na notinha:** Compra Sucata → Histórico → Editar mostra no quadro Pagamento "Adiantamento livre deste fornecedor: R$ … — Usar adiantamento nesta compra". O botão confirma quanto vai usar e quanto sobra, compensa as parcelas em aberto da mais antiga para a mais nova e reabre o pedido atualizado. Ponte: `window.erpPayablesCompensateAdvance` (`web/erp/payables.tsx`).
+- **Na impressão:** "Adiantamentos / abatimentos no fechamento" continua com o do fechamento (R$ 52.506,24). O novo aparece em "Pagamentos e abatimentos posteriores" (R$ 18.116,16) e na tabela "Pagamentos registrados após o pedido" (Compensação de adiantamento). O que sobra (R$ 131.977,80) aparece como saldo devedor do fornecedor.
+- **Limite:** o botão só aparece em compras confirmadas pelo servidor (`_purchaseOperationId`). Em compras muito antigas, uma rotina antiga do `phase3` recalcula compra e conta na tela, então elas seguem pelo caminho de Contas a Pagar.
+
 ## Tirar adiantamento de uma compra (18/11/2026, v248)
 
 Pedido da cliente: apagar um adiantamento que já estava abatido numa notinha (ex.: R$ 3.424,95 na T269), sem quebrar a compra.
