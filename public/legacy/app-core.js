@@ -7262,7 +7262,9 @@ async function _cliCreditoApi(payload){
   if(!response.ok){ const error=new Error(result.message||'O servidor não confirmou a alteração.'); error.code=result.code; throw error; }
   if(result.cliente&&Array.isArray(result.advances)) ADT_CLI[result.cliente]=result.advances;
   if(result.cliente&&Array.isArray(result.cheques)) CHEQUES_CLI[result.cliente]=result.cheques;
-  try{ localStorage.setItem('mm_adt_cli',JSON.stringify(ADT_CLI)); localStorage.setItem('mm_cheques_cli',JSON.stringify(CHEQUES_CLI)); }catch(e){}
+  if(result.cliente&&Array.isArray(result.entries)) FC_LANC[result.cliente]=result.entries;
+  if(result.cliente&&result.action==='set-opening-balance'){ if(result.balance) FC_SALDO_INI[result.cliente]=result.balance; else delete FC_SALDO_INI[result.cliente]; }
+  try{ localStorage.setItem('mm_adt_cli',JSON.stringify(ADT_CLI)); localStorage.setItem('mm_cheques_cli',JSON.stringify(CHEQUES_CLI)); localStorage.setItem('mm_fc_lanc',JSON.stringify(FC_LANC)); localStorage.setItem('mm_fc_saldoini',JSON.stringify(FC_SALDO_INI)); }catch(e){}
   ['renderAdtCli','renderChequesCli','renderFluxo','renderDashboard'].forEach(function(n){ try{ if(typeof window[n]==='function') window[n](); }catch(e){} });
   return result;
 }
@@ -7458,7 +7460,6 @@ async function fcSalvarPagamento(){
   fcSelecionarCliente(_fcCliente,true);
   showToast('✅ Pagamento registrado para '+_fcCliente,'success');
 }
-function saveFcLanc(){ try{ localStorage.setItem('mm_fc_lanc', JSON.stringify(FC_LANC)); localStorage.setItem('mm_fc_saldoini', JSON.stringify(FC_SALDO_INI)); }catch(_){ } if(typeof fbSalvar==='function') fbSalvar(); }
 
 function _popularClientesSel(){
   const opts='<option value="">— Selecione o cliente —</option>'+(CLIENTES||[]).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{sensitivity:'base'})).map(c=>`<option value="${esc(c.nome)}">${esc(c.nome)}</option>`).join('');
@@ -18194,8 +18195,9 @@ function initDespesas(){
         fcLancTipoChange();
         document.getElementById('modal-fc-lanc').style.display='flex';
       }
-      function fcSalvarLanc(){
+      async function fcSalvarLanc(){
         if(!_fcCliAtual) return;
+        var cliente=_fcCliAtual;
         var tipo=document.getElementById('fcl-tipo').value;
         var dataIso=document.getElementById('fcl-data').value;
         var data=dataIso?dataIso.split('-').reverse().join('/'):'';
@@ -18207,6 +18209,7 @@ function initDespesas(){
         var destino=(document.getElementById('fcl-destino')?.value||'').trim();
         var valor=parseFloat(document.getElementById('fcl-valor').value)||0;
         if(tipo==='entrega' && !valor && peso>0 && valorkg>0) valor=peso*valorkg;
+        valor=Math.round(valor*100)/100;
         if(!valor || valor<=0){ showToast('Informe o valor do lançamento.','erro'); return; }
         var hist=(document.getElementById('fcl-hist').value||'').trim();
         if(!hist){
@@ -18215,17 +18218,12 @@ function initDespesas(){
           else if(tipo==='ch_devol') hist='CH DEVOL.'+(num||'')+(emit?' - '+emit:'');
           else if(tipo==='reembolso') hist='DEP.'+(emit||'')+' - REEMBOLSO CHEQUE DEVOLVIDO'+(destino?' → '+destino:'');
         }
-        var debito=0, credito=0;
-        if(tipo==='entrega'||tipo==='ch_devol') debito=valor; else credito=valor;
         var id=document.getElementById('fcl-id').value;
-        if(!FC_LANC[_fcCliAtual]) FC_LANC[_fcCliAtual]=[];
-        if(id){
-          var l=FC_LANC[_fcCliAtual].find(function(x){ return String(x.id)===String(id); });
-          if(l) Object.assign(l,{data:data,tipo:tipo,peso:peso,valorkg:valorkg,material:material,num:num,emitente:emit,destino:destino,debito:debito,credito:credito,hist:hist});
-        } else {
-          FC_LANC[_fcCliAtual].push({ id:'fcl'+Date.now()+Math.floor(Math.random()*1000), data:data,tipo:tipo,peso:peso,valorkg:valorkg,material:material,num:num,emitente:emit,destino:destino,debito:debito,credito:credito,hist:hist });
-        }
-        saveFcLanc();
+        var anterior=id?(FC_LANC[cliente]||[]).find(function(x){ return String(x.id)===String(id); }):null;
+        var pedido={action:'save-entry',cliente:cliente,entry:{id:id||'',data:data,tipo:tipo,peso:peso,valorkg:valorkg,material:material,num:num,emitente:emit,destino:destino,valor:valor,hist:hist}};
+        if(anterior) pedido.expected={debito:Number(anterior.debito||0),credito:Number(anterior.credito||0)};
+        try{ await _cliCreditoApi(pedido); }
+        catch(error){ showToast('Lançamento não salvo: '+error.message,'error',9000); return; }
 
         if(tipo==='entrega' && material && Number(peso)>0){
           try{ if(typeof _garantirMetalCadastrado==='function') _garantirMetalCadastrado(material); }catch(e){}
@@ -18236,12 +18234,12 @@ function initDespesas(){
         fcReRender();
         showToast('Lançamento salvo!'+(tipo==='entrega'&&material&&Number(peso)>0?' Descontado do estoque.':''),'sucesso');
       }
-      function fcExcluirLanc(id){
+      async function fcExcluirLanc(id){
         if(!_fcCliAtual) return;
         if(!confirm('Excluir este lançamento da ficha?')) return;
-        FC_LANC[_fcCliAtual]=(FC_LANC[_fcCliAtual]||[]).filter(function(x){ return String(x.id)!==String(id); });
+        try{ await _cliCreditoApi({action:'delete-entry',cliente:_fcCliAtual,id:String(id)}); }
+        catch(error){ showToast('Lançamento não excluído: '+error.message,'error',9000); return; }
         try{ renderEstoque(); }catch(e){}
-        saveFcLanc();
         fcReRender();
         showToast('Lançamento excluído.','info');
       }
@@ -18255,11 +18253,13 @@ function initDespesas(){
         var hoje = new Date().toLocaleDateString('pt-BR');
         var fmtBR = function(n){ return Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2}); };
         if(!confirm('Quitar o saldo de '+_fcCliAtual+'?\n\nVou lançar um REEMBOLSO (crédito) de R$ '+fmtBR(valor)+' com a data de hoje ('+hoje+'), deixando a ficha no ZERO.\n\nIsso NÃO apaga nada — é um lançamento que você pode editar ou excluir depois.')) return;
-        if(!FC_LANC[_fcCliAtual]) FC_LANC[_fcCliAtual]=[];
-        FC_LANC[_fcCliAtual].push({ id:'fcl'+Date.now()+Math.floor(Math.random()*1000), data:hoje, tipo:'reembolso', peso:0, valorkg:0, material:'', num:'', emitente:'', debito:0, credito:valor, hist:'Quitação — reembolso (cheques devolvidos conferidos)' });
-        saveFcLanc();
-        try{ fcReRender(); }catch(e){}
-        showToast('Saldo de '+_fcCliAtual+' quitado! Reembolso de R$ '+fmtBR(valor)+' lançado — ficha no zero. ✅','success');
+        var cliente=_fcCliAtual;
+        _cliCreditoApi({action:'save-entry',cliente:cliente,entry:{data:hoje,tipo:'reembolso',peso:0,valorkg:0,material:'',num:'',emitente:'',destino:'',valor:valor,hist:'Quitação — reembolso (cheques devolvidos conferidos)'}})
+          .then(function(){
+            try{ fcReRender(); }catch(e){}
+            showToast('Saldo de '+cliente+' quitado! Reembolso de R$ '+fmtBR(valor)+' lançado — ficha no zero. ✅','success');
+          })
+          .catch(function(error){ showToast('Quitação não lançada: '+error.message,'error',9000); });
       }
 
       function _fcNorm(s){ return String(s||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' '); }
@@ -18302,15 +18302,15 @@ function initDespesas(){
         document.getElementById('fcs-quem').value=v>0?'voce':'cliente';
         document.getElementById('modal-fc-saldoini').style.display='flex';
       }
-      function fcSalvarSaldoAnterior(){
+      async function fcSalvarSaldoAnterior(){
         if(!_fcCliAtual) return;
         var v=parseFloat(document.getElementById('fcs-valor').value)||0;
         var quem=document.getElementById('fcs-quem').value;
         var dataIso=document.getElementById('fcs-data').value;
         var data=dataIso?dataIso.split('-').reverse().join('/'):'';
-        var val = quem==='voce' ? Math.abs(v) : -Math.abs(v); 
-        if(!v){ _apagarChave('fcSaldoIni', FC_SALDO_INI, _fcCliAtual); } else { FC_SALDO_INI[_fcCliAtual]={valor:val,data:data}; }
-        saveFcLanc();
+        var val = Math.round((quem==='voce' ? Math.abs(v) : -Math.abs(v))*100)/100;
+        try{ await _cliCreditoApi({action:'set-opening-balance',cliente:_fcCliAtual,balance:{valor:val,data:data}}); }
+        catch(error){ showToast('Saldo anterior não salvo: '+error.message,'error',9000); return; }
         document.getElementById('modal-fc-saldoini').style.display='none';
         fcReRender();
         showToast('Saldo anterior salvo!','sucesso');

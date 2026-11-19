@@ -91,7 +91,7 @@ for(const node of nodes){
     '.write':`${auth} && (${writing.join(' || ')})`
   };
 }
-for(const node of ['fornecedores','fornDeleted','clientes','clientesDeleted','vendas','vendasDeleted','contasReceber','contasReceberDeleted','contasPagar','contasPagarDeleted','bancos','bancosDeleted','lancBanco','lancBancoDeleted','adtCli','chequesCli','cheques','chequesPorFornDeleted','chequeItensDeleted','saldos','saldoDevedor','saldoDevedorDeleted'])candidate.rules.erp[node]['.write']=false;
+for(const node of ['fornecedores','fornDeleted','clientes','clientesDeleted','vendas','vendasDeleted','contasReceber','contasReceberDeleted','contasPagar','contasPagarDeleted','bancos','bancosDeleted','lancBanco','lancBancoDeleted','adtCli','chequesCli','cheques','chequesPorFornDeleted','chequeItensDeleted','saldos','saldoDevedor','saldoDevedorDeleted','fcLanc','fcSaldoIni','fcSaldoIniDeleted'])candidate.rules.erp[node]['.write']=false;
 for(const node of ['erpSalesLocks','salesOperations','salesNumberSeq','erpReceivableLocks','receivableOperations','payableOperations','bankLedgerOperations','clientCreditOperations','supplierChequeOperations','supplierBalanceOperations'])candidate.rules.erp[node]={'.read':false,'.write':false};
 candidate.rules.erp.contasReceber['.indexOn']=['vendaId','cli'];
 candidate.rules.erp.supplierOperations={'.read':false,'.write':false};

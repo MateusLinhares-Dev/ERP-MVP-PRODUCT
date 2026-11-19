@@ -157,3 +157,83 @@ export function nextAdvanceCode(taken: ReadonlySet<string>, now: number, random:
 }
 
 export const centsOf = (value: unknown): number => toCents(value);
+
+export const ENTRY_SIDES: Readonly<Record<string, 'debito' | 'credito'>> = {
+  entrega: 'debito',
+  deposito: 'credito',
+  ch_devol: 'debito',
+  reembolso: 'credito',
+};
+
+function measure(value: unknown, digits: number): number | null {
+  if (value == null || value === '') return 0;
+  const amount = typeof value === 'number' ? value : Number.NaN;
+  if (!Number.isFinite(amount) || amount < 0 || amount > 1_000_000_000) return null;
+  const scale = 10 ** digits;
+  return Math.round(amount * scale) / scale;
+}
+
+export function cleanEntry(input: unknown): { fields: Row; problem: Problem | null } {
+  const source = isRow(input) ? input : {};
+  const tipo = text(source.tipo, 20);
+  const side = ENTRY_SIDES[tipo];
+  if (!side) return { fields: {}, problem: problem('INVALID_TYPE', 'Tipo de lançamento inválido.') };
+  const valor = money(source.valor);
+  if (valor === null)
+    return {
+      fields: {},
+      problem: problem('INVALID_AMOUNT', 'Informe o valor do lançamento, com no máximo duas casas decimais.'),
+    };
+  const data = date(source.data);
+  if (data === null)
+    return { fields: {}, problem: problem('INVALID_DATE', 'Data inválida. Use dd/mm/aaaa.') };
+  const peso = measure(source.peso, 3);
+  const valorkg = measure(source.valorkg, 4);
+  if (peso === null || valorkg === null)
+    return { fields: {}, problem: problem('INVALID_WEIGHT', 'Peso ou valor por kg inválido.') };
+  const fields: Row = {
+    data,
+    tipo,
+    peso,
+    valorkg,
+    debito: side === 'debito' ? valor : 0,
+    credito: side === 'credito' ? valor : 0,
+  };
+  for (const [field, max, label] of [
+    ['material', 80, 'O material'],
+    ['num', 40, 'O número do cheque'],
+    ['emitente', 160, 'O emitente'],
+    ['destino', 160, 'O destino'],
+    ['hist', 300, 'O histórico'],
+  ] as const) {
+    const cleaned = textField(source[field], max, label);
+    if (cleaned.problem) return { fields: {}, problem: cleaned.problem };
+    fields[field] = cleaned.value;
+  }
+  if (!fields.hist)
+    return { fields: {}, problem: problem('HISTORY_REQUIRED', 'Informe o histórico do lançamento.') };
+  return { fields, problem: null };
+}
+
+export function cleanOpeningBalance(input: unknown): { fields: Row | null; problem: Problem | null } {
+  const source = isRow(input) ? input : {};
+  const amount = typeof source.valor === 'number' ? source.valor : Number.NaN;
+  if (!Number.isFinite(amount) || Math.abs(amount) > 1_000_000_000)
+    return { fields: null, problem: problem('INVALID_AMOUNT', 'Informe um valor válido.') };
+  const cents = Math.round(amount * 100);
+  if (Math.abs(cents - amount * 100) > 0.000001)
+    return { fields: null, problem: problem('INVALID_AMOUNT', 'Use no máximo duas casas decimais.') };
+  if (cents === 0) return { fields: null, problem: null };
+  const data = date(source.data);
+  if (data === null)
+    return { fields: null, problem: problem('INVALID_DATE', 'Data inválida. Use dd/mm/aaaa.') };
+  return { fields: { valor: fromCents(cents), data }, problem: null };
+}
+
+export const nextEntryId = (taken: ReadonlySet<string>, now: number, random: () => number): string => {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const id = 'fcl' + String(now) + String(Math.floor(random() * 1000)).padStart(3, '0');
+    if (!taken.has(id)) return id;
+  }
+  return 'fcl' + String(now) + String(taken.size);
+};

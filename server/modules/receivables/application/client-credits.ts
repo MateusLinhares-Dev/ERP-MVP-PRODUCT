@@ -11,12 +11,15 @@ import {
   advanceUsed,
   cleanAdvance,
   cleanCheque,
+  cleanEntry,
+  cleanOpeningBalance,
   fromReceipt,
   isRow,
   listOf,
   locateCheque,
   nextAdvanceCode,
   nextChequeStatus,
+  nextEntryId,
   sameCheque,
   text,
   usedInSale,
@@ -262,6 +265,102 @@ async function deleteCheque(context: Context, body: Row) {
   });
 }
 
+async function ledgerClient(db: Database, value: unknown): Promise<string> {
+  const name = clientName(value);
+  const wanted = nameKey(name);
+  const [raw, deleted, ...own] = await Promise.all([
+    read(db, 'erp/clientes'),
+    read(db, 'erp/clientesDeleted'),
+    ...['fcLanc', 'fcSaldoIni', 'adtCli', 'chequesCli'].map((node) => read(db, 'erp/' + node + '/' + name)),
+  ]);
+  if (customerEntries(raw, tombstoneIds(deleted)).some((entry) => nameKey(entry.record.nome) === wanted))
+    return name;
+  if (own.some((item) => item != null)) return name;
+  const [sales, receivables] = await Promise.all([read(db, 'erp/vendas'), read(db, 'erp/contasReceber')]);
+  if (
+    listOf(sales).some((row) => nameKey(row.cliente) === wanted) ||
+    listOf(receivables).some((row) => nameKey(row.cli) === wanted)
+  )
+    return name;
+  return fail(422, 'CLIENT_NOT_FOUND', 'Cliente não encontrado no cadastro nem nas vendas. Atualize a tela.');
+}
+
+async function saveEntry(context: Context, body: Row) {
+  const client = await ledgerClient(context.db, body.cliente);
+  const input = isRow(body.entry) ? body.entry : {};
+  const { fields, problem } = cleanEntry(input);
+  if (problem) fail(422, problem.code, problem.message);
+  const id = text(input.id, 60);
+  return lock(context, client, async () => {
+    const list = listOf(await read(context.db, 'erp/fcLanc/' + client));
+    let entry: Row;
+    let next: Row[];
+    if (id) {
+      const index = list.findIndex((row) => text(row.id, 60) === id);
+      if (index < 0) fail(404, 'ENTRY_NOT_FOUND', 'Lançamento não encontrado. Atualize a ficha.');
+      const current = list[index] as Row;
+      const expected = isRow(body.expected) ? body.expected : null;
+      if (
+        expected &&
+        (Math.round(Number(expected.debito || 0) * 100) !== Math.round(Number(current.debito || 0) * 100) ||
+          Math.round(Number(expected.credito || 0) * 100) !== Math.round(Number(current.credito || 0) * 100))
+      )
+        fail(409, 'ENTRY_CHANGED', 'Este lançamento mudou em outra tela. Atualize a ficha e tente de novo.');
+      entry = { ...current, ...fields, id, alteradoPor: actor(context.identity), _upd: context.now() };
+      next = list.map((row, at) => (at === index ? entry : row));
+    } else {
+      const taken = new Set(list.map((row) => text(row.id, 60)));
+      entry = {
+        id: nextEntryId(taken, context.now(), context.random),
+        ...fields,
+        criadoPor: actor(context.identity),
+      };
+      next = [...list, entry];
+    }
+    await save(context, 'fcLanc', client, next);
+    return { action: 'save-entry', cliente: client, entry, entries: next };
+  });
+}
+
+async function deleteEntry(context: Context, body: Row) {
+  const client = clientName(body.cliente);
+  const id = text(body.id, 60);
+  if (!id) fail(422, 'ENTRY_NOT_FOUND', 'Lançamento não encontrado. Atualize a ficha.');
+  return lock(context, client, async () => {
+    const list = listOf(await read(context.db, 'erp/fcLanc/' + client));
+    const removed = list.find((row) => text(row.id, 60) === id);
+    if (!removed) fail(404, 'ENTRY_NOT_FOUND', 'Lançamento não encontrado. Atualize a ficha.');
+    const next = list.filter((row) => row !== removed);
+    await save(context, 'fcLanc', client, next);
+    return { action: 'delete-entry', cliente: client, removed, entries: next };
+  });
+}
+
+async function setOpeningBalance(context: Context, body: Row) {
+  const client = await ledgerClient(context.db, body.cliente);
+  const { fields, problem } = cleanOpeningBalance(body.balance);
+  if (problem) fail(422, problem.code, problem.message);
+  return lock(context, client, async () => {
+    const tombstones: unknown = await read(context.db, 'erp/fcSaldoIniDeleted');
+    const updates: Row = {
+      ['erp/fcSaldoIni/' + client]: fields
+        ? { ...fields, alteradoPor: actor(context.identity), _upd: context.now() }
+        : null,
+      'erp/_ts': context.now(),
+    };
+    if (fields && Array.isArray(tombstones) && tombstones.some((item) => item === client))
+      updates['erp/fcSaldoIniDeleted'] = tombstones.filter((item) => item !== client);
+    if (fields && isRow(tombstones) && client in tombstones)
+      updates['erp/fcSaldoIniDeleted/' + client] = null;
+    await context.db.ref().update(updates);
+    return {
+      action: 'set-opening-balance',
+      cliente: client,
+      balance: updates['erp/fcSaldoIni/' + client] ?? null,
+    };
+  });
+}
+
 const ACTIONS: Record<string, (context: Context, body: Row) => Promise<Row>> = {
   'create-advance': createAdvance,
   'delete-advance': deleteAdvance,
@@ -269,6 +368,9 @@ const ACTIONS: Record<string, (context: Context, body: Row) => Promise<Row>> = {
   'update-cheque': updateCheque,
   'cycle-cheque-status': cycleChequeStatus,
   'delete-cheque': deleteCheque,
+  'save-entry': saveEntry,
+  'delete-entry': deleteEntry,
+  'set-opening-balance': setOpeningBalance,
 };
 
 export async function changeClientCredit(identity: Identity, input: unknown, deps: ClientCreditDeps = {}) {

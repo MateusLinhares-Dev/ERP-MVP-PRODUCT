@@ -11,6 +11,12 @@ let srv, db, app, changeClientCredit, changeSale, changeReceivable;
 const read = async (path) => (await db.ref(path).get()).val();
 const list = (value) => (Array.isArray(value) ? value : Object.values(value || {}));
 const call = (body, who = identity) => changeClientCredit(who, { operationId: randomUUID(), ...body }, { db, now: () => NOW, random: () => 0.42 });
+const reject = async (promise, code) => {
+  await assert.rejects(promise, (error) => {
+    assert.equal(error.code, code, error.message);
+    return true;
+  });
+};
 const baseData = () => ({ erp: {
   _ts: 1,
   bancos: { B1: { cod: 'B1', banco: 'Sicredi' } },
@@ -165,4 +171,61 @@ test('tela: botões mandam número, banco e posição do cheque; cheque usado em
   assert.doesNotMatch(sync, /_patchIncremental\(dados, '(adtCli|chequesCli)'/);
   const rules = JSON.parse(readFileSync(new URL('../database.rules.json', import.meta.url), 'utf8')).rules.erp;
   assert.deepEqual([rules.adtCli['.write'], rules.chequesCli['.write']], [false, false]);
+});
+
+test('ficha do cliente: lançar, editar e excluir lançamento pelo servidor; débito e crédito saem do tipo', async () => {
+  const created = await call({ action: 'save-entry', cliente: 'GERDAU', entry: { tipo: 'entrega', data: '2026-11-18', peso: 1000.5, valorkg: 2.5, material: 'FERRO', valor: 2501.25, hist: 'Entrega de metal - FERRO' } });
+  const entry = created.entry;
+  assert.match(entry.id, /^fcl\d+$/);
+  assert.deepEqual([entry.debito, entry.credito, entry.data, entry.peso, entry.criadoPor], [2501.25, 0, '18/11/2026', 1000.5, 'elaine']);
+  await call({ action: 'save-entry', cliente: 'GERDAU', entry: { tipo: 'deposito', data: '19/11/2026', valor: 500, emitente: 'GERDAU', num: '9', hist: 'DEP.GERDAU CH 9' } });
+  await reject(call({ action: 'save-entry', cliente: 'GERDAU', expected: { debito: 1, credito: 0 }, entry: { id: entry.id, tipo: 'entrega', valor: 10, hist: 'x' } }), 'ENTRY_CHANGED');
+  await call({ action: 'save-entry', cliente: 'GERDAU', expected: { debito: 2501.25, credito: 0 }, entry: { id: entry.id, tipo: 'ch_devol', valor: 300, num: '77', hist: 'CH DEVOL.77' } });
+  let rows = list(await read('erp/fcLanc/GERDAU'));
+  const edited = rows.find((r) => r.id === entry.id);
+  assert.deepEqual([rows.length, edited.tipo, edited.debito, edited.credito, edited.alteradoPor], [2, 'ch_devol', 300, 0, 'elaine']);
+  const removed = await call({ action: 'delete-entry', cliente: 'GERDAU', id: entry.id });
+  assert.equal(removed.removed.id, entry.id);
+  rows = list(await read('erp/fcLanc/GERDAU'));
+  assert.deepEqual(rows.map((r) => [r.tipo, r.credito]), [['deposito', 500]]);
+  await reject(call({ action: 'delete-entry', cliente: 'GERDAU', id: entry.id }), 'ENTRY_NOT_FOUND');
+  await reject(call({ action: 'save-entry', cliente: 'GERDAU', entry: { tipo: 'outro', valor: 1, hist: 'x' } }), 'INVALID_TYPE');
+  await reject(call({ action: 'save-entry', cliente: 'GERDAU', entry: { tipo: 'deposito', valor: 1.001, hist: 'x' } }), 'INVALID_AMOUNT');
+  await reject(call({ action: 'save-entry', cliente: 'GERDAU', entry: { tipo: 'deposito', valor: 1, hist: ' ' } }), 'HISTORY_REQUIRED');
+});
+
+test('ficha do cliente: cliente sem cadastro mas com venda ou ficha antiga continua aceito; nome desconhecido é recusado', async () => {
+  srv.seed('erp/vendas/V9', { id: 'V9', cliente: 'Metalúrgica Antiga', valor: 10 });
+  await call({ action: 'save-entry', cliente: 'Metalúrgica Antiga', entry: { tipo: 'deposito', valor: 10, hist: 'DEP.' } });
+  srv.seed('erp/fcLanc/SO FICHA', [{ id: 'fcl1', tipo: 'entrega', debito: 5, credito: 0, hist: 'antigo' }]);
+  await call({ action: 'save-entry', cliente: 'SO FICHA', entry: { tipo: 'deposito', valor: 5, hist: 'DEP.' } });
+  assert.equal(list(await read('erp/fcLanc/SO FICHA')).length, 2);
+  await reject(call({ action: 'save-entry', cliente: 'NINGUEM', entry: { tipo: 'deposito', valor: 5, hist: 'DEP.' } }), 'CLIENT_NOT_FOUND');
+  await reject(call({ action: 'save-entry', cliente: 'A/B', entry: { tipo: 'deposito', valor: 5, hist: 'DEP.' } }), 'INVALID_CLIENT');
+});
+
+test('ficha do cliente: saldo anterior grava, zera e tira a marca de excluído antiga', async () => {
+  srv.seed('erp/fcSaldoIniDeleted', ['GERDAU', 'OUTRO']);
+  const saved = await call({ action: 'set-opening-balance', cliente: 'GERDAU', balance: { valor: -1500.5, data: '2026-01-01' } });
+  assert.deepEqual([saved.balance.valor, saved.balance.data], [-1500.5, '01/01/2026']);
+  assert.deepEqual(list(await read('erp/fcSaldoIniDeleted')), ['OUTRO']);
+  await reject(call({ action: 'set-opening-balance', cliente: 'GERDAU', balance: { valor: 1.234 } }), 'INVALID_AMOUNT');
+  const cleared = await call({ action: 'set-opening-balance', cliente: 'GERDAU', balance: { valor: 0 } });
+  assert.equal(cleared.balance, null);
+  assert.equal(await read('erp/fcSaldoIni/GERDAU'), null);
+});
+
+test('ficha do cliente: a tela pede ao servidor e a sincronização não grava fcLanc nem fcSaldoIni', () => {
+  const core = readFileSync(new URL('../public/legacy/app-core.js', import.meta.url), 'utf8');
+  const sync = readFileSync(new URL('../public/legacy/firebase-sync.js', import.meta.url), 'utf8');
+  for (const [name, action] of [['fcSalvarLanc', 'save-entry'], ['fcExcluirLanc', 'delete-entry'], ['fcQuitarSaldo', 'save-entry'], ['fcSalvarSaldoAnterior', 'set-opening-balance']]) {
+    const start = core.indexOf('function ' + name + '(');
+    const body = core.slice(start, core.indexOf('\n      }\n', start));
+    assert.ok(body.includes('_cliCreditoApi(') && body.includes("'" + action + "'"), name + ' usa a API com ' + action);
+    assert.doesNotMatch(body, /FC_LANC\[[^\]]+\]\.push|FC_LANC\[_fcCliAtual\]=|saveFcLanc|_apagarChave/, name);
+  }
+  assert.doesNotMatch(sync, /_patchIncremental\(dados, '(fcLanc|fcSaldoIni)'/);
+  assert.match(sync, /\n      delete dados\.fcSaldoIniDeleted;/);
+  const rules = JSON.parse(readFileSync(new URL('../database.rules.json', import.meta.url), 'utf8')).rules.erp;
+  assert.deepEqual([rules.fcLanc['.write'], rules.fcSaldoIni['.write'], rules.fcSaldoIniDeleted['.write']], [false, false, false]);
 });
