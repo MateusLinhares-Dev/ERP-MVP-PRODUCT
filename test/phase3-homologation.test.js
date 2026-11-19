@@ -16,7 +16,6 @@ test('clientes e fornecedores recebem multibanco compartilhado',()=>has("'partyB
 test('preços usam combobox pesquisável direto na lista e removem a barra duplicada da fase2',()=>{has('ensurePriceCombo','phase3-price-combo','renderPriceComboList',"tab.querySelectorAll('.phase2-price-searches').forEach(x=>x.remove())");assert.ok(css.includes('.phase3-price-combo-list'));});
 test('calendário unifica legado, filtra por datas ou meses e lembra 5 3 1',()=>has("'calendarEvents'",'migrateLegacyAfazeres','calendarRangeMode','monthFrom','monthTo','userKey','[5,3,1]','checkCalendarPopups'));
 test('calendário injeta compromissos na aba Avisos',()=>has('injectCalendarAvisos','Meus compromissos','avisosAtualizarBadge'));
-test('cheques explicam Abate compra e recalculam KPIs ao excluir',()=>has('Abate compra?','adiantamento ao fornecedor','legacyChequeDelete','live=Object.entries(CHQ_CTRL'));
 test('contas pessoais da dona possuem vencimento, filtro mensal e pagamento',()=>has('ownerDueDate','Vence hoje','phase3OwnerPay','phase3OwnerReopen','type="month"'));
 test('adiantamento preserva correção manual e soma lançamentos vinculados',()=>has('Compra relacionada (opcional)','supplierTicketOptions','externalAdvanceSum','advanceSumForTicket','reconcileKnownLinkedAdvances','updateTicketAdvance'));
 test('EPI corrige ReferenceError data e faz uma única baixa',()=>{has('deliveryDate','data:deliveryDate','Estoque insuficiente','O estoque foi baixado uma única vez');assert.ok(phase2.includes('data:deliveryDate'));});
@@ -31,15 +30,6 @@ test('layout possui responsividade para calendário, bancos e contas pessoais',(
 test('detalhe da compra limpa campos verdes e observação salva durante digitação',()=>{
   has('resetPurchaseDetailInputs','dc-add-valor','dc-add-valor-obs');
   assert.ok(phase2.includes('oninput="phase2PurchaseObsSave'));
-});
-test('limpeza de cheques não remove mais o container da tabela',()=>{
-  assert.ok(phase2.includes("const hasTable=!!el.querySelector?.('table')"));
-  assert.ok(phase2.includes('isLegacyHelp=!hasTable'));
-});
-test('datas do cheque são controles de calendário e persistem em formato legado',()=>{
-  assert.ok(phase2.includes("input.type='date'"));
-  assert.ok(phase2.includes('chequeDateToBR'));
-  assert.ok(phase2.includes('chequeDateToIso'));
 });
 test('Contas da Dona usa o id real tab-contas_dona',()=>{
   assert.ok(js.includes("#tab-contas_dona"));

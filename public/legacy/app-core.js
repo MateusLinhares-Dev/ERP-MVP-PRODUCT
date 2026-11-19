@@ -8318,12 +8318,13 @@ async function _chequeFornApi(payload){
   if(!response.ok){ const error=new Error(result.message||'O servidor não confirmou a alteração.'); error.code=result.code; throw error; }
   if(result.fornCod&&Array.isArray(result.cheques)) CHEQUES_POR_FORN[result.fornCod]=result.cheques;
   try{ localStorage.setItem('mm_cheques',JSON.stringify(CHEQUES_POR_FORN)); }catch(e){}
-  ['renderCheques','renderDescontoForn','renderAdiantamentos','renderFluxo','renderDashboard'].forEach(function(n){ try{ if(typeof window[n]==='function') window[n](); }catch(e){} });
+  ['renderCheques','renderDescontoForn','renderAdiantamentos','renderFluxo','renderDashboard','renderChequesCompensar'].forEach(function(n){ try{ if(typeof window[n]==='function') window[n](); }catch(e){} });
   return result;
 }
 window.erpSupplierChequeRequest=_chequeFornApi;
 function _chequeFornRef(c,cod){ return (c&&c.id)||('CHQ_'+(c&&c.num)+'_'+cod); }
 function _chequeFornLocalizar(cheqId,fornCod){
+  if(!cheqId) return null;
   let found=null;
   Object.keys(CHEQUES_POR_FORN).forEach(function(cod){
     if(found||(fornCod&&cod!==fornCod)) return;
@@ -13828,32 +13829,10 @@ function _supLog(msg, tipo='info'){
 var CHQ_CTRL = {};
 var _chqDel = {};
 var _chqInited = false;
-
-var _chqFbanco = 'TODOS';
-var _chqFsit = 'A';        
-var _chqFbusca = '';
-var _chqFbuscaTexto = '';
-function _chqNormBusca(v){ return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(); }
-const _CHQ_SIT_LBL = {A:'A Compensar', C:'Compensado', X:'Cancelado'};
+var _chqCarregado = false;
 
 function _chqRef(){ const db=_supGetDB(); return db?db.ref('erp/chequesControle'):null; }
 function _chqDelRef(){ const db=_supGetDB(); return db?db.ref('erp/chequesControle_del'):null; }
-function _chqFmt(v){
-  v = (typeof v==='number' && isFinite(v)) ? v : 0;
-  return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
-}
-function _chqHojeBR(){ const d=new Date(); return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear(); }
-function _chqDescontaBancoAuto(c){
-  if(!c||!c.advanceCode) return null;
-  if(String(c.tipoCheque||'')==='Cheque de Terceiro') return false;
-  try{
-    var lista=(typeof ADT_POR_FORN!=='undefined'&&ADT_POR_FORN&&ADT_POR_FORN[c.fornCod])||[];
-    lista=Array.isArray(lista)?lista:Object.values(lista);
-    var adt=lista.find(function(a){ return a&&String(a.cod)===String(c.advanceCode); });
-    if(adt&&adt.movBancoId) return false;
-  }catch(e){}
-  return true;
-}
 
 function chqInit(){
   if(_chqInited) return;
@@ -13865,6 +13844,7 @@ function chqInit(){
     var v=s.val()||{}; var m={};
     Object.keys(v).forEach(function(k){ if(!_chqDel[k]) m[k]=v[k]; });
     CHQ_CTRL=m;
+    _chqCarregado=true;
     var p=document.getElementById('tab-cheques_compensar');
     if(p && p.classList.contains('active')){ try{ renderChequesCompensar(); }catch(e){ console.warn(e); } }
   });
@@ -13873,572 +13853,34 @@ function chqInit(){
 function _chqLista(){
   return Object.keys(CHQ_CTRL).map(function(k){ return CHQ_CTRL[k]; }).filter(Boolean);
 }
-function _chqTotais(){
-  var t={A:{q:0,v:0},C:{q:0,v:0},X:{q:0,v:0}};
-  _chqLista().forEach(function(c){ var s=c.s||'A'; if(!t[s])t[s]={q:0,v:0}; t[s].q++; t[s].v+=(+c.v||0); });
-  return t;
-}
-
-function chqSetSit(s){ _chqFsit=s; _erpReiniciarPagina('cheques-compensar'); renderChequesCompensar(); }
-function chqSetBanco(v){ _chqFbanco=v; _erpReiniciarPagina('cheques-compensar'); renderChequesCompensar(); }
-function chqSetBusca(v){
-  _chqFbuscaTexto=String(v||'');
-  _chqFbusca=_chqNormBusca(v);
-  _erpReiniciarPagina('cheques-compensar');
-  renderChequesCompensar();
-  var input=document.querySelector('#chq-ctrl-root input[data-chq-busca]');
-  if(input){ input.focus(); var fim=input.value.length; try{ input.setSelectionRange(fim,fim); }catch(e){} }
-}
-
-function chqVerBanco(b){ _chqFbanco=b; _chqFsit='TODOS'; _erpReiniciarPagina('cheques-compensar'); renderChequesCompensar(); }
-
-function _chqAdtCheque(banco, num){
-  if(typeof CHEQUES_POR_FORN==='undefined') return null;
-  var found=null, keys=Object.keys(CHEQUES_POR_FORN);
-  for(var i=0;i<keys.length && !found;i++){
-    var lista=CHEQUES_POR_FORN[keys[i]]||[];
-    for(var j=0;j<lista.length;j++){
-      if(String(lista[j].num)===String(num) && (lista[j].banco||'')===banco){ found=lista[j]; break; }
-    }
-  }
-  return found;
-}
-
-function chqToggleDesconto(id){
-  var c=CHQ_CTRL[id]; if(!c) return;
-  var adt=_chqAdtCheque(c.b, c.n);
-  if(!adt){ showToast('Esse cheque não está no adiantamento (não é de carga).','info'); return; }
-  if((adt.statusDesc||'A descontar')==='Descontado'){ if(typeof desfazerDesconto==='function') desfazerDesconto(adt.id); }
-  else { if(typeof marcarDescontado==='function') marcarDescontado(adt.id); }
-  try{ renderChequesCompensar(); }catch(e){}
-}
-
-function chqToggleCompra(id){
-  var c=CHQ_CTRL[id]; if(!c) return;
-  if(c.advanceCode){ showToast('Cheque do adiantamento '+c.advanceCode+': o vínculo com a compra é controlado pelo próprio adiantamento.','info'); return; }
-  _bancoApi({action:'toggle-cheque-discount',id:id})
-    .then(function(r){ showToast(r.cheque&&r.cheque.dc?'Marcado: desconta da compra 🛒':'Desmarcado','success'); })
-    .catch(function(e){ showToast('Erro: '+e.message,'error',8000); });
-}
-
-function renderChequesCompensar(){
-  var root=document.getElementById('chq-ctrl-root');
-  if(!root) return;
-
-  var _chqSec=false;
-  try{ _chqSec = (typeof cu!=='undefined' && cu) && ((typeof cuKey!=='undefined'&&cuKey==='thais') || (cu.role&&String(cu.role).indexOf('Secretária')>=0)); }catch(e){}
-  var tot=_chqTotais();
-  var bancos=_cfgChequeBankNames();
-  
-  var abBanco={};
-  _chqLista().forEach(function(c){
-    var b=c.b||''; if(!abBanco[b]) abBanco[b]={aq:0,av:0,cq:0,cv:0};
-    var s=c.s||'A';
-    if(s==='A'){ abBanco[b].aq++; abBanco[b].av+=(+c.v||0); }
-    else if(s==='C'){ abBanco[b].cq++; abBanco[b].cv+=(+c.v||0); }
-  });
-
-  var arr=_chqLista().filter(function(c){
-    if(_chqFsit!=='TODOS' && (c.s||'A')!==_chqFsit) return false;
-    if(_chqFbanco!=='TODOS' && c.b!==_chqFbanco) return false;
-    if(_chqFbusca){
-      var hay=_chqNormBusca((c.n||'')+' '+(c.c||'')+' '+(c.dest||'')+' '+(c.b||''));
-      if(hay.indexOf(_chqFbusca)<0) return false;
-    }
-    return true;
-  });
-
-  var _bOrdem=Object.fromEntries(_cfgChequeBanks().map(function(x,i){return [x.name,Number(x.order||i+1)];}));
-  arr.sort(function(a,b){
-    var ba=_bOrdem[a.b]||8, bb=_bOrdem[b.b]||8;
-    if(ba!==bb) return ba-bb;
-    if((a.b||'')!==(b.b||'')) return (a.b||'').localeCompare(b.b||'','pt-BR');
-    var na=parseInt(String(a.n).replace(/\D/g,''),10); if(!isFinite(na)) na=0;
-    var nb=parseInt(String(b.n).replace(/\D/g,''),10); if(!isFinite(nb)) nb=0;
-    return na-nb;
-  });
-
-  var somaFiltro=arr.reduce(function(s,c){ return s+(+c.v||0); },0);
-
-  var h='';
-  
-  if(!_chqSec){
-    h+='<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:.84rem;color:#7a5c00;line-height:1.5">'+
-       '💡 <b>Controle de cheques por banco.</b> Cada banco tem sua cor, com o total <b>🟠 a descontar</b> e <b>🟢 descontado</b>. '+
-       'Quando um cheque cai, clique em <b>✔ Compensou</b> — o valor <b>sai do saldo daquele banco</b> (e <b>↩ Reabrir</b> devolve).<br>'+
-       '🛒 A coluna <b>"Desc. Compra?"</b> é pra você marcar os cheques que são de <b>adiantamento</b> (descontam da compra). Nesses, o sistema pergunta antes de descontar do banco, pra não contar em dobro.</div>';
-  }
-
-  if(!_chqSec){
-  h+='<div class="kpi-grid">'+
-     '<div class="kpi o"><div class="kpi-lbl">A Compensar</div><div class="kpi-val">'+_chqFmt(tot.A.v)+'</div><div class="kpi-sub">'+tot.A.q+' cheques pendentes no banco</div></div>'+
-     '<div class="kpi g"><div class="kpi-lbl">Compensados</div><div class="kpi-val">'+tot.C.q+'</div><div class="kpi-sub">'+_chqFmt(tot.C.v)+' já caíram</div></div>'+
-     '<div class="kpi"><div class="kpi-lbl">Cancelados</div><div class="kpi-val">'+tot.X.q+'</div><div class="kpi-sub">cheques cancelados</div></div>'+
-     '<div class="kpi r"><div class="kpi-lbl">Total no controle</div><div class="kpi-val">'+_chqLista().length+'</div><div class="kpi-sub">cheques registrados</div></div>'+
-     '</div>';
-  }
-
-  var cardBancos=bancos.filter(function(b){ return abBanco[b]&&(abBanco[b].aq||abBanco[b].cq); });
-  if(!_chqSec && cardBancos.length){
-    h+='<div style="display:flex;flex-wrap:wrap;gap:10px;margin:4px 0 16px">';
-    cardBancos.forEach(function(b){
-      var cor=_cfgChequeBankColor(b);
-      h+='<div onclick="chqVerBanco('+_jsArg(b)+')" title="Ver todos os cheques deste banco em ordem" style="background:#fff;border:1px solid #eee;border-top:4px solid '+cor+';border-radius:10px;padding:9px 14px;min-width:180px;cursor:pointer">'+
-         '<div style="font-size:.74rem;font-weight:800;color:'+cor+';text-transform:uppercase;margin-bottom:5px">'+esc(b)+'</div>'+
-         '<div style="display:flex;justify-content:space-between;gap:12px;font-size:.79rem"><span style="color:#e67e22;font-weight:700">🟠 A descontar</span><b>'+_chqFmt(abBanco[b].av)+'</b></div>'+
-         '<div style="font-size:.67rem;color:#bbb;text-align:right;margin-bottom:4px">'+abBanco[b].aq+' cheque(s)</div>'+
-         '<div style="display:flex;justify-content:space-between;gap:12px;font-size:.79rem"><span style="color:#2e7d32;font-weight:700">🟢 Descontado</span><b>'+_chqFmt(abBanco[b].cv)+'</b></div>'+
-         '<div style="font-size:.67rem;color:#bbb;text-align:right">'+abBanco[b].cq+' cheque(s)</div>'+
-         '</div>';
-    });
-    h+='</div>';
-  }
-
-  h+='<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 12px;padding:8px 10px;background:#f6f8f7;border-radius:9px">';
-  h+='<span style="font-size:.78rem;color:#666;font-weight:700;margin-right:2px">📚 Ver por banco (em ordem):</span>';
-  [['TODOS','Todos']].concat(bancos.map(function(b){ return [b,b]; })).forEach(function(o){
-    var on=_chqFbanco===o[0];
-    h+='<button onclick="chqVerBanco(\''+o[0]+'\')" style="border:1px solid '+(on?'#1a3a2a':'#ccd')+';background:'+(on?'#1a3a2a':'#fff')+';color:'+(on?'#fff':'#444')+';border-radius:16px;padding:5px 12px;font-size:.78rem;font-weight:'+(on?'700':'500')+';cursor:pointer">'+esc(o[1])+'</button>';
-  });
-  h+='</div>';
-
-  h+='<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">';
-  h+='<div style="display:inline-flex;border:1px solid #ddd;border-radius:8px;overflow:hidden">';
-  [['A','🟠 A Compensar'],['C','🟢 Compensados'],['X','⚪ Cancelados'],['N','⛔ Não existe'],['TODOS','Todos']].forEach(function(o){
-    var on=_chqFsit===o[0];
-    h+='<button onclick="chqSetSit(\''+o[0]+'\')" style="border:none;padding:7px 13px;font-size:.82rem;font-weight:'+(on?'700':'400')+';cursor:pointer;background:'+(on?'#1a3a2a':'#fff')+';color:'+(on?'#fff':'#555')+'">'+o[1]+'</button>';
-  });
-  h+='</div>';
-  h+='<select onchange="chqSetBanco(this.value)" style="font-size:.82rem;padding:6px 10px;border:1px solid #ddd;border-radius:7px">';
-  h+='<option value="TODOS"'+(_chqFbanco==='TODOS'?' selected':'')+'>Todos os bancos</option>';
-  bancos.forEach(function(b){ h+='<option value="'+esc(b)+'"'+(_chqFbanco===b?' selected':'')+'>'+esc(b)+'</option>'; });
-  h+='</select>';
-  h+='<input type="text" placeholder="🔍 Nº ou cliente..." value="'+esc(_chqFbuscaTexto)+'" data-chq-busca="1" oninput="chqSetBusca(this.value)" style="font-size:.82rem;padding:6px 10px;border:1px solid #ddd;border-radius:7px;min-width:170px">';
-  if(!_chqSec){
-
-    h+='<button class="btn-edit" onclick="chqSincronizarAbaAntiga()" title="Traz os cheques reais da aba antiga (fornecedor, valor, bom para) e marca os de adiantamento" style="margin-left:auto;background:#8e44ad;color:#fff">🔄 Sincronizar aba antiga</button>';
-  }
-  h+='<button class="btn-add"'+(_chqSec?' style="margin-left:auto"':'')+' onclick="chqNovo()">+ Novo Cheque</button>';
-  h+='<button class="btn-add" onclick="chqRemessa()" title="Lançar vários cheques de uma vez (uma remessa: números em sequência)" style="background:#1a4a7c">📦 Remessa (vários)</button>';
-  if(!_chqSec){ h+='<button class="btn-add" onclick="chqRemessaDeposito()" title="Depositar vários cheques de uma vez (borderô): marca todos como compensados e desconta do saldo do banco" style="background:#1a7f4b">📥 Depositar em lote</button>'; }
-  if(!_chqSec){ h+='<button class="btn-edit" onclick="chqExportCSV()" title="Baixar em Excel/CSV">⬇️ Exportar</button>'; }
-  h+='</div>';
-
-  h+='<div style="font-size:.82rem;color:#666;margin-bottom:8px">Mostrando <b>'+arr.length+'</b> cheque(s)'+(_chqSec?'':' — total <b>'+_chqFmt(somaFiltro)+'</b>')+'</div>';
-
-  h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.84rem">'+
-     '<thead><tr style="background:#1a3a2a;color:#fff;text-align:left">'+
-     '<th style="padding:7px 9px">Nº</th><th style="padding:7px 9px">Banco</th><th style="padding:7px 9px">Cliente</th>'+
-     '<th style="padding:7px 9px;text-align:right">Valor</th><th style="padding:7px 9px">Data Saída</th>'+
-     '<th style="padding:7px 9px">Vencimento</th>'+
-     '<th style="padding:7px 9px">Caiu em</th><th style="padding:7px 9px">Situação</th><th style="padding:7px 9px;text-align:center">Desc. Compra?</th><th style="padding:7px 9px;text-align:center">Ações</th></tr></thead><tbody id="chq-ctrl-body">';
-  if(!arr.length){
-    h+='<tr><td colspan="10" style="padding:18px;text-align:center;color:#aaa">Nenhum cheque neste filtro.</td></tr>';
-  }
-
-  var _adtIdx={};
-  try{
-    if(typeof CHEQUES_POR_FORN!=='undefined'){
-      Object.keys(CHEQUES_POR_FORN).forEach(function(k){
-        (CHEQUES_POR_FORN[k]||[]).forEach(function(x){
-          _adtIdx[(x.banco||'')+'|'+String(x.num)]=(x.statusDesc||'A descontar');
-        });
-      });
-    }
-  }catch(e){}
-  _erpPaginarDados('cheques-compensar',arr,'chq-ctrl-body',renderChequesCompensar).forEach(function(c){
-    var s=c.s||'A';
-    var bg = s==='A' ? '#fff9e6' : (s==='C' ? '#f2faf3' : (s==='N' ? '#efefef' : '#f5f5f5'));
-    var sitTag = s==='A' ? '<span style="background:#fff3cd;color:#8a6d00;border-radius:9px;padding:2px 9px;font-size:.74rem;font-weight:700">🟠 A Compensar</span>'
-               : s==='C' ? '<span style="background:#d7f0dd;color:#1a5e2a;border-radius:9px;padding:2px 9px;font-size:.74rem;font-weight:700">🟢 Compensado</span>'
-               : s==='N' ? '<span style="background:#e8e8e8;color:#999;border-radius:9px;padding:2px 9px;font-size:.74rem;font-weight:700">⛔ Não existe</span>'
-               : '<span style="background:#e0e0e0;color:#777;border-radius:9px;padding:2px 9px;font-size:.74rem;font-weight:700">⚪ Cancelado</span>';
-    var cliTxt = (s==='X'||s==='N') ? '<span style="text-decoration:line-through;color:#aaa">'+esc(c.c||(s==='N'?'não emitido':''))+'</span>' : esc(c.c||'');
-    var corB=_cfgChequeBankColor(c.b);
-    var dc=!!c.dc;
-    var compraCell='<button onclick="chqToggleCompra(\''+c.id+'\')" title="'+(dc?'Este cheque desconta da compra (adiantamento). Clique pra desmarcar.':'Marcar: este cheque desconta da compra (adiantamento)')+'" style="border:1px solid '+(dc?'#8e44ad':'#ccc')+';background:'+(dc?'#f3e5f5':'#fff')+';color:'+(dc?'#8e44ad':'#aaa')+';border-radius:14px;padding:3px 11px;font-size:.72rem;font-weight:700;cursor:pointer">'+(dc?'🛒 Sim':'—')+'</button>';
-    var acoes='';
-    
-    if(!_chqSec){
-      if(s==='A'){ acoes+='<button onclick="chqMarcarComp(\''+c.id+'\')" title="Marcar como compensado (caiu no banco)" style="border:none;background:#1a5e2a;color:#fff;border-radius:6px;padding:4px 9px;font-size:.75rem;cursor:pointer;font-weight:700">✔ Compensou</button> '; }
-      else if(s==='C'){ acoes+='<button onclick="chqReabrir(\''+c.id+'\')" title="Voltar para a compensar" style="border:none;background:#f39c12;color:#fff;border-radius:6px;padding:4px 9px;font-size:.75rem;cursor:pointer">↩ Reabrir</button> '; }
-    }
-
-    var _descSt=_adtIdx[(c.b||'')+'|'+String(c.n)];
-    if(_descSt!==undefined){
-      var _feito=(_descSt==='Descontado');
-      acoes+='<button onclick="chqToggleDesconto(\''+c.id+'\')" title="'+(_feito?'Já descontado da carga do fornecedor. Clique pra desfazer.':'Marcar como descontado da carga do fornecedor')+'" style="border:none;background:'+(_feito?'#7f8c8d':'#2980b9')+';color:#fff;border-radius:6px;padding:4px 9px;font-size:.75rem;cursor:pointer;font-weight:700">'+(_feito?'↩ Desfazer carga':'✅ Descontar carga')+'</button> ';
-    }
-    acoes+='<button onclick="chqEditar(\''+c.id+'\')" title="Editar" style="border:1px solid #ccc;background:#fff;border-radius:6px;padding:4px 8px;font-size:.75rem;cursor:pointer">✏️</button> ';
-    if(!_chqSec){ acoes+='<button onclick="chqExcluir(\''+c.id+'\')" title="Excluir" style="border:1px solid #f3c0c0;background:#fff;color:#c0392b;border-radius:6px;padding:4px 8px;font-size:.75rem;cursor:pointer">🗑️</button>'; }
-    h+='<tr style="background:'+bg+';border-bottom:1px solid #eee">'+
-       '<td style="padding:6px 9px;font-weight:700">'+esc(String(c.n||''))+'</td>'+
-       '<td style="padding:6px 9px;white-space:nowrap"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+corB+';margin-right:5px;vertical-align:middle"></span>'+esc(c.b||'')+'</td>'+
-       '<td style="padding:6px 9px">'+cliTxt+'</td>'+
-       '<td style="padding:6px 9px;text-align:right;font-weight:600">'+_chqFmt(+c.v||0)+'</td>'+
-       '<td style="padding:6px 9px;color:#777">'+esc(c.d||'')+'</td>'+
-       '<td style="padding:6px 9px;color:#555;font-weight:600">'+esc(c.venc||'')+'</td>'+
-       '<td style="padding:6px 9px;color:#777">'+esc(c.cd||'')+'</td>'+
-       '<td style="padding:6px 9px">'+sitTag+'</td>'+
-       '<td style="padding:6px 9px;text-align:center">'+compraCell+'</td>'+
-       '<td style="padding:6px 9px;text-align:center;white-space:nowrap">'+acoes+'</td></tr>';
-  });
-  h+='</tbody></table></div>';
-  root.innerHTML=h;
-  _erpPaginarDados('cheques-compensar',arr,'chq-ctrl-body',renderChequesCompensar);
-}
-
-var _CHQ_BANCO_COD={};
-
-var _CHQ_BANCO_COR={};
 function _chqPodeLancarBanco(){
   try{ return !!(cu && (cu.admin===true || (Array.isArray(cu.tabs)&&cu.tabs.some(function(t){ return t==='contas_banco'||t==='bancos'; })))); }catch(e){ return false; }
 }
-function chqMarcarComp(id){
-  var c=CHQ_CTRL[id]; if(!c) return;
-  var d=prompt('Data que o cheque nº '+c.n+' ('+c.b+') caiu no banco (dd/mm/aaaa):', c.cd||_chqHojeBR());
-  if(d===null) return;
-  var descontarBanco=true;
-  var _auto=_chqDescontaBancoAuto(c);
-  if(_auto!==null){ descontarBanco=_auto; }
-  else if(c.dc){
-    descontarBanco=confirm('Este cheque está marcado como "desconta da compra" (adiantamento).\n\nSe você já lançou ele como adiantamento, o saldo do banco JÁ baixou — então NÃO precisa descontar de novo (senão conta em dobro).\n\nDescontar do saldo do banco mesmo assim?\n\nOK = sim, descontar do banco\nCancelar = não, só marcar como compensado');
-  }
-  _bancoApi({action:'clear-cheques',mode:'controle',date:String(d||'').trim()||_chqHojeBR(),cheques:[{id:id,bankCode:_cfgChequeBankCode(c.b),debit:descontarBanco}]})
-    .then(function(r){
-      (r.warnings||[]).forEach(function(w){ showToast('⚠️ '+w,'warn',10000); });
-      if((r.skipped||[]).length){ showToast('O cheque '+c.n+' já não estava a compensar. A lista foi atualizada.','info',6000); return; }
-      showToast('Cheque '+c.n+' compensado'+((r.movements||[]).length?' — saiu do saldo do banco':'')+' ✔','success');
-    })
-    .catch(function(e){ showToast('Erro: '+e.message,'error',8000); });
+function _chqSecretaria(){
+  try{ return !!((typeof cu!=='undefined' && cu) && ((typeof cuKey!=='undefined'&&cuKey==='thais') || (cu.role&&String(cu.role).indexOf('Secretária')>=0))); }catch(e){ return false; }
 }
-function chqRemessaDeposito(){
-  var pend=Object.keys(CHQ_CTRL).map(function(k){ return {id:k,c:CHQ_CTRL[k]}; }).filter(function(o){ return o.c && (o.c.s||'A')==='A'; });
-  if(_chqFbanco && _chqFbanco!=='TODOS') pend=pend.filter(function(o){ return o.c.b===_chqFbanco; });
-  if(!pend.length){ showToast('Não há cheques "A compensar" pra depositar'+(_chqFbanco!=='TODOS'?' nesse banco':'')+'.','info'); return; }
-  pend.sort(function(a,b){ if((a.c.b||'')!==(b.c.b||'')) return (a.c.b||'').localeCompare(b.c.b||''); return (+a.c.n||0)-(+b.c.n||0); });
-  var old=document.getElementById('chq-remessa-ov'); if(old&&old.parentNode) old.parentNode.removeChild(old);
-  var ov=document.createElement('div'); ov.id='chq-remessa-ov';
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10050;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px';
-  var hojeISO=(function(){ var d=new Date(),z=function(n){return String(n).padStart(2,'0');}; return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate()); })();
-  var linhas=pend.map(function(o){
-    var c=o.c; var dc=c.dc?' <span style="background:#fff3cd;color:#856404;padding:1px 6px;border-radius:8px;font-size:.7rem;font-weight:700" title="Marcado como desconto da compra (adiantamento) — não desconta do banco de novo">adiant.</span>':'';
-    return '<tr>'
-      +'<td style="text-align:center"><input type="checkbox" class="chqrd-chk" checked data-id="'+esc(o.id)+'" data-v="'+(+c.v||0)+'" onchange="chqRemessaTotal()"></td>'
-      +'<td>'+esc(c.b||'—')+'</td>'
-      +'<td style="text-align:center">'+esc(c.n||'—')+'</td>'
-      +'<td>'+esc(c.c||'—')+dc+'</td>'
-      +'<td style="text-align:right;font-weight:700">R$ '+_chqFmt(+c.v||0).replace('R$ ','')+'</td>'
-      +'</tr>';
-  }).join('');
-  ov.innerHTML='<div style="background:#fff;border-radius:14px;box-shadow:0 8px 40px #0005;width:96%;max-width:640px">'
-    +'<div style="background:#1a7f4b;color:#fff;padding:14px 20px;border-radius:14px 14px 0 0;display:flex;align-items:center;justify-content:space-between">'
-      +'<b style="font-size:1rem">📥 Depositar cheques em lote (remessa)</b>'
-      +'<span style="cursor:pointer;font-size:1.2rem" onclick="document.getElementById(\'chq-remessa-ov\').remove()">✕</span></div>'
-    +'<div style="padding:16px 20px">'
-      +'<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">'
-        +'<div><label style="font-size:.75rem;font-weight:700;color:#555;display:block">Data do depósito</label>'
-          +'<input type="date" id="chqrd-data" value="'+hojeISO+'" style="padding:7px 9px;border:1.5px solid #ccc;border-radius:7px"></div>'
-        +'<label style="font-size:.82rem;color:#333;cursor:pointer"><input type="checkbox" id="chqrd-all" checked onchange="chqRemessaMarcarTodos(this.checked)"> Marcar todos</label>'
-      +'</div>'
-      +'<div style="font-size:.8rem;color:#666;margin-bottom:8px">Marque os cheques que estão indo pro depósito. Ao confirmar, eles viram <b>Compensados</b> e o valor <b>sai do saldo do banco</b> (os marcados como "adiant." não descontam de novo).</div>'
-      +'<div style="overflow:auto;max-height:340px;border:1px solid #eee;border-radius:8px">'
-        +'<table style="width:100%;border-collapse:collapse;font-size:.84rem"><thead><tr style="background:#f2f6f4;position:sticky;top:0">'
-          +'<th style="padding:7px 8px"></th><th style="padding:7px 8px;text-align:left">Banco</th><th style="padding:7px 8px">Nº</th><th style="padding:7px 8px;text-align:left">Cliente</th><th style="padding:7px 8px;text-align:right">Valor</th></tr></thead>'
-        +'<tbody>'+linhas+'</tbody></table></div>'
-      +'<div style="margin-top:12px;font-size:.95rem;font-weight:800;color:#1a7f4b">Selecionados: <span id="chqrd-count">0</span> cheque(s) · Total: <span id="chqrd-total">R$ 0,00</span></div>'
-    +'</div>'
-    +'<div style="padding:0 20px 18px;display:flex;gap:8px;justify-content:flex-end">'
-      +'<button onclick="document.getElementById(\'chq-remessa-ov\').remove()" style="padding:9px 16px;background:#eee;color:#333;border:none;border-radius:7px;cursor:pointer;font-weight:700">Cancelar</button>'
-      +'<button onclick="chqRemessaDepConfirmar()" style="padding:9px 20px;background:#1a7f4b;color:#fff;border:none;border-radius:7px;cursor:pointer;font-weight:800">✔ Confirmar depósito</button>'
-    +'</div></div>';
-  document.body.appendChild(ov);
-  chqRemessaTotal();
-}
-function chqRemessaMarcarTodos(on){ document.querySelectorAll('#chq-remessa-ov .chqrd-chk').forEach(function(ch){ ch.checked=!!on; }); chqRemessaTotal(); }
-function chqRemessaTotal(){
-  var checks=Array.prototype.slice.call(document.querySelectorAll('#chq-remessa-ov .chqrd-chk:checked'));
-  var tot=0; checks.forEach(function(ch){ tot+=Number(ch.dataset.v||0); });
-  var cEl=document.getElementById('chqrd-count'); if(cEl) cEl.textContent=checks.length;
-  var tEl=document.getElementById('chqrd-total'); if(tEl) tEl.textContent='R$ '+Number(tot).toLocaleString('pt-BR',{minimumFractionDigits:2});
-}
-function chqRemessaDepConfirmar(){
-  var di=document.getElementById('chqrd-data'); var iso=di?di.value:'';
-  if(!iso){ showToast('Informe a data do depósito.','error'); return; }
-  var dBR=iso.split('-').reverse().join('/');
-  var checks=Array.prototype.slice.call(document.querySelectorAll('#chq-remessa-ov .chqrd-chk:checked'));
-  if(!checks.length){ showToast('Marque pelo menos um cheque.','info'); return; }
-  if(!confirm('Depositar '+checks.length+' cheque(s) na data '+dBR+'? Eles viram Compensados e saem do saldo do banco (os de adiantamento não descontam de novo).')) return;
-  var lista=[];
-  checks.forEach(function(chk){
-    var id=chk.dataset.id; var c=CHQ_CTRL[id]; if(!c||(c.s||'A')!=='A') return;
-    var _auto=_chqDescontaBancoAuto(c);
-    lista.push({id:id,bankCode:_cfgChequeBankCode(c.b),debit:_auto!==null?_auto:!c.dc});
-  });
-  if(!lista.length){ showToast('Os cheques marcados já foram compensados. A lista foi atualizada.','info'); return; }
-  var botao=document.querySelector('#chq-remessa-ov button[onclick="chqRemessaDepConfirmar()"]'); if(botao) botao.disabled=true;
-  _bancoApi({action:'clear-cheques',mode:'remessa',date:iso,cheques:lista})
-    .then(function(r){
-      var ov=document.getElementById('chq-remessa-ov'); if(ov) ov.remove();
-      var tot=(r.cleared||[]).reduce(function(s,x){ return s+Number((CHQ_CTRL[x.id]||{}).v||0); },0);
-      (r.warnings||[]).forEach(function(w){ showToast('⚠️ '+w,'warn',10000); });
-      showToast('✔ Remessa depositada: '+(r.cleared||[]).length+' cheque(s) · R$ '+Number(tot).toLocaleString('pt-BR',{minimumFractionDigits:2})+'. Saiu do saldo do banco.','success',6000);
-    })
-    .catch(function(e){ if(botao) botao.disabled=false; showToast('Erro: '+e.message,'error',8000); });
-}
-window['chqRemessaDeposito']=chqRemessaDeposito;
-window['chqRemessaMarcarTodos']=chqRemessaMarcarTodos;
-window['chqRemessaTotal']=chqRemessaTotal;
-window['chqRemessaDepConfirmar']=chqRemessaDepConfirmar;
+window.erpChequeControlSnapshot=function(){
+  var ordem={};
+  try{ _cfgChequeBanks().forEach(function(b,i){ ordem[b.name]=Number(b.order||i+1); }); }catch(e){}
+  var bancos=[];
+  try{ bancos=_cfgChequeBankNames().map(function(nome){ return {name:nome,slug:_cfgChequeBankSlug(nome),code:_cfgChequeBankCode(nome),color:_cfgChequeBankColor(nome),order:ordem[nome]||8}; }); }catch(e){}
+  return {
+    ready:_chqInited&&_chqCarregado,
+    cheques:CHQ_CTRL,
+    deleted:_chqDel,
+    banks:bancos,
+    clients:Array.isArray(CLIENTES)?CLIENTES:[],
+    suppliers:typeof getFornAtivos==='function'?getFornAtivos():(Array.isArray(FORNECEDORES)?FORNECEDORES:[]),
+    expenseSuppliers:typeof FORNECEDORES_DESPESA!=='undefined'&&Array.isArray(FORNECEDORES_DESPESA)?FORNECEDORES_DESPESA:[],
+    deletedSuppliers:typeof FORN_DELETED!=='undefined'&&FORN_DELETED?Array.from(FORN_DELETED):[],
+    supplierCheques:typeof CHEQUES_POR_FORN!=='undefined'?CHEQUES_POR_FORN:{},
+    advances:typeof ADT_POR_FORN!=='undefined'?ADT_POR_FORN:{},
+    secretary:_chqSecretaria(),
+    canBank:_chqPodeLancarBanco()
+  };
+};
+function renderChequesCompensar(){}
 
-function chqReabrir(id){
-  var c=CHQ_CTRL[id]; if(!c) return;
-  if(c.movBancoId && !_chqPodeLancarBanco()){
-    alert('Este cheque já saiu do saldo do banco. Para reabri-lo é preciso desfazer a saída no extrato: peça para quem tem acesso a Bancos.');
-    return;
-  }
-  var tinhaMov=!!c.movBancoId;
-  _bancoApi({action:'reopen-cheque',id:id})
-    .then(function(){ showToast('Cheque '+c.n+' voltou para A Compensar'+(tinhaMov?' — devolvido ao saldo do banco':''),'success'); })
-    .catch(function(e){ showToast('Erro: '+e.message,'error',8000); });
-}
-function chqExcluir(id){
-  var c=CHQ_CTRL[id]; if(!c) return;
-  if(c.advanceCode){
-    alert('Este cheque pertence ao adiantamento '+c.advanceCode+'.\n\nPara removê-lo, exclua o adiantamento no módulo Adiantamentos: os cheques dele saem junto, sem deixar saldo sem origem.');
-    return;
-  }
-  if(c.movBancoId && !_chqPodeLancarBanco()){ alert('Este cheque já saiu do saldo do banco. Para excluí-lo, peça para quem tem acesso a Bancos.'); return; }
-  if(!confirm('Excluir o cheque nº '+c.n+' ('+c.b+', '+_chqFmt(+c.v||0)+')?\n\nEle sai do controle em todos os computadores.')) return;
-  _bancoApi({action:'delete-cheque',id:id})
-    .then(function(){ showToast('Cheque excluído','success'); })
-    .catch(function(e){ showToast('Erro: '+e.message,'error',8000); });
-}
-
-function _chqCadastroDestinos(){
-  var grupos=[
-    {lista:Array.isArray(CLIENTES)?CLIENTES:[],tipo:'Cliente'},
-    {lista:typeof getFornAtivos==='function'?getFornAtivos():(Array.isArray(FORNECEDORES)?FORNECEDORES:[]),tipo:'Fornecedor'},
-    {lista:typeof FORNECEDORES_DESPESA!=='undefined'&&Array.isArray(FORNECEDORES_DESPESA)?FORNECEDORES_DESPESA:[],tipo:'Fornecedor de despesa'}
-  ];
-  var destinos=[],vistos=new Set();
-  grupos.forEach(function(grupo){
-    (grupo.lista||[]).forEach(function(c){
-      if(!c||c.inativo||c.ativo===false||c._deleted)return;
-      if(grupo.tipo==='Fornecedor'&&typeof FORN_DELETED!=='undefined'&&FORN_DELETED.has(c.cod))return;
-      var nome=String(c.nome||c.razaoSocial||c.razao||'').trim();
-      if(!nome)return;
-      var cod=String(c.cod||c.codigo||c.id||'').trim();
-      var chave=grupo.tipo+'|'+(cod||nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase());
-      if(vistos.has(chave))return;
-      vistos.add(chave);destinos.push({nome:nome,cod:cod,tipo:grupo.tipo});
-    });
-  });
-  return destinos.sort(function(a,b){
-    var tp={'Fornecedor':0,'Fornecedor de despesa':1,'Cliente':2};
-    return (tp[a.tipo]??3)-(tp[b.tipo]??3)||a.nome.localeCompare(b.nome,'pt-BR');
-  });
-}
-function _chqBindDestinoAutocomplete(ov){
-  var inp=ov.querySelector('#chqm-c'),pop=ov.querySelector('#chqm-destino-opcoes');
-  var toggle=ov.querySelector('#chqm-destino-toggle');
-  var code=ov.querySelector('#chqm-destino-cod'),type=ov.querySelector('#chqm-destino-tipo');
-  var hint=ov.querySelector('#chqm-destino-info');
-  if(!inp||!pop||!toggle||!code||!type)return;
-  var visible=[],pos=-1;
-  var norm=function(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();};
-  function close(){pop.hidden=true;inp.setAttribute('aria-expanded','false');pos=-1;}
-  function mark(){
-    Array.from(pop.querySelectorAll('button[data-destino-index]')).forEach(function(el){
-      var selected=Number(el.dataset.destinoIndex)===pos;
-      el.style.background=selected?'#eaf3ed':'#fff';
-      el.setAttribute('aria-selected',selected?'true':'false');
-      if(selected&&el.scrollIntoView)el.scrollIntoView({block:'nearest'});
-    });
-  }
-  function choose(item){
-    if(!item)return;
-    inp.value=item.nome;code.value=item.cod;type.value=item.tipo;
-    if(hint)hint.textContent=item.tipo+(item.cod?' · '+item.cod:'');
-    close();inp.focus();
-  }
-  function open(){
-    var q=norm(inp.value);
-    var isChosen=!!type.value;
-    visible=_chqCadastroDestinos().filter(function(item){
-      return !q||isChosen||norm(item.nome).includes(q)||norm(item.cod).includes(q)||norm(item.tipo).includes(q);
-    });
-    var html='',last='';
-    visible.slice(0,200).forEach(function(item,i){
-      if(item.tipo!==last){last=item.tipo;html+='<div style="padding:7px 10px;background:#f0f4f1;color:#345446;font-size:.73rem;font-weight:800">'+esc(last)+'</div>';}
-      html+='<button type="button" role="option" data-destino-index="'+i+'" style="display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;text-align:left;padding:9px 11px;background:#fff;border:0;border-bottom:1px solid #eef0ee;cursor:pointer;color:#1e342b;font-size:.84rem"><span>'+esc(item.nome)+'</span><small style="color:#687970;white-space:nowrap">'+esc(item.cod)+'</small></button>';
-    });
-    if(!html)html='<div style="padding:14px;color:#65746c;font-size:.82rem">Nenhum cadastro encontrado. É possível informar um destino manualmente.</div>';
-    pop.innerHTML=html;pop.hidden=false;inp.setAttribute('aria-expanded','true');pos=-1;
-  }
-  inp.addEventListener('focus',open);
-  inp.addEventListener('input',function(){code.value='';type.value='';if(hint)hint.textContent='';open();});
-  inp.addEventListener('keydown',function(e){
-    if(e.key==='Escape'){close();return;}
-    if(e.key==='ArrowDown'||e.key==='ArrowUp'){
-      e.preventDefault();if(pop.hidden)open();
-      pos=Math.max(0,Math.min(visible.length-1,pos+(e.key==='ArrowDown'?1:-1)));mark();return;
-    }
-    if(e.key==='Enter'&&!pop.hidden&&visible.length){e.preventDefault();choose(visible[pos<0?0:pos]);}
-  });
-  toggle.addEventListener('click',function(){if(pop.hidden){inp.focus();open();}else close();});
-  pop.addEventListener('mousedown',function(e){if(e.target.closest('button[data-destino-index]'))e.preventDefault();});
-  pop.addEventListener('click',function(e){
-    var btn=e.target.closest('button[data-destino-index]');
-    if(btn)choose(visible[Number(btn.dataset.destinoIndex)]);
-  });
-  ov.onclick=function(e){if(!e.target.closest('#chqm-destino-group'))close();};
-}
-function _chqModal(id){
-  var c = id ? CHQ_CTRL[id] : null;
-  var bancos=_cfgChequeBankNames();
-  var ov=document.getElementById('chq-modal-ov');
-  if(!ov){
-    ov=document.createElement('div'); ov.id='chq-modal-ov';
-    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
-    document.body.appendChild(ov);
-  }
-  var v = c || {b:bancos[0],n:'',c:'',v:'',d:'',cd:'',s:'A'};
-  ov.innerHTML='<div style="background:#fff;border-radius:14px;max-width:440px;width:100%;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.3)">'+
-    '<div style="font-size:1.05rem;font-weight:800;color:#1a3a2a;margin-bottom:14px">'+(c?'✏️ Editar Cheque':'+ Novo Cheque')+'</div>'+
-    '<input type="hidden" id="chqm-id" value="'+(id||'')+'">'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-      '<label style="font-size:.78rem;color:#666">Banco<select id="chqm-b" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem">'+
-        bancos.map(function(b){ return '<option'+(v.b===b?' selected':'')+'>'+esc(b)+'</option>'; }).join('')+'</select></label>'+
-      '<label style="font-size:.78rem;color:#666">Nº do Cheque<input id="chqm-n" value="'+esc(String(v.n||''))+'" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem"></label>'+
-      '<div id="chqm-destino-group" style="grid-column:1/3;position:relative;min-width:0">'+
-        '<label for="chqm-c" style="display:block;font-size:.78rem;color:#666;margin-bottom:4px">Cliente / Fornecedor / Destino</label>'+
-        '<div style="display:flex;align-items:stretch;border:1px solid #a6bdb0;border-radius:7px;overflow:hidden">'+
-          '<input id="chqm-c" role="combobox" aria-autocomplete="list" aria-controls="chqm-destino-opcoes" aria-expanded="false" autocomplete="off" value="'+esc(v.c||'')+'" placeholder="Buscar cliente ou fornecedor" style="flex:1;min-width:0;padding:8px;border:0;outline:none;font-size:.85rem">'+
-          '<button id="chqm-destino-toggle" type="button" aria-label="Mostrar clientes e fornecedores" style="width:36px;border:0;border-left:1px solid #d7e0da;background:#f3f7f4;cursor:pointer">▾</button></div>'+
-        '<input type="hidden" id="chqm-destino-cod" value="'+esc(c?(c.fornecedorCod||c.clienteCod||''):'')+'">'+
-        '<input type="hidden" id="chqm-destino-tipo" value="'+esc(c?(c.fornecedorCod?'Fornecedor':c.clienteCod?'Cliente':''):'')+'">'+
-        '<div id="chqm-destino-info" style="font-size:.73rem;color:#42614e;margin-top:3px"></div>'+
-        '<div id="chqm-destino-opcoes" role="listbox" hidden style="position:absolute;top:calc(100% + 2px);left:0;right:0;max-height:240px;overflow-y:auto;background:#fff;border:1px solid #aec3b4;border-radius:7px;box-shadow:0 12px 28px #0003;z-index:100"></div></div>'+
-      '<label style="font-size:.78rem;color:#666">Valor (R$)<input id="chqm-v" value="'+esc(String(v.v||''))+'" placeholder="4990,00" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem"></label>'+
-      '<label style="font-size:.78rem;color:#666">Situação<select id="chqm-s" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem">'+
-        '<option value="A"'+(v.s==='A'?' selected':'')+'>A Compensar</option>'+
-        '<option value="C"'+(v.s==='C'?' selected':'')+'>Compensado</option>'+
-        '<option value="X"'+(v.s==='X'?' selected':'')+'>Cancelado</option></select></label>'+
-      '<label style="font-size:.78rem;color:#666">Data de Saída<input id="chqm-d" value="'+esc(v.d||'')+'" placeholder="dd/mm/aaaa" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem"></label>'+
-      '<label style="font-size:.78rem;color:#666">Vencimento (bom para)<input id="chqm-venc" value="'+esc(v.venc||'')+'" placeholder="dd/mm/aaaa" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem"></label>'+
-      '<label style="font-size:.78rem;color:#666">Caiu em (compensado)<input id="chqm-cd" value="'+esc(v.cd||'')+'" placeholder="dd/mm/aaaa" style="width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem"></label>'+
-    '</div>'+
-    '<div style="display:flex;gap:9px;justify-content:flex-end;margin-top:18px">'+
-      '<button onclick="chqFecharModal()" style="border:1px solid #ccc;background:#fff;border-radius:8px;padding:8px 16px;font-size:.85rem;cursor:pointer">Cancelar</button>'+
-      '<button onclick="chqSalvarModal()" style="border:none;background:#1a3a2a;color:#fff;border-radius:8px;padding:8px 18px;font-size:.85rem;font-weight:700;cursor:pointer">Salvar</button>'+
-    '</div></div>';
-  ov.style.display='flex';
-  _chqBindDestinoAutocomplete(ov);
-}
-
-function chqNovo(){ _chqModal(null); }
-function chqEditar(id){
-  var c=CHQ_CTRL[id];
-  if(c&&c.advanceCode){
-    var fornCod=c.fornCod&&(ADT_POR_FORN[c.fornCod]||[]).some(function(a){ return a&&a.cod===c.advanceCode; })?c.fornCod
-      :Object.keys(ADT_POR_FORN||{}).find(function(k){ return (ADT_POR_FORN[k]||[]).some(function(a){ return a&&a.cod===c.advanceCode; }); });
-    if(!fornCod){ showToast('Este cheque pertence ao adiantamento '+c.advanceCode+', que não foi encontrado. Abra Adiantamentos e atualize.','error',8000); return; }
-    editarChequesAdiantamento(fornCod,c.advanceCode);
-    return;
-  }
-  _chqModal(id);
-}
-function chqFecharModal(){ var ov=document.getElementById('chq-modal-ov'); if(ov) ov.style.display='none'; }
-
-function chqRemessa(){
-  var bancos=_cfgChequeBankNames();
-  var ov=document.getElementById('chq-modal-ov');
-  if(!ov){
-    ov=document.createElement('div'); ov.id='chq-modal-ov';
-    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
-    document.body.appendChild(ov);
-  }
-  var inp='width:100%;padding:7px;border:1px solid #ccc;border-radius:7px;font-size:.85rem;box-sizing:border-box';
-  ov.innerHTML='<div style="background:#fff;border-radius:14px;max-width:520px;width:100%;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.3);max-height:92vh;overflow-y:auto">'+
-    '<div style="font-size:1.05rem;font-weight:800;color:#1a3a2a;margin-bottom:4px">📦 Remessa de Cheques</div>'+
-    '<div style="font-size:.8rem;color:#777;margin-bottom:14px">Lança vários cheques de uma vez, com os números em sequência.</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-      '<label style="font-size:.78rem;color:#666">Banco<select id="chqr-b" style="'+inp+'">'+
-        bancos.map(function(b){ return '<option>'+esc(b)+'</option>'; }).join('')+'</select></label>'+
-      '<label style="font-size:.78rem;color:#666">Cliente / Destino (todos)<input id="chqr-c" placeholder="Ex: FERRO VELHO" style="'+inp+'"></label>'+
-      '<label style="font-size:.78rem;color:#666">Nº inicial<input id="chqr-ini" type="number" min="1" placeholder="180" style="'+inp+'"></label>'+
-      '<label style="font-size:.78rem;color:#666">Quantidade<input id="chqr-qtd" type="number" min="1" max="200" placeholder="10" style="'+inp+'" oninput="_chqRemPrev()"></label>'+
-      '<label style="font-size:.78rem;color:#666">Valor por cheque (R$)<input id="chqr-v" placeholder="4990,00" style="'+inp+'"></label>'+
-      '<label style="font-size:.78rem;color:#666">Data de saída (todos)<input id="chqr-d" placeholder="dd/mm/aaaa" style="'+inp+'"></label>'+
-      '<label style="font-size:.78rem;color:#666">Vencimento — bom para (todos)<input id="chqr-venc" placeholder="dd/mm/aaaa" style="'+inp+'"></label>'+
-      '<label style="font-size:.78rem;color:#666">Situação<select id="chqr-s" style="'+inp+'">'+
-        '<option value="A">🟠 A Compensar</option><option value="C">🟢 Compensado</option></select></label>'+
-      '<label style="font-size:.78rem;color:#666;display:flex;align-items:center;gap:7px;margin-top:20px"><input type="checkbox" id="chqr-dc" checked style="width:16px;height:16px"> 🛒 Desconta da compra (adiantamento)</label>'+
-    '</div>'+
-    '<div id="chqr-prev" style="margin-top:12px;font-size:.82rem;color:#1a4a7c;background:#eef4fb;border-radius:8px;padding:8px 12px"></div>'+
-    '<div style="display:flex;gap:9px;justify-content:flex-end;margin-top:16px">'+
-      '<button onclick="chqFecharModal()" style="border:1px solid #ccc;background:#fff;border-radius:8px;padding:8px 16px;font-size:.85rem;cursor:pointer">Cancelar</button>'+
-      '<button onclick="chqRemessaSalvar()" style="border:none;background:#1a4a7c;color:#fff;border-radius:8px;padding:8px 18px;font-size:.85rem;font-weight:700;cursor:pointer">💾 Lançar todos</button>'+
-    '</div></div>';
-  ov.style.display='flex';
-  _chqRemPrev();
-}
-function _chqRemPrev(){
-  var ini=parseInt(document.getElementById('chqr-ini')?.value)||0;
-  var qtd=parseInt(document.getElementById('chqr-qtd')?.value)||0;
-  var el=document.getElementById('chqr-prev'); if(!el) return;
-  if(ini>0 && qtd>0){ el.textContent='Vai lançar '+qtd+' cheque(s): nº '+ini+' até '+(ini+qtd-1)+'.'; }
-  else{ el.textContent='Preencha o nº inicial e a quantidade.'; }
-}
-function chqRemessaSalvar(){
-  var b=document.getElementById('chqr-b').value;
-  var cli=(document.getElementById('chqr-c').value||'').trim();
-  var ini=parseInt(document.getElementById('chqr-ini').value)||0;
-  var qtd=parseInt(document.getElementById('chqr-qtd').value)||0;
-  var val=_chqParseVal(document.getElementById('chqr-v').value);
-  var d=(document.getElementById('chqr-d').value||'').trim();
-  var venc=(document.getElementById('chqr-venc')?.value||'').trim();
-  var s=document.getElementById('chqr-s').value;
-  var dc=!!document.getElementById('chqr-dc').checked;
-  if(ini<1){ showToast('Informe o número inicial do cheque','error'); return; }
-  if(qtd<1||qtd>200){ showToast('Quantidade deve ser entre 1 e 200','error'); return; }
-  _bancoApi({action:'batch-cheques',slug:_cfgChequeBankSlug(b),start:ini,count:qtd,s:s,dc:dc,cheque:{b:b,c:cli,v:val,d:d,venc:venc}})
-    .then(function(r){
-      var add=(r.cheques||[]).length, pulou=(r.skipped||[]).length;
-      if(!add){ showToast('Nada a lançar — esses números já existem nesse banco.','info',6000); return; }
-      chqFecharModal();
-      showToast('✔ Remessa lançada: '+add+' cheque(s)'+(pulou?' ('+pulou+' já existiam, pulei)':'')+'.','success',7000);
-    })
-    .catch(function(e){ showToast('Erro: '+e.message,'error',8000); });
-}
-function _chqParseVal(s){
-  s=String(s||'').trim().replace(/[^0-9.,]/g,'');
-  if(s.indexOf(',')>=0){ s=s.replace(/\./g,'').replace(',','.'); }
-  var n=parseFloat(s); return isFinite(n)?n:0;
-}
-function chqSalvarModal(){
-  var id=(document.getElementById('chqm-id').value||'').trim();
-  var b=document.getElementById('chqm-b').value;
-  var n=(document.getElementById('chqm-n').value||'').trim();
-  var cli=(document.getElementById('chqm-c').value||'').trim();
-  var val=_chqParseVal(document.getElementById('chqm-v').value);
-  var s=document.getElementById('chqm-s').value;
-  var d=(document.getElementById('chqm-d').value||'').trim();
-  var venc=(document.getElementById('chqm-venc')?.value||'').trim();
-  var cd=(document.getElementById('chqm-cd').value||'').trim();
-  if(!n){ showToast('Preencha o número do cheque','error'); return; }
-  var nomeNorm=function(v){return String(v||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();};
-  var chosenCode=(document.getElementById('chqm-destino-cod')?.value||'').trim();
-  var chosenType=(document.getElementById('chqm-destino-tipo')?.value||'').trim();
-  var destinos=_chqCadastroDestinos();
-  var _selected=destinos.find(function(x){return x.cod===chosenCode&&x.tipo===chosenType&&nomeNorm(x.nome)===nomeNorm(cli);});
-  if(!_selected){var _matches=destinos.filter(function(x){return nomeNorm(x.nome)===nomeNorm(cli);});if(_matches.length===1)_selected=_matches[0];}
-  var destino=_selected?{tipo:_selected.tipo,cod:_selected.cod,nome:_selected.nome}:null;
-  _bancoApi({action:'save-cheque',id:id||'',slug:_cfgChequeBankSlug(b),cheque:{b:b,n:n,c:cli,v:val,d:d,venc:venc,cd:cd,s:s},destino:destino})
-    .then(function(){ chqFecharModal(); showToast('Cheque salvo ✔','success'); })
-    .catch(function(e){ showToast('Erro: '+e.message,'error',9000); });
-}
 function chqSincronizarAbaAntiga(){
   if(typeof CHEQUES_POR_FORN==='undefined'){ showToast('A aba antiga de Cheques não carregou. Recarregue a página.','error'); return; }
   var slug=Object.fromEntries(_cfgChequeBanks().map(function(x){return [x.name,x.slug||'XX'];}));
@@ -14510,17 +13952,6 @@ function cheqExportarJSON(){
     showToast('Exportado '+out.length+' cheques.','success',6000);
   }catch(e){ showToast('Erro ao exportar: '+e.message,'error'); }
 }
-function chqExportCSV(){
-  var arr=_chqLista().slice().sort(function(a,b){ if(a.b!==b.b) return (a.b||'').localeCompare(b.b||''); return (+a.n||0)-(+b.n||0); });
-  var linhas=['Nº;Banco;Cliente;Valor;Data Saída;Caiu em;Situação'];
-  arr.forEach(function(c){
-    linhas.push([c.n||'',c.b||'',(c.c||'').replace(/;/g,','),(+c.v||0).toFixed(2).replace('.',','),c.d||'',c.cd||'',_CHQ_SIT_LBL[c.s||'A']||''].join(';'));
-  });
-  var blob=new Blob(['﻿'+linhas.join('\n')],{type:'text/csv;charset=utf-8'});
-  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='cheques_controle.csv';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-}
-
 function _supGetDB(){
   if(window._fbDB) return window._fbDB;
   try{ const db=firebase.database(); window._fbDB=db; return db; }catch(_){ return null; }

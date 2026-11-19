@@ -37,23 +37,6 @@ test('preços possuem busca por pessoa e material',()=>{
   has('phase2-price-party-search','phase2-price-material-search','tab-precos_fornecedores','tab-precos_clientes');
 });
 
-test('cheques usam os campos reais b/n e detectam lacunas e duplicidades',()=>{
-  has("c?.n||c?.num","c?.b||c?.banco",'chequeSequenceByBank','Você está pulando','Esse número de cheque já existe neste banco');
-  assert.ok(js.includes('Números faltantes'));
-  assert.ok(js.includes('sincronizar aba antiga'));
-});
-
-test('busca de cheque procura na lista inteira (paginada), sem acento e mantendo o foco no campo',()=>{
-  assert.equal(js.includes('phase2FilterChequeRows'),false,'não esconde só as linhas da página visível');
-  const core=fs.readFileSync(new URL('../public/legacy/app-core.js',import.meta.url),'utf8');
-  const start=core.indexOf('function chqSetBusca(v){');
-  const setter=core.slice(start,core.indexOf('\n}\n',start));
-  assert.match(setter,/_erpReiniciarPagina\('cheques-compensar'\)/);
-  assert.match(setter,/input\.focus\(\)/);
-  assert.match(core,/var hay=_chqNormBusca\(/);
-  assert.match(core,/_erpPaginarDados\('cheques-compensar',arr,'chq-ctrl-body',renderChequesCompensar\)/);
-});
-
 test('Contas pessoais da dona ficam separadas do Contas a Pagar empresarial',()=>{
   has('contas_dona','Contas Pessoais da Dona','ownerBills','fixedPayables','phase2OpenOwnerBills');
   assert.ok(!fs.readFileSync(path.join(root,'public/modules/phase1/phase1-finance.js'),'utf8').includes('ensureFixedAccounts();\n  ensureSimplePayables();'));

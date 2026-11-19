@@ -114,6 +114,32 @@ Regras:
 
 Uma aba antiga que ainda grava o extrato teria esse envio recusado pelas regras novas.
 
+## Tela "Cheques a compensar" em React (19/11/2026, v255)
+
+A aba é React (`web/modules/cheque-control/`, ligada em `web/erp/cheque-control.tsx` no `#cheques-compensar-app`) e grava pela mesma API `banking/ledger`. Os dados continuam no legado (`CHQ_CTRL`, `chqInit` e o ouvinte do Firebase), e a tela lê tudo por `window.erpChequeControlSnapshot()`.
+
+O que a cliente via era o resultado de três camadas: a tela antiga, a fase 2 (escondia a ajuda antiga e "Sincronizar aba antiga", acrescentava a conferência de numeração e o aviso do número no formulário) e a fase 3 ("Abate compra?", textos dos botões, totais sem os excluídos). A tela nova faz tudo isso direto, e as rotinas das fases 2 e 3, que rodavam a cada mudança na página, saíram.
+
+Mudanças visíveis:
+- **"Compensou":** abre uma janela com a data, no lugar do `prompt`. Quando o cheque abate compra e não é de adiantamento, a janela mostra dois botões ("Só marcar como compensado" ou "Compensar e descontar do banco") em vez do `confirm` de OK/Cancelar.
+- **Datas no formulário e na remessa:** passaram a usar o calendário. A remessa antes era texto.
+- **"Descontar carga":** chama a API de cheques de fornecedor com o `id` certo. Antes, num cheque antigo sem `id`, podia marcar outro cheque.
+- **"Sincronizar aba antiga":** continua fora da tela, como já estava (a fase 2 escondia). A função `chqSincronizarAbaAntiga` ficou no legado.
+
+Regras (iguais às de antes, agora em `domain/control.ts` e `domain/forms.ts`, testadas em `test/cheque-control-web.test.js`):
+- **Desconto no banco ao compensar:** cheque próprio de adiantamento desconta; cheque de terceiro não; adiantamento que já saiu do banco não.
+- **Cheque que abate compra sem adiantamento:** a tela pergunta. No depósito em lote ele não desconta de novo.
+- **Excluir e reabrir:**
+  - cheque de adiantamento só sai pelo adiantamento;
+  - cheque que já saiu do banco exige acesso a Bancos.
+- **Numeração:**
+  - lacunas por banco;
+  - salto acima de 250 é tratado como outro talão;
+  - a lista mostra no máximo 48 linhas;
+  - número repetido não salva;
+  - número pulando a sequência pede confirmação só no cadastro novo.
+- **Perfil secretária:** não vê totais, cartões, depósito, exportar, compensar, reabrir nem excluir.
+
 ## Saldos de fornecedor só pelo servidor (19/11/2026, v252)
 
 O navegador não grava mais `saldoDevedor`, `saldos` nem `saldoDevedorDeleted` (regras com `.write: false`). A API é `POST /api/finance/supplier-balance` (`changeSupplierBalance` em `server/modules/purchases/application/supplier-balance.ts`). Na tela, a chamada é `_saldoFornApi`, também em `window.erpSupplierBalanceRequest`.

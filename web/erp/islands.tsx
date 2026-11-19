@@ -21,6 +21,7 @@ import { installCustomers } from './customers.js';
 import { installReceivables } from './receivables.js';
 import { installPayables } from './payables.js';
 import { installBanking } from './banking.js';
+import { installChequeControl } from './cheque-control.js';
 
 const CHEQUE_REPORT = 'adt-cheques-report';
 const roots = new Map<string, Root>();
@@ -245,4 +246,5 @@ installCustomers();
 installReceivables();
 installPayables();
 installBanking();
+installChequeControl();
 installSales();

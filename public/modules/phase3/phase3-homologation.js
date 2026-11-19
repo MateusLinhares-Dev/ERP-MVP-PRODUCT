@@ -595,28 +595,6 @@ function refreshAvisos(){try{global.avisosAtualizarBadge?.();if($('#tab-avisos')
 if(typeof legacyAvisos==='function')global.renderAvisos=function(){const r=legacyAvisos.apply(this,arguments);setTimeout(injectCalendarAvisos,0);return r;};
 global.erpCalendarUpcoming=function(){return myUpcoming();};
 
-function chequeSequence(){
-  let list=[];try{list=Object.entries(CHQ_CTRL||{}).filter(([id,c])=>c&&!(global._chqDel||{})[id]).map(([,c])=>c);}catch(e){}
-  const groups=new Map();
-  list.forEach(c=>{
-    const bank=String(c.b||'Sem banco'),value=String(c.n||'').replace(/\D/g,''),n=Number(value);
-    if(!value||!Number.isSafeInteger(n)||n<0)return;
-    if(!groups.has(bank))groups.set(bank,new Set());
-    groups.get(bank).add(n);
-  });
-  return Array.from(groups,([bank,unique])=>{
-    const nums=Array.from(unique).sort((a,b)=>a-b),ranges=[];
-    for(let i=1;i<nums.length;i++){
-      const count=nums[i]-nums[i-1]-1;
-      if(count>0)ranges.push({start:nums[i-1]+1,end:nums[i]-1,count,large:count>250});
-    }
-    return {bank,ranges,missing:ranges.slice(0,3)};
-  });
-}
-function decorateCheque(){const root=$('#chq-ctrl-root');if(!root)return;try{const live=Object.entries(CHQ_CTRL||{}).filter(([id,c])=>c&&!(global._chqDel||{})[id]).map(([,c])=>c),tot={A:{q:0,v:0},C:{q:0,v:0},X:{q:0,v:0}};live.forEach(c=>{const st=c.s||'A';if(!tot[st])tot[st]={q:0,v:0};tot[st].q++;tot[st].v+=Number(c.v||0);});$$('.kpi',root).forEach(k=>{const lbl=norm($('.kpi-lbl',k)?.textContent||''),val=$('.kpi-val',k),sub=$('.kpi-sub',k);if(lbl==='a compensar'){if(val)val.textContent='R$ '+money(tot.A.v);if(sub)sub.textContent=tot.A.q+' cheque(s) pendente(s)';}else if(lbl==='compensados'){if(val)val.textContent=String(tot.C.q);if(sub)sub.textContent='R$ '+money(tot.C.v)+' já caíram';}else if(lbl==='cancelados'){if(val)val.textContent=String(tot.X.q);}else if(lbl==='total no controle'){if(val)val.textContent=String(live.length);}});}catch(e){}$$('th',root).forEach(th=>{if(/Desc\. Compra\?/i.test(th.textContent||'')){th.textContent='Abate compra?';th.title='Sim = este cheque representa um adiantamento e deve ser abatido do valor da compra. Não significa apenas que o cheque foi compensado.';}});$$('button',root).forEach(b=>{if((b.textContent||'').includes('🛒 Sim')){b.textContent='✓ Sim · adiantamento';b.title='Este cheque será considerado adiantamento e poderá abater o valor da compra. A compensação bancária é tratada separadamente.';}});let info=$('#phase3-cheque-help');if(!info){info=document.createElement('div');info.id='phase3-cheque-help';info.className='p3-cheque-help';info.innerHTML='<b>“Abate compra?”</b> Use <strong>Sim</strong> somente quando o cheque for um <strong>adiantamento ao fornecedor</strong>. Assim ele pode reduzir o saldo da compra. Compensar o cheque no banco é outra operação.';root.prepend(info);}
-const oldGap=$('#phase3-cheque-gaps');if(oldGap)oldGap.remove();}
-const legacyChequeRender=global.renderChequesCompensar;if(typeof legacyChequeRender==='function')global.renderChequesCompensar=function(){const r=legacyChequeRender.apply(this,arguments);setTimeout(decorateCheque,0);return r;};
-const legacyChequeDelete=global.chqExcluir;if(typeof legacyChequeDelete==='function')global.chqExcluir=function(id){const r=legacyChequeDelete.apply(this,arguments);setTimeout(()=>{try{renderChequesCompensar();}catch(e){}},350);return r;};
 
 let ownerBills={};
 let ownerBillsLoaded=false;
@@ -1004,7 +982,7 @@ function fixCoordination(){
   if(type&&type.options.length<5)type.innerHTML='<option value="reuniao">Reunião</option><option value="dds">DDS — Diálogo Diário de Segurança</option><option value="treinamento">Treinamento</option><option value="inspecao">Inspeção / Segurança</option><option value="outro">Outro</option>';
 }
 
-function apply(){captureTicketMappings();fixPriceSearches();decorateCheque();enhanceAdvanceTickets();reconcileKnownLinkedAdvances();fixOperationalEmployees();patchMaintenanceModal();bindMaintFilter();removeCasaGloria();fixCoordination();hideLegacyCalendarUi();const owner=$('#phase2-owner-bills');if(owner&&owner.offsetParent!==null&&owner.dataset.p3owner!=='1')renderOwnerBillsV3();if($('#tab-afazeres')&&!$('#phase3-calendar'))renderCalendar();}
+function apply(){captureTicketMappings();fixPriceSearches();enhanceAdvanceTickets();reconcileKnownLinkedAdvances();fixOperationalEmployees();patchMaintenanceModal();bindMaintFilter();removeCasaGloria();fixCoordination();hideLegacyCalendarUi();const owner=$('#phase2-owner-bills');if(owner&&owner.offsetParent!==null&&owner.dataset.p3owner!=='1')renderOwnerBillsV3();if($('#tab-afazeres')&&!$('#phase3-calendar'))renderCalendar();}
 if(global.Phase1Dom)global.Phase1Dom.register(apply);else setInterval(apply,1200);
 const legacySwitchTabPhase3=global.switchTab;
 if(typeof legacySwitchTabPhase3==='function')global.switchTab=function(tabId){
@@ -1018,5 +996,5 @@ document.addEventListener('erp:user-started',()=>{
   setTimeout(()=>loadCalendarFresh(),900);
 });
 
-global.Phase3Homologation=Object.freeze({resolveTicketKey,activeEmployee,advanceSumForTicket,chequeSequence,loadCalendarFresh,apply});
+global.Phase3Homologation=Object.freeze({resolveTicketKey,activeEmployee,advanceSumForTicket,loadCalendarFresh,apply});
 })(window);
