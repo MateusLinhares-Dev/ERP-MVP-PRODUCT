@@ -435,6 +435,58 @@ function freeAdvanceHtml(state){
     'Usar R$ '+money(use)+' quita '+(use>=open-0.005?'o saldo desta compra':'parte do saldo desta compra')+' e sobra R$ '+money(free-use)+' de adiantamento.</span>'+
     '<button type="button" class="btn-save" onclick="phase4PurchaseUseAdvance()">Usar adiantamento nesta compra</button></div>';
 }
+function purchaseLaterPayments(key){
+  try{
+    const number=String((tickets()[key]||{}).ticket||key);
+    const out=[];
+    (CONTAS_PAGAR||[]).filter(function(cp){return cp&&String(cp.ticket||'')===number;}).forEach(function(cp){
+      (Array.isArray(cp.pagamentos)?cp.pagamentos:[]).forEach(function(payment,index){
+        if(!payment)return;
+        const cash=Math.max(0,Number(payment.valor||0)),advance=Math.max(0,Number(payment.adt||0));
+        if(cash+advance<=0.005)return;
+        out.push({payableId:String(cp.id||''),index,date:String(payment.data||''),cash,advance,bank:String(payment.banco||cp.bancoNome||'')});
+      });
+    });
+    return out;
+  }catch(e){return [];}
+}
+function laterPaymentKind(payment){
+  if(payment.advance>0.005&&payment.cash<=0.005)return 'Compensação de adiantamento';
+  if(payment.advance>0.005)return 'Pagamento e adiantamento';
+  return 'Pagamento';
+}
+function laterPaymentsHtml(state){
+  if(!tickets()[state.editKey]?._purchaseOperationId)return '';
+  const rows=purchaseLaterPayments(state.editKey);
+  if(!rows.length)return '';
+  return '<div class="phase4-po-later-payments"><b>Pagamentos e compensações feitos depois do fechamento</b>'+
+    '<small>Para baixar o total da compra abaixo do que já foi pago, desfaça aqui antes de salvar. As mudanças nos itens continuam na tela.</small>'+
+    rows.map(function(payment){
+      return '<div class="phase4-po-later-payment"><span>'+esc(payment.date?dateBR(payment.date):'—')+' · '+esc(laterPaymentKind(payment))+
+        (payment.cash>0.005&&payment.bank?' · '+esc(payment.bank):'')+'</span><strong>R$ '+money(payment.cash+payment.advance)+'</strong>'+
+        '<button type="button" class="btn-edit" onclick="phase4PurchaseUndoPayment(\''+esc(payment.payableId)+'\','+payment.index+')">Desfazer</button></div>';
+    }).join('')+'</div>';
+}
+async function compensatePurchaseFromAdvance(payables,amount){
+  let remaining=Math.round(amount*100)/100;
+  for(const cp of payables){
+    if(remaining<=0.005)break;
+    const portion=Math.round(Math.min(remaining,Number(cp.valor||0))*100)/100;
+    const outcome=await global.erpPayablesCompensateAdvance(cp.id,portion);
+    if(!outcome||outcome.kind!=='done'){
+      try{showToast((outcome&&outcome.message)||'Não foi possível usar o adiantamento.','error',9000);}catch(e){}
+      return false;
+    }
+    remaining=Math.round((remaining-portion)*100)/100;
+  }
+  return true;
+}
+function advanceUseMessage(name,number,open,free,amount,question){
+  return question+'\n\n'+
+    '• Saldo a pagar do pedido '+number+': de R$ '+money(open)+' para R$ '+money(open-amount)+'.\n'+
+    '• Adiantamento livre de '+name+': de R$ '+money(free)+' para R$ '+money(free-amount)+'.\n\n'+
+    'O banco não é mexido (o dinheiro do adiantamento já saiu). Para desfazer, use o botão Desfazer no quadro Pagamento da edição.';
+}
 global.phase4PurchaseUseAdvance=async function(){
   const body=document.getElementById('cs-lanc-body');
   const state=body?currentState(body):null;
@@ -443,28 +495,68 @@ global.phase4PurchaseUseAdvance=async function(){
   const payables=openPurchasePayables(state.editKey);
   const open=payables.reduce(function(sum,cp){return sum+Number(cp.valor||0);},0);
   const free=freeSupplierAdvance(state.supplierCode,state.editKey);
-  let remaining=Math.round(Math.min(open,free)*100)/100;
-  if(remaining<=0)return;
-  const message='Usar R$ '+money(remaining)+' do adiantamento de '+state.supplierName+' no pedido '+state.orderNumber+'?\n\n'+
-    '• Saldo a pagar do pedido: de R$ '+money(open)+' para R$ '+money(open-remaining)+'.\n'+
-    '• Adiantamento livre do fornecedor: de R$ '+money(free)+' para R$ '+money(free-remaining)+'.\n\n'+
-    'O banco não é mexido (o dinheiro do adiantamento já saiu). Para desfazer, use o 🕒 Histórico de pagamentos da conta em Contas a Pagar.\n'+
-    'Alterações nos itens que ainda não foram salvas serão descartadas.';
-  if(!confirm(message))return;
-  for(const cp of payables){
-    if(remaining<=0.005)break;
-    const portion=Math.round(Math.min(remaining,Number(cp.valor||0))*100)/100;
-    const outcome=await global.erpPayablesCompensateAdvance(cp.id,portion);
-    if(!outcome||outcome.kind!=='done'){
-      try{showToast((outcome&&outcome.message)||'Não foi possível usar o adiantamento.','error',9000);}catch(e){}
-      break;
-    }
-    remaining=Math.round((remaining-portion)*100)/100;
-  }
+  const amount=Math.round(Math.min(open,free)*100)/100;
+  if(amount<=0)return;
+  if(!confirm(advanceUseMessage(state.supplierName,state.orderNumber,open,free,amount,'Usar R$ '+money(amount)+' do adiantamento de '+state.supplierName+' no pedido '+state.orderNumber+'?')+
+    '\nAlterações nos itens que ainda não foram salvas serão descartadas.'))return;
+  if(!await compensatePurchaseFromAdvance(payables,amount))return;
   try{showToast('Adiantamento usado no pedido '+state.orderNumber+'. Saldo e adiantamento atualizados.','success',8000);}catch(e){}
   try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Adiantamento usado após o fechamento',state.orderNumber,null,{ticket:state.orderNumber});}catch(e){}
   await global.phase4PurchaseEditTicket(state.editKey);
 };
+global.phase4PurchaseUndoPayment=async function(payableId,index){
+  const body=document.getElementById('cs-lanc-body');
+  try{global.phase4PurchaseRecalc();}catch(e){}
+  const state=body?currentState(body):null;
+  if(!state?.editKey)return;
+  if(typeof global.erpPayablesReverse!=='function'){try{showToast('Abra Contas a Pagar uma vez e tente de novo.','error');}catch(e){}return;}
+  const payment=purchaseLaterPayments(state.editKey).find(function(row){return row.payableId===String(payableId)&&row.index===Number(index);});
+  if(!payment){try{showToast('Pagamento não encontrado. Reabra o pedido.','error');}catch(e){}return;}
+  const total=payment.cash+payment.advance;
+  const onlyAdvance=payment.advance>0.005&&payment.cash<=0.005;
+  const message=(onlyAdvance
+    ?'Desfazer a compensação de adiantamento de R$ '+money(total)+' no pedido '+state.orderNumber+'?\n\n'+
+      '• O valor volta para o adiantamento de '+state.supplierName+'.\n'+
+      '• O pedido volta a ter R$ '+money(total)+' a pagar.\n'+
+      '• O banco não é mexido.\n\n'+
+      'Depois de salvar a edição, o sistema oferece usar o adiantamento de novo.'
+    :'Desfazer o pagamento de R$ '+money(total)+' ('+(payment.date?dateBR(payment.date):'sem data')+') no pedido '+state.orderNumber+'?\n\n'+
+      '• O valor volta a ser devido.\n'+
+      (payment.cash>0.005?'• A saída de R$ '+money(payment.cash)+' sai do extrato do banco.\n':'')+
+      (payment.advance>0.005?'• Os R$ '+money(payment.advance)+' de adiantamento voltam para o adiantamento.\n':'')+
+      '\nDepois de salvar a edição, pague de novo em Contas a Pagar.')+
+    '\n\nAs mudanças nos itens que você já fez continuam na tela.';
+  if(!confirm(message))return;
+  const keep={
+    items:JSON.parse(JSON.stringify(state.items||[])),discount:state.discount,freight:state.freight,notes:state.notes,
+    purchaseOrder:state.purchaseOrder,purchaseDate:state.purchaseDate,
+    reapplyAdvance:Math.round((Number(state.reapplyAdvance||0)+(onlyAdvance?payment.advance:0))*100)/100
+  };
+  const failure=await global.erpPayablesReverse(payment.payableId,payment.index);
+  if(failure){try{showToast(failure,'error',9000);}catch(e){}return;}
+  try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata',onlyAdvance?'Compensação de adiantamento desfeita na edição':'Pagamento desfeito na edição',state.orderNumber+' — R$ '+money(total),null,{ticket:state.orderNumber});}catch(e){}
+  await global.phase4PurchaseEditTicket(state.editKey);
+  await new Promise(function(resolve){setTimeout(resolve,30);});
+  const again=currentState(body);
+  if(again?.editKey===state.editKey){
+    Object.assign(again,keep);
+    storeState(body,again);
+    render(body);
+  }
+  try{showToast(onlyAdvance?'Compensação desfeita: o valor voltou para o adiantamento. Agora salve a edição.':'Pagamento desfeito. Agora salve a edição.','success',8000);}catch(e){}
+};
+async function offerAdvanceAgain(key,info){
+  if(typeof global.erpPayablesCompensateAdvance!=='function')return;
+  const payables=openPurchasePayables(key);
+  const open=payables.reduce(function(sum,cp){return sum+Number(cp.valor||0);},0);
+  const free=freeSupplierAdvance(info.supplierCode,key);
+  const amount=Math.round(Math.min(open,free)*100)/100;
+  if(amount<=0.005)return;
+  if(!confirm(advanceUseMessage(info.supplierName,info.orderNumber,open,free,amount,'Usar de novo o adiantamento de '+info.supplierName+' no pedido '+info.orderNumber+'? (R$ '+money(amount)+')')))return;
+  if(!await compensatePurchaseFromAdvance(payables,amount))return;
+  try{showToast('Adiantamento usado de novo no pedido '+info.orderNumber+'.','success',8000);}catch(e){}
+  try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Adiantamento usado após o fechamento',info.orderNumber,null,{ticket:info.orderNumber});}catch(e){}
+}
 function paymentHtml(state){
   if(state.editKey){
     const advances=Math.max(0,Number(state.appliedAdvance||0));
@@ -478,6 +570,7 @@ function paymentHtml(state){
       'Saldo original: '+(balance<0?'crédito R$ ':'R$ ')+money(Math.abs(balance))+'. '+
       'A edição dos itens não cria uma nova baixa nem reutiliza pagamentos. Alterações financeiras protegidas exigem conciliação.</div>'+
       freeAdvanceHtml(state)+
+      laterPaymentsHtml(state)+
       ((state.appliedAdvances||[]).length?'<div class="phase4-po-applied-advances"><b>Adiantamentos abatidos nesta compra</b>'+
         state.appliedAdvances.map(function(a){
           return '<div class="phase4-po-applied-advance"><span>'+esc(a.cod)+(a.data?' · '+esc(a.data):'')+(a.forma?' · '+esc(a.forma):'')+'</span><strong>R$ '+money(a.valor)+'</strong>'+
@@ -912,13 +1005,13 @@ global.phase4PurchaseRecalc=function(){
   set('phase4-po-balance',refundsAdvance
     ? 'R$ 0,00 · volta ao adiantamento: R$ '+money(Math.abs(balance))
     : requiresReconciliation
-      ? 'Requer conciliação: R$ '+money(Math.abs(balance))
+      ? 'Pago a mais: R$ '+money(Math.abs(balance))
       : (balance<0?'Crédito R$ ':'R$ ')+money(Math.abs(balance)));
   const balanceEl=document.getElementById('phase4-po-balance');
   if(balanceEl){
     balanceEl.classList.toggle('credit',balance<0&&!requiresReconciliation);
     balanceEl.title=refundsAdvance?'Ao salvar, a diferença volta como saldo disponível do adiantamento usado nesta compra.'
-      :requiresReconciliation?'Compra já liquidada: revisão financeira necessária antes de alterar o total.':'';
+      :requiresReconciliation?'O total ficou abaixo do que já foi pago. Desfaça o pagamento ou a compensação no quadro Pagamento antes de salvar.':'';
   }
   syncInstallments(state,balance);
   storeState(body,state);
@@ -1547,6 +1640,11 @@ global.phase4PurchaseSave=async function(){
       }finally{purchasePendingKeys.delete(String(state.editKey));}
       afterConfirmedPurchaseEdit(confirmed,state,totals);
       editCommitted=true;
+      if(Number(state.reapplyAdvance||0)>0.005){
+        const info={supplierCode:state.supplierCode,supplierName:state.supplierName,orderNumber:String(ticket.ticket||state.orderNumber||state.editKey)};
+        const key=String(state.editKey);
+        setTimeout(function(){offerAdvanceAgain(key,info).catch(function(){});},600);
+      }
       resetOrderState(body);
       manualMode=false;
       if(typeof global.csTab==='function')global.csTab('historico');
@@ -1814,7 +1912,10 @@ function saveEditedTicket(state,totals){
   const oldTotal=Number(ticket.totalGeral||0);
   if(Math.abs(oldTotal-Number(state.originalTotal||0))>0.01 || Math.abs(Number(ticket.saldoPagar||0)-Number(state.originalBalance||0))>0.01)
     throw new Error('O pedido foi alterado por outra operação. Reabra-o para editar os valores atuais.');
-  if(totals.balance< -0.005 && Number(state.originalBalance||0)>=-0.005 && Number(state.appliedAdvance||0)<=0)throw new Error('O total editado ficou abaixo de pagamento já registrado. Faça a conciliação financeira antes de salvar.');
+  if(totals.balance< -0.005 && Number(state.originalBalance||0)>=-0.005 && Number(state.appliedAdvance||0)<=0)
+    throw new Error(purchaseLaterPayments(state.editKey).length&&tickets()[state.editKey]?._purchaseOperationId
+      ?'O total editado ficou R$ '+money(Math.abs(totals.balance))+' abaixo do que já foi pago ou compensado. No quadro Pagamento, clique em "Desfazer" no pagamento ou compensação e salve de novo.'
+      :'O total editado ficou abaixo de pagamento já registrado. Desfaça o pagamento no 🕒 Histórico de pagamentos da conta em Contas a Pagar (filtro "Quitadas") e salve de novo.');
   const supplier=supplierByName(state.supplierName);
   if(!supplier||String(supplier.cod||'')!==String(state.supplierCode||''))throw new Error('Fornecedor do pedido divergente.');
   if(state.originalSupplierCode&&String(state.originalSupplierCode)!==String(supplier.cod||'')){

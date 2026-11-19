@@ -70,7 +70,7 @@ test('editar pedido altera materiais sem reaplicar adiantamentos e atualiza apen
 test('edição impede preço total inferior ao já pago/abatido',()=>{
   const code=extract(purchase,'function saveEditedTicket(state,totals){','function stateForSourceTicket(ticketKey){');
   const ticket={ticket:'T1',totalGeral:1000,saldoPagar:0,itens:[{mat:'COBRE',quantidade:1,preco:1000}]};
-  const ctx={TICKETS_DB:{T1:ticket},ticket,tickets:()=>ctx.TICKETS_DB};
+  const ctx={TICKETS_DB:{T1:ticket},ticket,tickets:()=>ctx.TICKETS_DB,purchaseLaterPayments:()=>[],money:v=>String(v)};
   assert.throws(()=>runInNewContext(`${code}\nsaveEditedTicket({editKey:'T1',ticketSnapshot:JSON.stringify(ticket),originalTotal:1000,originalBalance:0}, {balance:-1,total:999})`,ctx),/abaixo de pagamento já registrado/);
 });
 
@@ -173,4 +173,18 @@ test('janela Contas / PIX do fornecedor leva ao cadastro onde a conta é editada
   const compat=readFileSync(new URL('../public/legacy/supplier-compat.js',import.meta.url),'utf8');
   assert.match(compat,/id="forn-pix-edit">✏️ Editar ou excluir contas<\/button>/);
   assert.match(compat,/window\.phase3OpenPartyBanks\('fornecedor',String\(f\.cod\|\|''\),String\(f\.nome\|\|''\)\)/);
+});
+
+test('edição: compensação feita depois do fechamento aparece com Desfazer, que usa o estorno de Contas a Pagar e mantém os itens; ao salvar oferece usar o adiantamento de novo',()=>{
+  const code=extract(purchase,'function purchaseLaterPayments(key){','function laterPaymentKind(payment){');
+  const ctx={CONTAS_PAGAR:[{id:'CPPO_T1',ticket:'T1',pagamentos:[{data:'2026-11-19',valor:0,adt:9915.84},null,{data:'2026-11-20',valor:50,adt:0,banco:'Sicredi'}]},{id:'X',ticket:'T2',pagamentos:[{valor:10}]}],tickets:()=>({T1:{ticket:'T1'}})};
+  const rows=runInNewContext(`${code}\npurchaseLaterPayments('T1')`,ctx);
+  assert.deepEqual(JSON.parse(JSON.stringify(rows)),[{payableId:'CPPO_T1',index:0,date:'2026-11-19',cash:0,advance:9915.84,bank:''},{payableId:'CPPO_T1',index:2,date:'2026-11-20',cash:50,advance:0,bank:'Sicredi'}]);
+  const undo=extract(purchase,'global.phase4PurchaseUndoPayment=async function(payableId,index){','async function offerAdvanceAgain(key,info){');
+  assert.match(undo,/global\.erpPayablesReverse\(payment\.payableId,payment\.index\)/);
+  assert.match(undo,/Object\.assign\(again,keep\)/);
+  assert.match(undo,/reapplyAdvance/);
+  assert.match(purchase,/laterPaymentsHtml\(state\)\+/);
+  assert.match(purchase,/if\(Number\(state\.reapplyAdvance\|\|0\)>0\.005\)\{/);
+  assert.match(purchase,/clique em "Desfazer"/);
 });

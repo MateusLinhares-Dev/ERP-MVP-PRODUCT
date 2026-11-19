@@ -221,6 +221,23 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Baixar o total de uma notinha já paga ou compensada (19/11/2026, v256)
+
+Caso da cliente (T449): a notinha foi salva sem adiantamento e quitada depois com "Usar adiantamento nesta compra" (ou "Compensar adiantamento" em Contas a Pagar). Ao corrigir os itens, o total ficou R$ 292,60 abaixo do que já estava compensado, e a edição travava em "Requer conciliação". O único jeito de sair era Contas a Pagar → 🕒 → Excluir. Mas Contas a Pagar abre no filtro "Em aberto" e a conta quitada não aparece; é preciso escolher "Quitadas" ou "Todas".
+
+Agora, na edição das compras confirmadas pelo servidor (`_purchaseOperationId`):
+- **Quadro Pagamento:** lista "Pagamentos e compensações feitos depois do fechamento" (os `pagamentos` das contas do pedido), cada um com o botão **Desfazer**. Ele usa o mesmo estorno de Contas a Pagar (`window.erpPayablesReverse`):
+  - compensação: o valor volta ao adiantamento e o banco não é mexido;
+  - pagamento em dinheiro: a saída sai do extrato.
+- **Itens já editados:** continuam na tela depois do Desfazer (`phase4PurchaseUndoPayment` reabre o pedido e devolve itens, desconto, frete, observações e datas).
+- **Ao salvar a edição depois de desfazer uma compensação:** o sistema pergunta "Usar de novo o adiantamento?" (`offerAdvanceAgain`, mesmo caminho da v250).
+- **Mensagens:**
+  - o saldo mostra "Pago a mais: R$ …" no lugar de "Requer conciliação";
+  - o erro ao salvar diz para clicar em "Desfazer";
+  - nas compras antigas, o erro aponta para o 🕒 de Contas a Pagar no filtro "Quitadas".
+
+As regras de dinheiro não mudaram: são três operações que já existiam (estorno, edição e compensação), cada uma conferida pelo servidor. Teste de tela: desfazer, salvar e usar de novo, com a compra quitada no fim, a sobra no adiantamento e o banco intacto.
+
 ## Usar adiantamento lançado depois da notinha (18/11/2026, v250)
 
 Caso da cliente (T353): a notinha de R$ 70.622,40 foi fechada usando R$ 52.506,24 de adiantamento (sobraram R$ 18.116,16). Depois chegou um adiantamento novo de R$ 150.093,96, e a notinha não oferecia usá-lo.
