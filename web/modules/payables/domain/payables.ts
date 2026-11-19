@@ -166,6 +166,12 @@ export function filterPayables(rows: readonly PayableRow[], filter: PayableFilte
   });
 }
 
+export function hiddenByStatus(rows: readonly PayableRow[], filter: PayableFilter): PayableRow[] {
+  if (filter.status === 'todas' || !filter.query.trim()) return [];
+  const shown = new Set(filterPayables(rows, filter).map((row) => row.id));
+  return filterPayables(rows, { ...filter, status: 'todas' }).filter((row) => !shown.has(row.id));
+}
+
 const sum = (rows: readonly PayableRow[], pick: (row: PayableRow) => number): number =>
   fromCents(rows.reduce((total, row) => total + toCents(pick(row)), 0));
 

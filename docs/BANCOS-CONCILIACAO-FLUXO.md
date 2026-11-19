@@ -221,6 +221,19 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Excluir adiantamento ou notinha que já quitou conta (19/11/2026, v257)
+
+Caso da cliente (Ismael, T449): um adiantamento de R$ 25.000 quitou R$ 9.915,45 da conta da T449 em Contas a Pagar. Na Ficha isso aparece em duas linhas: a sobra de R$ 15.084,55 (Pendente) e a parte usada (Pago, "Compensação parcial – CP"). Ao tentar excluir a sobra, o sistema recusava (`ADVANCE_ALREADY_COMPENSATED`) e mandava usar o 🕒 da conta. A conta, porém, está quitada e não aparece no filtro "Em aberto" de Contas a Pagar. Excluir a notinha também recusava, com "Estorne o pagamento antes de excluir", sem dizer onde.
+
+Agora:
+- **Excluir adiantamento** (lista, Ficha do fornecedor, `excluirAdiantamento`): quando o servidor recusa por compensação, a tela procura os pagamentos que usaram o adiantamento (`adtUsos[].cod` ou `adtUsos[].parcial`, por `window.erpPaymentsOfAdvance`). Ela mostra a conta e o valor e oferece desfazer: o valor volta ao adiantamento, a conta volta a ficar em aberto e o banco não é mexido.
+  - **Se a linha era a parte usada** (`origem: compensacao_cp`), termina aí: a linha some e o adiantamento de origem volta inteiro.
+  - **Se era o adiantamento:** depois de desfazer, a tela pergunta de novo se quer excluir; a exclusão leva a saída do banco junto.
+- **Excluir notinha** (`excluirEntradaCompra`): com `PURCHASE_HAS_FINANCE`, `PURCHASE_HAS_PAYMENTS` ou `PURCHASE_HAS_LINKS` e pagamentos na conta, a tela lista os pagamentos e oferece "Desfazer e excluir a compra". A segunda tentativa não pergunta de novo.
+- **Ordem do desfazer:** `window.erpUndoPayments` desfaz do último pagamento para o primeiro de cada conta, porque o índice muda ao excluir. Cada desfazer é o mesmo estorno do 🕒 (`reversePayablePayment`).
+- **Contas a Pagar:** com texto na busca e filtro de situação diferente de "Todas", aparece "Há mais N conta(s) com “…” fora do filtro “Em aberto” (contas quitadas, onde fica o 🕒…)" com o botão **Mostrar todas** (`hiddenByStatus`).
+- **Pagamento antigo sem `adtUsos`:** a mensagem explica como achar a conta (filtro "Todas" em Contas a Pagar).
+
 ## Baixar o total de uma notinha já paga ou compensada (19/11/2026, v256)
 
 Caso da cliente (T449): a notinha foi salva sem adiantamento e quitada depois com "Usar adiantamento nesta compra" (ou "Compensar adiantamento" em Contas a Pagar). Ao corrigir os itens, o total ficou R$ 292,60 abaixo do que já estava compensado, e a edição travava em "Requer conciliação". O único jeito de sair era Contas a Pagar → 🕒 → Excluir. Mas Contas a Pagar abre no filtro "Em aberto" e a conta quitada não aparece; é preciso escolher "Quitadas" ou "Todas".

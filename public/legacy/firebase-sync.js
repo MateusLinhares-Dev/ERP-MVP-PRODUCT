@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-19-2200-v256-desfazer-compensacao-na-notinha';
+  const _APP_BUILD = '2026-11-19-2330-v257-desfazer-compensacao-ao-excluir';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
