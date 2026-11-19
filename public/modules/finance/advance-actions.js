@@ -100,6 +100,31 @@ const alertUser=(message,type='error')=>{if(typeof global.showToast==='function'
     alertUser('Adiantamento '+advanceCode+' retirado da compra e livre de novo (Pendente). O saldo a pagar do pedido foi atualizado.','success');
     return deleteAdvance(supplierCode, advanceCode, button);
   }
+  async function undoCompensationThenDelete(supplierCode, advanceCode, button, payments, record){
+    if(typeof global.erpUndoPayments!=='function'){alertUser('Contas a Pagar ainda não carregou. Atualize a página e tente de novo.');return false;}
+    const split=String(record?.origem||'')==='compensacao_cp';
+    const total=payments.reduce((sum,p)=>sum+Number(p.amount||0),0);
+    const cash=payments.reduce((sum,p)=>sum+Number(p.cash||0),0);
+    const whole=payments.some(p=>Number(p.amount||0)-Number(p.share||0)>0.005);
+    const pergunta=(split?'Esta linha é a parte do adiantamento usada para quitar conta em Contas a Pagar:\n':'Este adiantamento foi usado para quitar conta em Contas a Pagar:\n')+
+      global.erpPaymentsSummary(payments)+'\n\n'+
+      (split?'Para tirar essa compensação, ela precisa ser desfeita:\n':'Para excluí-lo, primeiro essa compensação precisa ser desfeita:\n')+
+      '• o valor volta para o adiantamento;\n'+
+      '• a conta volta a ficar em aberto (a pagar) em R$ '+brl(total)+';\n'+
+      (cash>0.005?'• a saída de R$ '+brl(cash)+' em dinheiro desse pagamento sai do extrato do banco;\n':'• o banco não é mexido;\n')+
+      (whole?'• o pagamento é desfeito inteiro (ele também usou outro adiantamento ou dinheiro).\n':'')+
+      '\nDesfazer agora?';
+    if(!global.confirm(pergunta))return false;
+    const erro=await global.erpUndoPayments(payments);
+    if(erro){alertUser(erro);return false;}
+    try{if(typeof registrarHistorico==='function')registrarHistorico('Adiantamento','Compensação desfeita',supplierCode+' '+advanceCode+' — R$ '+brl(total),null,{fornCod:supplierCode});}catch(_){}
+    if(split){
+      alertUser('Compensação desfeita: R$ '+brl(total)+' voltou para o adiantamento '+String(record?.adiantamentoOrigem||'')+' e a conta voltou a ficar em aberto.','success');
+      return true;
+    }
+    alertUser('Compensação desfeita: o adiantamento '+advanceCode+' está livre de novo e a conta voltou a ficar em aberto.','success');
+    return deleteAdvance(supplierCode, advanceCode, button);
+  }
   async function deleteAdvance(supplierCode, advanceCode, button) {
     const key = supplierCode + '::' + advanceCode;
     if (deleting.has(key)) return false;
@@ -110,6 +135,7 @@ const alertUser=(message,type='error')=>{if(typeof global.showToast==='function'
     if (!global.confirm(`Excluir o adiantamento ${advanceCode} de ${supplierCode}?\nO adiantamento e o movimento bancário vinculado serão removidos juntos.`)) return false;
     deleting.add(key);
     let detachUses = null;
+    let undoPayments = null;
     const previous = button?.textContent;
     if (button) button.textContent = 'Excluindo…';
     try {
@@ -145,20 +171,23 @@ const alertUser=(message,type='error')=>{if(typeof global.showToast==='function'
       }else if(code==='ADVANCE_ALREADY_COMPENSATED'){
         const uses=purchasesUsingAdvance(advanceCode);
         const oldTicket=String(record.ticket||record.ticketOrigem||'').trim();
+        const paid=typeof global.erpPaymentsOfAdvance==='function'?global.erpPaymentsOfAdvance(advanceCode):[];
         if(uses.length) detachUses=uses;
+        else if(paid.length) undoPayments=paid;
         else if(oldTicket) alertUser('Este adiantamento foi usado no pedido '+oldTicket+', lançado antes do recibo financeiro atual: ele não pode ser tirado automaticamente. Nada foi alterado. Peça a conciliação ao responsável pelo financeiro.');
-        else alertUser('Este adiantamento já foi utilizado e não está abatido em nenhuma compra. Se ele pagou uma conta em Contas a Pagar, exclua esse pagamento no 🕒 Histórico de pagamentos da conta: o valor volta para o adiantamento e depois ele pode ser excluído.');
+        else alertUser('Este adiantamento já foi usado para quitar uma conta, mas a conta não foi encontrada nesta tela. Em Contas a Pagar, troque o filtro "Em aberto" para "Todas", procure a conta do fornecedor e use o 🕒 Histórico de pagamentos para excluir o pagamento: o valor volta para o adiantamento.');
       }else if(error?.status===403||code.toLowerCase()==='permission_denied'||/permission_denied/i.test(message)){
         alertUser('Você não tem permissão para excluir este adiantamento. Solicite autorização ao responsável financeiro.');
       }else{
         console.warn('advance.delete.rejected',{code,status:error?.status,reason:message});
         alertUser('Não foi possível concluir a exclusão. Nenhuma alteração foi confirmada. Solicite suporte ao administrador.');
       }
-      if(!detachUses)return false;
+      if(!detachUses&&!undoPayments)return false;
     } finally {
       deleting.delete(key);
       if (button?.isConnected) button.textContent = previous;
     }
+    if(undoPayments) return undoCompensationThenDelete(supplierCode, advanceCode, button, undoPayments, record);
     return detachThenDelete(supplierCode, advanceCode, button, detachUses);
   }
 

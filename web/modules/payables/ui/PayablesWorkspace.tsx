@@ -10,6 +10,7 @@ import {
   dueTodayRows,
   emptyFilter,
   filterPayables,
+  hiddenByStatus,
   groupChoices,
   groupPayables,
   payableKpis,
@@ -103,6 +104,7 @@ export function PayablesWorkspace({
   }, [rows]);
 
   const filtered = useMemo(() => filterPayables(rows, filter), [rows, filter]);
+  const hidden = useMemo(() => hiddenByStatus(rows, filter), [rows, filter]);
   const kpis = payableKpis(rows, filter, today);
   const todays = dueTodayRows(rows, today);
   const chips = dayChips(rows, filter, today);
@@ -498,6 +500,19 @@ export function PayablesWorkspace({
           {filter.day ? ` · dia ${toBRDate(filter.day)}` : ''}
           {filter.company ? ` · ${filter.company}` : ''}
         </div>
+
+        {hidden.length ? (
+          <div className="erp-cp-hidden-hint" role="status">
+            Há mais {plural(hidden.length, 'conta')} com “{filter.query.trim()}” fora do filtro{' '}
+            {filter.status === 'aberto'
+              ? '“Em aberto” (contas quitadas, onde fica o 🕒 Histórico de pagamentos)'
+              : 'de situação escolhido'}
+            .{' '}
+            <button type="button" className="erp-cp-outline" onClick={() => set({ status: 'todas' })}>
+              Mostrar todas
+            </button>
+          </div>
+        ) : null}
 
         {chips.length ? (
           <div className="erp-cp-days" aria-label="Filtrar por dia">

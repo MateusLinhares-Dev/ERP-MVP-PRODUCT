@@ -9345,11 +9345,11 @@ function renderTickets(){
 }
 
 const _purchaseDeletePending=new Set();
-async function excluirEntradaCompra(ticket){
+async function excluirEntradaCompra(ticket,jaConfirmado){
   const id=String(ticket||'').trim(),tk=TICKETS_DB[id];
   if(!tk){showToast('Compra não encontrada. Atualize o Histórico.','warning',5500);return;}
   if(_purchaseDeletePending.has(id))return;
-  if(!confirm('Excluir a compra '+id+'?\n\nO sistema verificará pagamentos e vínculos financeiros antes de excluir. Se a compra foi paga com adiantamento, o valor volta como saldo do adiantamento. Compras pagas pelo banco precisam de estorno antes.'))return;
+  if(!jaConfirmado&&!confirm('Excluir a compra '+id+'?\n\nO sistema verificará pagamentos e vínculos financeiros antes de excluir. Se a compra foi paga com adiantamento, o valor volta como saldo do adiantamento. Compras pagas pelo banco precisam de estorno antes.'))return;
   const user=window.firebase?.auth?.()?.currentUser;
   if(!user||typeof user.getIdToken!=='function'){
     showToast('Sessão expirada. Entre novamente antes de excluir.','error',5500);return;
@@ -9366,6 +9366,19 @@ async function excluirEntradaCompra(ticket){
     const result=await response.json().catch(()=>({}));
     if(!response.ok){
       const financial=['PURCHASE_HAS_FINANCE','PURCHASE_HAS_PAYMENTS','PURCHASE_HAS_LINKS','MULTIPLE_PAYABLES'];
+      const pagos=financial.includes(result.code)&&typeof window.erpPaymentsOfPurchase==='function'?window.erpPaymentsOfPurchase(String(tk.ticket||id)):[];
+      if(pagos.length&&!jaConfirmado){
+        _purchaseDeletePending.delete(id);
+        const dinheiro=pagos.reduce(function(s,p){ return s+p.cash; },0);
+        if(!confirm('A compra '+id+' já tem pagamento registrado:\n'+window.erpPaymentsSummary(pagos)+'\n\n'+
+          'Para excluir a compra, primeiro isso precisa ser desfeito:\n'+
+          '• compensação de adiantamento: o valor volta para o adiantamento;\n'+
+          (dinheiro>0.005?'• pagamento em dinheiro: a saída de R$ '+Number(dinheiro).toLocaleString('pt-BR',{minimumFractionDigits:2})+' sai do extrato do banco;\n':'')+
+          '\nDesfazer e excluir a compra agora?')) return;
+        const erro=await window.erpUndoPayments(pagos);
+        if(erro){ showToast('Nada foi excluído: '+erro,'error',9000); return; }
+        return await excluirEntradaCompra(id,true);
+      }
       const msg=financial.includes(result.code)
         ?(typeof result.message==='string'&&result.message?result.message:'Esta compra possui vínculo financeiro e não pode ser excluída diretamente. Faça o estorno ou a conciliação antes de cancelar.')
         :(typeof result.message==='string'&&(response.status<500||result.code==='DATABASE_UNAVAILABLE')?result.message:'Não foi possível confirmar a exclusão. Atualize a tela e consulte o Histórico.');
@@ -15783,6 +15796,50 @@ window.erpPayablesApply=function(kind,result){
   try{ renderContasPagar(); }catch(e){}
   try{ renderFluxo(); }catch(e){}
   try{ renderDashboard(); }catch(e){}
+};
+function _pgtoLinhas(filtro){
+  const out=[];
+  (Array.isArray(CONTAS_PAGAR)?CONTAS_PAGAR:[]).forEach(function(cp){
+    if(!cp) return;
+    (Array.isArray(cp.pagamentos)?cp.pagamentos:[]).forEach(function(p,index){
+      if(!p) return;
+      const cash=Math.max(0,Number(p.valor||0)), adt=Math.max(0,Number(p.adt||0));
+      if(cash+adt<=0.005) return;
+      const usos=Array.isArray(p.adtUsos)?p.adtUsos:[];
+      const linha={payableId:String(cp.id||''),index:index,ticket:String(cp.ticket||''),desc:String(cp.desc||cp.cred||''),date:String(p.data||''),cash:cash,advance:adt,uses:usos,amount:cash+adt};
+      const parte=filtro(cp,p,usos);
+      if(parte>0.005) out.push(Object.assign(linha,{share:Math.round(parte*100)/100}));
+    });
+  });
+  return out;
+}
+window.erpPaymentsOfPurchase=function(ticket){
+  const alvo=String(ticket||'').trim();
+  if(!alvo) return [];
+  return _pgtoLinhas(function(cp,p){ return String(cp.ticket||'').trim()===alvo?Number(p.valor||0)+Number(p.adt||0):0; });
+};
+window.erpPaymentsOfAdvance=function(code){
+  const alvo=String(code||'').trim();
+  if(!alvo) return [];
+  return _pgtoLinhas(function(cp,p,usos){
+    return usos.reduce(function(s,u){ return s+(u&&(String(u.cod||'')===alvo||String(u.parcial||'')===alvo)?Number(u.valor||0):0); },0);
+  });
+};
+window.erpPaymentsSummary=function(rows){
+  return (rows||[]).map(function(r){
+    const tipo=r.advance>0.005&&r.cash<=0.005?'compensação de adiantamento':r.advance>0.005?'pagamento com adiantamento':'pagamento';
+    const data=r.date?(String(r.date).indexOf('-')>=0?String(r.date).split('-').reverse().join('/'):r.date):'';
+    return '• '+(r.ticket?'Pedido '+r.ticket:(r.desc||'Conta '+r.payableId))+': '+tipo+' de R$ '+Number(r.amount).toLocaleString('pt-BR',{minimumFractionDigits:2})+(data?' em '+data:'');
+  }).join('\n');
+};
+window.erpUndoPayments=async function(rows){
+  if(typeof window.erpPayablesReverse!=='function') return 'Contas a Pagar ainda não carregou. Atualize a página e tente de novo.';
+  const ordem=(rows||[]).slice().sort(function(a,b){ return a.payableId===b.payableId?b.index-a.index:a.payableId.localeCompare(b.payableId); });
+  for(const r of ordem){
+    const erro=await window.erpPayablesReverse(r.payableId,r.index);
+    if(erro) return erro;
+  }
+  return '';
 };
 window.erpPayablesOnlyPurchases=function(){ return Boolean(typeof cu!=='undefined'&&cu&&cu.cpApenasFornecedor); };
 window.erpFinanceCompanies=function(){ return _cfgFinanceCompanies(); };
