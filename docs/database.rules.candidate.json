@@ -221,7 +221,7 @@
       },
       "saldoDevedor": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
+        ".write": false
       },
       "funcEdit": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canHR == true)",
@@ -261,11 +261,11 @@
       },
       "chequesPorFornDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
+        ".write": false
       },
       "saldoDevedorDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
+        ".write": false
       },
       "estoqueDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)",
@@ -281,7 +281,7 @@
       },
       "chequeItensDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)"
+        ".write": false
       },
       "contasReceberDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
@@ -542,11 +542,11 @@
       },
       "cheques": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+        ".write": false
       },
       "saldos": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+        ".write": false
       },
       "estoque": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canInventory == true)",
@@ -597,6 +597,14 @@
         ".write": false
       },
       "clientCreditOperations": {
+        ".read": false,
+        ".write": false
+      },
+      "supplierChequeOperations": {
+        ".read": false,
+        ".write": false
+      },
+      "supplierBalanceOperations": {
         ".read": false,
         ".write": false
       },

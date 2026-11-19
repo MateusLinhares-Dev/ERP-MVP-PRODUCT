@@ -205,9 +205,11 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
     - o `Dialog` dos módulos React passou para `web/shared/ui/Dialog.tsx`.
   - Controle de cheques (v247): `chequesControle` só pelo servidor (cadastro, edição, remessa, "desconta da compra", sincronizar aba antiga). A tela ainda é a antiga.
   - Tirar adiantamento de compra (v248) e créditos de clientes só pelo servidor (v249: `adtCli`, `chequesCli`; ver `docs/CONTAS-RECEBER.md`).
+  - Cheques de fornecedor da aba antiga (v251): `cheques`, `chequesPorFornDeleted` e `chequeItensDeleted` só pelo servidor (`api/finance/supplier-cheques`), inclusive pela Ficha do fornecedor; ver `docs/BANCOS-CONCILIACAO-FLUXO.md`.
+  - Saldos de fornecedor (v252): `saldoDevedor`, `saldos` e `saldoDevedorDeleted` só pelo servidor (`api/finance/supplier-balance`: cancelar e levar para Contas a Pagar); a Ficha separa crédito do fornecedor de dívida registrada.
   - Impressões (v247): as 13 janelas de impressão que não conferiam se o navegador bloqueou o pop-up agora avisam (`_avisarPopupBloqueado`); um teste impede novas sem essa conferência.
 - **Ordem das próximas migrações:**
-  1. Tela "Cheques a compensar" em React; depois a aba antiga de Cheques (`cheques`, `chequesCli`) no servidor.
+  1. Lançamentos do fluxo de caixa (`fcLanc`, `fcSaldoIni`) no servidor; depois a tela "Cheques a compensar" em React.
   2. Compra sucata (hoje metade navegador, metade servidor).
   3. Balança rodoviária.
   4. Painel e Fluxo de caixa.

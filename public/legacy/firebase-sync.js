@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-18-1700-v250-usar-adiantamento-na-notinha';
+  const _APP_BUILD = '2026-11-19-1600-v253-notinha-valor-total-adiantamento';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -261,6 +261,20 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       _tanqueRenderizarSeAberto();
       return true;
     }catch(e){ console.warn('tanque sync:',e); return false; }
+  }
+
+  function _saldosDaNuvem(d){
+    const legado=d&&d.saldoDevedor, espelho=d&&d.saldos;
+    const ok=function(v){ return v&&typeof v==='object'&&!Array.isArray(v); };
+    if(!ok(legado)&&!ok(espelho)) return false;
+    Object.keys(SALDO_DEVEDOR_FORN).forEach(function(k){ delete SALDO_DEVEDOR_FORN[k]; });
+    const valor=function(v){ return v&&typeof v==='object'?Number(v.valor||0):Number(v||0); };
+    const a=ok(legado)?legado:{}, b=ok(espelho)?espelho:{};
+    new Set(Object.keys(a).concat(Object.keys(b))).forEach(function(k){
+      const escolhido=valor(a[k])>0?a[k]:(valor(b[k])>0?b[k]:null);
+      if(escolhido!=null) SALDO_DEVEDOR_FORN[k]=escolhido;
+    });
+    return true;
   }
 
   function _fcAplicarNuvem(d){
@@ -955,7 +969,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
 
         precosForn: PRECOS_FORN_DATA||{},
         precosCli: PRECOS_CLI_DATA||{},
-        saldoDevedor: SALDO_DEVEDOR_FORN||{},
 
         users: JSON.parse(localStorage.getItem('mm_users')||'{}'),
         usersDeleted: _USERS_DEL||[],
@@ -1023,7 +1036,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       if(!window.__ERP_FINANCE_CLOUD_READY__) delete dados.fcSaldoIniDeleted;
       const _valoresDelArrAtual = _deletedArrPularSeIgual(dados);
       [['precosForn',PRECOS_FORN_DATA,null],['precosCli',PRECOS_CLI_DATA,null],
-       ['saldoDevedor',SALDO_DEVEDOR_FORN,_DEL_SETS.saldoDevedor],['custosCasa',CUSTO_CASA,null],
+       ['custosCasa',CUSTO_CASA,null],
        ['fiscal',(typeof FISCAL_DB!=='undefined'?FISCAL_DB:null),null],
        ['fiscalApur',(typeof FISCAL_APUR!=='undefined'?FISCAL_APUR:null),null],
        ['fornVeiculos',dados.fornVeiculos,null]].forEach(function(par){
@@ -1075,8 +1088,9 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       _patchIncremental(dados, 'coordFuncObs', COORD_FUNC_OBS, null);
 
       const _adtAlteradosNoLote={};
-      _patchIncremental(dados, 'cheques', CHEQUES_POR_FORN, _DEL_SETS.chequesPorForn);
-      _patchIncremental(dados, 'saldos', SALDO_DEVEDOR_FORN, _DEL_SETS.saldoDevedor);
+      delete dados.chequesPorFornDeleted;
+      delete dados.chequeItensDeleted;
+      delete dados.saldoDevedorDeleted;
       try{ _limparMateriaisInvalidos(); }catch(e){}
       try{ _arredondarDinheiro2Casas(); }catch(e){}
       _patchIncremental(dados, 'estoque', ESTOQUE_DB, _DEL_SETS.estoque);
@@ -1395,8 +1409,8 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _fbAdiantamentosRecebidos(d.adiantamentos);
           _mergeAdtCloudManda(_adtLocal, d.adiantamentos, ADT_POR_FORN, _fbConfiavel, (d._shallowKeys && d._shallowKeys.indexOf('adiantamentos')>=0));
           _filtrarAdiantamentosExcluidos(ADT_POR_FORN,d.financeAdvanceDeleted);
-          _mergeObjDeArraysPorId(_cheqLocal, d.cheques||{},       CHEQUES_POR_FORN, 'id', _fbConfiavel);
-          _safeMerge(_saldLocal, d.saldos||{},        SALDO_DEVEDOR_FORN);
+          _mergeObjDeArraysPorId(_cheqLocal, d.cheques||{},       CHEQUES_POR_FORN, 'id', _fbConfiavel||Boolean(d.cheques&&typeof d.cheques==='object'));
+          if(!_saldosDaNuvem(d)) _safeMerge(_saldLocal, d.saldos||{},        SALDO_DEVEDOR_FORN);
 
           _syncHistorico.carregarDeRemoto(d.historico, _fbConfiavel);
           HISTORICO_DB.sort((a,b)=>(a&&a.ts||0)-(b&&b.ts||0));
@@ -1798,8 +1812,8 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
             window.__ERP_ADVANCES_CLOUD_AUTHORITATIVE__=!!_fbConf2;
             _mergeAdtCloudManda(loc, d.adiantamentos, ADT_POR_FORN, _fbConf2, (d._shallowKeys && d._shallowKeys.indexOf('adiantamentos')>=0));
             _filtrarAdiantamentosExcluidos(ADT_POR_FORN,d.financeAdvanceDeleted); }
-          { const loc=JSON.parse(JSON.stringify(CHEQUES_POR_FORN)); _mergeObjDeArraysPorId(loc, d.cheques||{}, CHEQUES_POR_FORN, 'id', _fbConf2); }
-          { const loc=JSON.parse(JSON.stringify(SALDO_DEVEDOR_FORN)); _mergeObj(loc, d.saldos||{}, SALDO_DEVEDOR_FORN); }
+          { const loc=JSON.parse(JSON.stringify(CHEQUES_POR_FORN)); _mergeObjDeArraysPorId(loc, d.cheques||{}, CHEQUES_POR_FORN, 'id', _fbConf2||Boolean(d.cheques&&typeof d.cheques==='object')); }
+          if(!_saldosDaNuvem(d)){ const loc=JSON.parse(JSON.stringify(SALDO_DEVEDOR_FORN)); _mergeObj(loc, d.saldos||{}, SALDO_DEVEDOR_FORN); }
           _fcAplicarNuvem(d);
           _cpCarregarDeRemoto(d.contasPagar, _fbConf2);
           _cpDeletedCarregarDeRemoto(d.contasPagarDeleted);

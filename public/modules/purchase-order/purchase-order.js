@@ -2097,27 +2097,29 @@ function printAppliedAdvances(key,ticket,advance){
   const appliedLimit=Math.max(0,Math.round(Number(advance||0)*100));
   const candidates=[];
   const unique=new Set();
-  function take(kind,ref,date,method,amount,identity,original){
+  function take(kind,ref,date,method,amount,identity,original,pending){
     const cents=Math.round(Number(amount||0)*100);
     if(!Number.isSafeInteger(cents)||cents<=0)return;
     const id=identity||kind+':'+String(ref||'')+':'+String(date||'');
     if(unique.has(id))return;
     unique.add(id);
     const originalCents=Math.round(Number(original||0)*100);
+    const pendingCents=pending==null||pending===''?null:Math.round(Number(pending)*100);
     candidates.push({kind,ref:String(ref||''),date:String(date||''),method:String(method||''),cents,
-      originalCents:Number.isSafeInteger(originalCents)&&originalCents>=cents?originalCents:cents});
+      originalCents:Number.isSafeInteger(originalCents)&&originalCents>=cents?originalCents:cents,
+      pendingCents:Number.isSafeInteger(pendingCents)&&pendingCents>=0?pendingCents:null});
   }
   const snap=ticket.reciboFinanceiro;
   if(snap&&typeof snap==='object'){
     for(const a of (Array.isArray(snap.adiantamentos)?snap.adiantamentos:[])){
       if(!a)continue;
       take('Adiantamento',a.cod,a.data,String(a.forma||''),a.valorAplicado,
-        a.cod?'ADT:'+String(a.cod):'SNAP-ADT:'+candidates.length,a.valorOriginal);
+        a.cod?'ADT:'+String(a.cod):'SNAP-ADT:'+candidates.length,a.valorOriginal,a.valorPendente);
     }
     for(const c of (Array.isArray(snap.cheques)?snap.cheques:[])){
       if(!c)continue;
       take('Cheque',c.num||c.numero||'',c.bomPara,'',c.valorAplicado,
-        c.id?'CHQ:'+String(c.id):'SNAP-CHQ:'+candidates.length,c.valorOriginal);
+        c.id?'CHQ:'+String(c.id):'SNAP-CHQ:'+candidates.length,c.valorOriginal,c.valorPendente==null?0:c.valorPendente);
     }
   }
   try{
@@ -2141,7 +2143,8 @@ function printAppliedAdvances(key,ticket,advance){
   for(const c of candidates){
     if(remaining<=0)break;
     const used=Math.min(remaining,c.cents);
-    if(used>0)rows.push({...c,amount:used/100,original:c.originalCents/100});
+    if(used>0)rows.push({...c,amount:used/100,original:c.originalCents/100,
+      usedBeforeCents:c.pendingCents==null||used!==c.cents?null:Math.max(0,c.originalCents-c.cents-c.pendingCents)});
     remaining-=used;
   }
   if(remaining>0){
@@ -2247,21 +2250,30 @@ function printHtml(key,ticket){
     (discount>0?totalRow('Desconto','- R$ '+money(discount)):'')+
     (freight>0?totalRow('Frete','R$ '+money(freight)):'')+
     totalRow('Total do pedido','R$ '+money(total),'grand');
+  const advanceRows=printAppliedAdvances(key,ticket,advance);
+  const knownAdvances=advanceRows.filter(function(row){return row.original!=null&&row.kind!=='Outros abatimentos aplicados';});
+  const advanceOriginal=knownAdvances.reduce(function(sum,row){return sum+Math.round(Number(row.original||0)*100);},0)/100;
+  const usedBefore=knownAdvances.length&&knownAdvances.every(function(row){return row.usedBeforeCents!=null;})
+    ?knownAdvances.reduce(function(sum,row){return sum+row.usedBeforeCents;},0)/100:0;
+  const originalLabel=knownAdvances.some(function(row){return row.kind==='Cheque';})
+    ?'Valor total dos adiantamentos e cheques usados'
+    :knownAdvances.length>1?'Valor total dos adiantamentos usados':'Valor total do adiantamento';
   const paymentSummary='<section class="print-section payment-summary"><h2>Situação financeira do pedido</h2>'+
     '<table class="payment-totals"><tbody>'+
     '<tr><th>Total do pedido</th><td>R$ '+money(total)+'</td></tr>'+
     (finance.priorDebt>0?'<tr><th>Saldo anterior incorporado</th><td>R$ '+money(finance.priorDebt)+'</td></tr>':'')+
+    (advance>0&&knownAdvances.length?'<tr class="advance-original"><th>'+originalLabel+'</th><td>R$ '+money(advanceOriginal)+'</td></tr>':'')+
+    (usedBefore>0.005?'<tr><th>Já usado em compras anteriores</th><td>R$ '+money(usedBefore)+'</td></tr>':'')+
     '<tr><th>Adiantamentos / abatimentos no fechamento</th><td>R$ '+money(advance)+'</td></tr>'+
     '<tr><th>Pagamentos e abatimentos posteriores</th><td>R$ '+money(finance.sincePurchase)+'</td></tr>'+
     '<tr class="paid"><th>Total pago / abatido</th><td>R$ '+money(finance.settled)+'</td></tr>'+
     '<tr class="due"><th>Saldo a pagar</th><td>R$ '+money(balance)+'</td></tr>'+ 
     (supplierCredit>0?'<tr class="supplier-credit"><th>Saldo devedor do fornecedor (adiantamento não utilizado, disponível para próximas compras)</th><td>R$ '+money(supplierCredit)+'</td></tr>':'')+
     '</tbody></table></section>';
-  const advanceRows=printAppliedAdvances(key,ticket,advance);
   const advanceDetails=advance>0
     ?'<section class="print-section applied-advances"><h2>Adiantamentos e abatimentos desta compra</h2>'+
       '<table class="installments"><colgroup><col class="col-date"><col class="col-origin"><col class="col-form"><col class="col-money"><col class="col-money"></colgroup>'+
-      '<thead><tr><th>Data</th><th>Origem</th><th>Forma</th><th>Valor do adiantamento</th><th>Valor aplicado</th></tr></thead><tbody>'+
+      '<thead><tr><th>Data</th><th>Origem</th><th>Forma</th><th>Valor total do adiantamento</th><th>Valor aplicado</th></tr></thead><tbody>'+
       advanceRows.map(function(row){return '<tr><td>'+esc(row.date?dateBR(row.date):'—')+'</td>'+
         '<td>'+esc(row.kind)+'</td><td>'+esc(printPaymentForm(row))+'</td>'+
         '<td class="numeric">'+(row.original==null?'—':'R$ '+money(row.original))+'</td>'+

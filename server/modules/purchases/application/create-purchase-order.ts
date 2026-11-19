@@ -312,16 +312,15 @@ export async function createPurchaseOrder(
       updates['erp/saldoDevedor/' + code] =
         rest > 0 ? { ...(clone(creditSnap.val()) as Row), valor: money(rest) } : null;
       const mirror: unknown = mirrorSnap?.val();
-      if (mirror != null) {
-        updates['erp/saldos/' + code] =
-          rest > 0
-            ? {
-                ...(typeof mirror === 'object' ? (clone(mirror) as Row) : {}),
-                valor: money(rest),
-                ticket: legacy.source,
-              }
-            : null;
-      }
+      const base: unknown = mirror != null && typeof mirror === 'object' ? mirror : creditSnap.val();
+      updates['erp/saldos/' + code] =
+        rest > 0
+          ? {
+              ...(base && typeof base === 'object' ? (clone(base) as Row) : {}),
+              valor: money(rest),
+              ticket: legacy.source,
+            }
+          : null;
     }
     const linkedPurchases = new Map<string, PurchaseTicket | null>();
     for (const advanceCode of selected) {
