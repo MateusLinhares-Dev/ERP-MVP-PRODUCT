@@ -5195,14 +5195,12 @@ function restaurarHistorico(histId){
   } else if(h.modulo==='Cheque'){
     const fornCod=h.extra&&h.extra.fornCod;
     if(!fornCod){ alert('Não foi possível identificar o fornecedor deste cheque.'); return; }
-    if(!CHEQUES_POR_FORN[fornCod]) CHEQUES_POR_FORN[fornCod]=[];
-    if(CHEQUES_POR_FORN[fornCod].some(c=>c.id===h.registro.id)){ alert('Este cheque já existe — não precisa restaurar.'); return; }
-    CHEQUES_POR_FORN[fornCod].push(Object.assign({}, h.registro));
-    saveDB();
-    try{ renderCheques(); }catch(e){}
-    registrarHistorico('Cheque','Restaurado','Restaurado do histórico: '+(h.registro.num||''), null, {fornCod});
-    cm();
-    alert('✅ Cheque restaurado!');
+    _chequeFornApi({action:'restore',fornCod,cheque:h.registro}).then(function(r){
+      registrarHistorico('Cheque','Restaurado','Restaurado do histórico: '+(h.registro.num||''), null, {fornCod,id:r.id});
+      cm();
+      alert('✅ Cheque restaurado!'+(r.status==='Quitado'?' Ele continua usado na compra de origem.':''));
+    }).catch(function(e){ alert('Cheque não restaurado: '+e.message); });
+    return;
   } else if(h.modulo==='Estoque'){
     const mat=h.registro.mat;
     if(!mat){ alert('Não foi possível identificar o material.'); return; }
@@ -8306,39 +8304,66 @@ function adtSubTab(t){
   }
 }
 
-function excluirCheque(cheqId){
-  if(!confirm('Excluir este cheque?')) return;
-  let found=false;
-  Object.keys(CHEQUES_POR_FORN).forEach(cod=>{
-    const idx=CHEQUES_POR_FORN[cod].findIndex(x=>(x.id||('CHQ_'+x.num+'_'+cod))===cheqId);
-    if(idx!==-1){
-      const _removido=CHEQUES_POR_FORN[cod][idx];
-      CHEQUES_POR_FORN[cod].splice(idx,1);
-      
-      _DEL_SETS.chequeItens.add(cod+'::'+(_removido.id||('CHQ_'+_removido.num+'_'+cod)));
-      try{ localStorage.setItem(_DEL_LS_KEY.chequeItens, JSON.stringify([..._DEL_SETS.chequeItens])); }catch(e){}
-      found=true;
-      const _forn=FORNECEDORES.find(f=>f.cod===cod);
-      registrarHistorico('Cheque','Excluído',
-        (_forn?_forn.nome:cod)+' — cheque nº '+(_removido.num||'')+' — R$ '+Number(_removido.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2}),
-        _removido, {fornCod:cod});
-    }
+async function _chequeFornApi(payload){
+  const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
+  if(!user) throw new Error('Sessão expirada. Entre novamente.');
+  const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
+  let response;
+  try{
+    response=await fetch('/api/finance/supplier-cheques',{method:'POST',credentials:'same-origin',
+      headers:{Authorization:'Bearer '+await user.getIdToken(),'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }catch(e){ throw new Error('Sem conexão com o servidor. Confira a internet e tente de novo.'); }
+  const result=await response.json().catch(function(){ return {}; });
+  if(!response.ok){ const error=new Error(result.message||'O servidor não confirmou a alteração.'); error.code=result.code; throw error; }
+  if(result.fornCod&&Array.isArray(result.cheques)) CHEQUES_POR_FORN[result.fornCod]=result.cheques;
+  try{ localStorage.setItem('mm_cheques',JSON.stringify(CHEQUES_POR_FORN)); }catch(e){}
+  ['renderCheques','renderDescontoForn','renderAdiantamentos','renderFluxo','renderDashboard'].forEach(function(n){ try{ if(typeof window[n]==='function') window[n](); }catch(e){} });
+  return result;
+}
+window.erpSupplierChequeRequest=_chequeFornApi;
+function _chequeFornRef(c,cod){ return (c&&c.id)||('CHQ_'+(c&&c.num)+'_'+cod); }
+function _chequeFornLocalizar(cheqId,fornCod){
+  let found=null;
+  Object.keys(CHEQUES_POR_FORN).forEach(function(cod){
+    if(found||(fornCod&&cod!==fornCod)) return;
+    (CHEQUES_POR_FORN[cod]||[]).forEach(function(x,i){
+      if(found||!x) return;
+      const ref=_chequeFornRef(x,cod);
+      if(ref===cheqId||x.id===cheqId) found={cod:cod,cheque:x,ref:ref,index:i};
+    });
   });
-  if(found){ saveDB(); renderCheques(); showToast('Cheque excluído.','success'); }
+  return found;
+}
+function _chequeFornPedido(alvo,extra){
+  return Object.assign({fornCod:alvo.cod,id:alvo.ref,index:alvo.index,expected:{valor:alvo.cheque.valor,status:alvo.cheque.status||'Pendente'}},extra||{});
 }
 
-function compensarCheque(cheqId, dataVal){
-  let found=false;
-  Object.values(CHEQUES_POR_FORN).forEach(lista=>{
-    const c=lista.find(x=>x.id===cheqId);
-    if(c){
-      c.dataCompensacao=dataVal;
-      if(dataVal) c.status='Compensado';
-      else c.status='Pendente';
-      found=true;
-    }
-  });
-  if(found){ saveDB(); renderCheques(); }
+
+async function excluirCheque(cheqId){
+  const alvo=_chequeFornLocalizar(cheqId);
+  if(!alvo){ showToast('Cheque não encontrado. Atualize a tela.','error'); return false; }
+  if(!confirm('Excluir este cheque?')) return false;
+  let r;
+  try{ r=await _chequeFornApi(_chequeFornPedido(alvo,{action:'delete'})); }
+  catch(e){ showToast('Cheque não excluído: '+e.message,'error',9000); return false; }
+  const _removido=r.removed||alvo.cheque;
+  const _forn=FORNECEDORES.find(f=>f.cod===alvo.cod);
+  registrarHistorico('Cheque','Excluído',
+    (_forn?_forn.nome:alvo.cod)+' — cheque nº '+(_removido.num||'')+' — R$ '+Number(_removido.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2}),
+    _removido, {fornCod:alvo.cod});
+  showToast('Cheque excluído.','success');
+  return true;
+}
+
+async function compensarCheque(cheqId, dataVal){
+  const alvo=_chequeFornLocalizar(cheqId);
+  if(!alvo){ showToast('Cheque não encontrado. Atualize a tela.','error'); return false; }
+  try{
+    await _chequeFornApi(dataVal
+      ?{action:'clear',fornCod:alvo.cod,id:alvo.ref,index:alvo.index,date:dataVal}
+      :{action:'reopen',fornCod:alvo.cod,id:alvo.ref,index:alvo.index});
+    return true;
+  }catch(e){ showToast((dataVal?'Baixa não registrada: ':'Baixa não estornada: ')+e.message,'error',9000); return false; }
 }
 
 function abrirBaixaCheque(cheqId){
@@ -8358,20 +8383,20 @@ function abrirBaixaCheque(cheqId){
   document.getElementById('modal-baixa-cheque').style.display='flex';
 }
 
-function confirmarBaixaCheque(){
+async function confirmarBaixaCheque(){
   const cheqId=document.getElementById('baixa-cheq-id').value;
   const dataISO=document.getElementById('baixa-cheq-data').value;
   if(!dataISO){ showToast('Informe a data do desconto','error'); return; }
   const dataFmt=dataISO.split('-').reverse().join('/');
-  compensarCheque(cheqId, dataFmt);
+  if(!await compensarCheque(cheqId, dataFmt)) return;
   document.getElementById('modal-baixa-cheque').style.display='none';
   showToast('✅ Baixa registrada! Cheque compensado em '+dataFmt,'success',4000);
 }
 
-function estornarBaixaCheque(cheqId){
+async function estornarBaixaCheque(cheqId){
   if(!confirm('Estornar a baixa deste cheque? Ele voltará para Pendente.')) return;
-  compensarCheque(cheqId,'');
-  showToast('↩ Baixa estornada. Cheque volta para Pendente.','info',4000);
+  if(!await compensarCheque(cheqId,'')) return;
+  showToast('↩ Baixa estornada.','info',4000);
 }
 
 function _popularSelectRuntime(selectId, values, selected){
@@ -8407,13 +8432,11 @@ function editarCheque(cheqId){
   modal.style.display='flex';
 }
 
-function salvarEdicaoCheque(){
+async function salvarEdicaoCheque(){
   const cheqId=document.getElementById('ec-id').value;
   const fornCod=document.getElementById('ec-forn-cod').value;
-  const lista=CHEQUES_POR_FORN[fornCod];
-  if(!lista){ showToast('Fornecedor não encontrado','error'); return; }
-  const cheq=lista.find(x=>(x.id||('CHQ_'+x.num+'_'+fornCod))===cheqId);
-  if(!cheq){ showToast('Cheque não encontrado','error'); return; }
+  const alvo=_chequeFornLocalizar(cheqId,fornCod);
+  if(!alvo){ showToast('Cheque não encontrado','error'); return; }
   const num=document.getElementById('ec-num').value.trim();
   const valor=parseFloat(document.getElementById('ec-valor').value)||0;
   const bomParaISO=document.getElementById('ec-bomPara').value;
@@ -8424,11 +8447,9 @@ function salvarEdicaoCheque(){
   const empresa=document.getElementById('ec-empresa').value;
   const vinculo=document.getElementById('ec-vinculo').value.trim();
   if(!num||valor<=0||!bomPara){ showToast('Preencha número, valor e Bom Para','error'); return; }
-  cheq.num=num; cheq.valor=valor; cheq.bomPara=bomPara;
-  cheq.banco=banco; cheq.tipo=tipo; cheq.finalidade=finalidade;
-  cheq.empresa=empresa; cheq.vinculo=vinculo;
-  saveDB();
-  renderCheques();
+  try{
+    await _chequeFornApi(_chequeFornPedido(alvo,{action:'update',cheque:{num,valor,bomPara,banco,tipo,finalidade,empresa,vinculo}}));
+  }catch(e){ showToast('Cheque não atualizado: '+e.message,'error',9000); return; }
   document.getElementById('modal-editar-cheque').style.display='none';
   showToast('✅ Cheque atualizado!','success');
 }
@@ -8537,31 +8558,45 @@ function _findCheqById(cheqId){
   });
   return found;
 }
-function marcarDescontado(cheqId){ const c=_findCheqById(cheqId); if(!c)return; c.statusDesc='Descontado'; saveDB(); try{renderDescontoForn();}catch(e){} try{renderCheques();}catch(e){} try{showToast('Cheque descontado do fornecedor.','success');}catch(e){} }
-function desfazerDesconto(cheqId){ const c=_findCheqById(cheqId); if(!c)return; c.statusDesc='A descontar'; saveDB(); try{renderDescontoForn();}catch(e){} try{renderCheques();}catch(e){} try{showToast('Desconto desfeito.','info');}catch(e){} }
-function marcarDescontadoFornecedor(fornCod){
+async function marcarDescontado(cheqId){
+  const alvo=_chequeFornLocalizar(cheqId); if(!alvo) return;
+  try{ await _chequeFornApi({action:'discount',fornCod:alvo.cod,value:'Descontado',ids:[{id:alvo.ref,index:alvo.index}]}); }
+  catch(e){ showToast('Cheque não descontado: '+e.message,'error',9000); return; }
+  showToast('Cheque descontado do fornecedor.','success');
+}
+async function desfazerDesconto(cheqId){
+  const alvo=_chequeFornLocalizar(cheqId); if(!alvo) return;
+  try{ await _chequeFornApi({action:'discount',fornCod:alvo.cod,value:'A descontar',ids:[{id:alvo.ref,index:alvo.index}]}); }
+  catch(e){ showToast('Desconto não desfeito: '+e.message,'error',9000); return; }
+  showToast('Desconto desfeito.','info');
+}
+
+async function marcarDescontadoFornecedor(fornCod){
   const lista=CHEQUES_POR_FORN[fornCod]||[];
-  const alvo=lista.filter(c=>_cheqDescPend(c));
+  const alvo=lista.map((c,i)=>({c,i})).filter(x=>_cheqDescPend(x.c));
   if(alvo.length===0) return;
-  const total=alvo.reduce((s,c)=>s+Number(c.valor||0),0);
+  const total=alvo.reduce((s,x)=>s+Number(x.c.valor||0),0);
   const fmt=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   if(!confirm('Descontar TODOS os '+alvo.length+' cheque(s) deste fornecedor (R$ '+fmt(total)+') na carga?')) return;
-  alvo.forEach(c=>c.statusDesc='Descontado');
-  saveDB(); try{renderDescontoForn();}catch(e){} try{renderCheques();}catch(e){}
-  try{showToast(alvo.length+' cheque(s) descontados (R$ '+fmt(total)+').','success');}catch(e){}
+  try{
+    for(let k=0;k<alvo.length;k+=200){
+      await _chequeFornApi({action:'discount',fornCod,value:'Descontado',ids:alvo.slice(k,k+200).map(x=>({id:_chequeFornRef(x.c,fornCod),index:x.i}))});
+    }
+  }catch(e){ showToast('Cheques não descontados: '+e.message,'error',9000); return; }
+  showToast(alvo.length+' cheque(s) descontados (R$ '+fmt(total)+').','success');
 }
-function cancelarCheque(cheqId){
+async function cancelarCheque(cheqId){
   if(!confirm('Cancelar este cheque? Ele sai dos totais do banco (não conta como a compensar nem compensado).')) return;
-  const c=_findCheqById(cheqId); if(!c)return;
-  c.status='Cancelado'; c.dataCompensacao='';
-  saveDB(); try{renderCheques();}catch(e){} try{renderDescontoForn();}catch(e){}
-  try{showToast('Cheque cancelado.','info');}catch(e){}
+  const alvo=_chequeFornLocalizar(cheqId); if(!alvo) return;
+  try{ await _chequeFornApi({action:'cancel',fornCod:alvo.cod,id:alvo.ref,index:alvo.index}); }
+  catch(e){ showToast('Cheque não cancelado: '+e.message,'error',9000); return; }
+  showToast('Cheque cancelado.','info');
 }
-function reativarCheque(cheqId){
-  const c=_findCheqById(cheqId); if(!c)return;
-  c.status='Pendente';
-  saveDB(); try{renderCheques();}catch(e){} try{renderDescontoForn();}catch(e){}
-  try{showToast('Cheque reativado (a compensar).','success');}catch(e){}
+async function reativarCheque(cheqId){
+  const alvo=_chequeFornLocalizar(cheqId); if(!alvo) return;
+  try{ await _chequeFornApi({action:'reactivate',fornCod:alvo.cod,id:alvo.ref,index:alvo.index}); }
+  catch(e){ showToast('Cheque não reativado: '+e.message,'error',9000); return; }
+  showToast('Cheque reativado (a compensar).','success');
 }
 function renderDescontoForn(){
   const box=document.getElementById('desconto-forn-body'); if(!box) return;
@@ -8638,7 +8673,8 @@ function renderCheques(){
     tbody.innerHTML=`<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">Nenhum cheque lançado ainda</td></tr>`;
     return;
   }
-  all.sort((a,b)=>b.bomPara.localeCompare(a.bomPara));
+  const _isoBomPara=bp=>{ bp=String(bp||''); if(bp.includes('-')) return bp; const p=bp.split('/'); return p.length===3?p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0'):''; };
+  all.sort((a,b)=>_isoBomPara(b.bomPara).localeCompare(_isoBomPara(a.bomPara)));
 
   const buscaNum=(document.getElementById('cheq-busca-num')?.value||'').trim().toLowerCase();
   const buscaDe=document.getElementById('cheq-busca-de')?.value||'';
@@ -10476,7 +10512,7 @@ function calcCheqTotal(){
   }
 }
 
-function salvarCheques(){
+async function salvarCheques(){
   const fornBusca=document.getElementById('cheq-forn-busca');
   const fornCod=document.getElementById('cheq-forn')?.value||'';
   if(!fornCod){
@@ -10492,37 +10528,31 @@ function salvarCheques(){
   const vinculoPad=document.getElementById('cheq-vinculo')?.value.trim()||'';
   const rows=document.querySelectorAll('#cheq-rows tr');
   if(rows.length===0){alert('Adicione ao menos um cheque!');return;}
-  let salvos=0;
-  if(!CHEQUES_POR_FORN[fornCod]) CHEQUES_POR_FORN[fornCod]=[];
+  const cheques=[];
   rows.forEach(tr=>{
     const inputs=tr.querySelectorAll('input');
     const num=inputs[0]?.value.trim();
     const valor=parseFloat(inputs[1]?.value)||0;
-    const bomPara=inputs[2]?.value;
-    
+    const bomPara=inputs[2]?.value||'';
     const bancoEl=tr.querySelectorAll('select')[0]||tr.querySelectorAll('input')[3];
     const banco=(bancoEl?.value||'').trim()||bancoPad;
     const vinculoInp=Array.from(tr.querySelectorAll('input')).find(el=>el.placeholder&&el.placeholder.includes('nculo'));
     const vinculo=(vinculoInp?.value||'').trim()||vinculoPad;
-    if(!num||valor<=0) return; 
-    const bomFmt=bomPara?bomPara.split('-').reverse().join('/'):'';
-    const cid='CHQ'+String(Date.now()).slice(-8)+salvos;
-    
-    const statusImport=tr.dataset.statusImport||'Pendente';
-    const statusFinal=statusImport==='Compensado'?'Compensado':'Pendente';
-    const dataComp=statusFinal==='Compensado'?bomFmt:'';
-    CHEQUES_POR_FORN[fornCod].push({id:cid,num,banco,tipo,finalidade:finalidadePad,empresa:empresaPad,valor,bomPara:bomFmt,vinculo,status:statusFinal,dataCompensacao:dataComp,statusDesc:'Descontado'});
-    salvos++;
+    if(!num||valor<=0) return;
+    cheques.push({num,valor,bomPara,banco,vinculo,tipo,finalidade:finalidadePad,empresa:empresaPad,
+      status:(tr.dataset.statusImport||'Pendente')==='Compensado'?'Compensado':'Pendente'});
   });
-  if(salvos===0){alert('Nenhum cheque valido (verifique numero, valor e Bom Para)!');return;}
-  saveDB();
-  renderCheques();
-  try{renderAdiantamentos();}catch(e){}
-  try{renderFluxo();}catch(e){}
-  try{renderDashboard();}catch(e){}
+  if(cheques.length===0){alert('Nenhum cheque valido (verifique numero, valor e Bom Para)!');return;}
+  let r;
+  try{ r=await _chequeFornApi({action:'create',fornCod,cheques}); }
+  catch(e){ showToast('Cheques não salvos: '+e.message,'error',9000); return; }
+  const _forn=FORNECEDORES.find(f=>f.cod===fornCod);
+  (r.cheques||[]).filter(c=>(r.created||[]).includes(c.id)).forEach(function(c){
+    registrarHistorico('Cheque','Criado',(_forn?_forn.nome:fornCod)+' — cheque nº '+c.num+' — R$ '+Number(c.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})+(c.finalidade?' — '+c.finalidade:''),null,{fornCod,id:c.id});
+  });
   cm();
-  const pagosCount=Array.from(document.querySelectorAll('#cheq-rows tr')).filter(r=>r.dataset.statusImport==='Compensado').length;
-  showToast(salvos+' cheque(s) salvos com sucesso!'+(pagosCount?' ('+pagosCount+' ja compensados)':''),'success');
+  const pagosCount=cheques.filter(c=>c.status==='Compensado').length;
+  showToast(cheques.length+' cheque(s) salvos com sucesso!'+(pagosCount?' ('+pagosCount+' ja compensados)':''),'success');
 }
 
 function _addCheqCliRowEl(num, valor, bomParaISO, banco, vinculo, idx, statusImport, emitente){
@@ -10669,32 +10699,6 @@ async function salvarChequesCli(){
   try{showToast(salvos+' cheque(s) de '+cliNome+' salvos!','success');}catch(e){}
 }
 
-function salvarCheque(){
-  const num=document.getElementById('cheq-num')?.value.trim();
-  const banco=document.getElementById('cheq-banco')?.value.trim();
-  const tipo=document.getElementById('cheq-tipo')?.value;
-  const finalidade=document.getElementById('cheq-finalidade')?.value||'Adiantamento';
-  const fornSel=document.getElementById('cheq-forn');
-  const valor=parseFloat(document.getElementById('cheq-valor')?.value)||0;
-  const bomPara=document.getElementById('cheq-bomPara')?.value;
-  const vinculo=document.getElementById('cheq-vinculo')?.value.trim()||'';
-  if(!num||!fornSel||valor<=0){alert('Preencha número, fornecedor e valor!');return;}
-  const fornCod=fornSel.options[fornSel.selectedIndex]?.value;
-  const bomFmt=bomPara?bomPara.split('-').reverse().join('/'):'';
-  if(!CHEQUES_POR_FORN[fornCod]) CHEQUES_POR_FORN[fornCod]=[];
-  const cid2='CHQ'+String(Date.now()).slice(-8);
-  CHEQUES_POR_FORN[fornCod].push({id:cid2,num,banco,tipo,finalidade,valor,bomPara:bomFmt,vinculo,status:'Pendente',dataCompensacao:'',statusDesc:'Descontado'});
-  saveDB();
-  {
-    const _forn=FORNECEDORES.find(f=>f.cod===fornCod);
-    registrarHistorico('Cheque','Criado',
-      (_forn?_forn.nome:fornCod)+' — cheque nº '+num+' — R$ '+Number(valor).toLocaleString('pt-BR',{minimumFractionDigits:2})+(finalidade?' — '+finalidade:''),
-      null, {fornCod, id:cid2});
-  }
-  renderCheques();
-  cm();
-  alert('✅ Cheque salvo!');
-}
 
 let METAIS_OPTS = METAIS.map(m=>`<option>${m}</option>`).join('');
 let METAIS_DATALIST = `<datalist id="metais-list">${METAIS.map(m=>`<option value="${m}">`).join('')}</datalist>`;
@@ -16274,6 +16278,30 @@ async function _cpApi(payload){
   return result;
 }
 window.erpPayablesRequest=_cpApi;
+async function _saldoFornApi(payload){
+  const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
+  if(!user) throw new Error('Sessão expirada. Entre novamente.');
+  const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
+  let response;
+  try{
+    response=await fetch('/api/finance/supplier-balance',{method:'POST',credentials:'same-origin',
+      headers:{Authorization:'Bearer '+await user.getIdToken(),'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }catch(e){ throw new Error('Sem conexão com o servidor. Confira a internet e tente de novo.'); }
+  const result=await response.json().catch(function(){ return {}; });
+  if(!response.ok){ const error=new Error(result.message||'O servidor não confirmou a alteração.'); error.code=result.code; throw error; }
+  if(result.fornCod){ if(result.saldo==null) delete SALDO_DEVEDOR_FORN[result.fornCod]; else SALDO_DEVEDOR_FORN[result.fornCod]=result.saldo; }
+  try{ localStorage.setItem('mm_saldo_devedor',JSON.stringify(SALDO_DEVEDOR_FORN)); }catch(e){}
+  if(result.payable) _cpAplicarResultado({action:'create',payables:[result.payable]});
+  ['renderFluxo','renderDashboard'].forEach(function(n){ try{ if(typeof window[n]==='function') window[n](); }catch(e){} });
+  return result;
+}
+window.erpSupplierBalanceRequest=_saldoFornApi;
+function _saldoFornEsperado(cod){
+  const atual=SALDO_DEVEDOR_FORN[cod];
+  if(atual==null) return null;
+  return typeof atual==='object'?{valor:Number(atual.valor||0),ticket:String(atual.ticket||'')}:{valor:Number(atual||0),ticket:''};
+}
+function _ffEhDebito(tipo){ return tipo==='compra'||tipo==='saldo_anterior'||tipo==='saldo_devedor_pendente'||tipo==='conta_antiga'; }
 function _cpAjustarCompraAntiga(t, extra){
   try{
     const pend=CONTAS_PAGAR.find(function(cp){ return cp&&cp.ticket===t.ticket&&cp.status==='Pendente'; });
@@ -18401,8 +18429,9 @@ function initDespesas(){
           var sdEntry=SALDO_DEVEDOR_FORN[cod];
           var sdValor=typeof sdEntry==='object'?(sdEntry.valor||0):Number(sdEntry||0);
           var sdData=typeof sdEntry==='object'?(sdEntry.data||''):'';
+          var sdTicket=typeof sdEntry==='object'?String(sdEntry.ticket||''):'';
           if(sdValor>0){
-            entries.push({ data:sdData, tipo:'saldo_devedor_pendente', sinal:1, raw:{valor:sdValor, data:sdData} });
+            entries.push({ data:sdData, tipo:sdTicket?'credito_fornecedor':'saldo_devedor_pendente', sinal:1, raw:{valor:sdValor, data:sdData, ticket:sdTicket} });
           }
         }
         Object.values(TICKETS_DB).filter(function(tk){ return tk.fornecedorCod===cod||_ticketDoForn(tk,forn,forn.nome); }).forEach(function(tk){
@@ -18418,9 +18447,16 @@ function initDespesas(){
         (CHEQUES_POR_FORN[cod]||[]).forEach(function(ch){
           entries.push({ data:ch.data, tipo:'cheque', sinal:1, status:ch.status, raw:ch });
         });
+        CONTAS_PAGAR.filter(function(c){ return c&&!c.ticket&&c.origem==='compra_antiga'&&c.fornCod===cod; }).forEach(function(c){
+          var pagos=(Array.isArray(c.pagamentos)?c.pagamentos:[]).reduce(function(s,p){ return s+Number(p&&p.valor||0)+Number(p&&p.adt||0); },0);
+          var original=c.status==='Pago'?(pagos||Number(c.valor||0)):Number(c.valor||0)+pagos;
+          entries.push({ data:c.lancto||c.venc||'', tipo:'conta_antiga', sinal:-1, status:c.status, raw:{valor:_r2(original), desc:c.desc||'', id:c.id, status:c.status||'Pendente', venc:c.venc||''} });
+        });
 
         CONTAS_PAGAR.filter(function(c){
-          return c.ticket && Array.isArray(c.pagamentos) && c.pagamentos.length && TICKETS_DB[c.ticket] &&
+          if(!c||!Array.isArray(c.pagamentos)||!c.pagamentos.length) return false;
+          if(!c.ticket) return c.origem==='compra_antiga'&&c.fornCod===cod;
+          return TICKETS_DB[c.ticket] &&
             (TICKETS_DB[c.ticket].fornecedorCod===cod || TICKETS_DB[c.ticket].fornecedor===forn.nome);
         }).forEach(function(c){
           c.pagamentos.forEach(function(p,pIdx){
@@ -18460,8 +18496,21 @@ function initDespesas(){
           } else if(e.tipo==='saldo_devedor_pendente'){
             valor=Number(e.raw.valor||0); saldo+=valor;
             badge='<span style="background:#fdecea;color:#c0392b;padding:1px 6px;border-radius:4px;font-size:.72rem;font-weight:700">Pendente</span>';
-            descHtml='<div style="font-weight:700;color:#c0392b">&#x23F3; Saldo Devedor Registrado – aguardando proxima compra</div>'
-              +'<div style="font-size:.76rem;color:#888;margin-top:2px">Sera automaticamente aplicado na proxima compra deste fornecedor</div>';
+            descHtml='<div style="font-weight:700;color:#c0392b">Saldo devedor registrado (sem compra de origem)</div>'
+              +'<div style="font-size:.76rem;color:#888;margin-top:2px">Você deve este valor ao fornecedor. Leve para Contas a Pagar para pagar pelo caminho normal.</div>';
+          } else if(e.tipo==='credito_fornecedor'){
+            valor=Number(e.raw.valor||0); saldo-=valor;
+            badge='<span style="background:#e8f5e9;color:#1a5e2a;padding:1px 6px;border-radius:4px;font-size:.72rem;font-weight:700">Crédito</span>';
+            descHtml='<div style="font-weight:700;color:#27ae60">Crédito do fornecedor – sobra de adiantamento da compra '+esc(e.raw.ticket||'')+'</div>'
+              +'<div style="font-size:.76rem;color:#888;margin-top:2px">O fornecedor deve este valor. Ele é oferecido para abater na próxima compra.</div>';
+          } else if(e.tipo==='conta_antiga'){
+            valor=Number(e.raw.valor||0); saldo+=valor;
+            var stCa=e.raw.status||'Pendente';
+            badge=stCa==='Pago'?'<span style="background:#e8f5e9;color:#1a5e2a;padding:1px 6px;border-radius:4px;font-size:.72rem;font-weight:700">Pago</span>'
+              :stCa==='Parcial'?'<span style="background:#fff3cd;color:#856404;padding:1px 6px;border-radius:4px;font-size:.72rem;font-weight:700">Parcial</span>'
+              :'<span style="background:#fdecea;color:#c0392b;padding:1px 6px;border-radius:4px;font-size:.72rem;font-weight:700">Pendente</span>';
+            descHtml='<div style="font-weight:700;color:#c0392b">Conta a pagar – '+esc(e.raw.desc||'')+'</div>'
+              +'<div style="font-size:.76rem;color:#888;margin-top:2px">Vencimento '+esc(e.raw.venc||'—')+'. Pagamento e histórico em Contas a Pagar.</div>';
           } else if(e.tipo==='adiantamento'){
 
             var a=e.raw; valor=Number(a.valor||0);
@@ -18489,18 +18538,20 @@ function initDespesas(){
               ?'<span style="color:#c0392b;font-weight:700">\uD83D\uDD34 '+esc(forn.nome||'fornecedor')+' te deve</span>'
               :'<span style="color:#27ae60;font-weight:700">\u2714\uFE0F quitado</span>';
           var saldoTxt='<span style="font-weight:800;color:'+sc+'">R$ '+fmt(Math.abs(saldo))+'</span><div style="font-size:.7rem;margin-top:2px;font-weight:400">'+_quemDeve+'</div>';
-          var rowBg=e.tipo==='compra'?'#fff8f0':e.tipo==='cheque'?'#f9f0ff':e.tipo==='saldo_anterior'||e.tipo==='saldo_devedor_pendente'?'#fffde7':'#f0fff4';
-          var valColor=e.tipo==='compra'||e.tipo==='saldo_anterior'||e.tipo==='saldo_devedor_pendente'?'#c0392b':'#27ae60';
+          var rowBg=e.tipo==='compra'||e.tipo==='conta_antiga'?'#fff8f0':e.tipo==='cheque'?'#f9f0ff':e.tipo==='saldo_anterior'||e.tipo==='saldo_devedor_pendente'?'#fffde7':'#f0fff4';
+          var valColor=_ffEhDebito(e.tipo)?'#c0392b':'#27ae60';
           var delKey='';
           if(e.tipo==='compra') delKey=e.raw.ticket||'';
           else if(e.tipo==='adiantamento') delKey=e.raw.cod||'';
-          else if(e.tipo==='cheque') delKey=e.raw.cod||e.raw.num||'';
-          else if(e.tipo==='saldo_devedor_pendente') delKey='__saldo__';
+          else if(e.tipo==='cheque') delKey=_chequeFornRef(e.raw,cod);
+          else if(e.tipo==='saldo_devedor_pendente'||e.tipo==='credito_fornecedor') delKey='__saldo__';
           else if(e.tipo==='pagamento_cp') delKey=(e.raw.cpId||'')+'§'+(e.raw.pIdx);
           var canEdit=e.tipo==='adiantamento'||e.tipo==='cheque'||e.tipo==='compra';
           var editBtn=canEdit&&delKey
             ?'<button onclick="ffAbrirEdicao(this)" data-tipo="'+e.tipo+'" data-id="'+delKey+'" data-forn="'+cod+'" style="background:#2980b9;color:#fff;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:.8rem;margin-right:3px">&#x270F; Editar</button>'
-            :'';
+            :e.tipo==='saldo_devedor_pendente'
+              ?'<button onclick="ffSaldoParaContas(this)" data-forn="'+cod+'" style="background:#8a6d0b;color:#fff;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:.8rem;margin-right:3px">Levar para Contas a Pagar</button>'
+              :'';
           var delBtn=delKey
             ?'<button onclick="ffExcluirEntry(this)" data-tipo="'+e.tipo+'" data-id="'+delKey+'" data-forn="'+cod+'" style="background:#e74c3c;color:#fff;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:.8rem">&#x1F5D1; Excluir</button>'
             :'';
@@ -18508,23 +18559,24 @@ function initDespesas(){
             +'<td style="padding:8px 10px;white-space:nowrap;font-size:.8rem;color:#555">'+fmtD(e.data)+'</td>'
             +'<td style="padding:8px 10px">'+badge+'</td>'
             +'<td style="padding:8px 10px">'+descHtml+'</td>'
-            +'<td style="padding:8px 10px;text-align:right;font-weight:700;color:'+valColor+'">'+(e.tipo==='compra'?'+ ':'- ')+'R$ '+fmt(valor)+'</td>'
+            +'<td style="padding:8px 10px;text-align:right;font-weight:700;color:'+valColor+'">'+(_ffEhDebito(e.tipo)?'+ ':'- ')+'R$ '+fmt(valor)+'</td>'
             +'<td style="padding:8px 10px;text-align:right;font-weight:800;color:'+sc+';white-space:nowrap">'+saldoTxt+'</td>'
             +'<td style="padding:6px 8px;text-align:center;white-space:nowrap">'+editBtn+delBtn+'</td>'
             +'</tr>';
         }).join('');
 
-        var totC=filtered.filter(function(e){return e.tipo==='compra';}).reduce(function(s,e){return s+Number(e.raw.totalGeral||0);},0);
+        var totC=filtered.reduce(function(s,e){ return e.tipo==='compra'?s+Number(e.raw.totalGeral||0):_ffEhDebito(e.tipo)?s+Number(e.raw.valor||0):s; },0);
+        var _ffOutrasDividas=filtered.some(function(e){ return e.tipo!=='compra'&&_ffEhDebito(e.tipo); });
 
         var totP=filtered.filter(function(e){
-          return e.tipo!=='compra';
+          return !_ffEhDebito(e.tipo);
         }).reduce(function(s,e){return s+Number(e.raw.valor||0);},0);
         var sF=totC-totP;
         var scF=sF>0?'#2980b9':sF<0?'#c0392b':'#27ae60', bgF=sF>0?'#e8f0fe':sF<0?'#fff0f0':'#e8f5e9';
         var kpiBgF=sF>0?'R$ '+fmt(sF)+' a pagar':sF<0?'Forn. deve R$ '+fmt(Math.abs(sF)):'Quitado';
         var kEl=document.getElementById('ff-kpis');
         if(kEl) kEl.innerHTML=
-          '<div style="background:#fff8f0;border-radius:7px;padding:8px 12px;text-align:center;border-left:3px solid #e67e22"><div style="font-size:.7rem;color:#888;font-weight:700">TOTAL COMPRADO</div><div style="font-weight:800;color:#e67e22">R$ '+fmt(totC)+'</div></div>'
+          '<div style="background:#fff8f0;border-radius:7px;padding:8px 12px;text-align:center;border-left:3px solid #e67e22"><div style="font-size:.7rem;color:#888;font-weight:700">'+(_ffOutrasDividas?'COMPRAS E DÍVIDAS':'TOTAL COMPRADO')+'</div><div style="font-weight:800;color:#e67e22">R$ '+fmt(totC)+'</div></div>'
           +'<div style="background:#f0fff4;border-radius:7px;padding:8px 12px;text-align:center;border-left:3px solid #27ae60"><div style="font-size:.7rem;color:#888;font-weight:700">TOTAL PAGO</div><div style="font-weight:800;color:#27ae60">R$ '+fmt(totP)+'</div></div>'
           +'<div style="background:'+bgF+';border-radius:7px;padding:8px 12px;text-align:center;border-left:3px solid '+scF+'"><div style="font-size:.7rem;color:#888;font-weight:700">SALDO ATUAL</div><div style="font-weight:800;color:'+scF+'">'+kpiBgF+'</div></div>'
           +'<div style="background:#f5f5f5;border-radius:7px;padding:8px 12px;text-align:center;border-left:3px solid #888"><div style="font-size:.7rem;color:#888;font-weight:700">MOVIMENTACOES</div><div style="font-weight:800;color:#555">'+filtered.length+' reg.</div></div>';
@@ -18532,20 +18584,6 @@ function initDespesas(){
         if(tb) tb.innerHTML=rows||'<tr><td colspan="5" style="text-align:center;padding:20px;color:#aaa">Nenhuma movimentacao encontrada.</td></tr>';
         var ac=document.getElementById('ff-actions'); if(ac) ac.style.display='flex';
       
-      var btnSaldo=document.getElementById('ff-btn-saldo');
-      if(!btnSaldo){
-        btnSaldo=document.createElement('button');
-        btnSaldo.id='ff-btn-saldo';
-        btnSaldo.style.cssText='padding:8px 18px;color:#fff;border:none;border-radius:7px;cursor:pointer;font-weight:700;font-size:.85rem;display:none';
-        if(ac) ac.insertBefore(btnSaldo, ac.firstChild);
-      }
-      if(sF>0 && !SALDO_DEVEDOR_FORN[cod]){
-        var fmt2=function(v){return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});};
-        btnSaldo.textContent='Registrar Saldo Devedor (R$ '+fmt2(sF)+')';
-        btnSaldo.style.background='#e74c3c';
-        btnSaldo.style.display='';
-        btnSaldo.onclick=function(){ registrarSaldoDevedor(cod, sF); };
-      } else { btnSaldo.style.display='none'; }
       try{document.dispatchEvent(new CustomEvent('erp:supplier-ficha-rendered',{detail:{fornCod:cod,nome:forn.nome}}));}catch(error){console.warn('supplier.ficha.event',error);}
       }
 
@@ -18695,7 +18733,8 @@ function initDespesas(){
             +'<label style="font-size:.75rem;font-weight:700;color:#555;margin-top:4px;display:block">Obs</label>'
             +'<input id="ffe-obs" type="text" value="'+(raw.obs||'')+'" style="width:100%;padding:7px 10px;border:1.5px solid #ccc;border-radius:6px;font-size:.88rem;box-sizing:border-box">';
         } else if(tipo==='cheque'&&CHEQUES_POR_FORN[fornCod]){
-          raw=CHEQUES_POR_FORN[fornCod].find(function(ch){return (ch.cod||ch.num)===id;});
+          raw=(_chequeFornLocalizar(id,fornCod)||{}).cheque||null;
+          var _stCh=raw?(raw.status||'Pendente'):'';
           if(raw) campos=
             '<label style="font-size:.75rem;font-weight:700;color:#555">Data</label>'
             +'<input id="ffe-data" type="text" value="'+(raw.data||'')+'" placeholder="DD/MM/AAAA" style="width:100%;padding:7px 10px;border:1.5px solid #ccc;border-radius:6px;font-size:.88rem;box-sizing:border-box">'
@@ -18707,7 +18746,8 @@ function initDespesas(){
             +'<select id="ffe-status" style="width:100%;padding:7px 10px;border:1.5px solid #ccc;border-radius:6px;font-size:.88rem">'
             +'<option value="Pendente"'+(raw.status==='Pendente'?' selected':'')+'>Pendente</option>'
             +'<option value="Compensado"'+(raw.status==='Compensado'?' selected':'')+'>Compensado</option>'
-            +'<option value="Vencido"'+(raw.status==='Vencido'?' selected':'')+'>Vencido</option></select>'
+            +'<option value="Vencido"'+(raw.status==='Vencido'?' selected':'')+'>Vencido</option>'
+            +(['Pendente','Compensado','Vencido'].indexOf(_stCh)<0?'<option value="'+esc(_stCh)+'" selected>'+esc(_stCh==='Quitado'?'Quitado (usado em compra)':_stCh)+'</option>':'')+'</select>'
             +'<label style="font-size:.75rem;font-weight:700;color:#555;margin-top:4px;display:block">Obs</label>'
             +'<input id="ffe-obs" type="text" value="'+(raw.obs||'')+'" style="width:100%;padding:7px 10px;border:1.5px solid #ccc;border-radius:6px;font-size:.88rem;box-sizing:border-box">';
         } else if(tipo==='compra'&&TICKETS_DB[id]){
@@ -18738,17 +18778,22 @@ function initDespesas(){
         var valor=parseFloat((document.getElementById('ffe-valor')||{}).value)||0;
         var status=(document.getElementById('ffe-status')||{}).value||'';
         var obs=(document.getElementById('ffe-obs')||{}).value||'';
-        if(_ffEditTipo==='cheque'&&CHEQUES_POR_FORN[_ffEditForn]){
+        if(_ffEditTipo==='cheque'){
           var num=(document.getElementById('ffe-num')||{}).value||'';
-          var ch=CHEQUES_POR_FORN[_ffEditForn].find(function(x){return (x.cod||x.num)===_ffEditId;});
-          if(ch){
-            if(data) ch.data=data;
-            if(valor>0) ch.valor=valor;
-            if(num) ch.num=num;
-            if(status) ch.status=status;
-            ch.obs=obs;
-          }
-          saveDB();
+          var alvo=_chequeFornLocalizar(_ffEditId,_ffEditForn);
+          if(!alvo){ showToast('Cheque não encontrado. Atualize a tela.','error'); return; }
+          var patch={obs:obs};
+          if(data) patch.data=data;
+          if(valor>0) patch.valor=valor;
+          if(num) patch.num=num;
+          if(status&&status!==(alvo.cheque.status||'Pendente')) patch.status=status;
+          var _fornFicha=_ffEditForn;
+          _chequeFornApi(_chequeFornPedido(alvo,{action:'update',cheque:patch})).then(function(){
+            document.getElementById('modal-ff-edit').style.display='none';
+            ffRenderFicha(_fornFicha,(document.getElementById('ff-de')||{}).value||'',(document.getElementById('ff-ate')||{}).value||'');
+            showToast('Cheque atualizado.','success');
+          }).catch(function(e){ showToast('Cheque não atualizado: '+e.message,'error',9000); });
+          return;
         } else if(_ffEditTipo==='compra'&&TICKETS_DB[_ffEditId]){
           var saldo=_r2(parseFloat((document.getElementById('ffe-saldo')||{}).value)||0);
           var tk=TICKETS_DB[_ffEditId];
@@ -18778,7 +18823,8 @@ function initDespesas(){
         }
         var msg = tipo==='compra'?'Excluir este ticket de compra da ficha?'
           :tipo==='cheque'?'Excluir este cheque da ficha?'
-          :tipo==='saldo_devedor_pendente'?'Cancelar o saldo devedor registrado?'
+          :tipo==='saldo_devedor_pendente'?'Cancelar o saldo devedor registrado? Se você ainda deve esse valor, use "Levar para Contas a Pagar".'
+          :tipo==='credito_fornecedor'?'Cancelar o crédito do fornecedor? Ele deixa de ser oferecido na próxima compra. Use só se o fornecedor já devolveu esse valor de outro jeito.'
           :tipo==='pagamento_cp'?'Excluir este PAGAMENTO? O valor volta a ser devido, sai do saldo do banco e o saldo do ticket é corrigido.'
           :'Excluir este lancamento?';
         if(!confirm(msg)) return;
@@ -18802,14 +18848,24 @@ function initDespesas(){
           try{renderDashboard();}catch(e){}
           showToast('Ticket excluído.','success');
         } else if(tipo==='cheque'){
-          if(CHEQUES_POR_FORN[fornCod]){
-            CHEQUES_POR_FORN[fornCod]=CHEQUES_POR_FORN[fornCod].filter(function(ch){return (ch.cod||ch.num)!==id;});
-          }
-          saveDB();
-        } else if(tipo==='saldo_devedor_pendente'){
-          _apagarChave('saldoDevedor', SALDO_DEVEDOR_FORN, fornCod);
-          localStorage.setItem('mm_saldo_devedor', JSON.stringify(SALDO_DEVEDOR_FORN));
-          try{fbSalvar();}catch(e){}
+          var _alvoCh=_chequeFornLocalizar(id,fornCod);
+          if(!_alvoCh){ showToast('Cheque não encontrado. Atualize a tela.','error'); return; }
+          _chequeFornApi(_chequeFornPedido(_alvoCh,{action:'delete'})).then(function(r){
+            var _rm=r.removed||_alvoCh.cheque;
+            registrarHistorico('Cheque','Excluído','Ficha do fornecedor — cheque nº '+(_rm.num||'')+' — R$ '+Number(_rm.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2}),_rm,{fornCod:fornCod});
+            _ffDepois();
+            showToast('Cheque excluído.','success');
+          }).catch(function(e){ showToast('Cheque não excluído: '+e.message,'error',9000); });
+          return;
+        } else if(tipo==='saldo_devedor_pendente'||tipo==='credito_fornecedor'){
+          _saldoFornApi({action:'clear',fornCod:fornCod,expected:_saldoFornEsperado(fornCod)}).then(function(r){
+            var _rm=r.removed||{};
+            registrarHistorico('Fornecedor',tipo==='credito_fornecedor'?'Crédito cancelado':'Saldo devedor cancelado',
+              'Ficha do fornecedor — R$ '+Number(_rm.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+(_rm.ticket?' (compra '+_rm.ticket+')':''),_rm,{fornCod:fornCod});
+            _ffDepois();
+            showToast(tipo==='credito_fornecedor'?'Crédito do fornecedor cancelado.':'Saldo devedor cancelado.','success');
+          }).catch(function(e){ showToast('Saldo não cancelado: '+e.message,'error',9000); });
+          return;
         }
         
         ffRenderFicha(fornCod,
@@ -18819,17 +18875,23 @@ function initDespesas(){
       }
       window['ffExcluirLancamento']=ffExcluirLancamento;
 
-      function registrarSaldoDevedor(cod, saldo){
-        if(!cod||!(saldo>0)) return;
-        var hoje=new Date().toLocaleDateString('pt-BR');
-        SALDO_DEVEDOR_FORN[cod]={valor:Number(saldo.toFixed(2)), data:hoje};
-        localStorage.setItem('mm_saldo_devedor', JSON.stringify(SALDO_DEVEDOR_FORN));
-        try{fbSalvar();}catch(e){}
-        showToast('Saldo devedor de R$ '+Number(saldo).toLocaleString('pt-BR',{minimumFractionDigits:2})+' registrado! Sera aplicado na proxima compra.','success');
-        ffRenderFicha(cod,
-          (document.getElementById('ff-de')||{}).value||'',
-          (document.getElementById('ff-ate')||{}).value||'');
+      function ffSaldoParaContas(btn){
+        var cod=btn&&btn.getAttribute?btn.getAttribute('data-forn'):btn;
+        var atual=SALDO_DEVEDOR_FORN[cod];
+        var valor=atual&&typeof atual==='object'?Number(atual.valor||0):Number(atual||0);
+        if(!cod||!(valor>0)){ showToast('Saldo não encontrado. Atualize a Ficha.','error'); return; }
+        var forn=FORNECEDORES.find(function(f){ return f.cod===cod; });
+        var nome=forn?forn.nome:cod;
+        if(!confirm('Levar o saldo devedor de R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+' para Contas a Pagar?\n\n'
+          +'Vira uma conta a pagar para '+nome+', com vencimento hoje (dá para mudar depois em Contas a Pagar).\n'
+          +'O valor continua na Ficha, agora como conta a pagar.')) return;
+        _saldoFornApi({action:'to-payable',fornCod:cod,expected:_saldoFornEsperado(cod)}).then(function(r){
+          registrarHistorico('Fornecedor','Saldo devedor levado para Contas a Pagar',nome+' — R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+' — conta '+((r.payable||{}).id||''),r.removed||null,{fornCod:cod});
+          ffRenderFicha(cod,(document.getElementById('ff-de')||{}).value||'',(document.getElementById('ff-ate')||{}).value||'');
+          showToast('Saldo devedor lançado em Contas a Pagar.','success',6000);
+        }).catch(function(e){ showToast('Saldo não levado para Contas a Pagar: '+e.message,'error',9000); });
       }
+      window['ffSaldoParaContas']=ffSaldoParaContas;
 
       function ffSaldoInicial(){
         var cod=_ffCodAtual;
@@ -18846,14 +18908,19 @@ function initDespesas(){
           +'▶ Clique OK  se VOCÊ DEVE a '+nome+' (ele tem a receber de você)\n'
           +'▶ Clique CANCELAR  se '+nome.toUpperCase()+' TE DEVE (você tem a receber dele)');
         if(euDevo){
-          registrarSaldoDevedor(cod, v);
+          var valorCp=Math.round(v*100)/100;
+          _cpApi({action:'create',payable:{desc:'Saldo inicial — '+nome,cred:nome,cat:'Compra de Sucata',tipoForn:'compra',venc:_hojeISO(),valor:valorCp,obs:'Saldo inicial lançado pela Ficha do fornecedor',origem:'compra_antiga',fornCod:cod}})
+            .then(function(){
+              showToast('Saldo inicial de R$ '+valorCp.toLocaleString('pt-BR',{minimumFractionDigits:2})+' lançado em Contas a Pagar para '+nome+'.','success',7000);
+              ffRenderFicha(cod,(document.getElementById('ff-de')||{}).value||'',(document.getElementById('ff-ate')||{}).value||'');
+            })
+            .catch(function(e){ showToast('Saldo inicial não lançado: '+e.message,'error',9000); });
         } else {
           showToast('O crédito com o fornecedor é registrado como adiantamento. Confira a forma e o banco e salve.','info',8000);
           _ffAbrirAdiantamentoOficial(cod,{valor:v,obs:'Saldo inicial — '+nome+' te deve'});
         }
       }
       window['ffSaldoInicial']=ffSaldoInicial;
-      window['registrarSaldoDevedor']=registrarSaldoDevedor;
       window['ffBuscaChange']=ffBuscaChange;
       window['ffReRender']=ffReRender;
       window['ffRenderFicha']=ffRenderFicha;

@@ -58,6 +58,8 @@ A sincronização da tela antiga **não grava** alguns dados, porque eles perten
 - contas de compra (`CPPO_…`) e contas ligadas a esses tickets;
 - saídas de pagamento (`LB-PG-…`) e de adiantamento;
 - desde a v244, todas as contas bancárias e todo o extrato (ver a seção acima).
+- desde a v251, os cheques de fornecedor da aba antiga (`cheques`) e suas marcas de exclusão (ver "Cheques de fornecedor da aba antiga").
+- desde a v252, os saldos de fornecedor (`saldoDevedor`, `saldos` e `saldoDevedorDeleted`; ver "Saldos de fornecedor").
 
 Qualquer botão que mude esses dados só na tela parece funcionar, mas volta ao recarregar. Foram corrigidos:
 
@@ -73,6 +75,8 @@ Qualquer botão que mude esses dados só na tela parece funcionar, mas volta ao 
 | Impureza em compra confirmada | Mudava só na tela | Avisa para usar Editar no Histórico de compras |
 | Formulário de adiantamento aberto pela Ficha | Ficava atrás da janela da Ficha | A Ficha se esconde e volta ao fechar |
 | Adiantamentos → "De quem veio?" (empresa na lista) | Mostrava "definida", mas voltava depois do F5 | Ação `company` em `advance-change`: o servidor troca só a empresa (v244) |
+| Ficha do fornecedor → Editar ou excluir cheque | Achava pelo número (o primeiro de mesmo número, de qualquer banco) e mudava só na tela | Vai pelo `id` e grava no servidor (v251) |
+| Ficha do fornecedor → Cancelar saldo | Apagava só na tela | Ação `clear` em `supplier-balance` (v252) |
 
 Também foi removido código sem uso: "marcar compra paga" (sem botão) e `_aplicarAdiantamentosCP` (sem chamadas).
 
@@ -109,6 +113,87 @@ Regras:
 3. Só então rode `npm run deploy:rules:prod`.
 
 Uma aba antiga que ainda grava o extrato teria esse envio recusado pelas regras novas.
+
+## Saldos de fornecedor só pelo servidor (19/11/2026, v252)
+
+O navegador não grava mais `saldoDevedor`, `saldos` nem `saldoDevedorDeleted` (regras com `.write: false`). A API é `POST /api/finance/supplier-balance` (`changeSupplierBalance` em `server/modules/purchases/application/supplier-balance.ts`). Na tela, a chamada é `_saldoFornApi`, também em `window.erpSupplierBalanceRequest`.
+
+Um registro nesses nós pode ter dois significados:
+- **Crédito do fornecedor (tem `ticket`):** é a sobra de adiantamento de uma compra antiga; o fornecedor deve. A compra oferece esse valor como "Crédito restante do fornecedor", e o servidor confere a origem (`verifyLegacyCredit`).
+- **Saldo devedor registrado (sem `ticket`):** foi lançado pela Ficha ("Registrar Saldo Devedor" ou "Saldo inicial: você deve"); a empresa deve. A compra nunca conseguiu usar esse registro e mostrava "Conciliação financeira necessária".
+
+Ações:
+
+| Ação | Onde | O que faz |
+|---|---|---|
+| `clear` | Ficha → Excluir no saldo ou no crédito | Tira dos dois nós, conferindo o valor que a tela viu |
+| `to-payable` | Ficha → "Levar para Contas a Pagar" (só saldo sem `ticket`) | Cria uma conta a pagar `compra_antiga` do fornecedor, com vencimento hoje, e tira o saldo na mesma gravação |
+
+Regras:
+- **Trava:** `erpFinanceAdvanceLocks/<fornecedor>`, a mesma da compra e do adiantamento.
+- **Operação:** fica registrada em `erp/supplierBalanceOperations`. Exige `canFinance`.
+- **Crédito com `ticket`:** não vira conta a pagar (`BALANCE_IS_CREDIT`), porque seria dívida no sentido errado.
+- **Leitura:** a tela junta os dois nós, preferindo `saldoDevedor` (o que o servidor confere) e caindo em `saldos` quando o primeiro não tem valor.
+- **Compra que usa o crédito:** agora grava `saldos` igual a `saldoDevedor`, mesmo quando `saldos` não existia. Antes, quem fazia essa cópia era a tela.
+
+Problemas corrigidos junto:
+- **"Registrar Saldo Devedor (R$ …)"** aparecia quando a Ficha mostrava valor a pagar e gravava essa dívida como crédito do fornecedor. Esse valor já está nas contas a pagar das compras. O botão saiu.
+- **"Saldo inicial: você deve"** gravava a dívida no mesmo lugar do crédito. Agora cria uma conta a pagar `compra_antiga` do fornecedor (`Saldo inicial — <nome>`), que se paga pelo caminho normal. "Ele te deve" continua abrindo o formulário de adiantamento.
+- **Totais do topo da Ficha:** contavam o saldo devedor registrado e o saldo anterior como pagamento, enquanto a coluna de saldo os somava como dívida, e o "Saldo atual" podia sair diferente da última linha. Agora os dois usam a mesma regra (`_ffEhDebito`). Quando há dívidas além das compras, o primeiro total se chama "COMPRAS E DÍVIDAS".
+- **Ficha:** passa a mostrar as contas `compra_antiga` sem ticket do fornecedor (saldo inicial e saldo levado para Contas a Pagar) e os pagamentos delas. O crédito com `ticket` aparece como "Crédito do fornecedor – sobra de adiantamento da compra …".
+
+Publicação: código primeiro; regras só quando todos estiverem na v252.
+
+## Cheques de fornecedor da aba antiga só pelo servidor (19/11/2026, v251)
+
+O navegador não grava mais `cheques`, `chequesPorFornDeleted` nem `chequeItensDeleted` (regras com `.write: false`). A aba antiga "Cheques" já não está no menu, mas as funções dela e a Ficha do fornecedor continuam e agora usam `POST /api/finance/supplier-cheques` (`changeSupplierCheque` em `server/modules/banking/application/supplier-cheques.ts`). Na tela, a chamada é `_chequeFornApi`, também em `window.erpSupplierChequeRequest`.
+
+| Ação | Onde |
+|---|---|
+| `create` | Lançar Cheques (formulário com várias linhas) |
+| `update` | Editar (aba antiga) e Editar na Ficha do fornecedor |
+| `delete` | Excluir (aba antiga e Ficha) |
+| `clear` / `reopen` | Dar baixa / Estornar baixa |
+| `discount` | Descontado, Desfazer desconto, Descontar todos do fornecedor |
+| `cancel` / `reactivate` | Cancelar / Reativar |
+| `restore` | Restaurar no Log de alterações (só a Elaine) |
+
+Regras:
+- **Trava:** `erpFinanceAdvanceLocks/<fornecedor>`, a mesma da compra e do adiantamento, e `erpFinanceAdvanceLocks/__supplier_cheques__`, porque a conferência de número repetido olha todos os fornecedores.
+- **Operação:** fica registrada em `erp/supplierChequeOperations`; repetir o pedido não grava duas vezes. Exige `canFinance`.
+- **Número repetido no mesmo banco:** é recusado em qualquer fornecedor, fora os cancelados. A regra é a dos adiantamentos (`chequeIdentity`).
+- **Cheque usado numa compra** (`_aplicadoTicket` ou situação "Quitado"):
+  - não pode ser excluído nem cancelado;
+  - número, banco, valor, vínculo e situação não mudam;
+  - observação, bom para, empresa e finalidade podem mudar;
+  - compensar e estornar continuam; o estorno volta para "Quitado" (o servidor guarda `statusAnterior`).
+- **Cheques antigos sem `id`:**
+  - a tela usa `CHQ_<número>_<fornecedor>`;
+  - quando o número se repete, a posição na lista desempata;
+  - na primeira gravação daquele fornecedor, todos ganham `id` (`CHQ_104_F001`, `CHQ_104_F001_2`).
+- **Restaurar:**
+  - volta com `id` novo, para que as marcas de exclusão antigas guardadas no navegador não escondam o cheque, e com `restauradoDe`;
+  - só volta como "Quitado" se a compra ainda tem o cheque no recibo;
+  - é recusado se o cheque já está na lista;
+  - tira o fornecedor de `chequesPorFornDeleted` quando a lista dele tinha sido apagada.
+- **Leitura:** a tela confia na lista `cheques` da nuvem sempre que ela vem na leitura.
+
+Problemas corrigidos junto:
+- **Ficha do fornecedor:** editar ou excluir cheque achava pelo número e só mudava na tela; excluir não deixava marca, então o cheque podia voltar. O cheque usado em compra aparecia como "Pendente" no formulário, e salvar trocava a situação sem querer. Agora mostra "Quitado (usado em compra)".
+- **Estornar a baixa de cheque usado em compra** deixava o cheque "Pendente", disponível para outra compra. Agora volta para "Quitado".
+- **Lista da aba antiga:** quebrava quando algum cheque não tinha "bom para" e ordenava a data como texto (pelo dia). Agora ordena pela data.
+- **Saiu** `salvarCheque()`, formulário de um cheque só que nenhuma tela abria.
+
+Publicação: código primeiro; regras só quando todos estiverem na v251.
+
+## Notinha mostra o valor total do adiantamento (19/11/2026, v253)
+
+A cliente escrevia nas observações "descontado adiantamento de 9.999,48, ficando saldo devedor de 258,53". A notinha mostrava o abatido e o que sobrou, mas não o valor total do adiantamento. O resumo "Situação financeira do pedido" agora mostra:
+- **Valor total do adiantamento** (ou "dos adiantamentos usados", ou "dos adiantamentos e cheques usados"): soma do `valorOriginal` do recibo da compra;
+- **Já usado em compras anteriores:** quando parte do adiantamento já tinha sido usada antes (`valorOriginal − valorAplicado − valorPendente`), para os números fecharem;
+- depois, como antes: abatido no fechamento, pagamentos posteriores, saldo a pagar e saldo devedor do fornecedor.
+
+A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
 ## Usar adiantamento lançado depois da notinha (18/11/2026, v250)
 

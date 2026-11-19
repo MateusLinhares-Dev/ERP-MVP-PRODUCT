@@ -175,10 +175,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canPurchasing"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "users": {
@@ -335,10 +333,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canPurchasing"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "saldoDevedorDeleted": {
@@ -349,10 +345,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canPurchasing"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "estoqueDeleted": {
@@ -405,10 +399,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canPurchasing"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "contasReceberDeleted": {
@@ -1265,10 +1257,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canFinance"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "saldos": {
@@ -1279,10 +1269,8 @@
         ]
       },
       "write": {
-        "mode": "claims",
-        "claims": [
-          "canFinance"
-        ]
+        "mode": "none",
+        "claims": []
       }
     },
     "estoque": {

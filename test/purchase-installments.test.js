@@ -431,7 +431,7 @@ test('notinha não mostra códigos internos de adiantamento; cheque aparece pelo
       cheques:[{id:'CHQ-INTERNO-1',num:'000123',bomPara:'2026-11-05',valorOriginal:400,valorAplicado:400}]}};
   const html=printHtml(ticket);
   assert.doesNotMatch(html,/ADTMW9KNLL7E91539D1|CHQ-INTERNO-1/);
-  assert.match(html,/<th>Data<\/th><th>Origem<\/th><th>Forma<\/th><th>Valor do adiantamento<\/th><th>Valor aplicado<\/th>/);
+  assert.match(html,/<th>Data<\/th><th>Origem<\/th><th>Forma<\/th><th>Valor total do adiantamento<\/th><th>Valor aplicado<\/th>/);
   assert.deepEqual(sectionRows(html,'Adiantamentos e abatimentos desta compra'),[
     ['01/11/2026','Adiantamento','PIX','R$ 20.010,25','R$ 600,00'],['05/11/2026','Cheque','Cheque nº 000123','R$ 400,00','R$ 400,00']
   ]);

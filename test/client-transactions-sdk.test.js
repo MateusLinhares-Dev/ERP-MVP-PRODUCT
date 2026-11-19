@@ -86,18 +86,17 @@ test('cliente: mapas são gravados por registro, nunca como nó inteiro',()=>{
   const end=sync.indexOf('      const _ticketsParaSalvar = {};',start);
   assert.ok(start>0&&end>start);
   const code=sync.slice(start,end);
-  const dados={precosForn:{F1:{COBRE:10}},precosCli:{C1:{ALU:5}},saldoDevedor:{F1:{valor:1}},custosCasa:{'2026-11':[1]},
+  const dados={precosForn:{F1:{COBRE:10}},precosCli:{C1:{ALU:5}},custosCasa:{'2026-11':[1]},
     fiscal:{'2026-11':{entradas:[]}},fiscalApur:{x:{}},fornVeiculos:{F1:['ABC']},metais:['COBRE']};
   const ctx={dados,_deletedArrPularSeIgual:()=>({}),PRECOS_FORN_DATA:dados.precosForn,PRECOS_CLI_DATA:dados.precosCli,
     SALDO_DEVEDOR_FORN:{F1:{valor:1}},CUSTO_CASA:dados.custosCasa,FISCAL_DB:dados.fiscal,FISCAL_APUR:dados.fiscalApur,
     _DEL_SETS:{saldoDevedor:new Set(['F9'])},
     _patchIncremental:(target,path,obj,del)=>{Object.keys(obj||{}).forEach(k=>{target[path+'/'+k]=obj[k];});if(del)del.forEach(k=>{if(!(k in obj))target[path+'/'+k]=null;});}};
   runInNewContext(code,ctx);
-  for(const root of ['precosForn','precosCli','saldoDevedor','custosCasa','fiscal','fiscalApur','fornVeiculos'])
+  for(const root of ['precosForn','precosCli','custosCasa','fiscal','fiscalApur','fornVeiculos'])
     assert.equal(root in dados,false,root+' não pode ser gravado inteiro');
   assert.deepEqual(dados['precosForn/F1'],{COBRE:10});
-  assert.deepEqual(dados['saldoDevedor/F1'],{valor:1});
-  assert.equal(dados['saldoDevedor/F9'],null,'exclusão local vira remoção do registro');
+  assert.equal(Object.keys(dados).some(k=>k.startsWith('saldoDevedor')),false,'saldo de fornecedor só o servidor grava (v252)');
   assert.deepEqual(dados['fiscal/2026-11'],{entradas:[]});
   assert.deepEqual(dados.metais,['COBRE'],'listas continuam como antes');
 });
