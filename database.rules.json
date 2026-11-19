@@ -273,7 +273,7 @@
       },
       "fcSaldoIniDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+        ".write": false
       },
       "adtItensDeleted": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canPurchasing == true)",
@@ -554,7 +554,7 @@
       },
       "fcSaldoIni": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+        ".write": false
       },
       "adtCli": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
@@ -566,7 +566,7 @@
       },
       "fcLanc": {
         ".read": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)",
-        ".write": "auth != null && auth.token.erpAccess == true && (auth.token.canFinance == true)"
+        ".write": false
       },
       "erpSalesLocks": {
         ".read": false,

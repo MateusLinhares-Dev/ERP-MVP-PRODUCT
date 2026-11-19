@@ -207,9 +207,11 @@ O ERP antigo continua sendo a "casca" (menu, abas, login, sincronização). Cada
   - Tirar adiantamento de compra (v248) e créditos de clientes só pelo servidor (v249: `adtCli`, `chequesCli`; ver `docs/CONTAS-RECEBER.md`).
   - Cheques de fornecedor da aba antiga (v251): `cheques`, `chequesPorFornDeleted` e `chequeItensDeleted` só pelo servidor (`api/finance/supplier-cheques`), inclusive pela Ficha do fornecedor; ver `docs/BANCOS-CONCILIACAO-FLUXO.md`.
   - Saldos de fornecedor (v252): `saldoDevedor`, `saldos` e `saldoDevedorDeleted` só pelo servidor (`api/finance/supplier-balance`: cancelar e levar para Contas a Pagar); a Ficha separa crédito do fornecedor de dívida registrada.
+  - Ficha do Cliente (v254): `fcLanc`, `fcSaldoIni` e `fcSaldoIniDeleted` só pelo servidor (ações `save-entry`, `delete-entry`, `set-opening-balance` em `api/finance/client-credits`).
+  - Cheques a compensar em React (v255): `web/modules/cheque-control/` em `#cheques-compensar-app`; as decorações de cheque das fases 2 e 3 saíram.
   - Impressões (v247): as 13 janelas de impressão que não conferiam se o navegador bloqueou o pop-up agora avisam (`_avisarPopupBloqueado`); um teste impede novas sem essa conferência.
 - **Ordem das próximas migrações:**
-  1. Lançamentos do fluxo de caixa (`fcLanc`, `fcSaldoIni`) no servidor; depois a tela "Cheques a compensar" em React.
+  1. Compra sucata em React, com as pesagens no servidor.
   2. Compra sucata (hoje metade navegador, metade servidor).
   3. Balança rodoviária.
   4. Painel e Fluxo de caixa.

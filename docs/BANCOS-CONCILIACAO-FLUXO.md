@@ -114,6 +114,32 @@ Regras:
 
 Uma aba antiga que ainda grava o extrato teria esse envio recusado pelas regras novas.
 
+## Tela "Cheques a compensar" em React (19/11/2026, v255)
+
+A aba é React (`web/modules/cheque-control/`, ligada em `web/erp/cheque-control.tsx` no `#cheques-compensar-app`) e grava pela mesma API `banking/ledger`. Os dados continuam no legado (`CHQ_CTRL`, `chqInit` e o ouvinte do Firebase), e a tela lê tudo por `window.erpChequeControlSnapshot()`.
+
+O que a cliente via era o resultado de três camadas: a tela antiga, a fase 2 (escondia a ajuda antiga e "Sincronizar aba antiga", acrescentava a conferência de numeração e o aviso do número no formulário) e a fase 3 ("Abate compra?", textos dos botões, totais sem os excluídos). A tela nova faz tudo isso direto, e as rotinas das fases 2 e 3, que rodavam a cada mudança na página, saíram.
+
+Mudanças visíveis:
+- **"Compensou":** abre uma janela com a data, no lugar do `prompt`. Quando o cheque abate compra e não é de adiantamento, a janela mostra dois botões ("Só marcar como compensado" ou "Compensar e descontar do banco") em vez do `confirm` de OK/Cancelar.
+- **Datas no formulário e na remessa:** passaram a usar o calendário. A remessa antes era texto.
+- **"Descontar carga":** chama a API de cheques de fornecedor com o `id` certo. Antes, num cheque antigo sem `id`, podia marcar outro cheque.
+- **"Sincronizar aba antiga":** continua fora da tela, como já estava (a fase 2 escondia). A função `chqSincronizarAbaAntiga` ficou no legado.
+
+Regras (iguais às de antes, agora em `domain/control.ts` e `domain/forms.ts`, testadas em `test/cheque-control-web.test.js`):
+- **Desconto no banco ao compensar:** cheque próprio de adiantamento desconta; cheque de terceiro não; adiantamento que já saiu do banco não.
+- **Cheque que abate compra sem adiantamento:** a tela pergunta. No depósito em lote ele não desconta de novo.
+- **Excluir e reabrir:**
+  - cheque de adiantamento só sai pelo adiantamento;
+  - cheque que já saiu do banco exige acesso a Bancos.
+- **Numeração:**
+  - lacunas por banco;
+  - salto acima de 250 é tratado como outro talão;
+  - a lista mostra no máximo 48 linhas;
+  - número repetido não salva;
+  - número pulando a sequência pede confirmação só no cadastro novo.
+- **Perfil secretária:** não vê totais, cartões, depósito, exportar, compensar, reabrir nem excluir.
+
 ## Saldos de fornecedor só pelo servidor (19/11/2026, v252)
 
 O navegador não grava mais `saldoDevedor`, `saldos` nem `saldoDevedorDeleted` (regras com `.write: false`). A API é `POST /api/finance/supplier-balance` (`changeSupplierBalance` em `server/modules/purchases/application/supplier-balance.ts`). Na tela, a chamada é `_saldoFornApi`, também em `window.erpSupplierBalanceRequest`.
@@ -194,6 +220,23 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 - depois, como antes: abatido no fechamento, pagamentos posteriores, saldo a pagar e saldo devedor do fornecedor.
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
+
+## Baixar o total de uma notinha já paga ou compensada (19/11/2026, v256)
+
+Caso da cliente (T449): a notinha foi salva sem adiantamento e quitada depois com "Usar adiantamento nesta compra" (ou "Compensar adiantamento" em Contas a Pagar). Ao corrigir os itens, o total ficou R$ 292,60 abaixo do que já estava compensado, e a edição travava em "Requer conciliação". O único jeito de sair era Contas a Pagar → 🕒 → Excluir. Mas Contas a Pagar abre no filtro "Em aberto" e a conta quitada não aparece; é preciso escolher "Quitadas" ou "Todas".
+
+Agora, na edição das compras confirmadas pelo servidor (`_purchaseOperationId`):
+- **Quadro Pagamento:** lista "Pagamentos e compensações feitos depois do fechamento" (os `pagamentos` das contas do pedido), cada um com o botão **Desfazer**. Ele usa o mesmo estorno de Contas a Pagar (`window.erpPayablesReverse`):
+  - compensação: o valor volta ao adiantamento e o banco não é mexido;
+  - pagamento em dinheiro: a saída sai do extrato.
+- **Itens já editados:** continuam na tela depois do Desfazer (`phase4PurchaseUndoPayment` reabre o pedido e devolve itens, desconto, frete, observações e datas).
+- **Ao salvar a edição depois de desfazer uma compensação:** o sistema pergunta "Usar de novo o adiantamento?" (`offerAdvanceAgain`, mesmo caminho da v250).
+- **Mensagens:**
+  - o saldo mostra "Pago a mais: R$ …" no lugar de "Requer conciliação";
+  - o erro ao salvar diz para clicar em "Desfazer";
+  - nas compras antigas, o erro aponta para o 🕒 de Contas a Pagar no filtro "Quitadas".
+
+As regras de dinheiro não mudaram: são três operações que já existiam (estorno, edição e compensação), cada uma conferida pelo servidor. Teste de tela: desfazer, salvar e usar de novo, com a compra quitada no fim, a sobra no adiantamento e o banco intacto.
 
 ## Usar adiantamento lançado depois da notinha (18/11/2026, v250)
 

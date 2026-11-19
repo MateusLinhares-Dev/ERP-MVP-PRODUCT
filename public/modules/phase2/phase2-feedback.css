@@ -10,7 +10,7 @@ input[type=number].phase2-no-spinner{-moz-appearance:textfield;appearance:textfi
 
 .phase2-price-searches{display:grid;grid-template-columns:minmax(220px,360px) minmax(220px,360px);gap:8px;margin:8px 0 10px}.phase2-price-searches input{padding:8px 11px;border:1.5px solid #bfd2c6;border-radius:8px;box-sizing:border-box;font-size:.82rem}
 
-.phase2-cheque-sequence{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px}.phase2-cheque-sequence>div{display:grid;grid-template-columns:auto auto auto;gap:8px;align-items:center;background:#fff;border:1px solid #dbe5df;border-radius:9px;padding:8px 11px;font-size:.74rem}.phase2-cheque-sequence>b{font-size:.8rem}.phase2-cheque-sequence strong{color:#c0392b}.phase2-cheque-sequence em{font-style:normal;color:#1f7a3d;font-weight:700}#tab-cheques_compensar .kpi-grid{margin-bottom:8px!important}#tab-cheques_compensar .tcard,#tab-cheques_compensar table{box-shadow:none!important}#tab-cheques_compensar input[placeholder*="cliente"]{min-width:200px}
+#tab-cheques_compensar .kpi-grid{margin-bottom:8px!important}
 
 .phase2-cp-today{background:#fff;border:1px solid #e5e9e7;border-radius:10px;margin-bottom:10px;overflow:hidden}.phase2-cp-today>summary{cursor:pointer;padding:10px 12px;font-weight:800;color:#294638;list-style:none}.phase2-cp-today>summary::-webkit-details-marker{display:none}.phase2-cp-today>summary span{font-weight:400;color:#8a9690;font-size:.7rem;margin-left:6px}.phase2-cp-today #cp-hoje-panel{margin:0!important;border:0!important;border-top:1px solid #edf0ee!important;border-radius:0!important;box-shadow:none!important}.phase2-cp-calendar{box-shadow:none!important;border:1px solid #e4eae6!important}.phase2-secondary-action{opacity:.7}
 .phase2-owner-summary{display:grid;grid-template-columns:repeat(2,minmax(0,250px));gap:10px;margin-bottom:14px}.phase2-owner-summary>div{background:#fff;border:1px solid #dfe8e2;border-radius:12px;padding:13px}.phase2-owner-summary small{display:block;text-transform:uppercase;font-size:.65rem;color:#7a8981;font-weight:800}.phase2-owner-summary b{display:block;color:#174d34;font-size:1.25rem;margin-top:4px}.phase2-owner-grid{display:grid;grid-template-columns:minmax(280px,.8fr) minmax(420px,1.5fr);gap:14px}.phase2-owner-grid>section{background:#fff;border:1px solid #dfe8e2;border-radius:12px;padding:14px}.phase2-owner-grid h3{margin:0 0 12px;color:#173d2a;font-size:.92rem}.phase2-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}.phase2-form-grid input{padding:8px;border:1px solid #ccd8d1;border-radius:7px;box-sizing:border-box}.phase2-owner-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid #edf0ee}.phase2-owner-row>div{display:grid}.phase2-owner-row small{font-size:.7rem;color:#849087}.phase2-owner-row button{border:1px solid #d0d9d3;border-radius:6px;background:#fff;padding:5px 8px;font-size:.7rem;cursor:pointer}.phase2-owner-row button.danger{color:#b83232}.phase2-owner-row.inactive{opacity:.55}
@@ -43,10 +43,10 @@ input[type=number].phase2-no-spinner{-moz-appearance:textfield;appearance:textfi
 #tab-afazeres>div[style*="display:flex"][style*="flex-wrap"]{margin-top:2px!important}
 #tab-afazeres #af-lista>div{box-shadow:none!important;border:1px solid #e4e9e6!important;border-left-width:4px!important}
 
-.phase2-cheque-head{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#fff;border:1px solid #dce6df;border-radius:10px;padding:10px 12px;margin:0 0 8px}.phase2-cheque-head>div{display:grid}.phase2-cheque-head b{font-size:.92rem;color:#173d2a}.phase2-cheque-head small{font-size:.7rem;color:#77857e;margin-top:2px}.phase2-cheque-head>span{font-size:.7rem;color:#a85d00;background:#fff7e8;border:1px solid #f2d5a4;border-radius:999px;padding:5px 9px;white-space:nowrap}
+
 #tab-cheques_compensar .kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:7px!important}#tab-cheques_compensar .kpi{min-height:66px!important;padding:9px 11px!important;box-shadow:none!important;border:1px solid #e0e6e2!important}#tab-cheques_compensar .kpi-val{font-size:1.05rem!important}
-.phase2-cheque-sequence{background:#f8fbf9;border:1px solid #dce6df;border-radius:10px;padding:8px;margin:8px 0 10px}.phase2-cheque-sequence>div{background:transparent;border:0;border-right:1px solid #e1e8e4;border-radius:0;padding:3px 10px}.phase2-cheque-sequence>div:last-child{border-right:0}.phase2-cheque-sequence strong{background:#fff0ed;border:1px solid #f0c0b6;border-radius:6px;padding:3px 6px}
-#tab-cheques_compensar #chq-ctrl-root>div[style*="display:flex"]{gap:6px!important}#tab-cheques_compensar table{font-size:.78rem}#tab-cheques_compensar thead th{padding-top:7px!important;padding-bottom:7px!important}
+
+
 
 #tab-contas_pagar>.kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:7px!important;margin-bottom:9px!important}#tab-contas_pagar>.kpi-grid .kpi{min-height:68px!important;padding:9px 11px!important;box-shadow:none!important;border:1px solid #e0e7e3!important}#tab-contas_pagar>.kpi-grid .kpi-val{font-size:1.08rem!important}
 .phase2-cp-calendar{margin-bottom:8px!important}.phase2-cp-calendar .tcard-hdr{padding:8px 11px!important}.phase2-cp-advanced{margin:0 12px 8px;border:1px solid #e1e8e4;border-radius:9px;background:#fafcfb}.phase2-cp-advanced>summary{padding:7px 10px;cursor:pointer;font-weight:800;font-size:.74rem;color:#607168;list-style:none}.phase2-cp-advanced>summary::-webkit-details-marker{display:none}.phase2-cp-advanced-body{padding:0 10px 8px}.phase2-cp-advanced-body>div{padding-left:0!important;padding-right:0!important}.phase2-cp-days{max-height:78px;overflow:auto}
@@ -68,8 +68,8 @@ input[data-phase2-fiscal-only="1"]{border-color:#9bc9ab!important;background:#fb
 
 #phase2-coord-type-help{margin-top:4px;max-width:380px}.phase2-bags-intro{box-shadow:none}.phase2-bags-intro span{line-height:1.4}
 
-@media(max-width:1100px){.phase2-calendar-workspace{grid-template-columns:1fr}.phase2-trip-history-item{grid-template-columns:minmax(180px,1fr) repeat(3,minmax(85px,.6fr))}.phase2-trip-history-item>span:nth-last-child(-n+2){grid-row:2}.phase2-cheque-head{align-items:flex-start;flex-direction:column}}
-@media(max-width:760px){.phase2-calendar-kpis{display:grid!important;grid-template-columns:repeat(3,1fr)!important}.phase2-calendar-day-card>div:nth-child(2){grid-template-columns:1fr!important}.phase2-calendar-day-card>div:nth-child(2)>div:nth-child(3),.phase2-calendar-day-card>div:nth-child(2)>button{grid-column:auto}.phase2-trip-history-item{grid-template-columns:1fr 1fr}.phase2-trip-history-item>div{grid-column:1/-1}.phase2-cheque-sequence{display:grid}.phase2-cheque-sequence>div{border-right:0;border-bottom:1px solid #e1e8e4}.phase2-cheque-sequence>div:last-child{border-bottom:0}}
+@media(max-width:1100px){.phase2-calendar-workspace{grid-template-columns:1fr}.phase2-trip-history-item{grid-template-columns:minmax(180px,1fr) repeat(3,minmax(85px,.6fr))}.phase2-trip-history-item>span:nth-last-child(-n+2){grid-row:2}}
+@media(max-width:760px){.phase2-calendar-kpis{display:grid!important;grid-template-columns:repeat(3,1fr)!important}.phase2-calendar-day-card>div:nth-child(2){grid-template-columns:1fr!important}.phase2-calendar-day-card>div:nth-child(2)>div:nth-child(3),.phase2-calendar-day-card>div:nth-child(2)>button{grid-column:auto}.phase2-trip-history-item{grid-template-columns:1fr 1fr}.phase2-trip-history-item>div{grid-column:1/-1}}
 .phase2-cp-sidefilters{width:auto!important;display:grid!important;grid-template-columns:repeat(4,minmax(150px,1fr));gap:8px;padding:8px!important;margin:0!important;box-shadow:none!important;border:0!important;background:transparent!important}.phase2-cp-sidefilters>div:first-child{grid-column:1/-1;margin-bottom:0!important}.phase2-cp-sidefilters .fg{margin:0!important}.phase2-cp-sidefilters>button{width:auto!important;margin:0!important}.phase2-cp-sidefilters>button:last-child{justify-self:start}
 @media(max-width:900px){.phase2-cp-sidefilters{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.phase2-cp-sidefilters{grid-template-columns:1fr}}
@@ -272,21 +272,21 @@ input[data-phase2-fiscal-only="1"]{border-color:#9bc9ab!important;background:#fb
 .phase2-fiscal-picker-option small{font-size:.72rem;color:#637669;}
 .phase2-fiscal-picker-note{margin:0;padding:12px;line-height:1.5;color:#52695c;font-size:.8rem;}
 
-#tab-cheques_compensar .phase2-cheque-sequence{max-height:190px;overflow:auto;align-items:start}
-#tab-cheques_compensar .phase2-cheque-sequence>div{grid-template-columns:auto auto;max-width:100%;min-width:0}
-#tab-cheques_compensar .phase2-cheque-gap-status{grid-column:1/-1;display:block;font-size:.72rem;font-weight:600;color:#806022;line-height:1.4;overflow-wrap:anywhere}
 
-#tab-cheques_compensar #phase2-cheque-sequence,#tab-cheques_compensar #phase3-cheque-gaps{display:none!important}
-#phase2-cheque-head .phase2-cheque-attention{margin-left:auto;background:#f0f6f1;color:#1a603a;border:1px solid #cbded0;border-radius:8px;padding:9px 13px;font-weight:700;font-size:.81rem;cursor:pointer;white-space:normal}
-#phase2-cheque-head .phase2-cheque-attention.has-attention{background:#fff5e6;color:#875209;border-color:#edcc8a}
-#phase2-cheque-head .phase2-cheque-attention:focus-visible,#phase2-cheque-review button:focus-visible{outline:2px solid #197b43;outline-offset:2px}
-#phase2-cheque-review[hidden]{display:none!important}
-#phase2-cheque-review{border:1px solid #e2d5aa;border-radius:12px;background:#fffefa;padding:14px 16px;margin:0 0 14px;color:#243d30}
-.phase2-cheque-review-heading{display:flex;gap:12px;justify-content:space-between;align-items:center}.phase2-cheque-review-heading>div{display:grid;gap:2px}.phase2-cheque-review-heading strong{font-size:.96rem}.phase2-cheque-review-heading small{color:#6b796e;font-size:.74rem}.phase2-cheque-review-heading button{border:1px solid #d3dfd6;background:#fff;border-radius:7px;padding:6px 10px;cursor:pointer}
-#phase2-cheque-review>p{font-size:.76rem;color:#66766b;margin:8px 0}
-.phase2-cheque-review-scroll{max-height:350px;overflow-y:auto;overscroll-behavior:contain;border:1px solid #e5eae6;border-radius:9px;background:#fff}
-.phase2-cheque-review-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 12px;border-bottom:1px solid #edf0ed;min-width:0}
-.phase2-cheque-review-row:last-child{border-bottom:0}.phase2-cheque-review-row>span{display:grid;gap:4px;min-width:0}.phase2-cheque-review-row b{font-size:.78rem}.phase2-cheque-review-row small{color:#65716a;font-size:.72rem;overflow-wrap:anywhere}
-.phase2-cheque-review-row button{flex-shrink:0;background:#174d34;border:0;border-radius:7px;color:#fff;font-size:.75rem;font-weight:700;padding:8px 11px;cursor:pointer}
-.phase2-cheque-review-caution{font-size:.72rem;font-weight:700;color:#976719;white-space:nowrap}
-@media(max-width:720px){.phase2-cheque-review-row{flex-direction:column;align-items:stretch}.phase2-cheque-review-row button{align-self:flex-start}#phase2-cheque-head{align-items:stretch}#phase2-cheque-head .phase2-cheque-attention{margin-left:0}}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

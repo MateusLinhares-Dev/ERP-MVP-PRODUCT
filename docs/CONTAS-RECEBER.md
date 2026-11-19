@@ -47,3 +47,24 @@ Problemas corrigidos:
 - Adiantamento de cliente exige cliente cadastrado. O código continua `ADTC…` (as vendas reconhecem esse formato).
 
 Ordem de implantação: como as outras, só rodar `deploy:rules:prod` depois que todos estiverem na v249.
+
+## Ficha do Cliente só pelo servidor (19/11/2026, v254)
+
+Os lançamentos manuais da Ficha do Cliente (`fcLanc`) e o saldo anterior (`fcSaldoIni`, com a marca `fcSaldoIniDeleted`) também passaram a ser gravados só pelo servidor, na mesma API `POST /api/finance/client-credits`. A trava é a do cliente (a mesma da venda e do recebimento), e a permissão exigida é `canFinance`.
+
+| Ação | Botão |
+|---|---|
+| `save-entry` | Salvar no lançamento (novo ou editar) e "Quitar saldo" (lança o reembolso) |
+| `delete-entry` | 🗑️ no lançamento |
+| `set-opening-balance` | Saldo anterior (valor zero apaga) |
+
+Regras:
+- **Débito e crédito:** o servidor decide pelo tipo. Entrega de metal e cheque devolvido são débito; depósito e reembolso são crédito. A tela manda só o valor.
+- **Valores:** o valor tem no máximo duas casas; o peso é arredondado para 3 casas e o valor por kg para 4.
+- **Histórico:** é obrigatório. A tela continua preenchendo o texto padrão quando ele fica vazio.
+- **Editar:** a tela manda o débito e o crédito que viu. Se outra pessoa mudou o lançamento, o servidor recusa (`ENTRY_CHANGED`).
+- **Cliente aceito:** o do cadastro e também quem só aparece em vendas, contas a receber ou numa ficha antiga, porque a Ficha lista esses nomes. Nome desconhecido é recusado.
+- **Saldo anterior:** gravar um valor tira o nome de `fcSaldoIniDeleted`, senão a tela o apagaria ao recarregar.
+- **Leitura:** continua igual (`_fcAplicarNuvem` usa a nuvem). Saiu `saveFcLanc`, que só servia para a sincronização gravar.
+
+Ordem de implantação: só rodar `deploy:rules:prod` depois que todos estiverem na v254.

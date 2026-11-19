@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-19-1600-v253-notinha-valor-total-adiantamento';
+  const _APP_BUILD = '2026-11-19-2200-v256-desfazer-compensacao-na-notinha';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -1033,7 +1033,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       delete dados.usersDeleted;
 
       if(!window.__ERP_BANKS_CLOUD_READY__) delete dados.bancosDeleted;
-      if(!window.__ERP_FINANCE_CLOUD_READY__) delete dados.fcSaldoIniDeleted;
+      delete dados.fcSaldoIniDeleted;
       const _valoresDelArrAtual = _deletedArrPularSeIgual(dados);
       [['precosForn',PRECOS_FORN_DATA,null],['precosCli',PRECOS_CLI_DATA,null],
        ['custosCasa',CUSTO_CASA,null],
@@ -1094,11 +1094,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       try{ _limparMateriaisInvalidos(); }catch(e){}
       try{ _arredondarDinheiro2Casas(); }catch(e){}
       _patchIncremental(dados, 'estoque', ESTOQUE_DB, _DEL_SETS.estoque);
-      if(window.__ERP_FINANCE_CLOUD_READY__)
-        _patchIncremental(dados, 'fcSaldoIni', FC_SALDO_INI, _DEL_SETS.fcSaldoIni);
-      if(window.__ERP_FINANCE_CLOUD_READY__){
-        _patchIncremental(dados, 'fcLanc', FC_LANC, null);
-      }
 
       window._fbTsAntesDoEnvio = window._fbUltimoTs;
       window._fbUltimoTs = dados._ts;

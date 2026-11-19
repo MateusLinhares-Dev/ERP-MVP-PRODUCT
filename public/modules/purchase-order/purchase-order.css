@@ -137,5 +137,11 @@
 .phase4-po-applied-advance{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .phase4-po-applied-advance span{flex:1 1 220px;color:#4d5b53}
 .phase4-po-applied-advance strong{color:#1a3a2a}
+.phase4-po-later-payments{margin-top:10px;border:1px solid #f0d9a6;border-radius:9px;padding:10px 12px;background:#fffaf0;display:grid;gap:6px;font-size:.82rem}
+.phase4-po-later-payments>b{color:#7a5200}
+.phase4-po-later-payments>small{color:#6b5b3a}
+.phase4-po-later-payment{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.phase4-po-later-payment span{flex:1 1 220px;color:#4d5b53}
+.phase4-po-later-payment strong{color:#1a3a2a}
 .phase4-po-free-advance{margin-top:10px;border:1px solid #cfe3d6;border-radius:9px;padding:10px 12px;background:#f1f8f3;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:.84rem;color:#1f3b2b}
 .phase4-po-free-advance span{flex:1 1 320px}

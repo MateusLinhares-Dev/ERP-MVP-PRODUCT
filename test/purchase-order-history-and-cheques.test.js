@@ -12,58 +12,6 @@ function extract(source,start,end){
   return source.slice(first,last);
 }
 
-test('cheque oferece clientes e fornecedores ativos com destino identificável',()=>{
-  const code=extract(core,'function _chqCadastroDestinos(){','function _chqModal(id){');
-  const ctx={CLIENTES:[{nome:'CLIENTE TESTE',cod:'C1'}],FORNECEDORES:[{nome:'JOAO ELIAS',cod:'F3'},{nome:'FORN INATIVO',inativo:true}]};
-  const found=runInNewContext(`${code}\n_chqCadastroDestinos()`,ctx);
-  assert.ok(found.some(x=>x.nome==='JOAO ELIAS'&&x.tipo==='Fornecedor'&&x.cod==='F3'));
-  assert.ok(found.some(x=>x.nome==='CLIENTE TESTE'&&x.tipo==='Cliente'));
-  assert.ok(!found.some(x=>x.nome==='FORN INATIVO'));
-  assert.match(core,/var destino=_selected\?\{tipo:_selected\.tipo,cod:_selected\.cod,nome:_selected\.nome\}:null;/);
-  assert.doesNotMatch(core,/id=\"chqm-clientes-list\"/);
-  assert.match(core,/id=\"chqm-destino-opcoes\"/);
-});
-
-test('cheque usa fornecedores ativos da mesma fonte da aba Fornecedores, mesmo com lista inicial vazia',()=>{
-  const code=extract(core,'function _chqCadastroDestinos(){','function _chqBindDestinoAutocomplete(ov){');
-  const ctx={CLIENTES:[{cod:'C1',nome:'CLIENTE TESTE'}],FORNECEDORES:[],FORNECEDORES_DESPESA:[],
-    getFornAtivos(){return [{cod:'F003',nome:'JOAO ELIAS'},
-      {cod:'F002',nome:'TESTANDO MINHA PACIENCIA KKK'},
-      {cod:'F004',nome:'INATIVO',inativo:true}];}};
-  const result=runInNewContext(code+'\n_chqCadastroDestinos()',ctx);
-  assert.deepEqual(Array.from(result.filter(x=>x.tipo==='Fornecedor'),x=>x.nome),
-    ['JOAO ELIAS','TESTANDO MINHA PACIENCIA KKK']);
-  assert.equal(result[0].cod,'F003');
-});
-
-test('cheque salva o código do fornecedor escolhido, não o código de cliente com nome parecido',async()=>{
-  const code=extract(core,'function _chqCadastroDestinos(){','function _chqBindDestinoAutocomplete(ov){')+'\n'+
-    extract(core,'function chqSalvarModal(){','function chqSincronizarAbaAntiga(){');
-  const form={
-    'chqm-id':'','chqm-b':'as','chqm-n':'200','chqm-c':'JOAO ELIAS',
-    'chqm-v':'1500,00','chqm-s':'A','chqm-d':'27/10/2026',
-    'chqm-venc':'28/10/2026','chqm-cd':'',
-    'chqm-destino-cod':'F003','chqm-destino-tipo':'Fornecedor'
-  };
-  let saved;
-  const ctx={
-    CLIENTES:[{cod:'C1',nome:'JOAO ELIAS'}],
-    FORNECEDORES:[{cod:'F003',nome:'JOAO ELIAS'}],FORNECEDORES_DESPESA:[],
-    getFornAtivos(){return ctx.FORNECEDORES;},
-    document:{getElementById(id){return form[id]===undefined?null:{value:form[id]};}},
-    _chqParseVal(s){return Number(String(s).replace(',','.'));},
-    _bancoApi(body){saved=JSON.parse(JSON.stringify(body));return Promise.resolve({});},
-    _cfgChequeBankSlug(){return 'AS';},
-    CHQ_CTRL:{},renderChequesCompensar(){},chqFecharModal(){},showToast(){}
-  };
-  runInNewContext(code+'\nchqSalvarModal()',ctx);
-  await new Promise(resolve=>setImmediate(resolve));
-  assert.equal(saved.action,'save-cheque');
-  assert.deepEqual(saved.destino,{tipo:'Fornecedor',cod:'F003',nome:'JOAO ELIAS'});
-  assert.deepEqual(saved.cheque,{b:'as',n:'200',c:'JOAO ELIAS',v:1500,d:'27/10/2026',venc:'28/10/2026',cd:'',s:'A'});
-  assert.equal(saved.slug,'AS');
-});
-
 test('adiantamentos recém-cadastrados prevalecem sobre dataset financeiro vazio',()=>{
   const code=extract(purchase,'function financialData(body,supplierCode,sourceTicketKeys=[]){','function currentState(body){');
   const ctx={
@@ -122,7 +70,7 @@ test('editar pedido altera materiais sem reaplicar adiantamentos e atualiza apen
 test('edição impede preço total inferior ao já pago/abatido',()=>{
   const code=extract(purchase,'function saveEditedTicket(state,totals){','function stateForSourceTicket(ticketKey){');
   const ticket={ticket:'T1',totalGeral:1000,saldoPagar:0,itens:[{mat:'COBRE',quantidade:1,preco:1000}]};
-  const ctx={TICKETS_DB:{T1:ticket},ticket,tickets:()=>ctx.TICKETS_DB};
+  const ctx={TICKETS_DB:{T1:ticket},ticket,tickets:()=>ctx.TICKETS_DB,purchaseLaterPayments:()=>[],money:v=>String(v)};
   assert.throws(()=>runInNewContext(`${code}\nsaveEditedTicket({editKey:'T1',ticketSnapshot:JSON.stringify(ticket),originalTotal:1000,originalBalance:0}, {balance:-1,total:999})`,ctx),/abaixo de pagamento já registrado/);
 });
 
@@ -225,4 +173,18 @@ test('janela Contas / PIX do fornecedor leva ao cadastro onde a conta é editada
   const compat=readFileSync(new URL('../public/legacy/supplier-compat.js',import.meta.url),'utf8');
   assert.match(compat,/id="forn-pix-edit">✏️ Editar ou excluir contas<\/button>/);
   assert.match(compat,/window\.phase3OpenPartyBanks\('fornecedor',String\(f\.cod\|\|''\),String\(f\.nome\|\|''\)\)/);
+});
+
+test('edição: compensação feita depois do fechamento aparece com Desfazer, que usa o estorno de Contas a Pagar e mantém os itens; ao salvar oferece usar o adiantamento de novo',()=>{
+  const code=extract(purchase,'function purchaseLaterPayments(key){','function laterPaymentKind(payment){');
+  const ctx={CONTAS_PAGAR:[{id:'CPPO_T1',ticket:'T1',pagamentos:[{data:'2026-11-19',valor:0,adt:9915.84},null,{data:'2026-11-20',valor:50,adt:0,banco:'Sicredi'}]},{id:'X',ticket:'T2',pagamentos:[{valor:10}]}],tickets:()=>({T1:{ticket:'T1'}})};
+  const rows=runInNewContext(`${code}\npurchaseLaterPayments('T1')`,ctx);
+  assert.deepEqual(JSON.parse(JSON.stringify(rows)),[{payableId:'CPPO_T1',index:0,date:'2026-11-19',cash:0,advance:9915.84,bank:''},{payableId:'CPPO_T1',index:2,date:'2026-11-20',cash:50,advance:0,bank:'Sicredi'}]);
+  const undo=extract(purchase,'global.phase4PurchaseUndoPayment=async function(payableId,index){','async function offerAdvanceAgain(key,info){');
+  assert.match(undo,/global\.erpPayablesReverse\(payment\.payableId,payment\.index\)/);
+  assert.match(undo,/Object\.assign\(again,keep\)/);
+  assert.match(undo,/reapplyAdvance/);
+  assert.match(purchase,/laterPaymentsHtml\(state\)\+/);
+  assert.match(purchase,/if\(Number\(state\.reapplyAdvance\|\|0\)>0\.005\)\{/);
+  assert.match(purchase,/clique em "Desfazer"/);
 });

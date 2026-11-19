@@ -29,7 +29,7 @@ function calculate({editing,price}){
 test('T275: reduzir total quitado de R$ 330 para R$ 300 indica conciliação, não crédito disponível',()=>{
   const result=calculate({editing:true,price:100});
   assert.equal(result.result.balance,-30);
-  assert.match(result.label,/Requer conciliação: R\$ 30,00/);
+  assert.match(result.label,/Pago a mais: R\$ 30,00/);
   assert.equal(result.cls.has('credit'),false);
 });
 
