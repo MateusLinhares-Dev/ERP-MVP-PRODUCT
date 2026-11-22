@@ -38,6 +38,7 @@ function activePrices(code){
   try{data=(PRECOS_FORN_DATA&&PRECOS_FORN_DATA[code])||{};}catch(error){}
   return Object.entries(data)
     .filter(([material,value])=>material!=='_datas'&&number(value)>0)
+    .sort((a,b)=>String(a[0]).localeCompare(String(b[0]),'pt-BR',{sensitivity:'base',numeric:true}))
     .map(([material,value])=>({material,value:number(value)}));
 }
 

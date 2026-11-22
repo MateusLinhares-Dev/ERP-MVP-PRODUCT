@@ -26,3 +26,5 @@
 .supplier-repass-payables-list button{background:#225c42;color:#fff;border:none;border-radius:5px;padding:7px 10px;cursor:pointer}
 .supplier-repass-open{background:#196b48;color:#fff;border:0;border-radius:6px;padding:8px 12px;cursor:pointer}
 .supplier-repass-indicator{color:#27573e;font-size:12px;font-weight:700;align-self:center}
+.supplier-repass-record .supplier-repass-delete{background:#fff;color:#b42318;border:1px solid #f1b8b2;margin-left:6px}
+.supplier-repass-record .supplier-repass-undo{background:#fff;color:#8a5b00;border:1px solid #f0d9a6;border-radius:6px;padding:2px 8px;font-size:.74rem;cursor:pointer;margin-left:4px}

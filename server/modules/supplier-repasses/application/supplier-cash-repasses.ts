@@ -39,6 +39,7 @@ export interface RepasseInput {
   obs?: unknown;
   comprovante?: unknown;
   receiptId?: unknown;
+  paymentId?: unknown;
   bancoCod?: unknown;
   expectedVersion?: unknown;
 }
@@ -236,9 +237,11 @@ export async function changeSupplierCashRepasse(
   const operationId = key(input.operationId);
   if (!/^[a-f\d-]{36}$/i.test(operationId))
     fail(422, 'INVALID_OPERATION', 'Identificador da operação inválido.');
-  if (action !== 'receive' && action !== 'pay') fail(422, 'INVALID_ACTION', 'Operação inválida.');
-  const date = dateISO(input.data);
-  const amount = currency(input.valor);
+  if (!['receive', 'pay', 'delete', 'undo-pay'].includes(action))
+    fail(422, 'INVALID_ACTION', 'Operação inválida.');
+  const undoing = action === 'delete' || action === 'undo-pay';
+  const date = undoing ? '' : dateISO(input.data);
+  const amount = undoing ? 0 : currency(input.valor);
   const note = clean(input.obs, 500);
   const comprovante = clean(input.comprovante, 180);
   const actor = clean(identity.uid || identity.erpUser || 'user', 100);
@@ -246,13 +249,20 @@ export async function changeSupplierCashRepasse(
     .update(actor + '|' + fornCod + '|' + operationId)
     .digest('hex')
     .slice(0, 40);
-  const receiptId = action === 'pay' ? key(input.receiptId) : 'RCS-' + tokenId;
+  const receiptId = action === 'receive' ? 'RCS-' + tokenId : key(input.receiptId);
+  const paymentId = action === 'undo-pay' ? key(input.paymentId) : '';
   const bankCode = action === 'pay' ? key(input.bancoCod) : '';
   const instance = await database(db);
   const opKey =
     key(String(identity.uid || identity.erpUser || 'user').replace(/[^\w-]/g, '_')) + '_' + operationId;
   const intent = createHash('sha256')
-    .update(JSON.stringify([action, fornCod, receiptId, date, amount, bankCode, note, comprovante]))
+    .update(
+      JSON.stringify(
+        undoing
+          ? [action, fornCod, receiptId, paymentId, Number(input.expectedVersion)]
+          : [action, fornCod, receiptId, date, amount, bankCode, note, comprovante],
+      ),
+    )
     .digest('hex');
   const opRef = instance.ref('erp/fornecedorRepasseOperations/' + opKey);
   const replay = (value: unknown): Row | null => {
@@ -278,9 +288,56 @@ export async function changeSupplierCashRepasse(
     ]);
     const stored = recordSnap.val() as RepasseRecord | null;
     const updates: Row = {};
-    let record: RepasseRecord;
+    let record: RepasseRecord | null;
     let movement: Row | null = null;
-    if (action === 'receive') {
+    let removedMovementId = '';
+    if (action !== 'receive') {
+      if (!stored || stored.fornCod !== fornCod)
+        fail(404, 'RECEIPT_NOT_FOUND', 'Recebimento não encontrado. Atualize a ficha financeira.');
+      if (Number(input.expectedVersion) !== Number(stored.versao))
+        fail(409, 'RECEIPT_CHANGED', 'O recebimento foi alterado por outra sessão. Atualize os dados.');
+    }
+    if (action === 'delete') {
+      const current = stored as RepasseRecord;
+      const payments = Array.isArray(current.pagamentos) ? current.pagamentos : [];
+      if (payments.length || Math.round(Number(current.valorPago || 0) * 100) > 0)
+        fail(
+          409,
+          'RECEIPT_HAS_REPASSES',
+          'Este recebimento já tem PIX de repasse registrado (' +
+            money(Math.round(Number(current.valorPago || 0) * 100)).toLocaleString('pt-BR', {
+              style: 'currency',
+              currency: 'BRL',
+            }) +
+            '). Desfaça o PIX antes de excluir o recebimento.',
+        );
+      record = null;
+      updates['fornecedorRepassesCaixa/' + receiptId] = null;
+    } else if (action === 'undo-pay') {
+      const current = stored as RepasseRecord;
+      const payments = Array.isArray(current.pagamentos) ? current.pagamentos : [];
+      const index = payments.findIndex((payment) => String(payment?.id || '') === paymentId);
+      if (index < 0)
+        fail(404, 'PAYMENT_NOT_FOUND', 'PIX não encontrado neste recebimento. Atualize os dados.');
+      const payment = payments[index] as RepassePayment;
+      const paidCents =
+        Math.round(Number(current.valorPago || 0) * 100) - Math.round(Number(payment.valor) * 100);
+      removedMovementId = clean(payment.movBancoId, 120);
+      if (removedMovementId && /[.#$[\]/]/.test(removedMovementId))
+        fail(422, 'INVALID_KEY', 'Lançamento bancário inválido.');
+      record = {
+        ...current,
+        pagamentos: payments.filter((_, at) => at !== index),
+        valorPago: money(Math.max(0, paidCents)),
+        saldo: money(Math.round(Number(current.saldo || 0) * 100) + Math.round(Number(payment.valor) * 100)),
+        status: paidCents > 0 ? 'Parcial' : 'Pendente',
+        versao: Number(current.versao) + 1,
+      };
+      if (removedMovementId) {
+        updates['lancBanco/' + removedMovementId] = null;
+        updates['lancBancoDeletedV2/' + removedMovementId] = true;
+      }
+    } else if (action === 'receive') {
       if (stored)
         fail(409, 'RECEIPT_ALREADY_EXISTS', 'Este recebimento já existe. Atualize a ficha financeira.');
       if (!supplierExists(supplierSnap?.val(), fornCod))
@@ -360,7 +417,12 @@ export async function changeSupplierCashRepasse(
       };
     }
     updates['fornecedorRepasses/' + fornCod + '/' + receiptId] = record;
-    const result = { record: visibleReceipt(record), movement };
+    const result = {
+      record: record ? visibleReceipt(record) : null,
+      removed: action === 'delete' && stored ? visibleReceipt(stored) : null,
+      movement,
+      removedMovementId: removedMovementId || null,
+    };
     updates['fornecedorRepasseOperations/' + opKey] = {
       result,
       intent,

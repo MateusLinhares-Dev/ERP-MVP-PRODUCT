@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-19-2330-v257-desfazer-compensacao-ao-excluir';
+  const _APP_BUILD = '2026-11-22-1000-v258-excluir-repasse-aba-custo-casa-tabela-ordenada';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){

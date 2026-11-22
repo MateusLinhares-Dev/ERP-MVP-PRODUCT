@@ -13,6 +13,7 @@ interface LegacyFinance {
   showToast?: (message: string, kind: string, duration: number) => void;
   renderFluxo?: () => void;
   erpBankMovementAdded?: (movement: unknown) => boolean;
+  erpBankMovementRemoved?: (movementId: string) => boolean;
 }
 
 const PREVIEW_TTL_MS = 20000;
@@ -107,9 +108,10 @@ export function installSupplierRepasses(api: ApiClient): void {
           send={send}
           confirm={(message) => window.confirm(message)}
           notify={notify}
-          onChanged={(movement) => {
+          onChanged={(movement, removedMovementId) => {
             previews.delete(supplier);
             if (movement) legacy().erpBankMovementAdded?.(movement);
+            if (removedMovementId) legacy().erpBankMovementRemoved?.(removedMovementId);
             refreshSummary().catch((error: unknown) => console.warn('supplier.repasse.summary', error));
           }}
           onClose={closeDialog}

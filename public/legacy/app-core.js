@@ -793,7 +793,6 @@ const TABS_CFG = {
   precos_clientes:    {label:'Preços Clientes', icon:'🏷️'},
   contratos:          {label:'Contratos',       icon:'📑'},
   config:             {label:'Config',          icon:'⚙️'},
-  custo_casa:         {label:'Custo Casa',      icon:'🏠'},
   lista_compras:      {label:'Lista de Compras',icon:'🛒'},
   viagem_motorista:   {label:'Viagem Motorista',icon:'🚗'},
   combustivel_rudnick:{label:'Combustível',      icon:'⛽'},
@@ -1148,7 +1147,7 @@ function startApp(username) {
     {id:'rh',          label:'RH',          icon:'👷', tabs:['funcionarios','ponto','folha_pagamento','vales','epi']},
     {id:'frota',       label:'Frota',       icon:'🚛', tabs:['caminhoes','combustivel_rudnick','viagem_motorista']},
     {id:'fiscal',      label:'Fiscal',       icon:'🧾', tabs:['fiscal']},
-    {id:'admin',       label:'Administração',icon:'🏢', tabs:['despesas_grupo','contratos','custo_casa','lista_compras','documentos_empresas','usuarios','config','senhas']},
+    {id:'admin',       label:'Administração',icon:'🏢', tabs:['despesas_grupo','contratos','lista_compras','documentos_empresas','usuarios','config','senhas']},
     {id:'coordenador', label:'Coordenador',  icon:'🏭', tabs:['almoxarifado','coordenacao']},
     {id:'comunicacao',  label:'Comunicação',  icon:'💬', tabs:['chat']},
     {id:'afazeres_grp', label:'Afazeres',     icon:'✅', tabs:['afazeres']},
@@ -1194,7 +1193,7 @@ function startApp(username) {
     const b=document.getElementById('btn-nova-compra');
     if(b){ b.onclick=null; b.addEventListener('click',function(e){e.preventDefault();om('compra');}); }
   },100);
-  switchTab((Array.isArray(cu.tabs)&&cu.tabs[0])||'dashboard');
+  switchTab((Array.isArray(cu.tabs)&&cu.tabs.find(function(t){ return TABS_CFG[t]; }))||'dashboard');
 
   if(cuKey === 'balanceiro'){
     
@@ -9483,6 +9482,12 @@ async function desmarcarCompraPaga(dbKey){
 }
 window['desmarcarCompraPaga']=desmarcarCompraPaga;
 
+function _precosOrdenados(precos){
+  return Object.entries(precos||{})
+    .filter(function(e){ return e[0]!=='_datas'&&Number(e[1])>0; })
+    .sort(function(a,b){ return String(a[0]).localeCompare(String(b[0]),'pt-BR',{sensitivity:'base',numeric:true}); });
+}
+window.erpPrecosOrdenados=_precosOrdenados;
 function getPrecosFornMsg(){
   const cod=document.getElementById('pf-forn-sel')?.value;
   if(!cod) return null;
@@ -9492,7 +9497,7 @@ function getPrecosFornMsg(){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
   const div='━━━━━━━━━━━━━━━━━━━━━━━━━';
-  const itens=Object.entries(precos).filter(([,v])=>v>0);
+  const itens=_precosOrdenados(precos);
   if(itens.length===0){alert('Nenhum preço definido para este fornecedor.');return null;}
   let msg=`🏷️ *TABELA DE PREÇOS DE COMPRA*
 `;
@@ -9532,7 +9537,7 @@ async function compartilharImagemPrecosForn(){
   const cod=document.getElementById('pf-forn-sel')?.value;
   if(!cod){alert('Selecione um fornecedor primeiro.');return;}
   const precos=PRECOS_FORN_DATA[cod]||{};
-  const itens=Object.entries(precos).filter(([,v])=>v>0);
+  const itens=_precosOrdenados(precos);
   if(itens.length===0){alert('Nenhum preço definido para este fornecedor.');return;}
   const forn=FORNECEDORES.find(f=>f.cod===cod);
   const fornNome=forn?forn.nome:cod;
@@ -9599,7 +9604,7 @@ function imprimirPrecosForn(){
   const fornNome=forn?forn.nome:cod;
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
-  const itens=Object.entries(precos).filter(([,v])=>v>0);
+  const itens=_precosOrdenados(precos);
   if(itens.length===0){alert('Nenhum preço definido.');return;}
   const linhas=itens.map((([mat,val],i)=>`
     <tr style="${i%2===0?'background:#f9f9f9':''}">
@@ -12018,7 +12023,7 @@ function renderPrecosCliTab(){
   }
   if(!PRECOS_CLI_DATA[cliNome]) PRECOS_CLI_DATA[cliNome]={};
   const precos=PRECOS_CLI_DATA[cliNome];
-  const comPreco=Object.entries(precos).filter(([,v])=>v>0);
+  const comPreco=_precosOrdenados(precos);
   if(shareBar && comPreco.length>0) shareBar.style.display='flex';
   else if(shareBar) shareBar.style.display='none';
 
@@ -12116,7 +12121,7 @@ function salvarPrecosCliInline(cliNome,mat,el){
 
 function getPrecosCliMsg(cliNome){
   const precos=PRECOS_CLI_DATA[cliNome]||{};
-  const itens=Object.entries(precos).filter(([,v])=>v>0);
+  const itens=_precosOrdenados(precos);
   if(itens.length===0){alert('Nenhum preço definido para este cliente.');return null;}
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
@@ -12171,7 +12176,7 @@ function imprimirPrecosCli(){
   const cliNome=document.getElementById('pc-cli-sel')?.value;
   if(!cliNome) return;
   const precos=PRECOS_CLI_DATA[cliNome]||{};
-  const itens=Object.entries(precos).filter(([,v])=>v>0);
+  const itens=_precosOrdenados(precos);
   if(itens.length===0){alert('Nenhum preço definido.');return;}
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
@@ -12214,7 +12219,7 @@ async function compartilharImagemPrecosCli(){
   const cliNome=document.getElementById('pc-cli-sel')?.value;
   if(!cliNome) return;
   const precos=PRECOS_CLI_DATA[cliNome]||{};
-  const itens=Object.entries(precos).filter(([,v])=>v>0);
+  const itens=_precosOrdenados(precos);
   if(itens.length===0){alert('Nenhum preço definido para este cliente.');return;}
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const hoje=new Date().toLocaleDateString('pt-BR');
@@ -16035,6 +16040,7 @@ window.erpReconciliationSources=function(){
     banks:BANCOS_DB.filter(Boolean).map(b=>({cod:String(b.cod||''),name:String(b.banco||'Conta'),account:String(b.conta||'')}))
   };
 };
+window.erpBankMovementRemoved=function(movId){ return _bancoRemoverMovimento(String(movId||'')); };
 window.erpBankMovementAdded=function(movement){
   if(!movement||!movement.id||!BANCOS_DB.some(b=>b&&b.cod===movement.bancoCod))return false;
   const i=LANC_BANCO_DB.findIndex(l=>l&&l.id===movement.id);

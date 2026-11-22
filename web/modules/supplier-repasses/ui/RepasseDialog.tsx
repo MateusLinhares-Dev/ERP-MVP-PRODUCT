@@ -17,10 +17,10 @@ export interface RepasseDialogProps {
   code: string;
   name: string;
   load(code: string): Promise<RepasseList>;
-  send(body: Record<string, unknown>): Promise<{ movement?: unknown }>;
+  send(body: Record<string, unknown>): Promise<{ movement?: unknown; removedMovementId?: unknown }>;
   confirm(message: string): boolean;
   notify(message: string, error?: boolean): void;
-  onChanged(movement?: unknown): void;
+  onChanged(movement?: unknown, removedMovementId?: string): void;
   onClose(): void;
 }
 
@@ -234,6 +234,74 @@ export function RepasseDialog({
     }
   };
 
+  const removeReceipt = async (record: RepasseRecord) => {
+    if (busy) return;
+    if (
+      !confirm(
+        'Excluir o recebimento de ' +
+          formatMoney(record.valor) +
+          ' de ' +
+          formatDate(record.data) +
+          '?\n\nEle sai do controle de dinheiro a repassar e a entrada em espécie sai do fluxo de caixa. ' +
+          'Use quando o lançamento foi feito por engano. O banco não é mexido.',
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      await send({
+        action: 'delete',
+        operationId: newId(),
+        fornCod: code,
+        receiptId: record.id,
+        expectedVersion: record.versao,
+      });
+      notify('Recebimento excluído.');
+      await refresh();
+      onChanged();
+    } catch (error) {
+      notify(messageOf(error, 'Não foi possível excluir o recebimento.'), true);
+      await refresh().catch(() => undefined);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const undoPayment = async (record: RepasseRecord, payment: RepasseRecord['pagamentos'][number]) => {
+    if (busy || !payment.id) return;
+    if (
+      !confirm(
+        'Desfazer o PIX de ' +
+          formatMoney(payment.valor) +
+          ' de ' +
+          formatDate(payment.data) +
+          (payment.bancoNome ? ' (' + payment.bancoNome + ')' : '') +
+          '?\n\nA saída sai do extrato do banco e o valor volta a ficar a repassar. ' +
+          'Use só se esse PIX foi registrado por engano.',
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      const result = await send({
+        action: 'undo-pay',
+        operationId: newId(),
+        fornCod: code,
+        receiptId: record.id,
+        paymentId: payment.id,
+        expectedVersion: record.versao,
+      });
+      notify('PIX desfeito: a saída saiu do extrato e o valor voltou a ficar a repassar.');
+      await refresh();
+      onChanged(undefined, result.removedMovementId ? String(result.removedMovementId) : undefined);
+    } catch (error) {
+      notify(messageOf(error, 'Não foi possível desfazer o PIX.'), true);
+      await refresh().catch(() => undefined);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const field = (key: keyof PaymentDraft) => (next: string) =>
     setDraft((current) => (current ? { ...current, [key]: next } : current));
 
@@ -330,9 +398,31 @@ export function RepasseDialog({
                     {record.pagamentos.map((payment) => (
                       <small key={payment.id || payment.data + payment.valor}>
                         PIX {formatDate(payment.data)}: {formatMoney(payment.valor)} · {payment.bancoNome}
-                        {payment.comprovante ? ' · Comprovante: ' + payment.comprovante : ''}
+                        {payment.comprovante ? ' · Comprovante: ' + payment.comprovante : ''}{' '}
+                        {payment.id ? (
+                          <button
+                            type="button"
+                            className="supplier-repass-undo"
+                            data-repass-undo={payment.id}
+                            disabled={busy}
+                            onClick={() => void undoPayment(record, payment)}
+                          >
+                            Desfazer PIX
+                          </button>
+                        ) : null}
                       </small>
                     ))}
+                    {!record.pagamentos.length ? (
+                      <button
+                        type="button"
+                        className="supplier-repass-delete"
+                        data-repass-delete={record.id}
+                        disabled={busy}
+                        onClick={() => void removeReceipt(record)}
+                      >
+                        Excluir recebimento
+                      </button>
+                    ) : null}
                     {record.saldo > 0 ? (
                       <>
                         <button
