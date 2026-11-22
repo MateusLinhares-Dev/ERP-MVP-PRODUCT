@@ -87,3 +87,26 @@ test('idempotência não permite reutilizar identificador com valor ou fornecedo
   assert.equal(db.state.erp.fornecedorRepasses['F-001'][first.record.id].valor,11000);
   assert.equal(db.updates,1);
 });
+test('excluir recebimento lançado por engano: sai a obrigação e a entrada em espécie; com PIX registrado, pede desfazer o PIX antes',async()=>{
+  const db=fakeDb();const created=await changeSupplierCashRepasse(identity,input,{db});
+  const id=created.record.id;
+  await assert.rejects(()=>changeSupplierCashRepasse(identity,{action:'delete',operationId:'ddddddd0-dddd-4ddd-dddd-dddddddddddd',fornCod:'F-001',receiptId:id,expectedVersion:9},{db}),{code:'RECEIPT_CHANGED'});
+  const pix={action:'pay',operationId:'bbbbbbb0-bbbb-4bbb-bbbb-bbbbbbbbbbbb',fornCod:'F-001',receiptId:id,expectedVersion:1,data:'2026-11-05',valor:6000,bancoCod:'BC-007'};
+  const paid=await changeSupplierCashRepasse(identity,pix,{db});
+  await assert.rejects(()=>changeSupplierCashRepasse(identity,{action:'delete',operationId:'ddddddd1-dddd-4ddd-dddd-dddddddddddd',fornCod:'F-001',receiptId:id,expectedVersion:2},{db}),{code:'RECEIPT_HAS_REPASSES'});
+  const paymentId=paid.record.pagamentos[0].id;
+  const undone=await changeSupplierCashRepasse(identity,{action:'undo-pay',operationId:'eeeeeee0-eeee-4eee-eeee-eeeeeeeeeeee',fornCod:'F-001',receiptId:id,paymentId,expectedVersion:2},{db});
+  assert.deepEqual([undone.record.saldo,undone.record.valorPago,undone.record.status,undone.record.pagamentos.length,undone.record.versao],[11000,0,'Pendente',0,3]);
+  assert.equal(undone.removedMovementId,paid.movement.id);
+  assert.equal(db.state.erp.lancBanco[paid.movement.id],undefined,'a saída do PIX sai do extrato');
+  assert.equal(db.state.erp.lancBancoDeletedV2[paid.movement.id],true);
+  await assert.rejects(()=>changeSupplierCashRepasse(identity,{action:'undo-pay',operationId:'eeeeeee1-eeee-4eee-eeee-eeeeeeeeeeee',fornCod:'F-001',receiptId:id,paymentId,expectedVersion:3},{db}),{code:'PAYMENT_NOT_FOUND'});
+  const removed=await changeSupplierCashRepasse(identity,{action:'delete',operationId:'ddddddd2-dddd-4ddd-dddd-dddddddddddd',fornCod:'F-001',receiptId:id,expectedVersion:3},{db});
+  assert.equal(removed.record,null);
+  assert.equal(removed.removed.valor,11000);
+  assert.equal(db.state.erp.fornecedorRepasses['F-001'][id],undefined);
+  assert.equal(db.state.erp.fornecedorRepassesCaixa[id],undefined);
+  const again=await changeSupplierCashRepasse(identity,{action:'delete',operationId:'ddddddd2-dddd-4ddd-dddd-dddddddddddd',fornCod:'F-001',receiptId:id,expectedVersion:3},{db});
+  assert.equal(again.alreadyCommitted,true,'repetir a mesma exclusão não falha');
+  await assert.rejects(()=>changeSupplierCashRepasse({...identity,canPayables:false},{action:'delete',operationId:'ddddddd3-dddd-4ddd-dddd-dddddddddddd',fornCod:'F-001',receiptId:id,expectedVersion:3},{db}),{code:'REPASS_PERMISSION_REQUIRED'});
+});

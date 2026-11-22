@@ -221,6 +221,21 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Excluir "dinheiro recebido para repasse" e desfazer PIX de repasse (22/11/2026, v258)
+
+O botão "Dinheiro recebido / Valor a repassar" da Ficha do fornecedor serve para quando o fornecedor entrega dinheiro em espécie e a empresa devolve por PIX. A cliente o usou por engano para registrar que o fornecedor pagou parte de uma dívida (caso Helmerson Peixer: R$ 1.955,70 e R$ 2.775,75). O módulo só registrava; não excluía nem desfazia.
+
+Agora `POST /api/finance/supplier-cash-repasses` tem mais duas ações:
+- **`delete`:** exclui um recebimento que ainda não teve PIX. Apaga `fornecedorRepasses/<forn>/<id>` e a entrada em espécie `fornecedorRepassesCaixa/<id>`, que é a que aparece no fluxo de caixa. O banco não é mexido, porque o recebimento nunca lançou nada no banco. Se o recebimento já teve PIX, recusa com `RECEIPT_HAS_REPASSES`.
+- **`undo-pay`:** desfaz um PIX registrado por engano. Apaga a saída `LB-REP-…` do extrato e marca `lancBancoDeletedV2`; o valor volta a ficar a repassar.
+- **Nas duas:** confere `expectedVersion`, registra a operação e exige `canPayables` ou `canFinance`, como as outras ações.
+
+Na janela, cada recebimento sem PIX ganhou **Excluir recebimento**, e cada PIX ganhou **Desfazer PIX**. A tela tira a saída do extrato local na hora (`window.erpBankMovementRemoved`).
+
+Também na v258:
+- **Aba "Custo Casa":** saiu do menu, da lista de permissões de usuário e do quadro do painel, a pedido da cliente. "Contas da Dona" continua. Os dados (`custosCasa`) ficam guardados. Quem tinha "Custo Casa" como primeira aba entra na primeira aba que existe.
+- **Tabelas de preço (fornecedor e cliente):** texto do WhatsApp, imagem, impressão e a lista da tela de cliente saem em ordem alfabética (`_precosOrdenados`, ignorando acento, números em ordem natural). Antes saíam na ordem em que os preços foram gravados.
+
 ## Excluir adiantamento ou notinha que já quitou conta (19/11/2026, v257)
 
 Caso da cliente (Ismael, T449): um adiantamento de R$ 25.000 quitou R$ 9.915,45 da conta da T449 em Contas a Pagar. Na Ficha isso aparece em duas linhas: a sobra de R$ 15.084,55 (Pendente) e a parte usada (Pago, "Compensação parcial – CP"). Ao tentar excluir a sobra, o sistema recusava (`ADVANCE_ALREADY_COMPENSATED`) e mandava usar o 🕒 da conta. A conta, porém, está quitada e não aparece no filtro "Em aberto" de Contas a Pagar. Excluir a notinha também recusava, com "Estorne o pagamento antes de excluir", sem dizer onde.
