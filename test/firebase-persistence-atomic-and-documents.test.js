@@ -115,5 +115,6 @@ test('contas a pagar no formato antigo (lista) não são regravadas pelo navegad
   const core=read('public/legacy/app-core.js');
   assert.doesNotMatch(core,/ref\('erp\/contasPagar'\)\.transaction/);
   assert.doesNotMatch(core,/function _cpMigrarParaFormatoPorChave/);
-  assert.match(core,/function migrar\(\)\{\s*if\(\['fornecedores','clientes','contasReceber','vendas','bancos','lancBanco'\]\.indexOf\(nome\)>=0\) return;/);
+  assert.match(core,/const doServidor=\['fornecedores','clientes','contasReceber','vendas','bancos','lancBanco'\]\.indexOf\(nome\)>=0;/);
+  assert.match(core,/function migrar\(\)\{\s*if\(doServidor\) return;/);
 });

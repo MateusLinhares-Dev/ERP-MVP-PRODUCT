@@ -51,6 +51,26 @@ Tudo passa por `POST /api/finance/sales` (`server/modules/sales`), com permissã
 - **Regras do Firebase:** `vendas`, `vendasDeleted` e `vendasDeletedV2` só pelo servidor; `contasReceber` ganhou índice por `vendaId` e `cli`. A sincronização do navegador não grava mais vendas e ignora os lançamentos `LB-VD-`.
 - O vínculo com a pesagem agora funciona também para quem tem Vendas e não tem Compras (antes o navegador não tinha permissão de gravar na pesagem).
 
+## Venda excluída que "volta" e estoque (23/11/2026, v261)
+
+A cliente viu no Histórico vendas que já tinha excluído (V0004 de 18/11 e V0005 de 16/11), excluiu de novo e disse que vender e excluir não mexia no estoque.
+
+**Estoque.** Na versão atual, a venda tira do estoque e excluir a venda devolve na hora, também depois do F5. O teste de tela confirma: pesagem de venda de 300 kg e compra de 1.000 kg dão saldo 700; depois de excluir a venda, 1.000. Antes da v259, a pesagem de venda (`tipo: 'venda'`) contava como **entrada** e a venda como **saída**. Por isso vender não diminuía o estoque em relação ao que havia antes da pesagem. Quem ainda estiver com versão anterior à v259 vê exatamente o que ela descreveu.
+
+**Venda que volta.** O número da venda vem de `salesNumberSeq` e nunca se repete. Então V0004 e V0005 de volta são os mesmos registros, não vendas novas. Duas causas possíveis, ambas fora da exclusão atual, que passa pelo servidor:
+1. **Exclusão que só valeu neste navegador.** Cada navegador guardava uma lista própria de excluídos (`mm_vendas_deletados`) e escondia esses registros mesmo quando eles continuavam no servidor. Isso acontecia, por exemplo, com uma exclusão feita numa versão antiga que não chegou à nuvem. Num computador a venda some; em outro, ou depois de limpar o navegador, ela "volta". Cada computador mostra um estoque diferente.
+2. **Aba antiga aberta**, com versão anterior à API de vendas, regravando `vendas` enquanto as regras do Firebase ainda permitiam. A versão atual não grava `vendas`. Quem bloqueia de vez é a regra `.write:false`.
+
+Correção da v261 (`_criarSincroniaPorChave`): para os dados que só o servidor grava (`vendas`, `contasReceber`, `lancBanco`, `bancos`, `clientes`, `fornecedores`), a tela esconde só:
+- o que a nuvem marcou como excluído (`<nó>Deleted`/`DeletedV2`);
+- o que este navegador acabou de excluir, por 2 minutos, para um retrato atrasado da nuvem não fazer o registro piscar de volta.
+
+A lista local antiga não esconde mais nada. Os outros dados continuam como antes.
+
+**Depois de atualizar:** num computador que escondia uma venda, conta a receber ou lançamento de banco que ainda está no servidor, esse registro aparece de novo. É o que o servidor e os outros computadores já tinham. Excluir de novo pela tela agora vale para todos.
+
+Teste: `test/server-owned-sync-deletions.test.js`. Teste de tela: venda de pesagem → estoque 700 → excluir → 1.000 → F5 → 1.000, e a pesagem volta para "Pesagens a fechar".
+
 ## Impressão
 
 "🖨️" no histórico abre o **Pedido de venda Nº ...** no padrão da notinha de compra (`web/shared/print/order-print.ts`): empresa, cliente, itens, totais, situação financeira, parcelas e observações.

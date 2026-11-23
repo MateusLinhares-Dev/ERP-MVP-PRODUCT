@@ -60,7 +60,8 @@ test('rótulo de fornecedor com nome repetido continua igual, calculado uma vez 
 test('compras por fornecedor usam índice e mantêm a ordem e as regras antigas', () => {
   const core = read('public/legacy/app-core.js');
   const start = core.indexOf('let _ticketsPorFornIndice=null;');
-  const source = core.slice(start, core.indexOf('function ticketsDeForn(', start));
+  const helpers = core.slice(core.indexOf('function _pesagensConsolidadas(){'), core.indexOf('function _ticketsNoEstoque(){'));
+  const source = helpers + core.slice(start, core.indexOf('function ticketsDeForn(', start));
   const ctx = {
     FORNECEDORES: [{ cod: 'F1', nome: 'JOAO' }, { cod: 'F2', nome: 'MARIA' }],
     TICKETS_DB: {
@@ -69,6 +70,8 @@ test('compras por fornecedor usam índice e mantêm a ordem e as regras antigas'
       T3: { ticket: 'T3', fornecedorCod: 'F1', fornecedorNome: 'JOAO' },
       T4: { ticket: 'T4', fornecedorCod: 'F1', _balSessao: true },
       T5: { ticket: 'T5', fornecedorCod: 'F2' },
+      P7: { ticket: 'P7', fornecedorCod: 'F2', status: 'Consolidado', _consolidadoEm: 'T5' },
+      P8: { ticket: 'P8', fornecedorCod: 'F2', status: 'Aguard. Preço' },
     },
     Date,
   };

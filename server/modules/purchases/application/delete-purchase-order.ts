@@ -412,15 +412,20 @@ export async function deletePurchaseOrder(
       );
     }
     const allTickets: unknown = (await db.ref('erp/tickets').get()).val();
+    const listedSources = new Set(
+      (Array.isArray(ticket._ticketsOrigemIds) ? ticket._ticketsOrigemIds : []).map((key) =>
+        String(key ?? '').trim(),
+      ),
+    );
     const releasedSources = Object.entries(
       allTickets && typeof allTickets === 'object' ? (allTickets as Record<string, unknown>) : {},
     ).filter(([key, row]) => {
       if (key === ticketId || !row || typeof row !== 'object') return false;
       const source = row as PurchaseTicket & { _consolidadoEm?: unknown };
-      return (
-        String(source._consolidadoEm || '') === ticketId &&
-        String(source.fornecedorCod || source.fornCod || supplier) === supplier
-      );
+      const target = String(source._consolidadoEm || '');
+      const mergedHere =
+        target === ticketId || (!target && listedSources.has(key) && source.status === 'Consolidado');
+      return mergedHere && String(source.fornecedorCod || source.fornCod || supplier) === supplier;
     }) as [string, PurchaseTicket & { _consolidadoEm?: unknown }][];
     const deletedAt = now();
     const receipt = {

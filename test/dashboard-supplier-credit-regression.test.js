@@ -49,7 +49,7 @@ test('registro original sem comprovante de compensação não gera crédito pres
   assert.equal(fin.adts.length,0);
 });
 test('dashboard não recria gráficos nem perde interação quando a nuvem repete os mesmos valores',()=>{
-  const part=core.slice(core.indexOf('function renderDashboard('),core.indexOf('function populateAll('));
+  const part=core.slice(core.indexOf('function _pesagensConsolidadas(){'),core.indexOf('function _ticketsNoEstoque(){'))+core.slice(core.indexOf('function renderDashboard('),core.indexOf('function populateAll('));
   let created=0,updated=0,destroyed=0;
   const nodes=new Map();
   const document={getElementById(id){
@@ -62,10 +62,13 @@ test('dashboard não recria gráficos nem perde interação quando a nuvem repet
     destroy(){destroyed++;}
   }
   const ctx={document,Chart,console,TICKETS_DB:{T1:{data:'2026-11-04',totalGeral:100}},VENDAS_DB:[],
-    FUNCIONARIOS:[{status:'Ativo'}],ESTOQUE_DB:{aluminio:{inicial:50}},CHEQUES_POR_FORN:{},
+    FUNCIONARIOS:[{status:'Ativo'}],ESTOQUE_DB:{aluminio:{inicial:50}},CHEQUES_POR_FORN:{F1:[{status:'Pendente',valor:999}]},
+    CHQ_CTRL:{a:{v:100,s:'A'},b:{v:50.5},c:{v:70,s:'C'},d:{v:10,s:'X'},e:{v:30,s:'A'}},_chqDel:{e:true},
     getEntradasMaterial:()=>0,getSaidasMaterial:()=>0};
   runInNewContext(part+'\nthis.draw=renderDashboard;',ctx);
   ctx.draw();ctx.draw();ctx.draw();
+  assert.match(nodes.get('kpi-dash-cheques').textContent,/150,50/,'cheques a compensar vêm do controle de cheques (sem compensados, cancelados ou excluídos)');
+  assert.equal(nodes.get('kpi-dash-cheques-sub').textContent,'2 cheques pendentes');
   assert.equal(created,2);
   assert.equal(updated,0);
   assert.equal(destroyed,0);
