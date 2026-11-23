@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-23-2100-v265-notinha-lista-adiantamento-usado-depois';
+  const _APP_BUILD = '2026-11-23-2200-v266-saldo-anterior-e-latinha';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){

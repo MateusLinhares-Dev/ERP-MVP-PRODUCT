@@ -299,9 +299,22 @@ function _mergeMetaisRemoto(dMetais, dDeleted){
   if(Array.isArray(dDeleted)) dDeleted.forEach(function(x){ del.add(x); });
   const locais=METAIS.slice(); 
   METAIS.length=0;
-  dMetais.forEach(function(m){ if(!del.has(m) && METAIS.indexOf(m)<0) METAIS.push(m); });
-  locais.forEach(function(m){ if(!del.has(m) && METAIS.indexOf(m)<0) METAIS.push(m); });
+  _metaisSemVariantes(dMetais.concat(locais).filter(function(m){ return !del.has(m); })).forEach(function(m){ METAIS.push(m); });
   try{ localStorage.setItem('mm_metais', JSON.stringify(METAIS)); }catch(e){}
+}
+function _metaisSemVariantes(lista){
+  const pos={}, out=[];
+  (lista||[]).forEach(function(nome){
+    const raw=String(nome==null?'':nome);
+    if(!raw.trim()) return;
+    const chave=String(raw).trim().replace(/\s+/g,' ').toUpperCase();
+    if(Object.prototype.hasOwnProperty.call(pos,chave)){
+      if(raw===raw.toUpperCase() && out[pos[chave]]!==out[pos[chave]].toUpperCase()) out[pos[chave]]=raw;
+      return;
+    }
+    pos[chave]=out.length; out.push(raw);
+  });
+  return out;
 }
 
 function _patchIncremental(dados, path, obj, delSet){
@@ -10808,7 +10821,7 @@ function _garantirMetalCadastrado(nome){
   if(/nf\s*:/i.test(nome) || /\d\s*,/.test(nome)) return;
   if(typeof METAIS==='undefined') return;
   _estoqueLimparExclusao(nome);
-  if(!METAIS.includes(nome)){
+  if(!METAIS.includes(nome) && !METAIS.some(function(x){ return _normalizarChaveMaterialEstoque(x)===_normalizarChaveMaterialEstoque(nome); })){
     METAIS.push(nome);
     METAIS.sort((a,b)=>a.localeCompare(b,'pt-BR'));
   }
@@ -13645,13 +13658,8 @@ function getSaidasMaterial(mat){
 function _dedupeMetais(){
   try{
     if(typeof METAIS==='undefined' || !Array.isArray(METAIS)) return 0;
-    var vistos={}, novos=[], removidos=0;
-    METAIS.forEach(function(nome){
-      var raw=String(nome);
-      if(!raw.trim()){ removidos++; return; }        
-      if(Object.prototype.hasOwnProperty.call(vistos,raw)){ removidos++; return; } 
-      vistos[raw]=1; novos.push(raw);
-    });
+    var novos=_metaisSemVariantes(METAIS);
+    var removidos=JSON.stringify(novos)===JSON.stringify(METAIS.map(String))?0:Math.max(1,METAIS.length-novos.length);
     if(removidos>0){
       METAIS.length=0;
       novos.sort(function(a,b){return a.localeCompare(b,'pt-BR');}).forEach(function(m){ METAIS.push(m); });
@@ -13701,10 +13709,13 @@ function _recuperarMateriaisComMovimento(silent){
     
     try{ Object.keys(ESTOQUE_DB||{}).forEach(function(k){ if(k) nomes.add(k); }); }catch(e){}
     let mudou=false;
+    const chaves=new Set(METAIS.map(function(x){ return _normalizarChaveMaterialEstoque(x); }));
     nomes.forEach(function(m){
       if(!m || _estoqueMaterialExcluido(m)) return;
+      const chave=_normalizarChaveMaterialEstoque(m);
       if(METAIS.indexOf(m)<0){
-        METAIS.push(m); mudou=true;
+        if(chaves.has(chave)) return;
+        METAIS.push(m); chaves.add(chave); mudou=true;
       }
       if(!ESTOQUE_DB[m]) ESTOQUE_DB[m]={mat:m,inicial:0,entradas:0,saidas:0,precoVenda:0,obs:''};
     });
@@ -13720,11 +13731,24 @@ function renderEstoque(){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const _isEl=_usuarioAtualEhAdmin() || window.erpCanAccessTab?.('estoque')===true;
   const materiais=(METAIS||[]).filter(function(m){ return !!m && !_estoqueMaterialExcluido(m); }).slice().sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{sensitivity:'base'}));
-  const rows=materiais.map(mat=>{
+  const ajustesPorChave={};
+  Object.keys(ESTOQUE_DB||{}).forEach(function(k){
+    const x=ESTOQUE_DB[k]; if(!x) return;
+    const chave=_normalizarChaveMaterialEstoque(k);
+    const soma=ajustesPorChave[chave]||(ajustesPorChave[chave]={inicial:0,saidas:0});
+    soma.inicial+=Number(x.inicial||0); soma.saidas+=Number(x.saidas||0);
+  });
+  const chavesVistas=new Set();
+  const rows=materiais.filter(function(mat){
+    const chave=_normalizarChaveMaterialEstoque(mat);
+    if(chavesVistas.has(chave)) return false;
+    chavesVistas.add(chave); return true;
+  }).map(mat=>{
     const e=ESTOQUE_DB[mat]||{inicial:0,saidas:0,precoVenda:0};
-    const inicial=Number(e.inicial||0);
+    const ajuste=ajustesPorChave[_normalizarChaveMaterialEstoque(mat)]||{inicial:Number(e.inicial||0),saidas:Number(e.saidas||0)};
+    const inicial=ajuste.inicial;
     const entradas=getEntradasMaterial(mat);
-    const saidas=getSaidasMaterial(mat)+Number(e.saidas||0);
+    const saidas=getSaidasMaterial(mat)+ajuste.saidas;
     const preco=Number(e.precoVenda||0);
     const saldo=inicial+entradas-saidas;
     const valor=saldo*preco;
@@ -13751,7 +13775,7 @@ function renderEstoque(){
   const totalEnt=rows.reduce((s,r)=>s+r.entradasAuto,0);
   const totalValor=rows.reduce((s,r)=>s+r.valor,0);
   const el=id=>document.getElementById(id);
-  if(el('kpi-est-total-mat')) el('kpi-est-total-mat').textContent=materiais.length;
+  if(el('kpi-est-total-mat')) el('kpi-est-total-mat').textContent=rows.length;
   if(el('kpi-est-saldo')) el('kpi-est-saldo').textContent=totalSaldo.toFixed(1)+' kg';
   if(el('kpi-est-entradas')) el('kpi-est-entradas').textContent=totalEnt.toFixed(1)+' kg';
   if(el('kpi-est-valor')) el('kpi-est-valor').textContent='R$ '+fmt(totalValor);
@@ -13770,7 +13794,7 @@ async function excluirMaterial(mat){
   const entradas=getEntradasMaterial(mat),saidas=getSaidasMaterial(mat)+Number(e.saidas||0);
   const inicial=Number(e.inicial||0);
   if(entradas>0||saidas>0||Math.abs(inicial)>0.0001){
-    showToast('Este material tem saldo ou movimentações. Para preservar a rastreabilidade, corrija o lançamento de origem ou solicite sua inativação, sem excluir o histórico.','error');return;
+    showToast('Este material tem entradas ou saídas registradas (notinhas, vendas ou ajuste de estoque) e não pode ser excluído, para não perder o histórico.','error');return;
   }
   if(!confirm('Excluir o material "'+mat+'" do catálogo? Esta ação não remove notas, compras ou vendas.'))return;
   if(window.__ERP_STOCK_DELETE_BUSY__)return;
