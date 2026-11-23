@@ -221,6 +221,28 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Painel, Ficha e extrato do fornecedor contam só notinhas (23/11/2026, v260)
+
+Depois da v259 procurei o mesmo defeito em outras telas: somar **todo** ticket de `TICKETS_DB` como se fosse compra. A mesma lista guarda notinhas, pesagens da balança (em andamento, "Aguard. Preço", "Consolidado") e pesagens de venda. Estes lugares somavam tudo:
+- **Painel:** "Compras do mês" (valor e número de tickets) e o gráfico de 6 meses. Uma pesagem juntada numa notinha contava como mais um ticket. A pesagem guarda os quilos, não o valor, por isso o valor quase não mudava, mas a contagem sim.
+- **Extrato do fornecedor, canhoto e "fornecedores sem entrega há 30 dias"** (`_indiceTicketsPorForn`): mostravam a pesagem "Consolidado" ao lado da notinha dela.
+- **Ficha do fornecedor:** a pesagem "Consolidado" aparecia como compra, e a pesagem de venda também, quando tinha o código do fornecedor.
+- **Resumo do fornecedor no lançamento antigo** (últimas compras): mesma coisa. Ele também quebrava quando havia um ticket sem data.
+
+A regra agora é uma só (`_ticketEhCompra` / `_ticketsDeCompra` no app-core). Conta como compra o ticket que:
+- não é pesagem de venda;
+- não é pesagem em andamento (`_balSessao`, `_rodEntrada`, `_rodSessao`);
+- não está "Aguard. Preço", "Aguard. Saída" nem "Consolidado";
+- não foi juntado numa notinha que ainda existe.
+
+O estoque usa a mesma lista de pesagens juntadas (`_pesagensConsolidadas`) e continua contando a pesagem que aguarda preço, porque o material já está no pátio.
+
+Também na v260:
+- **"Cheques pendentes" do Painel:** somava só os cheques da aba antiga de cheques de fornecedor. Agora soma os cheques "A compensar" de **Cheques a compensar** (`chequesControle`), sem os excluídos. É o mesmo número que a tela mostra. O Painel se redesenha quando a lista de cheques chega.
+- **Excluir notinha antiga:** além das pesagens que apontam para a notinha (`_consolidadoEm`), também volta para "Aguard. Preço" a pesagem "Consolidado" que está só na lista `_ticketsOrigemIds` da notinha. Isso não vale para pesagem que aponta para outra notinha.
+
+Testes: `test/stock-weighing-double-count.test.js` (4), `test/dashboard-supplier-credit-regression.test.js` (Painel com cheques) e `test/erp-load-performance.test.js` (extrato sem pesagens). Teste de tela: Painel, Ficha, extrato e estoque com notinha, pesagem juntada, pesagem aguardando preço e pesagem de venda (6/6).
+
 ## Estoque: pesagem que virou notinha contava em dobro (23/11/2026, v259)
 
 A cliente perguntou se excluir uma notinha tira o material do estoque, porque o estoque deu "uma diferença muito grande". O estoque não é gravado: é calculado na hora. As entradas vêm dos tickets em `TICKETS_DB` (`getEntradasMaterial`) e as saídas, das vendas e das entregas da Ficha do Cliente. Excluir uma notinha tira os quilos dela, mas a soma de entradas pegava **todo** ticket. Isso causava:

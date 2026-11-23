@@ -51,8 +51,18 @@ test('excluir a notinha fechada a partir de uma pesagem devolve a pesagem para "
   assert.equal((await read('erp/tickets/P100'))._consolidadoEm, 'T501', 'a pesagem liberada pode virar notinha de novo');
 });
 
+test('notinha antiga que só guarda a lista das pesagens também devolve as pesagens ao ser excluída', async () => {
+  srv.seed('erp/tickets/P300', { ticket: 'P300', fornecedorCod: 'F001', status: 'Consolidado', _balFinalizado: false, itens: [{ mat: 'FERRO', pesoLiq: 300 }] });
+  srv.seed('erp/tickets/P301', { ticket: 'P301', fornecedorCod: 'F001', status: 'Consolidado', _consolidadoEm: 'T999', itens: [{ mat: 'FERRO', pesoLiq: 30 }] });
+  srv.seed('erp/tickets/T700', { ticket: 'T700', fornecedorCod: 'F001', fornecedor: 'CICLO', status: 'Pendente', totalGeral: 0, saldoPagar: 0, adiantamento: 0, _consolidado: true, _ticketsOrigemIds: ['P300', 'P301'], itens: [{ mat: 'FERRO', pesoLiq: 300 }] });
+  const result = await deletePurchaseOrder(identity, { operationId: randomUUID(), ticketNo: 'T700', expectedSupplier: 'F001', expectedTotal: 0 }, { db });
+  assert.deepEqual(result.releasedSources, ['P300']);
+  assert.equal((await read('erp/tickets/P300')).status, 'Aguard. Preço');
+  assert.equal((await read('erp/tickets/P301'))._consolidadoEm, 'T999', 'pesagem que foi para outra notinha não é tocada');
+});
+
 test('estoque: pesagem que virou notinha não conta em dobro; pesagem de venda não é entrada; pesagem de notinha excluída volta a contar', () => {
-  const start = core.indexOf('function _ticketsNoEstoque(){');
+  const start = core.indexOf('function _pesagensConsolidadas(){');
   const code = core.slice(start, core.indexOf('function getSaidasMaterial(mat){', start));
   const ctx = {
     TICKETS_DB: {
@@ -69,4 +79,24 @@ test('estoque: pesagem que virou notinha não conta em dobro; pesagem de venda n
   };
   runInNewContext(code + ';this.entradas=getEntradasMaterial;', ctx);
   assert.equal(ctx.entradas('ferro'), 980 + 40 + 70 + 5);
+});
+
+test('compras do mês, extrato e ficha do fornecedor contam só notinhas: sem pesagem aguardando preço, sem pesagem já juntada numa notinha, sem venda, sem pesagem em andamento', () => {
+  const start = core.indexOf('function _pesagensConsolidadas(){');
+  const code = core.slice(start, core.indexOf('function _ticketsNoEstoque(){', start));
+  const ctx = {
+    TICKETS_DB: {
+      P100: { ticket: 'P100', status: 'Consolidado', _consolidadoEm: 'T500', totalGeral: 0 },
+      T500: { ticket: 'T500', status: 'Pendente', _ticketsOrigemIds: ['P100'], totalGeral: 980 },
+      P200: { ticket: 'P200', status: 'Aguard. Preço', _balFinalizado: true },
+      V300: { ticket: 'V300', tipo: 'venda', status: 'Pendente' },
+      R400: { ticket: 'R400', _rodEntrada: true, status: 'Aguard. Saída' },
+      B450: { ticket: 'B450', _balSessao: true, status: 'Pesando Bags' },
+      P460: { ticket: 'P460', status: 'Pendente' },
+      T461: { ticket: 'T461', status: 'Pago', _ticketsOrigemIds: ['P460'], totalGeral: 50 },
+      T600: { ticket: 'T600', status: 'Pago', totalGeral: 120 },
+    },
+  };
+  runInNewContext(code + ';this.compras=_ticketsDeCompra().map(function(t){return t.ticket;}).sort().join(",");', ctx);
+  assert.equal(ctx.compras, 'T461,T500,T600');
 });

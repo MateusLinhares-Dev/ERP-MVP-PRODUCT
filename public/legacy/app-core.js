@@ -497,6 +497,15 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
     if(raw) JSON.parse(raw).forEach(function(id){ deletedSet.add(id); });
   }catch(e){}
   let migracaoEmAndamento=false;
+  const doServidor=['fornecedores','clientes','contasReceber','vendas','bancos','lancBanco'].indexOf(nome)>=0;
+  const excluidosNaNuvem=new Set();
+  const excluidosAgora=new Map();
+  function oculto(id){
+    if(!doServidor) return deletedSet.has(id);
+    if(excluidosNaNuvem.has(id)) return true;
+    const quando=excluidosAgora.get(id);
+    return !!quando&&Date.now()-quando<120000;
+  }
   const confirmados=new Map();
   function marcarConfirmado(id){if(nome==='vales')confirmados.set(String(id),Date.now());}
   function novoId(){ return prefixoId+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -555,12 +564,13 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
     const item=lista[idx];
     if(item && item.id){
       deletedSet.add(item.id);
+      excluidosAgora.set(item.id, Date.now());
       try{ localStorage.setItem(lsKey, JSON.stringify([...deletedSet])); }catch(e){}
     }
     if(idx>=0) lista.splice(idx,1);
   }
   function migrar(){
-    if(['fornecedores','clientes','contasReceber','vendas','bancos','lancBanco'].indexOf(nome)>=0) return;
+    if(doServidor) return;
     if(migracaoEmAndamento || !window._fbDB) return;
     migracaoEmAndamento=true;
     try{
@@ -590,7 +600,7 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
       vals.forEach(function(item){
         if(!item) return;
         if(!item.id) item.id=_idDeterministico(item);
-        if(deletedSet.has(item.id)) return;
+        if(oculto(item.id)) return;
         lista.push(item);
       });
       if(nome==='vales'){
@@ -607,7 +617,7 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
     vals.forEach(function(item){
       if(!item) return;
       if(!item.id) item.id=_idDeterministico(item);
-      if(deletedSet.has(item.id)) return;
+      if(oculto(item.id)) return;
       const atual=porIdLocal[item.id];
       if(!atual){ lista.push(item); porIdLocal[item.id]=item; }
       else Object.assign(atual,item);
@@ -622,11 +632,11 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
     if(!ids.length) return;
 
     if(ids.length>5000){ console.warn('tombstones('+nome+'): '+ids.length+' IGNORADOS (limite de segurança)'); return; }
-    ids.forEach(function(id){ deletedSet.add(id); });
+    ids.forEach(function(id){ deletedSet.add(id); excluidosNaNuvem.add(id); });
     try{ localStorage.setItem(lsKey, JSON.stringify([...deletedSet])); }catch(e){}
     for(let i=lista.length-1;i>=0;i--){
       const it=lista[i];
-      if(it && it.id && deletedSet.has(it.id)) lista.splice(i,1);
+      if(it && it.id && oculto(it.id)) lista.splice(i,1);
     }
   }
 
@@ -1497,7 +1507,7 @@ function renderDashboard(){
     return p[2]+'-'+p[1].padStart(2,'0');
   };
 
-  const ticketsMes=Object.values(TICKETS_DB).filter(tk=>mesDeData(tk.data)===mesAtual);
+  const ticketsMes=_ticketsDeCompra().filter(tk=>mesDeData(tk.data)===mesAtual);
   const totalCompras=ticketsMes.reduce((s,tk)=>s+Number(tk.totalGeral||0),0);
   const vendasMes=(VENDAS_DB||[]).filter(v=>mesDeData(v.data)===mesAtual);
   const totalVendas=vendasMes.reduce((s,v)=>s+Number(v.total||0),0);
@@ -1516,12 +1526,15 @@ function renderDashboard(){
 
   const funcAtivos=(FUNCIONARIOS||[]).filter(f=>f.status!=='Inativo').length;
   let totalChequesPend=0, qtdCheqPend=0;
-  Object.values(CHEQUES_POR_FORN||{}).forEach(lista=>{
-    lista.filter(c=>c.status==='Pendente').forEach(c=>{
-      totalChequesPend+=Number(c.valor||0);
+  try{
+    Object.keys(CHQ_CTRL||{}).forEach(function(k){
+      const c=CHQ_CTRL[k];
+      const sit=String((c&&c.s)||'').trim();
+      if(!c||(_chqDel&&_chqDel[k])||sit==='C'||sit==='X'||sit==='N') return;
+      totalChequesPend=Math.round((totalChequesPend+Number(c.v||0))*100)/100;
       qtdCheqPend++;
     });
-  });
+  }catch(e){}
 
   const fmtR=v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const fmtKg=v=>Number(v).toLocaleString('pt-BR',{maximumFractionDigits:0})+' kg';
@@ -1551,7 +1564,7 @@ function renderDashboard(){
       const ym=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
       const lbl=d.toLocaleDateString('pt-BR',{month:'short',year:'2-digit'});
       labels.push(lbl);
-      const comp=Object.values(TICKETS_DB).filter(tk=>mesDeData(tk.data)===ym)
+      const comp=_ticketsDeCompra().filter(tk=>mesDeData(tk.data)===ym)
         .reduce((s,tk)=>s+Number(tk.totalGeral||0),0);
       const vend=(VENDAS_DB||[]).filter(v=>mesDeData(v.data)===ym)
         .reduce((s,v)=>s+Number(v.total||0),0);
@@ -1899,8 +1912,9 @@ function _normalizarTicketFinanceiro(tk){
 let _ticketsPorFornIndice=null;
 function _indiceTicketsPorForn(){
   const agora=Date.now();
-  const tickets=Object.values(TICKETS_DB);
-  if(_ticketsPorFornIndice&&agora-_ticketsPorFornIndice.at<300&&_ticketsPorFornIndice.count===tickets.length&&_ticketsPorFornIndice.source===TICKETS_DB) return _ticketsPorFornIndice;
+  const total=Object.keys(TICKETS_DB).length;
+  if(_ticketsPorFornIndice&&agora-_ticketsPorFornIndice.at<300&&_ticketsPorFornIndice.count===total&&_ticketsPorFornIndice.source===TICKETS_DB) return _ticketsPorFornIndice;
+  const tickets=_ticketsDeCompra();
   const porCod=new Map(), porNome=new Map(), ordem=new Map();
   const add=(mapa,chave,tk)=>{ if(!chave) return; let lista=mapa.get(chave); if(!lista){ lista=[]; mapa.set(chave,lista); } lista.push(tk); };
   tickets.forEach((tk,i)=>{
@@ -1910,7 +1924,7 @@ function _indiceTicketsPorForn(){
     const nomes=new Set([tk.fornecedor,tk.fornecedorNome,tk.forn].filter(Boolean));
     nomes.forEach(n=>add(porNome,n,tk));
   });
-  _ticketsPorFornIndice={at:agora,count:tickets.length,source:TICKETS_DB,porCod,porNome,ordem};
+  _ticketsPorFornIndice={at:agora,count:total,source:TICKETS_DB,porCod,porNome,ordem};
   return _ticketsPorFornIndice;
 }
 function getTicketsPorForn(cod){
@@ -11838,9 +11852,9 @@ function onFornChange(){
   const sdRaw=SALDO_DEVEDOR_FORN&&SALDO_DEVEDOR_FORN[cod];
   const saldoDev=sdRaw?(typeof sdRaw==='object'?(sdRaw.valor||0):Number(sdRaw||0)):0;
 
-  const ticksForn=Object.values(TICKETS_DB)
+  const ticksForn=_ticketsDeCompra()
     .filter(t=>t.fornecedorCod===cod)
-    .sort((a,b)=>{ const da=a.data.split('/').reverse().join('-'); const db=b.data.split('/').reverse().join('-'); return db.localeCompare(da); })
+    .sort((a,b)=>{ const da=String(a.data||'').split('/').reverse().join('-'); const db=String(b.data||'').split('/').reverse().join('-'); return db.localeCompare(da); })
     .slice(0,5);
 
   const totalDesconto=totalGeral+saldoDev;
@@ -13564,20 +13578,39 @@ function loadEstoque(){
   }catch(ex){}
 }
 
-function _ticketsNoEstoque(){
+function _pesagensConsolidadas(){
   const base=TICKETS_DB||{};
   const origens=new Set();
   Object.keys(base).forEach(function(k){
     const t=base[k];
     (t&&Array.isArray(t._ticketsOrigemIds)?t._ticketsOrigemIds:[]).forEach(function(x){ x=String(x||'').trim(); if(x&&x!==k) origens.add(x); });
   });
+  Object.keys(base).forEach(function(k){
+    const t=base[k];
+    const destino=String(t&&t._consolidadoEm||'').trim();
+    if(destino&&destino!==k&&base[destino]) origens.add(k);
+  });
+  return origens;
+}
+function _ticketEhCompra(tk,key,consolidadas){
+  if(!tk||typeof tk!=='object') return false;
+  if(String(tk.tipo||'').trim().toLowerCase()==='venda') return false;
+  if(tk._balSessao||tk._rodEntrada||tk._rodSessao) return false;
+  const st=String(tk.status||'');
+  if(st==='Aguard. Preço'||st==='Aguard. Saída'||st==='Consolidado') return false;
+  return !(consolidadas||_pesagensConsolidadas()).has(String(key!=null?key:tk.ticket||''));
+}
+function _ticketsDeCompra(){
+  const base=TICKETS_DB||{};
+  const consolidadas=_pesagensConsolidadas();
+  return Object.keys(base).filter(function(k){ return _ticketEhCompra(base[k],k,consolidadas); }).map(function(k){ return base[k]; });
+}
+function _ticketsNoEstoque(){
+  const base=TICKETS_DB||{};
+  const consolidadas=_pesagensConsolidadas();
   return Object.keys(base).filter(function(k){
     const tk=base[k];
-    if(!tk||typeof tk!=='object') return false;
-    if(String(tk.tipo||'').trim().toLowerCase()==='venda') return false;
-    const destino=String(tk._consolidadoEm||'').trim();
-    if(destino&&destino!==k&&base[destino]) return false;
-    return !origens.has(k);
+    return !!tk&&typeof tk==='object'&&String(tk.tipo||'').trim().toLowerCase()!=='venda'&&!consolidadas.has(k);
   }).map(function(k){ return base[k]; });
 }
 function getEntradasMaterial(mat){
@@ -13884,6 +13917,8 @@ function chqInit(){
     _chqCarregado=true;
     var p=document.getElementById('tab-cheques_compensar');
     if(p && p.classList.contains('active')){ try{ renderChequesCompensar(); }catch(e){ console.warn(e); } }
+    var painel=document.getElementById('tab-dashboard');
+    if(painel && painel.classList.contains('active')){ try{ renderDashboard(); }catch(e){ console.warn(e); } }
   });
 }
 
@@ -17947,7 +17982,7 @@ function initDespesas(){
             entries.push({ data:sdData, tipo:sdTicket?'credito_fornecedor':'saldo_devedor_pendente', sinal:1, raw:{valor:sdValor, data:sdData, ticket:sdTicket} });
           }
         }
-        Object.values(TICKETS_DB).filter(function(tk){ return tk.fornecedorCod===cod||_ticketDoForn(tk,forn,forn.nome); }).forEach(function(tk){
+        _ticketsDeCompra().filter(function(tk){ return tk.fornecedorCod===cod||_ticketDoForn(tk,forn,forn.nome); }).forEach(function(tk){
           entries.push({ data:tk.data, tipo:'compra', sinal:-1, status:tk.status, raw:tk });
           if(Number(tk.saldoAnterior||0)>0){
             entries.push({ data:tk.data, tipo:'saldo_anterior', sinal:1, raw:{valor:tk.saldoAnterior, ticket:tk.ticket} });
