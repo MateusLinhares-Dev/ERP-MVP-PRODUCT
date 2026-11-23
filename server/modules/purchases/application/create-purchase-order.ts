@@ -284,6 +284,8 @@ export async function createPurchaseOrder(
     const sourceTickets: Record<string, PurchaseTicket> = {};
     sources.forEach((sourceId, index) => {
       const row = sourceSnaps[index]?.val() as PurchaseTicket | null;
+      if (row && String(row.tipo || '') === 'venda')
+        fail(409, 'SOURCE_IS_SALE', 'Esta pesagem é de venda e não pode virar notinha de compra.');
       if (
         !row ||
         String(row.fornecedorCod || row.fornCod || '') !== code ||

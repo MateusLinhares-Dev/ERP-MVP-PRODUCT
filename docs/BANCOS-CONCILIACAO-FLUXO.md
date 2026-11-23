@@ -221,6 +221,23 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Revisão: pesagem de venda na lista de compra; varredura de telas (24/11/2026, v273)
+
+**Varredura de telas:** no navegador simulado, com compra, venda, adiantamento, cheque e lançamento de banco de exemplo, abri as 44 abas e as 13 janelas de lançamento. Fiz isso como administradora e como secretária, com menos permissões. Não apareceu nenhum erro de JavaScript.
+
+**Pesagem de venda podia virar notinha de compra.** A pesagem de venda (`tipo: 'venda'`) fica "Aguard. Preço" e finalizada, como a de compra. As listas de pesagens para lançar compra filtravam só por situação:
+- Compra de Sucata → Pesagens (`csRenderPesagens`);
+- lista por fornecedor;
+- fila do pedido de compra;
+- `RoadWeighingDomain.isReadyForPurchase`.
+
+No fluxo normal da rodoviária a marca `_rodEntrada` tirava a pesagem de venda dessas listas. Mas "Remover da fila" do Balanceiro limpa essa marca, e aí a pesagem de venda aparecia para virar compra. Correção:
+- as listas acima ignoram `tipo: 'venda'`;
+- abrir uma pesagem de venda como compra avisa que ela fecha em Vendas → Pesagens a fechar;
+- o servidor (`createPurchaseOrder`) recusa pesagem de venda como origem (`SOURCE_IS_SALE`).
+
+Testes: `test/stock-weighing-double-count.test.js` (servidor recusa pesagem de venda). Varredura de telas como administradora e como secretária, sem erros.
+
 ## Revisão: botão de excluir pesagem que nunca funcionava; clique duplo (24/11/2026, v272)
 
 Segunda varredura, agora por outros tipos de defeito.

@@ -21155,7 +21155,7 @@ function csExcluirPesagem(tid){
 function csRenderPesagens(){
   const el=document.getElementById('cs-pesagens-list'); if(!el) return;
   const pendentes=Object.entries(TICKETS_DB).filter(([k,t])=>
-    t._balFinalizado && t.status==='Aguard. Preço' && !t._balSessao && !t._rodEntrada
+    t._balFinalizado && t.status==='Aguard. Preço' && !t._balSessao && !t._rodEntrada && t.tipo!=='venda'
   );
   if(!pendentes.length){
     el.innerHTML='<div style="text-align:center;padding:48px;color:#aaa"><div style="font-size:2rem;margin-bottom:8px">✅</div>Nenhuma pesagem aguardando lançamento.</div>';
@@ -21231,7 +21231,7 @@ function csCarregarForn(forceName){
   const fornCod=fornObj?.cod||'';
   const tickets=Object.entries(TICKETS_DB).filter(([k,t])=>
     _ticketDoForn(t,fornObj,fornNome)&&
-    t._balFinalizado&&t.status==='Aguard. Preço'&&!t._balSessao&&!t._rodEntrada
+    t._balFinalizado&&t.status==='Aguard. Preço'&&!t._balSessao&&!t._rodEntrada&&t.tipo!=='venda'
   );
   if(!tickets.length){ body.innerHTML='<p style="color:#aaa;font-style:italic;text-align:center;padding:40px">Nenhuma pesagem pendente para '+esc(fornNome)+'.</p>'; return; }
   

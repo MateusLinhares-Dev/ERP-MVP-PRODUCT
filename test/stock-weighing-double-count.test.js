@@ -51,6 +51,14 @@ test('excluir a notinha fechada a partir de uma pesagem devolve a pesagem para "
   assert.equal((await read('erp/tickets/P100'))._consolidadoEm, 'T501', 'a pesagem liberada pode virar notinha de novo');
 });
 
+test('pesagem de venda não vira notinha de compra (servidor recusa)', async () => {
+  srv.seed('erp/tickets/V900', { ticket: 'V900', tipo: 'venda', cliente: 'JOSE', fornecedorCod: 'F001', status: 'Aguard. Preço', _balFinalizado: true, itens: [{ mat: 'FERRO', pesoLiq: 10 }] });
+  await assert.rejects(createPurchaseOrder(identity, { operationId: randomUUID(), ticketNo: 'T901', fornecedorCod: 'F001', advanceCodes: [], chequeIds: [], useLegacyCredit: false, sourceTicketKeys: ['V900'],
+    ticket: { ticket: 'T901', fornecedorCod: 'F001', fornecedor: 'CICLO', fornecedorNome: 'CICLO', itens: [{ mat: 'FERRO', pesoLiq: 10, quantidade: 10, preco: 1, total: 10 }], totalProdutos: 10, totalGeral: 10, descontoCompra: 0, freteCompra: 0, dataCompra: '2026-11-23', vencimentoSaldo: '2026-11-23', status: 'Pendente', _consolidado: true } }, { db }), { code: 'SOURCE_IS_SALE' });
+  assert.equal((await read('erp/tickets/V900')).status, 'Aguard. Preço');
+  assert.equal(await read('erp/tickets/T901'), null);
+});
+
 test('notinha antiga que só guarda a lista das pesagens também devolve as pesagens ao ser excluída', async () => {
   srv.seed('erp/tickets/P300', { ticket: 'P300', fornecedorCod: 'F001', status: 'Consolidado', _balFinalizado: false, itens: [{ mat: 'FERRO', pesoLiq: 300 }] });
   srv.seed('erp/tickets/P301', { ticket: 'P301', fornecedorCod: 'F001', status: 'Consolidado', _consolidadoEm: 'T999', itens: [{ mat: 'FERRO', pesoLiq: 30 }] });

@@ -179,7 +179,7 @@ function markReadyForPurchase(ticket,origin){
 }
 
 function isReadyForPurchase(ticket){
-  return Boolean(ticket&&ticket._balFinalizado&&ticket.status==='Aguard. Preço'&&!ticket._balSessao&&!ticket._rodEntrada);
+  return Boolean(ticket&&ticket._balFinalizado&&ticket.status==='Aguard. Preço'&&!ticket._balSessao&&!ticket._rodEntrada&&ticket.tipo!=='venda');
 }
 
 global.RoadWeighingDomain=Object.freeze({
