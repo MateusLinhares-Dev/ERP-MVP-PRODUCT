@@ -2377,6 +2377,33 @@ function printAppliedAdvances(key,ticket,advance){
   }
   return rows;
 }
+function printCarriedCutoff(key,ticket){
+  const supplier=String(ticket.fornecedorCod||ticket.fornCod||'').trim();
+  const number=String(ticket.ticket||key||'').trim();
+  const day=isoDay(ticket.dataCompra||ticket.pedidoCompra?.dataCompra||ticket.data);
+  if(!supplier||!day)return '';
+  let cut='';
+  const consider=function(value){const d=isoDay(value);if(d&&d<=day&&d>cut)cut=d;};
+  const all=tickets();
+  Object.keys(all).forEach(function(k){
+    const t=all[k];
+    const no=String(t&&t.ticket||k).trim();
+    if(!t||k===key||no===number||String(t.tipo||'').toLowerCase()==='venda')return;
+    if(String(t.fornecedorCod||t.fornCod||'').trim()!==supplier)return;
+    const tDay=isoDay(t.dataCompra||t.pedidoCompra?.dataCompra||t.data);
+    if(!tDay||tDay>day||(tDay===day&&no.localeCompare(number,'pt-BR',{numeric:true})>=0))return;
+    const snap=t.reciboFinanceiro||{};
+    const usedAtClose=Number(t.adiantamento||0)>0.005||[].concat(snap.adiantamentos||[],snap.cheques||[]).some(function(a){return a&&Number(a.valorAplicado||0)>0.005;});
+    if(usedAtClose)consider(tDay);
+    try{
+      (CONTAS_PAGAR||[]).forEach(function(cp){
+        if(!cp||String(cp.ticket||'').trim()!==no)return;
+        (Array.isArray(cp.pagamentos)?cp.pagamentos:[]).forEach(function(p){if(p&&Number(p.adt||0)>0.005)consider(p.data);});
+      });
+    }catch(e){}
+  });
+  return cut;
+}
 function printPaymentSnapshot(key,ticket,total){
   const safe=function(value){const n=Number(value);return Number.isFinite(n)?Math.max(0,n):0;};
   const ticketNo=String(ticket.ticket||key||'').trim();
@@ -2475,18 +2502,31 @@ function printHtml(key,ticket){
     (discount>0?totalRow('Desconto','- R$ '+money(discount)):'')+
     (freight>0?totalRow('Frete','R$ '+money(freight)):'')+
     totalRow('Total do pedido','R$ '+money(total),'grand');
-  const advanceRows=printAppliedAdvances(key,ticket,advance);
+  const allAdvanceRows=printAppliedAdvances(key,ticket,advance);
+  const carriedCut=printCarriedCutoff(key,ticket);
+  const isCarried=function(row){
+    if(row.kind!=='Adiantamento')return false;
+    if((row.usedBeforeCents||0)>0)return true;
+    if(/cr[eé]dito|saldo/i.test(row.method||''))return true;
+    const d=isoDay(row.date);
+    return Boolean(carriedCut&&d&&d<=carriedCut);
+  };
+  const carriedRows=allAdvanceRows.filter(isCarried);
+  const carried=carriedRows.reduce(function(sum,row){return sum+Math.round(Number(row.amount||0)*100);},0)/100;
+  const advanceRows=allAdvanceRows.filter(function(row){return !isCarried(row);});
   const knownAdvances=advanceRows.filter(function(row){return row.original!=null&&row.kind!=='Outros abatimentos aplicados';});
   const advanceOriginal=knownAdvances.reduce(function(sum,row){return sum+Math.round(Number(row.original||0)*100);},0)/100;
   const usedBefore=knownAdvances.length&&knownAdvances.every(function(row){return row.usedBeforeCents!=null;})
     ?knownAdvances.reduce(function(sum,row){return sum+row.usedBeforeCents;},0)/100:0;
   const originalLabel=knownAdvances.some(function(row){return row.kind==='Cheque';})
-    ?'Valor total dos adiantamentos e cheques usados'
-    :knownAdvances.length>1?'Valor total dos adiantamentos usados':'Valor total do adiantamento';
+    ?(carried>0?'Valor total dos adiantamentos e cheques novos':'Valor total dos adiantamentos e cheques usados')
+    :knownAdvances.length>1?(carried>0?'Valor total dos adiantamentos novos':'Valor total dos adiantamentos usados')
+    :(carried>0?'Valor total do adiantamento novo':'Valor total do adiantamento');
   const paymentSummary='<section class="print-section payment-summary"><h2>Situação financeira do pedido</h2>'+
     '<table class="payment-totals"><tbody>'+
     '<tr><th>Total do pedido</th><td>R$ '+money(total)+'</td></tr>'+
     (finance.priorDebt>0?'<tr><th>Saldo anterior incorporado</th><td>R$ '+money(finance.priorDebt)+'</td></tr>':'')+
+    (carried>0?'<tr class="advance-carried"><th>Saldo devedor anterior descontado</th><td>R$ '+money(carried)+'</td></tr>':'')+
     (advance>0&&knownAdvances.length?'<tr class="advance-original"><th>'+originalLabel+'</th><td>R$ '+money(advanceOriginal)+'</td></tr>':'')+
     (usedBefore>0.005?'<tr><th>Já usado em compras anteriores</th><td>R$ '+money(usedBefore)+'</td></tr>':'')+
     '<tr><th>Adiantamentos / abatimentos no fechamento</th><td>R$ '+money(advance)+'</td></tr>'+
@@ -2499,6 +2539,7 @@ function printHtml(key,ticket){
     ?'<section class="print-section applied-advances"><h2>Adiantamentos e abatimentos desta compra</h2>'+
       '<table class="installments"><colgroup><col class="col-date"><col class="col-origin"><col class="col-form"><col class="col-money"><col class="col-money"></colgroup>'+
       '<thead><tr><th>Data</th><th>Origem</th><th>Forma</th><th>Valor total do adiantamento</th><th>Valor aplicado</th></tr></thead><tbody>'+
+      (carried>0?'<tr><td>—</td><td>Saldo devedor anterior</td><td>Sobra das compras anteriores</td><td class="numeric">—</td><td class="numeric">R$ '+money(carried)+'</td></tr>':'')+
       advanceRows.map(function(row){return '<tr><td>'+esc(row.date?dateBR(row.date):'—')+'</td>'+
         '<td>'+esc(row.kind)+'</td><td>'+esc(printPaymentForm(row))+'</td>'+
         '<td class="numeric">'+(row.original==null?'—':'R$ '+money(row.original))+'</td>'+
