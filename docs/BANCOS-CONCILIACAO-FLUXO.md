@@ -221,6 +221,17 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Notinha lista os adiantamentos usados depois do fechamento (23/11/2026, v265)
+
+Caso André Felipe de Lima (T787, R$ 45.993,05). Ela lançou a notinha sem adiantamento e depois usou "Usar adiantamento nesta compra" com R$ 15.000,04 e R$ 10.000,00. A impressão mostrava só "Pagamentos registrados após o pedido: 23/11 Compensação de adiantamento R$ 25.000,04". Na do Ismael, em que os adiantamentos foram usados no fechamento, a tabela "Adiantamentos e abatimentos desta compra" mostrava cada um. A cliente esperava a mesma coisa.
+
+Correção (purchase-order.js):
+- O pagamento de Contas a Pagar guarda `adtUsos` (cada adiantamento e o valor usado). `printLaterAdvanceRows` lê esses dados das contas da notinha. Cada adiantamento entra na mesma tabela, com data, forma e valor total do adiantamento, e com "Adiantamento (usado em dd/mm/aaaa)" na origem. O rodapé vira "Total de adiantamentos abatidos (depois do fechamento)" ou "(no fechamento e depois)".
+- A regra da v263 vale também aqui. Vira "Saldo devedor anterior" o adiantamento que já tinha sido usado em outra compra até a data da compensação (`printAdvanceUsedElsewhere`: recibo de fechamento de outra notinha ou `adtUsos` de outra conta). Também vira o que é anterior à última notinha que usou adiantamento. O resto é adiantamento novo, com o valor total.
+- A compensação detalhada não se repete em "Pagamentos registrados após o pedido". Nessa lista fica só a parte paga em dinheiro. Pagamentos antigos sem `adtUsos` continuam como antes.
+
+Testes: `test/purchase-order-print.test.js`, com o caso André e o caso T715 compensado depois, com sobra da T259, adiantamento novo e pagamento em dinheiro.
+
 ## Editar a notinha depois de uma compensação: "alterado em outra sessão" (23/11/2026, v264)
 
 Caso T787. A cliente abriu a edição, clicou "Usar adiantamento nesta compra" (R$ 25.000,04), digitou nas observações "descontado adiantamento de 15.000,04 / 10.000,00" e clicou em Salvar. Apareceu "O pedido foi alterado em outra sessão. Reabra o histórico antes de editar." A tela ainda mostrava "Saldo a pagar R$ 45.993,05", mesmo com a compensação listada.

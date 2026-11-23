@@ -313,3 +313,44 @@ test('notinha: toda tabela tem uma largura para cada coluna e as larguras somam 
   assert.equal(sum(['.installments col.col-date', '.payment-history col.col-operation', '.installments col.col-money']), 100);
   assert.doesNotMatch(html, /installments th:nth-child|th:first-child\{width|th:last-child\{width/);
 });
+
+test('notinha do André: adiantamentos usados depois do fechamento aparecem separados na tabela, como no fechamento',()=>{
+  const ticket={...base,ticket:'T787',dataCompra:'2026-11-20',totalProdutos:45993.05,totalGeral:45993.05,adiantamento:0,saldoPagar:20993.01,status:'Parcial'};
+  const payables=[{id:'CPPO_T787',ticket:'T787',fornCod:'F1',status:'Pendente',valor:20993.01,
+    pagamentos:[{data:'23/11/2026',valor:0,adt:25000.04,adtUsos:[{cod:'A15',valor:15000.04},{cod:'A10',valor:10000}]}]}];
+  const advances={F1:[
+    {cod:'A15',data:'18/11/2026',forma:'PIX',valor:15000.04,valorOriginal:15000.04,valorCompensado:15000.04,status:'Quitado',ticket:'T787'},
+    {cod:'A10',data:'19/11/2026',forma:'PIX',valor:10000,valorOriginal:10000,valorCompensado:10000,status:'Quitado',ticket:'T787'}]};
+  const {html}=makePrint(ticket,payables,advances);
+  const rows=summaryRows(html);
+  assert.deepEqual(rows.slice(0,4),[['Total do pedido','R$ 45.993,05'],['Valor total dos adiantamentos usados','R$ 25.000,04'],['Adiantamentos / abatimentos no fechamento','R$ 0,00'],['Pagamentos e abatimentos posteriores','R$ 25.000,04']]);
+  assert.deepEqual(rows.at(-1),['Saldo a pagar','R$ 20.993,01']);
+  assert.deepEqual(appliedAdvanceRows(html),[
+    ['18/11/2026','Adiantamento (usado em 23/11/2026)','PIX','R$ 15.000,04','R$ 15.000,04'],
+    ['19/11/2026','Adiantamento (usado em 23/11/2026)','PIX','R$ 10.000,00','R$ 10.000,00']]);
+  assert.match(html,/Total de adiantamentos abatidos \(depois do fechamento\)<\/th><td class="numeric">R\$ 25\.000,04/);
+  assert.doesNotMatch(html,/Pagamentos registrados após o pedido/,'a compensação não aparece de novo como pagamento');
+});
+
+test('compensação depois do fechamento: sobra de adiantamento já usado em outra compra vira saldo devedor anterior; pagamento em dinheiro continua na lista de pagamentos',()=>{
+  const previous={ticket:'T259',fornecedorCod:'F1',dataCompra:'2026-11-17',totalGeral:29963.40,adiantamento:0,saldoPagar:0};
+  const ticket={...base,ticket:'T715',dataCompra:'2026-11-19',totalProdutos:103573.25,totalGeral:103573.25,adiantamento:0,saldoPagar:0,status:'Pago'};
+  const payables=[
+    {id:'CPPO_T259',ticket:'T259',fornCod:'F1',status:'Pago',valor:0,pagamentos:[{data:'23/11/2026',valor:0,adt:29963.40,adtUsos:[{cod:'A17',valor:29963.40,parcial:'S1'}]}]},
+    {id:'CPPO_T715',ticket:'T715',fornCod:'F1',status:'Pago',valor:0,pagamentos:[
+      {data:'23/11/2026',valor:0,adt:102027.40,adtUsos:[{cod:'A17',valor:70027.40},{cod:'A19',valor:32000}]},
+      {data:'24/11/2026',valor:1545.85,adt:0,banco:'Sicredi'}]}];
+  const advances={F1:[
+    {cod:'A17',data:'17/11/2026',forma:'PIX',valor:70027.40,valorOriginal:99990.80,status:'Quitado',ticket:'T715'},
+    {cod:'A19',data:'19/11/2026',forma:'PIX',valor:32000,valorOriginal:32000,status:'Quitado',ticket:'T715'},
+    {cod:'S1',data:'23/11/2026',forma:'PIX',valor:29963.40,status:'Quitado',ticket:'T259',origem:'compensacao_cp',adiantamentoOrigem:'A17'}]};
+  const {html}=makePrint(ticket,payables,advances,{}, {T259:previous});
+  const rows=summaryRows(html);
+  assert.deepEqual(rows.slice(1,3),[['Saldo devedor anterior descontado','R$ 70.027,40'],['Valor total do adiantamento novo','R$ 32.000,00']]);
+  assert.deepEqual(appliedAdvanceRows(html),[
+    ['—','Saldo devedor anterior','Sobra das compras anteriores','—','R$ 70.027,40'],
+    ['19/11/2026','Adiantamento (usado em 23/11/2026)','PIX','R$ 32.000,00','R$ 32.000,00']]);
+  const history=/<section class="print-section payment-history">([\s\S]*?)<\/section>/.exec(html)?.[1]||'';
+  assert.match(history,/24\/11\/2026<\/td><td>Pagamento<\/td><td class="numeric">R\$ 1\.545,85/);
+  assert.doesNotMatch(history,/Compensação de adiantamento/);
+});

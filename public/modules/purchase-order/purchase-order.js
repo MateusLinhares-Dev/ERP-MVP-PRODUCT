@@ -2442,6 +2442,59 @@ function printAppliedAdvances(key,ticket,advance){
   }
   return rows;
 }
+function printAdvanceUsesDetailed(payment){
+  if(!payment||!Array.isArray(payment.adtUsos)||!payment.adtUsos.length)return false;
+  const used=payment.adtUsos.reduce(function(sum,use){return sum+Math.round(Number(use&&use.valor||0)*100);},0);
+  return used>0&&Math.abs(used-Math.round(Number(payment.adt||0)*100))<=1;
+}
+function printAdvanceUsedElsewhere(code,ticketNo,day){
+  if(!code)return false;
+  const all=tickets();
+  for(const k of Object.keys(all)){
+    const t=all[k];
+    const no=String(t&&t.ticket||k).trim();
+    if(!t||no===ticketNo)continue;
+    const tDay=isoDay(t.dataCompra||t.pedidoCompra?.dataCompra||t.data);
+    if(day&&tDay&&tDay>day)continue;
+    if((t.reciboFinanceiro?.adiantamentos||[]).some(function(a){return a&&String(a.cod||'')===code&&Number(a.valorAplicado||0)>0.005;}))return true;
+  }
+  try{
+    for(const cp of (CONTAS_PAGAR||[])){
+      if(!cp||String(cp.ticket||'').trim()===ticketNo)continue;
+      for(const p of (Array.isArray(cp.pagamentos)?cp.pagamentos:[])){
+        if(!p||!Array.isArray(p.adtUsos))continue;
+        const pDay=isoDay(p.data);
+        if(day&&pDay&&pDay>day)continue;
+        if(p.adtUsos.some(function(use){return use&&String(use.cod||'')===code;}))return true;
+      }
+    }
+  }catch(e){}
+  return false;
+}
+function printLaterAdvanceRows(key,ticket){
+  const ticketNo=String(ticket.ticket||key||'').trim();
+  const supplier=String(ticket.fornecedorCod||ticket.fornCod||'').trim();
+  let ledger=[],linked=[];
+  try{ledger=(ADT_POR_FORN[supplier]||[]).filter(Boolean);}catch(e){}
+  try{linked=(CONTAS_PAGAR||[]).filter(function(cp){return cp&&String(cp.ticket||'').trim()===ticketNo;});}catch(e){}
+  const rows=[];
+  linked.forEach(function(cp){
+    (Array.isArray(cp.pagamentos)?cp.pagamentos:[]).forEach(function(payment){
+      if(!printAdvanceUsesDetailed(payment))return;
+      payment.adtUsos.forEach(function(use){
+        const cents=Math.round(Number(use&&use.valor||0)*100);
+        if(!(cents>0))return;
+        const code=String(use.cod||'');
+        const record=ledger.find(function(a){return String(a.cod||'')===code&&a.origem!=='compensacao_cp';})||{};
+        const original=Math.max(Number(record.valorOriginal||0),Number(record.valor||0),cents/100);
+        rows.push({kind:'Adiantamento',ref:code,date:String(record.data||''),method:String(record.forma||''),
+          amount:cents/100,original:original,later:true,usedOn:String(payment.data||''),
+          usedElsewhere:printAdvanceUsedElsewhere(code,ticketNo,isoDay(payment.data))});
+      });
+    });
+  });
+  return rows;
+}
 function printCarriedCutoff(key,ticket){
   const supplier=String(ticket.fornecedorCod||ticket.fornCod||'').trim();
   const number=String(ticket.ticket||key||'').trim();
@@ -2489,6 +2542,11 @@ function printPaymentSnapshot(key,ticket,total){
       if(!payment)continue;
       const cash=safe(payment.valor),applied=safe(payment.adt);
       if(cash+applied<=0)continue;
+      if(printAdvanceUsesDetailed(payment)){
+        if(cash>0)payments.push({date:String(payment.data||''),amount:cash,description:'Pagamento',
+          details:String(payment.formaPagamento||payment.forma||payment.metodoPagamento||'').trim()});
+        continue;
+      }
       payments.push({date:String(payment.data||''),amount:cash+applied,
         description:applied>0&&cash>0?'Pagamento e adiantamento':(applied>0?'Compensação de adiantamento':'Pagamento'),
         details:String(payment.formaPagamento||payment.forma||payment.metodoPagamento||'').trim()});
@@ -2567,11 +2625,12 @@ function printHtml(key,ticket){
     (discount>0?totalRow('Desconto','- R$ '+money(discount)):'')+
     (freight>0?totalRow('Frete','R$ '+money(freight)):'')+
     totalRow('Total do pedido','R$ '+money(total),'grand');
-  const allAdvanceRows=printAppliedAdvances(key,ticket,advance);
+  const laterAdvanceRows=printLaterAdvanceRows(key,ticket);
+  const allAdvanceRows=printAppliedAdvances(key,ticket,advance).concat(laterAdvanceRows);
   const carriedCut=printCarriedCutoff(key,ticket);
   const isCarried=function(row){
     if(row.kind!=='Adiantamento')return false;
-    if((row.usedBeforeCents||0)>0)return true;
+    if(row.usedElsewhere||(row.usedBeforeCents||0)>0)return true;
     if(/cr[eé]dito|saldo/i.test(row.method||''))return true;
     const d=isoDay(row.date);
     return Boolean(carriedCut&&d&&d<=carriedCut);
@@ -2592,7 +2651,7 @@ function printHtml(key,ticket){
     '<tr><th>Total do pedido</th><td>R$ '+money(total)+'</td></tr>'+
     (finance.priorDebt>0?'<tr><th>Saldo anterior incorporado</th><td>R$ '+money(finance.priorDebt)+'</td></tr>':'')+
     (carried>0?'<tr class="advance-carried"><th>Saldo devedor anterior descontado</th><td>R$ '+money(carried)+'</td></tr>':'')+
-    (advance>0&&knownAdvances.length?'<tr class="advance-original"><th>'+originalLabel+'</th><td>R$ '+money(advanceOriginal)+'</td></tr>':'')+
+    (knownAdvances.length?'<tr class="advance-original"><th>'+originalLabel+'</th><td>R$ '+money(advanceOriginal)+'</td></tr>':'')+
     (usedBefore>0.005?'<tr><th>Já usado em compras anteriores</th><td>R$ '+money(usedBefore)+'</td></tr>':'')+
     '<tr><th>Adiantamentos / abatimentos no fechamento</th><td>R$ '+money(advance)+'</td></tr>'+
     '<tr><th>Pagamentos e abatimentos posteriores</th><td>R$ '+money(finance.sincePurchase)+'</td></tr>'+
@@ -2600,16 +2659,19 @@ function printHtml(key,ticket){
     '<tr class="due"><th>Saldo a pagar</th><td>R$ '+money(balance)+'</td></tr>'+ 
     (supplierCredit>0?'<tr class="supplier-credit"><th>Saldo devedor do fornecedor (adiantamento não utilizado, disponível para próximas compras)</th><td>R$ '+money(supplierCredit)+'</td></tr>':'')+
     '</tbody></table></section>';
-  const advanceDetails=advance>0
+  const advanceRowsTotal=Math.round(allAdvanceRows.reduce(function(sum,row){return sum+Math.round(Number(row.amount||0)*100);},0))/100;
+  const advanceDetails=advance>0||laterAdvanceRows.length
     ?'<section class="print-section applied-advances"><h2>Adiantamentos e abatimentos desta compra</h2>'+
       '<table class="installments"><colgroup><col class="col-date"><col class="col-origin"><col class="col-form"><col class="col-money"><col class="col-money"></colgroup>'+
       '<thead><tr><th>Data</th><th>Origem</th><th>Forma</th><th>Valor total do adiantamento</th><th>Valor aplicado</th></tr></thead><tbody>'+
       (carried>0?'<tr><td>—</td><td>Saldo devedor anterior</td><td>Sobra das compras anteriores</td><td class="numeric">—</td><td class="numeric">R$ '+money(carried)+'</td></tr>':'')+
       advanceRows.map(function(row){return '<tr><td>'+esc(row.date?dateBR(row.date):'—')+'</td>'+
-        '<td>'+esc(row.kind)+'</td><td>'+esc(printPaymentForm(row))+'</td>'+
+        '<td>'+esc(row.kind)+(row.later&&row.usedOn?' (usado em '+esc(dateBR(row.usedOn))+')':'')+'</td><td>'+esc(printPaymentForm(row))+'</td>'+
         '<td class="numeric">'+(row.original==null?'—':'R$ '+money(row.original))+'</td>'+
         '<td class="numeric">R$ '+money(row.amount)+'</td></tr>';}).join('')+
-      '<tr class="advance-total"><th colspan="4">Total abatido no fechamento</th><td class="numeric">R$ '+money(advance)+'</td></tr>'+
+      (laterAdvanceRows.length
+        ?'<tr class="advance-total"><th colspan="4">Total de adiantamentos abatidos'+(advance>0?' (no fechamento e depois)':' (depois do fechamento)')+'</th><td class="numeric">R$ '+money(advanceRowsTotal)+'</td></tr>'
+        :'<tr class="advance-total"><th colspan="4">Total abatido no fechamento</th><td class="numeric">R$ '+money(advance)+'</td></tr>')+
       '</tbody></table></section>':'';
   const laterPayments=finance.payments.length
     ?'<section class="print-section payment-history"><h2>Pagamentos registrados após o pedido</h2><table class="installments"><colgroup><col class="col-date"><col class="col-operation"><col class="col-money"></colgroup>'+
