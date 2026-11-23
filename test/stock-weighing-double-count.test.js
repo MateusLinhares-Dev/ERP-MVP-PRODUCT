@@ -100,3 +100,12 @@ test('compras do mês, extrato e ficha do fornecedor contam só notinhas: sem pe
   runInNewContext(code + ';this.compras=_ticketsDeCompra().map(function(t){return t.ticket;}).sort().join(",");', ctx);
   assert.equal(ctx.compras, 'T461,T500,T600');
 });
+
+test('material digitado em minúsculas ("latinha") não vira um segundo material: a lista fica com LATINHA', () => {
+  const start = core.indexOf('function _metaisSemVariantes(lista){');
+  const code = core.slice(start, core.indexOf('\n}\n', start) + 3);
+  const ctx = {};
+  runInNewContext(code + ';this.clean=_metaisSemVariantes;', ctx);
+  assert.equal(JSON.stringify(ctx.clean(['FERRO', 'latinha', 'LATINHA', 'Cobre  Mel', 'COBRE MEL', ''])), '["FERRO","LATINHA","COBRE MEL"]');
+  assert.equal(JSON.stringify(ctx.clean(['latinha', 'Latinha'])), '["latinha"]');
+});

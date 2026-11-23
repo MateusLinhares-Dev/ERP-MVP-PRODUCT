@@ -221,6 +221,30 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Saldo devedor anterior com o valor de antes; material repetido "latinha" (23/11/2026, v266)
+
+**Notinha (T750).** A cliente descontou R$ 69.519,42 de uma sobra de adiantamento de R$ 131.977,80. Era o adiantamento de R$ 150.093,96, já usado em R$ 18.116,16 na T353. A impressão mostrava a linha "Saldo devedor anterior" com "—" no valor total e só os R$ 69.519,42 abatidos. Os R$ 131.977,80 não apareciam em lugar nenhum. Esse "—" foi decisão minha na v263, e escondia a informação. Agora:
+- o resumo mostra "Saldo devedor anterior R$ 131.977,80" e "Saldo devedor anterior descontado nesta compra R$ 69.519,42". Quando a sobra é usada inteira, continua a linha única "Saldo devedor anterior descontado";
+- a tabela mostra os R$ 131.977,80 na coluna de valor total.
+
+O valor de antes vem do recibo de fechamento (aplicado + pendente). Para uso depois do fechamento, é o valor original do adiantamento menos o usado em outras compras até a data (`printAdvanceUsedElsewhereAmount`).
+
+**Estoque: "LATINHA" e "latinha".** Uma venda com o item digitado "latinha" fez o sistema criar um segundo material. A recuperação de materiais com movimento (`_recuperarMateriaisComMovimento`) e `_garantirMetalCadastrado` comparavam o nome diferenciando maiúsculas de minúsculas. O cálculo do estoque não diferencia, então as duas linhas contavam a mesma entrada (38.173,7 kg) e o total ficava inflado. Excluir "latinha" era recusado e, se fosse liberado, apagaria também "LATINHA", porque a marca de exclusão não diferencia maiúsculas de minúsculas. Correção:
+- os dois pontos acima não criam mais variante de maiúsculas e minúsculas;
+- `_metaisSemVariantes` limpa a lista ao carregar, ao mesclar com a nuvem e em `_dedupeMetais`, mantendo a versão em maiúsculas;
+- a tabela do estoque mostra uma linha por material e soma os ajustes manuais (inicial e saídas) das variantes antigas.
+
+A mensagem de exclusão falava em "solicite sua inativação", opção que não existe. Agora diz que o material tem entradas ou saídas e não pode ser excluído.
+
+**Não é defeito (é o jeito de usar):** "Usar adiantamento nesta compra" reabre o pedido e descarta o que não foi salvo. A confirmação avisa. O caminho é salvar primeiro e depois usar o adiantamento. Para corrigir uma notinha já compensada:
+- se a correção não deixa o total abaixo do que foi compensado, basta editar e salvar;
+- se deixa, clicar **Desfazer** no quadro amarelo (o que foi digitado fica), salvar, e o sistema pergunta se quer usar o adiantamento de novo.
+
+Testes:
+- `test/purchase-order-print.test.js` (caso T750);
+- `test/stock-weighing-double-count.test.js` (variantes);
+- teste de tela do estoque com LATINHA/latinha (4/4) e os de estoque anteriores.
+
 ## Notinha lista os adiantamentos usados depois do fechamento (23/11/2026, v265)
 
 Caso André Felipe de Lima (T787, R$ 45.993,05). Ela lançou a notinha sem adiantamento e depois usou "Usar adiantamento nesta compra" com R$ 15.000,04 e R$ 10.000,00. A impressão mostrava só "Pagamentos registrados após o pedido: 23/11 Compensação de adiantamento R$ 25.000,04". Na do Ismael, em que os adiantamentos foram usados no fechamento, a tabela "Adiantamentos e abatimentos desta compra" mostrava cada um. A cliente esperava a mesma coisa.
