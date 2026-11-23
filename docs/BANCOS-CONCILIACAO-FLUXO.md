@@ -221,6 +221,26 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Revisão: botão de excluir pesagem que nunca funcionava; clique duplo (24/11/2026, v272)
+
+Segunda varredura, agora por outros tipos de defeito.
+
+Corrigidos:
+- **Balanceiro → Histórico → excluir pesagem:** o botão pedia a senha da administradora e sempre terminava em "Confirmação administrativa segura indisponível" (a confirmação por senha no navegador tinha sido desligada por segurança). Era um beco sem saída. Agora `balExcluirTicket`:
+  - exclui de verdade a pesagem solta (aguardando preço ou de saída), com confirmação;
+  - se a pesagem já virou notinha, explica que é preciso excluir a notinha primeiro (a pesagem volta para "Aguardando preço");
+  - se a pesagem está numa venda, manda excluir a venda primeiro;
+  - se o ticket é uma notinha, manda usar o Histórico de compras.
+- **Clique duplo:** as funções que gravam pelo servidor no sistema antigo (fornecedores, clientes, contas a receber, créditos de cliente, cheques de fornecedor, contas a pagar, saldo de fornecedor, bancos, vendas) geravam uma operação nova a cada clique. Dois cliques rápidos podiam gravar duas vezes. O adiantamento de cliente, por exemplo, não travava o botão. Agora passam por `_pedidoUnico`: enquanto um pedido está em andamento, outro igual (mesmo conteúdo, qualquer `operationId`) recebe a mesma resposta. Pedidos diferentes, ou o mesmo pedido depois que o primeiro terminou ou falhou, seguem normalmente.
+
+Visto e sem defeito:
+- data de "hoje" (`_hojeISO` usa o horário local, sem pular para o dia seguinte depois das 21h);
+- ordenação por data das despesas, viagens, combustível, tanque, EPI e manutenção (a data fica em aaaa-mm-dd);
+- campos de dinheiro do sistema antigo (são numéricos ou usam leitor próprio de vírgula);
+- adiantamento de fornecedor (já travava o botão).
+
+Testes: `test/request-coalescing.test.js`. Testes de tela: exclusão no Balanceiro (5/5) e clique duplo (4/4).
+
 ## Renomear material: o nome antigo voltava com os quilos (24/11/2026, v271)
 
 A cliente renomeou MEDALHA para GRANA GROSSA (Estoque → Editar → Nome do material). Depois do F5, "sumiu a grana grossa e voltou a medalha": GRANA GROSSA ficou com 0 kg e MEDALHA voltou com os quilos.
