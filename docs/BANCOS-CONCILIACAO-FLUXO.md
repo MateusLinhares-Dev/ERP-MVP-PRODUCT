@@ -221,6 +221,19 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Notinha mostra a sobra das compras anteriores como "saldo devedor anterior" (23/11/2026, v263)
+
+Caso Ismael. Na primeira notinha (R$ 17.380,06), a cliente abateu o saldo devedor de R$ 15.377,15 e os adiantamentos de R$ 7.775,07 e R$ 5.000,00. Ela escreveu nas observações "ficando saldo devedor de 10.772,16". Na notinha seguinte (R$ 15.754,90), a impressão mostrava os dois adiantamentos separados: R$ 7.775,07 com R$ 5.772,16 aplicados, R$ 5.000,00 aplicados, mais as linhas "Valor total dos adiantamentos usados R$ 12.775,07" e "Já usado em compras anteriores R$ 2.002,91". Ela esperava só "saldo devedor R$ 10.772,16". Para ela, o que sobra depois de uma notinha vira saldo devedor do fornecedor, e na notinha seguinte é isso que se desconta.
+
+Regra da impressão (`printHtml` / `printCarriedCutoff` em purchase-order.js). Um adiantamento aplicado no fechamento é **sobra de compra anterior** quando:
+- já tinha sido usado em parte antes (`valorOriginal − valorAplicado − valorPendente > 0`); ou
+- a forma é crédito/saldo; ou
+- a data dele é até o último dia em que uma notinha anterior do mesmo fornecedor usou adiantamento, no fechamento ou depois, pelo Contas a Pagar. Só contam usos até a data desta notinha. "Notinha anterior" quer dizer data menor, ou mesma data com número menor.
+
+A sobra aparece numa linha só, **"Saldo devedor anterior descontado"**, no resumo e na tabela ("Saldo devedor anterior · Sobra das compras anteriores"). Os adiantamentos novos (dados depois da notinha anterior) continuam com o valor total, como pedido na v253, agora com o nome "adiantamento novo" quando os dois aparecem juntos. Saiu a linha "Já usado em compras anteriores", que só existia para fechar a conta dos adiantamentos repartidos.
+
+Testes: `test/purchase-order-print.test.js` cobre o caso Ismael, o caso T715 (saldo anterior mais adiantamento novo) e a sobra de adiantamento usado em parte antes.
+
 ## Usar o adiantamento da compra mais antiga para a mais nova (23/11/2026, v262)
 
 Caso Sergio Spader. Havia duas notinhas, T259 (17/11, R$ 29.963,40) e T715 (19/11, R$ 103.573,25), e dois adiantamentos, de 17/11 (R$ 99.990,80) e de 19/11 (R$ 32.000,00). A cliente usou "Usar adiantamento nesta compra" na T715. O sistema pôs os R$ 99.990,80 inteiros e mais R$ 3.582,45 do de 19/11 na T715, e a T259, mais antiga, ficou em aberto. O saldo final estava certo (R$ 1.545,85), mas na compra errada. A cliente pensa como na Ficha: o adiantamento de 17/11 paga a T259, sobram R$ 70.027,40, e esses mais os R$ 32.000,00 vão para a T715, que fica com R$ 1.545,85. Ela desfez a compensação e não achou como fazer nessa ordem. A tela mostrava "Adiantamento livre R$ 131.990,80", e ela esperava R$ 102.027,40, porque a T259 ainda estava em aberto.

@@ -5,7 +5,7 @@ import test from 'node:test';
 
 const source=readFileSync(new URL('../public/modules/purchase-order/purchase-order.js',import.meta.url),'utf8');
 
-function makePrint(ticket,payables=[],advances={},cheques={}){
+function makePrint(ticket,payables=[],advances={},cheques={},others={}){
   let html='';
   const printedTicket=structuredClone(ticket);
   const context={
@@ -14,7 +14,7 @@ function makePrint(ticket,payables=[],advances={},cheques={}){
     clearTimeout(){},
     getFornAtivos(){return [];},
     FORNECEDORES:[{cod:'F1',nome:'Fornecedor de teste',cnpj:'12.345.678/0001-90'}],
-    TICKETS_DB:{TK01:printedTicket},
+    TICKETS_DB:{...structuredClone(others),TK01:printedTicket},
     CONTAS_PAGAR:structuredClone(payables),
     ADT_POR_FORN:structuredClone(advances),
     CHEQUES_POR_FORN:structuredClone(cheques),
@@ -244,12 +244,42 @@ test('notinha mostra o valor total do adiantamento, o abatido e o que sobrou (pe
   assert.deepEqual(rows.at(-1),['Saldo devedor do fornecedor (adiantamento não utilizado, disponível para próximas compras)','R$ 258,53']);
 });
 
-test('notinha: adiantamento já usado em parte numa compra anterior mostra quanto foi usado antes',()=>{
+test('notinha: sobra de adiantamento já usado numa compra anterior aparece só como saldo devedor anterior',()=>{
   const ticket={...base,totalProdutos:29000,totalGeral:29000,adiantamento:29000,saldoPagar:0,
     reciboFinanceiro:{versao:2,total:29000,adiantamentos:[{cod:'ADT-79K',data:'01/11/2026',forma:'PIX',valorOriginal:79949.50,valorAplicado:29000,valorPendente:949.50}]}};
   const advances={F1:[{cod:'ADT-79K',status:'Pendente',valor:949.50,valorOriginal:79949.50,valorCompensado:79000}]};
-  const rows=summaryRows(makePrint(ticket,[],advances).html);
-  assert.deepEqual(rows.slice(1,4),[['Valor total do adiantamento','R$ 79.949,50'],['Já usado em compras anteriores','R$ 50.000,00'],['Adiantamentos / abatimentos no fechamento','R$ 29.000,00']]);
+  const {html}=makePrint(ticket,[],advances);
+  const rows=summaryRows(html);
+  assert.deepEqual(rows.slice(1,3),[['Saldo devedor anterior descontado','R$ 29.000,00'],['Adiantamentos / abatimentos no fechamento','R$ 29.000,00']]);
+  assert.ok(!rows.some(([label])=>/Valor total|compras anteriores/.test(label)));
+  assert.deepEqual(appliedAdvanceRows(html),[['—','Saldo devedor anterior','Sobra das compras anteriores','—','R$ 29.000,00']]);
+});
+
+test('notinha do Ismael: tudo o que sobrou da notinha anterior aparece numa linha só de saldo devedor (R$ 10.772,16)',()=>{
+  const previous={ticket:'T800',fornecedorCod:'F1',dataCompra:'2026-11-19',totalGeral:17380.06,adiantamento:0,saldoPagar:0};
+  const payables=[{id:'CPPO_T800_1',ticket:'T800',fornCod:'F1',status:'Pago',valor:0,pagamentos:[{data:'2026-11-23',valor:0,adt:17380.06}]}];
+  const ticket={...base,ticket:'T801',dataCompra:'2026-11-23',totalProdutos:15754.90,totalGeral:15754.90,adiantamento:10772.16,saldoPagar:4982.74,
+    reciboFinanceiro:{versao:2,total:15754.90,adiantamentos:[
+      {cod:'A7',data:'19/11/2026',forma:'PIX',valorOriginal:7775.07,valorAplicado:5772.16,valorPendente:0},
+      {cod:'A5',data:'20/11/2026',forma:'PIX',valorOriginal:5000,valorAplicado:5000,valorPendente:0}]}};
+  const {html}=makePrint(ticket,payables,{},{}, {T800:previous});
+  const rows=summaryRows(html);
+  assert.deepEqual(rows.slice(0,3),[['Total do pedido','R$ 15.754,90'],['Saldo devedor anterior descontado','R$ 10.772,16'],['Adiantamentos / abatimentos no fechamento','R$ 10.772,16']]);
+  assert.ok(!rows.some(([label])=>/Valor total|compras anteriores/.test(label)));
+  assert.deepEqual(appliedAdvanceRows(html),[['—','Saldo devedor anterior','Sobra das compras anteriores','—','R$ 10.772,16']]);
+});
+
+test('notinha: saldo devedor anterior numa linha e adiantamento dado depois da notinha anterior com o valor total',()=>{
+  const previous={ticket:'T259',fornecedorCod:'F1',dataCompra:'2026-11-17',totalGeral:29963.40,adiantamento:0,saldoPagar:0};
+  const payables=[{id:'CPPO_T259_1',ticket:'T259',fornCod:'F1',status:'Pago',valor:0,pagamentos:[{data:'2026-11-23',valor:0,adt:29963.40}]}];
+  const ticket={...base,ticket:'T715',dataCompra:'2026-11-19',totalProdutos:103573.25,totalGeral:103573.25,adiantamento:102027.40,saldoPagar:1545.85,
+    reciboFinanceiro:{versao:2,total:103573.25,adiantamentos:[
+      {cod:'A17',data:'17/11/2026',forma:'PIX',valorOriginal:99990.80,valorAplicado:70027.40,valorPendente:0},
+      {cod:'A19',data:'19/11/2026',forma:'PIX',valorOriginal:32000,valorAplicado:32000,valorPendente:0}]}};
+  const {html}=makePrint(ticket,payables,{},{}, {T259:previous});
+  const rows=summaryRows(html);
+  assert.deepEqual(rows.slice(1,4),[['Saldo devedor anterior descontado','R$ 70.027,40'],['Valor total do adiantamento novo','R$ 32.000,00'],['Adiantamentos / abatimentos no fechamento','R$ 102.027,40']]);
+  assert.deepEqual(appliedAdvanceRows(html),[['—','Saldo devedor anterior','Sobra das compras anteriores','—','R$ 70.027,40'],['19/11/2026','Adiantamento','PIX','R$ 32.000,00','R$ 32.000,00']]);
 });
 
 test('notinha: dois adiantamentos e um cheque somam no valor total',()=>{
