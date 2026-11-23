@@ -411,11 +411,23 @@ export async function deletePurchaseOrder(
         'Existem vínculos financeiros nesta compra. Não é possível excluí-la sem estorno e conciliação.',
       );
     }
+    const allTickets: unknown = (await db.ref('erp/tickets').get()).val();
+    const releasedSources = Object.entries(
+      allTickets && typeof allTickets === 'object' ? (allTickets as Record<string, unknown>) : {},
+    ).filter(([key, row]) => {
+      if (key === ticketId || !row || typeof row !== 'object') return false;
+      const source = row as PurchaseTicket & { _consolidadoEm?: unknown };
+      return (
+        String(source._consolidadoEm || '') === ticketId &&
+        String(source.fornecedorCod || source.fornCod || supplier) === supplier
+      );
+    }) as [string, PurchaseTicket & { _consolidadoEm?: unknown }][];
     const deletedAt = now();
     const receipt = {
       status: 'CONFIRMED',
       ticketNo: ticketId,
       supplierCode: supplier,
+      releasedSources: releasedSources.map(([key]) => key),
       deletedPayableIds: currentPayables.map(([id, row]) => String(row.id || id)),
       deletedAt,
       actor,
@@ -428,6 +440,11 @@ export async function deletePurchaseOrder(
       _ts: deletedAt,
     };
     if (advanceRows) updates['adiantamentos/' + supplier] = advanceRows;
+    for (const [key, row] of releasedSources) {
+      const released: Row = { ...row, status: 'Aguard. Preço', _balFinalizado: true, _liberadoDe: ticketId };
+      delete released._consolidadoEm;
+      updates['tickets/' + validKey(key, 'Pesagem')] = released;
+    }
     for (const [path, row] of currentPayables) {
       updates['contasPagar/' + path] = null;
       if (row.id) updates['contasPagarDeleted/' + validKey(row.id, 'Título')] = true;
