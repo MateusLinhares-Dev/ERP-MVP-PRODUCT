@@ -55,7 +55,7 @@ test('falha de leitura posterior não é exibida como persistência confirmada',
 });
 test('edição concorrente não sobrescreve outro usuário',async()=>{
  const current=sample();const x=setup({'erp/tickets/T049':{...current,totalGeral:50000}});
- await assert.rejects(x.commit('T049',current,{expected:{totalGeral:46946.7,saldoPagar:46946.7}}),/outra sessão/);
+ await assert.rejects(x.commit('T049',current,{expected:{totalGeral:46946.7,saldoPagar:46946.7}}),{code:'PURCHASE_CHANGED',message:/mudou depois que você abriu/});
  assert.equal(x.data['erp/tickets/T049'].totalGeral,50000);
 });
 test('ticket marcado excluído não volta por gravar outro pedido',async()=>{

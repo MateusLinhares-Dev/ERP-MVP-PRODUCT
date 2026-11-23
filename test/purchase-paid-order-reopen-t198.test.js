@@ -83,7 +83,7 @@ test('perfil sem compras não consegue alterar o pedido',async()=>{
 });
 test('frontend lê a versão oficial sem clamping e evita alteração financeira local antecipada',()=>{
  assert.match(purchase,/originalBalance:Number\(ticket\.saldoPagar\|\|0\)/);
- assert.match(purchase,/const remote=await purchaseCloudRef\(entry\[0\]\)\.once\('value'\)/);
+ assert.match(purchase,/let remote=await purchaseCloudRef\(entry\[0\]\)\.once\('value'\)/);
  assert.match(purchase,/ticket=state\.ticketSnapshot\?JSON\.parse\(state\.ticketSnapshot\):null/);
  assert.match(purchase,/await purchaseEditWithReconciliation/);
  assert.match(purchase,/afterConfirmedPurchaseEdit\(confirmed,state,totals\)/);
