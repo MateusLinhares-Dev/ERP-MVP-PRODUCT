@@ -9389,6 +9389,8 @@ async function excluirEntradaCompra(ticket,jaConfirmado){
     delete TICKETS_DB[id];
     try{delete _ticketsSnapJSON[id];}catch(_error){}
     TICKETS_DELETED.add(id);
+    const _liberadas=(Array.isArray(result.releasedSources)?result.releasedSources:[]).map(String).filter(function(k){ return TICKETS_DB[k]; });
+    _liberadas.forEach(function(k){ const p=TICKETS_DB[k]; p.status='Aguard. Preço'; p._balFinalizado=true; p._liberadoDe=id; delete p._consolidadoEm; });
     try{localStorage.setItem('mm_tickets_deletados',JSON.stringify([...TICKETS_DELETED]));}catch(_error){}
     const deletedPayables=new Set((result.deletedPayableIds||[]).map(String));
     if(deletedPayables.size){
@@ -9408,7 +9410,8 @@ async function excluirEntradaCompra(ticket,jaConfirmado){
     const _devolvido=result.advanceRefund&&Number(result.advanceRefund.valor)>0
       ?' R$ '+Number(result.advanceRefund.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})+' voltou como saldo do(s) adiantamento(s) '+(result.advanceRefund.adiantamentos||[]).map(a=>a.cod).join(', ')+'.'
       :'';
-    showToast('Compra '+id+' excluída com segurança.'+_devolvido,'success',_devolvido?9000:4500);
+    const _pesagens=_liberadas.length?' A pesagem '+_liberadas.join(', ')+' voltou para "Aguardando preço": o material continua no estoque até você lançar a notinha de novo ou excluir a pesagem.':'';
+    showToast('Compra '+id+' excluída com segurança.'+_devolvido+_pesagens,'success',(_devolvido||_pesagens)?10000:4500);
   }catch(error){
     console.error('[compra] falha ao solicitar exclusão',error);
     showToast('Não foi possível confirmar a exclusão. Atualize o Histórico antes de tentar novamente.','error',6500);
@@ -13561,10 +13564,26 @@ function loadEstoque(){
   }catch(ex){}
 }
 
+function _ticketsNoEstoque(){
+  const base=TICKETS_DB||{};
+  const origens=new Set();
+  Object.keys(base).forEach(function(k){
+    const t=base[k];
+    (t&&Array.isArray(t._ticketsOrigemIds)?t._ticketsOrigemIds:[]).forEach(function(x){ x=String(x||'').trim(); if(x&&x!==k) origens.add(x); });
+  });
+  return Object.keys(base).filter(function(k){
+    const tk=base[k];
+    if(!tk||typeof tk!=='object') return false;
+    if(String(tk.tipo||'').trim().toLowerCase()==='venda') return false;
+    const destino=String(tk._consolidadoEm||'').trim();
+    if(destino&&destino!==k&&base[destino]) return false;
+    return !origens.has(k);
+  }).map(function(k){ return base[k]; });
+}
 function getEntradasMaterial(mat){
   const alvo=_normalizarChaveMaterialEstoque(mat);
   if(!alvo) return 0;
-  return Object.values(TICKETS_DB).reduce((s,tk)=>{
+  return _ticketsNoEstoque().reduce((s,tk)=>{
     return s + (tk.itens||[]).filter(it=>_normalizarChaveMaterialEstoque(_materialEfetivoDoItem(it))===alvo).reduce((ss,it)=>ss+Number(it.pesoLiq||0),0);
   },0);
 }

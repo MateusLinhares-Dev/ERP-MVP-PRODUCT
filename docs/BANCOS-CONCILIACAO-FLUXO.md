@@ -221,6 +221,20 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Estoque: pesagem que virou notinha contava em dobro (23/11/2026, v259)
+
+A cliente perguntou se excluir uma notinha tira o material do estoque, porque o estoque deu "uma diferença muito grande". O estoque não é gravado: é calculado na hora. As entradas vêm dos tickets em `TICKETS_DB` (`getEntradasMaterial`) e as saídas, das vendas e das entregas da Ficha do Cliente. Excluir uma notinha tira os quilos dela, mas a soma de entradas pegava **todo** ticket. Isso causava:
+- **Contagem em dobro:** a pesagem da balança que virava notinha continuava contando ("Consolidado"), e a notinha também. Exemplo: 1.000 kg pesados apareciam como 2.000 kg.
+- **Pesagem de venda (`tipo: 'venda'`) como entrada:** ela somava no estoque, enquanto a venda já tirava o material.
+- **Exclusão da notinha:** a pesagem de origem ficava "Consolidado", apontando para uma notinha que não existe mais. Continuava contando e não podia ser lançada de novo.
+
+Correção:
+- **Cálculo** (`_ticketsNoEstoque`): não conta pesagem de venda. Não conta pesagem já transformada em notinha que ainda existe (pelo `_consolidadoEm` da pesagem ou pelo `_ticketsOrigemIds` da notinha). Uma pesagem cuja notinha foi excluída volta a contar, porque o material continua no pátio.
+- **Exclusão da notinha** (`deletePurchaseOrder`): as pesagens consolidadas nela voltam para "Aguard. Preço" (`_balFinalizado: true`, sem `_consolidadoEm`, `_liberadoDe` com o número da notinha). A tela avisa: "A pesagem … voltou para Aguardando preço: o material continua no estoque até você lançar a notinha de novo ou excluir a pesagem."
+- **Pesagens de notinhas excluídas antes da v259:** continuam "Consolidado" (não voltam sozinhas), mas contam no estoque como antes.
+
+Depois de atualizar, o estoque cai nos materiais que chegaram pela balança (some a contagem dupla) e nos que tiveram pesagem de venda. Se alguém ajustou "Estoque inicial" ou "Saídas" à mão para compensar a diferença, esses ajustes precisam ser revistos.
+
 ## Excluir "dinheiro recebido para repasse" e desfazer PIX de repasse (22/11/2026, v258)
 
 O botão "Dinheiro recebido / Valor a repassar" da Ficha do fornecedor serve para quando o fornecedor entrega dinheiro em espécie e a empresa devolve por PIX. A cliente o usou por engano para registrar que o fornecedor pagou parte de uma dívida (caso Helmerson Peixer: R$ 1.955,70 e R$ 2.775,75). O módulo só registrava; não excluía nem desfazia.
