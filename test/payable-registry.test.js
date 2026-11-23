@@ -89,6 +89,15 @@ test('lançar avulsa e parcelada: pendente, nome do banco pelo código, grupo e 
   assert.equal((await failure(call({ action: 'create', payable: { desc: 'X', valor: 1, empresa: 'A', venc: '2026-12-01', bancoCod: 'NAO' } })))?.code, 'BANK_NOT_FOUND');
 });
 
+test('vale-transporte e conta fixa: criadas pelo servidor (antes ficavam só no navegador e sumiam no F5)', async () => {
+  const vt = await call({ action: 'create', payable: { desc: 'Vale-transporte – JOAO', cred: 'JOAO', cat: 'Vale Transporte', tipoForn: 'despesa', empresa: '', valor: 220, origem: 'vale_transporte' }, installments: { count: 2, day: 5, firstMonth: '2026-12' } });
+  assert.deepEqual(vt.payables.map((item) => [item.desc, item.venc, item.origem]), [['Vale-transporte – JOAO (1/2)', '05/12/2026', 'vale_transporte'], ['Vale-transporte – JOAO (2/2)', '05/01/2027', 'vale_transporte']]);
+  assert.equal((await read('erp/contasPagar/' + vt.payables[1].id)).valor, 220);
+  const fixedBill = await call({ action: 'create', payable: { desc: 'Aluguel', cred: 'IMOBILIARIA', cat: 'Conta Fixa', tipoForn: 'despesa', venc: '10/11/2026', valor: 1500, origem: 'conta_fixa', fixedId: 'FIX-1732-ab1c2', fixedMonth: '2026-11' } });
+  const row = await read('erp/contasPagar/' + fixedBill.payables[0].id);
+  assert.deepEqual([row.origem, row.fixedId, row.fixedMonth, row.status], ['conta_fixa', 'FIX-1732-ab1c2', '2026-11', 'Pendente']);
+});
+
 test('editar: grava pelo servidor, confere versão, não mexe em conta de pedido nem no valor de conta paga', async () => {
   const updated = await call({ action: 'update', id: 'CP1', expectedUpdate: 5, payable: { desc: 'Energia sede', valor: '320', venc: '2026-11-22', bancoCod: 'B1' } });
   const row = await read('erp/contasPagar/CP1');

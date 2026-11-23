@@ -49,7 +49,9 @@ test('editar pedido altera materiais sem reaplicar adiantamentos e atualiza apen
            {mat:'COBRE',quantidade:10,pesoBruto:10,preco:20}],
     discount:0,freight:0,orderNumber:'T100',purchaseOrder:'',purchaseDate:'2026-10-27',dueDate:'2026-10-30',notes:'Teste'};
   ctx.state=state;
+  runInNewContext(extract(purchase,'function isoDay(value){','function cents(value){')+extract(purchase,'function dateBR(value){','function daysBetween(a,b){'),ctx);
   const edited=runInNewContext(`${code}\nsaveEditedTicket(state, {total:1200,productTotal:1200,balance:900})`,ctx);
+  assert.equal(edited.data,'2026-10-27','mudar a data da compra na edição muda também a data mostrada no extrato e na Ficha');
   assert.equal(ticket.itens.length,1);
   assert.equal(ticket.saldoPagar,700);
   assert.equal(cp.valor,700);

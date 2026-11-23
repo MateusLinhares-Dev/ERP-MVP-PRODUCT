@@ -160,7 +160,7 @@ test('v30 inventory resolves legacy purchase and sale items by material plus ide
   const entradasEnd=appCoreV30.indexOf('function _dedupeMetais()',entradasStart);
   const entradasBlock=appCoreV30.slice(entradasStart,entradasEnd);
   assert.match(entradasBlock,/_materialEfetivoDoItem\(it\)/);
-  assert.match(entradasBlock,/_normalizarChaveMaterialEstoque/);
+  assert.match(entradasBlock,/_chaveEstoqueComAlias\(_materialEfetivoDoItem\(it\),mapa\)/);
   const recuperarStart=appCoreV30.indexOf('function _recuperarMateriaisComMovimento');
   const recuperarEnd=appCoreV30.indexOf('function renderEstoque()',recuperarStart);
   const recuperarBlock=appCoreV30.slice(recuperarStart,recuperarEnd);
@@ -175,7 +175,7 @@ test('v30 stock screen never consolidates LIMPO MISTO 100 percent or other forms
   assert.doesNotMatch(renderBlock,/grupos/);
   assert.doesNotMatch(renderBlock,/formas/);
   assert.doesNotMatch(renderBlock,/_baseMaterial/);
-  assert.match(renderBlock,/const materiais=\(METAIS\|\|\[\]\)/);
+  assert.match(renderBlock,/const materiais=_semNomesAntigos\(\(METAIS\|\|\[\]\)/);
   assert.match(renderBlock,/getEntradasMaterial\(mat\)/);
   assert.match(renderBlock,/getSaidasMaterial\(mat\)/);
 });
@@ -286,7 +286,7 @@ test('v30 deleted stock materials stay deleted even when old purchases or sales 
   const recuperarStart=appCoreV30.indexOf('function _recuperarMateriaisComMovimento');
   const recuperarEnd=appCoreV30.indexOf('function renderEstoque()',recuperarStart);
   const recuperarBlock=appCoreV30.slice(recuperarStart,recuperarEnd);
-  assert.match(recuperarBlock,/if\(!m \|\| _estoqueMaterialExcluido\(m\)\) return/);
+  assert.match(recuperarBlock,/if\(!m \|\| _estoqueMaterialExcluido\(m\) \|\| renomeados\[_normalizarChaveMaterialEstoque\(m\)\]\) return/);
   assert.doesNotMatch(recuperarBlock,/_DEL_SETS\.estoque\.delete\(m\)/);
 
   const renderStart=appCoreV30.indexOf('function renderEstoque()');

@@ -123,7 +123,16 @@ async function createMany(context: Context, body: Row) {
     _upd: now,
   };
   if (fields.formaPrevista) base.formaPrevista = fields.formaPrevista;
-  for (const field of ['origem', 'despId', 'contratoId', 'folhaMes', 'ticket', 'fornCod'] as const)
+  for (const field of [
+    'origem',
+    'despId',
+    'contratoId',
+    'folhaMes',
+    'ticket',
+    'fornCod',
+    'fixedId',
+    'fixedMonth',
+  ] as const)
     if (fields[field]) base[field] = fields[field];
   const rows: Row[] = [];
   if (plan) {

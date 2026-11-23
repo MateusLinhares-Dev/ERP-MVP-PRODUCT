@@ -299,7 +299,7 @@ function _mergeMetaisRemoto(dMetais, dDeleted){
   if(Array.isArray(dDeleted)) dDeleted.forEach(function(x){ del.add(x); });
   const locais=METAIS.slice(); 
   METAIS.length=0;
-  _metaisSemVariantes(dMetais.concat(locais).filter(function(m){ return !del.has(m); })).forEach(function(m){ METAIS.push(m); });
+  _semNomesAntigos(_metaisSemVariantes(dMetais.concat(locais).filter(function(m){ return !del.has(m); }))).forEach(function(m){ METAIS.push(m); });
   try{ localStorage.setItem('mm_metais', JSON.stringify(METAIS)); }catch(e){}
 }
 function _metaisSemVariantes(lista){
@@ -9015,6 +9015,7 @@ function corrigirDataCompra(){
 function salvarDataCompra(){
   const t=TICKETS_DB[_dcDbKey];
   if(!t){ showToast('Ticket não encontrado.','error'); return; }
+  if(_compraConfirmadaNoServidor(t)){ showToast('Para mudar a data desta notinha, clique em Editar no Histórico de compras e mude a "Data da compra". Depois clique em Salvar.','info',9000); return; }
   const iso=document.getElementById('dc-data-nova')?.value||'';
   if(!iso){ alert('Escolha a nova data.'); return; }
   const nova=iso.split('-').reverse().join('/');
@@ -10772,6 +10773,61 @@ function _matEfetivoEstoque(mat, ident){
 function _normalizarChaveMaterialEstoque(nome){
   return String(nome||'').trim().replace(/\s+/g,' ').toUpperCase();
 }
+function _nomesAnterioresDe(e){
+  const v=e&&e.nomesAnteriores;
+  return Array.isArray(v)?v.filter(Boolean):(v&&typeof v==='object'?Object.values(v).filter(Boolean):[]);
+}
+function _aliasesEstoque(){
+  const mapa={};
+  try{
+    Object.keys(ESTOQUE_DB||{}).forEach(function(k){
+      const e=ESTOQUE_DB[k];
+      const antigos=_nomesAnterioresDe(e);
+      if(!antigos.length) return;
+      const atual=_normalizarChaveMaterialEstoque(k);
+      antigos.forEach(function(antigo){
+        const chave=_normalizarChaveMaterialEstoque(antigo);
+        if(chave&&chave!==atual) mapa[chave]=k;
+      });
+    });
+  }catch(e){}
+  return mapa;
+}
+function _chaveEstoqueComAlias(nome,mapa){
+  const chave=_normalizarChaveMaterialEstoque(nome);
+  const destino=(mapa||_aliasesEstoque())[chave];
+  return destino?_normalizarChaveMaterialEstoque(destino):chave;
+}
+function _nomeAtualDoMaterial(nome){
+  return _aliasesEstoque()[_normalizarChaveMaterialEstoque(nome)]||'';
+}
+function _semNomesAntigos(lista){
+  const mapa=_aliasesEstoque();
+  const chaves=new Set((lista||[]).map(function(m){ return _normalizarChaveMaterialEstoque(m); }));
+  return (lista||[]).filter(function(m){
+    const destino=mapa[_normalizarChaveMaterialEstoque(m)];
+    return !(destino&&chaves.has(_normalizarChaveMaterialEstoque(destino)));
+  });
+}
+function _renomearMaterialNosPrecos(antigo,novo){
+  let mudou=false;
+  [typeof PRECOS_FORN_DATA!=='undefined'?PRECOS_FORN_DATA:null,typeof PRECOS_CLI_DATA!=='undefined'?PRECOS_CLI_DATA:null].forEach(function(base){
+    if(!base) return;
+    Object.keys(base).forEach(function(dono){
+      const t=base[dono];
+      if(!t||typeof t!=='object'||!Object.prototype.hasOwnProperty.call(t,antigo)) return;
+      if(!(Number(t[novo])>0)) t[novo]=t[antigo];
+      delete t[antigo];
+      if(t._datas&&t._datas[antigo]!=null){ if(t._datas[novo]==null) t._datas[novo]=t._datas[antigo]; delete t._datas[antigo]; }
+      mudou=true;
+    });
+  });
+  if(mudou){
+    try{ localStorage.setItem('mm_precos_forn',JSON.stringify(PRECOS_FORN_DATA)); }catch(e){}
+    try{ localStorage.setItem('mm_precos_cli',JSON.stringify(PRECOS_CLI_DATA)); }catch(e){}
+  }
+  return mudou;
+}
 
 function _materialEfetivoDoItem(item){
   const it=item||{};
@@ -10820,6 +10876,7 @@ function _garantirMetalCadastrado(nome){
 
   if(/nf\s*:/i.test(nome) || /\d\s*,/.test(nome)) return;
   if(typeof METAIS==='undefined') return;
+  if(_nomeAtualDoMaterial(nome)) return;
   _estoqueLimparExclusao(nome);
   if(!METAIS.includes(nome) && !METAIS.some(function(x){ return _normalizarChaveMaterialEstoque(x)===_normalizarChaveMaterialEstoque(nome); })){
     METAIS.push(nome);
@@ -13627,25 +13684,27 @@ function _ticketsNoEstoque(){
   }).map(function(k){ return base[k]; });
 }
 function getEntradasMaterial(mat){
-  const alvo=_normalizarChaveMaterialEstoque(mat);
+  const mapa=_aliasesEstoque();
+  const alvo=_chaveEstoqueComAlias(mat,mapa);
   if(!alvo) return 0;
   return _ticketsNoEstoque().reduce((s,tk)=>{
-    return s + (tk.itens||[]).filter(it=>_normalizarChaveMaterialEstoque(_materialEfetivoDoItem(it))===alvo).reduce((ss,it)=>ss+Number(it.pesoLiq||0),0);
+    return s + (tk.itens||[]).filter(it=>_chaveEstoqueComAlias(_materialEfetivoDoItem(it),mapa)===alvo).reduce((ss,it)=>ss+Number(it.pesoLiq||0),0);
   },0);
 }
 
 function getSaidasMaterial(mat){
-  const alvo=_normalizarChaveMaterialEstoque(mat);
+  const mapa=_aliasesEstoque();
+  const alvo=_chaveEstoqueComAlias(mat,mapa);
   if(!alvo) return 0;
   let s = VENDAS_DB.reduce((acc,vd)=>{
-    return acc + (vd.itens||[]).filter(it=>_normalizarChaveMaterialEstoque(_materialEfetivoDoItem(it))===alvo).reduce((ss,it)=>ss+Number(it.qt||0),0);
+    return acc + (vd.itens||[]).filter(it=>_chaveEstoqueComAlias(_materialEfetivoDoItem(it),mapa)===alvo).reduce((ss,it)=>ss+Number(it.qt||0),0);
   },0);
 
   try{
     if(typeof FC_LANC==='object' && FC_LANC){
       Object.keys(FC_LANC).forEach(function(cli){
         (FC_LANC[cli]||[]).forEach(function(l){
-          if(l && l.tipo==='entrega' && String(l.material||'').trim().toUpperCase()===alvo){
+          if(l && l.tipo==='entrega' && _chaveEstoqueComAlias(l.material,mapa)===alvo){
             s += Number(l.peso||0);
           }
         });
@@ -13658,7 +13717,7 @@ function getSaidasMaterial(mat){
 function _dedupeMetais(){
   try{
     if(typeof METAIS==='undefined' || !Array.isArray(METAIS)) return 0;
-    var novos=_metaisSemVariantes(METAIS);
+    var novos=_semNomesAntigos(_metaisSemVariantes(METAIS));
     var removidos=JSON.stringify(novos)===JSON.stringify(METAIS.map(String))?0:Math.max(1,METAIS.length-novos.length);
     if(removidos>0){
       METAIS.length=0;
@@ -13710,8 +13769,9 @@ function _recuperarMateriaisComMovimento(silent){
     try{ Object.keys(ESTOQUE_DB||{}).forEach(function(k){ if(k) nomes.add(k); }); }catch(e){}
     let mudou=false;
     const chaves=new Set(METAIS.map(function(x){ return _normalizarChaveMaterialEstoque(x); }));
+    const renomeados=_aliasesEstoque();
     nomes.forEach(function(m){
-      if(!m || _estoqueMaterialExcluido(m)) return;
+      if(!m || _estoqueMaterialExcluido(m) || renomeados[_normalizarChaveMaterialEstoque(m)]) return;
       const chave=_normalizarChaveMaterialEstoque(m);
       if(METAIS.indexOf(m)<0){
         if(chaves.has(chave)) return;
@@ -13730,7 +13790,7 @@ function renderEstoque(){
   try{ _recuperarMateriaisComMovimento(); }catch(e){}
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const _isEl=_usuarioAtualEhAdmin() || window.erpCanAccessTab?.('estoque')===true;
-  const materiais=(METAIS||[]).filter(function(m){ return !!m && !_estoqueMaterialExcluido(m); }).slice().sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{sensitivity:'base'}));
+  const materiais=_semNomesAntigos((METAIS||[]).filter(function(m){ return !!m && !_estoqueMaterialExcluido(m); })).slice().sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{sensitivity:'base'}));
   const ajustesPorChave={};
   Object.keys(ESTOQUE_DB||{}).forEach(function(k){
     const x=ESTOQUE_DB[k]; if(!x) return;
@@ -13752,7 +13812,7 @@ function renderEstoque(){
     const preco=Number(e.precoVenda||0);
     const saldoBruto=inicial+entradas-saidas;
     const saldo=Math.abs(saldoBruto)<0.05?0:saldoBruto;
-    const valor=saldo*preco;
+    const valor=(saldo*preco)||0;
     const st=saldo>0?'b-ativo':saldo<0?'b-pend':'b-zerado';
     const stTxt=saldo>0?'OK':saldo<0?'NEGATIVO':'ZERADO';
     return {saldo, entradasAuto:entradas, valor, html:
@@ -13910,6 +13970,8 @@ function salvarNovoMaterial(){
   const nome=(document.getElementById('nm-nome')?.value||'').trim().toUpperCase();
   if(!nome){ showToast('Digite o nome do material','error'); return; }
   if(typeof METAIS!=='undefined' && METAIS.includes(nome) && !_estoqueMaterialExcluido(nome)){ showToast('Esse material já existe no cadastro','error'); return; }
+  const _nomeNovoDele=_nomeAtualDoMaterial(nome);
+  if(_nomeNovoDele){ showToast('O material '+nome+' foi renomeado para '+_nomeNovoDele+'. Use '+_nomeNovoDele+', ou clique em Editar nele para mudar o nome de volta.','error',9000); return; }
   _estoqueLimparExclusao(nome);
   if(typeof METAIS!=='undefined' && !METAIS.includes(nome)) METAIS.push(nome);
   if(typeof METAIS!=='undefined') METAIS.sort((a,b)=>a.localeCompare(b,'pt-BR'));
@@ -13931,6 +13993,7 @@ function salvarEditEstoque(){
   const matNew=(document.getElementById('ee-nome')?.value||matOld).trim().toUpperCase();
   if(!matNew){showToast('Nome não pode ficar vazio','error');return;}
   
+  let somaJuntada={inicial:0,saidas:0};
   if(matNew!==matOld){
     _estoqueLimparExclusao(matNew);
     const idx=METAIS.indexOf(matOld);
@@ -13938,12 +14001,20 @@ function salvarEditEstoque(){
     else METAIS.push(matNew);
     
     const dados=ESTOQUE_DB[matOld]||{};
-    ESTOQUE_DB[matNew]={...dados, mat:matNew};
-    _apagarChave('estoque', ESTOQUE_DB, matOld);
+    const existente=ESTOQUE_DB[matNew];
+    const chaveNova=_normalizarChaveMaterialEstoque(matNew);
+    const anteriores=[...new Set([].concat(_nomesAnterioresDe(existente),_nomesAnterioresDe(dados),[matOld])
+      .filter(function(n){ return n&&_normalizarChaveMaterialEstoque(n)!==chaveNova; }))];
+    ESTOQUE_DB[matNew]=Object.assign({},dados,existente||{},{mat:matNew});
+    if(existente&&existente!==dados) somaJuntada={inicial:Number(existente.inicial||0),saidas:Number(existente.saidas||0)};
+    if(anteriores.length) ESTOQUE_DB[matNew].nomesAnteriores=anteriores; else delete ESTOQUE_DB[matNew].nomesAnteriores;
+    if(_normalizarChaveMaterialEstoque(matOld)!==chaveNova) _apagarChave('estoque', ESTOQUE_DB, matOld);
+    else delete ESTOQUE_DB[matOld];
+    _renomearMaterialNosPrecos(matOld,matNew);
   }
   if(!ESTOQUE_DB[matNew]) ESTOQUE_DB[matNew]={mat:matNew};
-  ESTOQUE_DB[matNew].inicial    = parseFloat(document.getElementById('ee-ini').value)||0;
-  ESTOQUE_DB[matNew].saidas     = parseFloat(document.getElementById('ee-sai').value)||0;
+  ESTOQUE_DB[matNew].inicial    = (parseFloat(document.getElementById('ee-ini').value)||0)+somaJuntada.inicial;
+  ESTOQUE_DB[matNew].saidas     = (parseFloat(document.getElementById('ee-sai').value)||0)+somaJuntada.saidas;
   ESTOQUE_DB[matNew].precoVenda = parseFloat(document.getElementById('ee-pv').value)||0;
   ESTOQUE_DB[matNew].obs        = document.getElementById('ee-obs').value.trim();
   saveEstoque();
@@ -16408,13 +16479,14 @@ function _vendaIdx(id){
 function _vendaEstoqueDisponivel(mat, vendaId){
   const nome=String(mat||'').trim();
   if(!nome) return null;
-  const alvo=_normalizarChaveMaterialEstoque(nome);
+  const mapa=_aliasesEstoque();
+  const alvo=_chaveEstoqueComAlias(nome,mapa);
   const chave=Object.keys(ESTOQUE_DB||{}).find(function(k){ return _normalizarChaveMaterialEstoque(k)===alvo; });
   if(!chave && !(METAIS||[]).some(function(m){ return _normalizarChaveMaterialEstoque(m)===alvo; })) return null;
   const e=(chave&&ESTOQUE_DB[chave])||{inicial:0,saidas:0};
   let saidas=getSaidasMaterial(nome)+Number(e.saidas||0);
   const atual=vendaId?VENDAS_DB.find(function(v){ return v&&v.id===vendaId; }):null;
-  if(atual) (atual.itens||[]).forEach(function(it){ if(_normalizarChaveMaterialEstoque(_materialEfetivoDoItem(it))===alvo) saidas-=Number(it.qt||0); });
+  if(atual) (atual.itens||[]).forEach(function(it){ if(_chaveEstoqueComAlias(_materialEfetivoDoItem(it),mapa)===alvo) saidas-=Number(it.qt||0); });
   return Number(e.inicial||0)+getEntradasMaterial(nome)-saidas;
 }
 window.erpSalesBridge={
@@ -18167,6 +18239,7 @@ function initDespesas(){
             var cd=[(ch.ticket?'Ticket: '+ch.ticket:''),(ch.banco?'Banco: '+ch.banco:''),(ch.obs||'')].filter(Boolean).join(' | ');
             descHtml='<div style="font-weight:700;color:#8e44ad">Cheque'+(ch.cod?' ('+ch.cod+')':'')+'</div>'+(cd?'<div style="font-size:.76rem;color:#555;margin-top:2px">'+cd+'</div>':'');
           }
+          saldo=Math.round(saldo*100)/100;
           var sc=saldo>0?'#2980b9':saldo<0?'#c0392b':'#27ae60';
           
           var _quemDeve=saldo>0
@@ -18208,7 +18281,7 @@ function initDespesas(){
         var totP=filtered.filter(function(e){
           return !_ffEhDebito(e.tipo);
         }).reduce(function(s,e){return s+Number(e.raw.valor||0);},0);
-        var sF=totC-totP;
+        var sF=Math.round((totC-totP)*100)/100;
         var scF=sF>0?'#2980b9':sF<0?'#c0392b':'#27ae60', bgF=sF>0?'#e8f0fe':sF<0?'#fff0f0':'#e8f5e9';
         var kpiBgF=sF>0?'R$ '+fmt(sF)+' a pagar':sF<0?'Forn. deve R$ '+fmt(Math.abs(sF)):'Quitado';
         var kEl=document.getElementById('ff-kpis');
