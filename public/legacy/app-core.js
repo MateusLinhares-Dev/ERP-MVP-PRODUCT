@@ -52,7 +52,17 @@ function _fornAplicarResultado(result){
   try{ populateFornSelects(); }catch(e){}
   try{ document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'fornecedores'}})); }catch(e){}
 }
-async function _fornApi(payload){
+const _pedidosEmAndamento=new Map();
+function _pedidoUnico(nome,payload,executar){
+  let chave='';
+  try{ const copia=Object.assign({},payload); delete copia.operationId; chave=nome+':'+JSON.stringify(copia); }catch(e){ chave=''; }
+  if(chave&&_pedidosEmAndamento.has(chave)) return _pedidosEmAndamento.get(chave);
+  const pedido=Promise.resolve().then(executar).finally(function(){ if(chave) _pedidosEmAndamento.delete(chave); });
+  if(chave) _pedidosEmAndamento.set(chave,pedido);
+  return pedido;
+}
+function _fornApi(payload){ return _pedidoUnico('_fornApi',payload,function(){ return _fornApiEnviar(payload); }); }
+async function _fornApiEnviar(payload){
   const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
   if(!user) throw new Error('Sessão expirada. Entre novamente.');
   const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
@@ -108,7 +118,8 @@ function _cliAplicarResultado(result){
   if(result.renamed){ try{ renderVendas(); }catch(e){} try{ renderContasReceber(); }catch(e){} try{ renderFichaCliente(); }catch(e){} }
   try{ document.dispatchEvent(new CustomEvent('erp:catalog-updated',{detail:{type:'clientes'}})); }catch(e){}
 }
-async function _cliApi(payload){
+function _cliApi(payload){ return _pedidoUnico('_cliApi',payload,function(){ return _cliApiEnviar(payload); }); }
+async function _cliApiEnviar(payload){
   const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
   if(!user) throw new Error('Sessão expirada. Entre novamente.');
   const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
@@ -153,7 +164,8 @@ function _crAplicarResultado(r){
   try{ renderFluxo(); }catch(e){}
   try{ renderDashboard(); }catch(e){}
 }
-async function _crApi(payload){
+function _crApi(payload){ return _pedidoUnico('_crApi',payload,function(){ return _crApiEnviar(payload); }); }
+async function _crApiEnviar(payload){
   const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
   if(!user) throw new Error('Sessão expirada. Entre novamente.');
   const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
@@ -7275,7 +7287,8 @@ function adtTipoTab(tipo){
 
 function saveAdtCli(){ localStorage.setItem('mm_adt_cli', JSON.stringify(ADT_CLI)); fbSalvar(); }
 function saveChequesCli(){ localStorage.setItem('mm_cheques_cli', JSON.stringify(CHEQUES_CLI)); fbSalvar(); }
-async function _cliCreditoApi(payload){
+function _cliCreditoApi(payload){ return _pedidoUnico('_cliCreditoApi',payload,function(){ return _cliCreditoApiEnviar(payload); }); }
+async function _cliCreditoApiEnviar(payload){
   const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
   if(!user) throw new Error('Sessão expirada. Entre novamente.');
   const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
@@ -8331,7 +8344,8 @@ function adtSubTab(t){
   }
 }
 
-async function _chequeFornApi(payload){
+function _chequeFornApi(payload){ return _pedidoUnico('_chequeFornApi',payload,function(){ return _chequeFornApiEnviar(payload); }); }
+async function _chequeFornApiEnviar(payload){
   const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
   if(!user) throw new Error('Sessão expirada. Entre novamente.');
   const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
@@ -15904,7 +15918,8 @@ function _cpAplicarResultado(r){
   try{ renderFluxo(); }catch(e){}
   try{ renderDashboard(); }catch(e){}
 }
-async function _cpApi(payload){
+function _cpApi(payload){ return _pedidoUnico('_cpApi',payload,function(){ return _cpApiEnviar(payload); }); }
+async function _cpApiEnviar(payload){
   const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
   if(!user) throw new Error('Sessão expirada. Entre novamente.');
   const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
@@ -15919,7 +15934,8 @@ async function _cpApi(payload){
   return result;
 }
 window.erpPayablesRequest=_cpApi;
-async function _saldoFornApi(payload){
+function _saldoFornApi(payload){ return _pedidoUnico('_saldoFornApi',payload,function(){ return _saldoFornApiEnviar(payload); }); }
+async function _saldoFornApiEnviar(payload){
   const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
   if(!user) throw new Error('Sessão expirada. Entre novamente.');
   const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
@@ -16239,7 +16255,8 @@ window.erpBankMovementAdded=function(movement){
   try{renderBancos();}catch(e){}
   return true;
 };
-async function _bancoApi(payload){
+function _bancoApi(payload){ return _pedidoUnico('_bancoApi',payload,function(){ return _bancoApiEnviar(payload); }); }
+async function _bancoApiEnviar(payload){
   const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
   if(!user) throw new Error('Sessão expirada. Entre novamente.');
   const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
@@ -16416,7 +16433,8 @@ function _vendaAplicarResultado(r){
   try{ localStorage.setItem('mm_cr',JSON.stringify(CONTAS_RECEBER)); }catch(e){}
   _vendaRenderTudo();
 }
-async function _vendaApi(payload){
+function _vendaApi(payload){ return _pedidoUnico('_vendaApi',payload,function(){ return _vendaApiEnviar(payload); }); }
+async function _vendaApiEnviar(payload){
   const user=typeof firebase!=='undefined'&&firebase.auth?firebase.auth().currentUser:null;
   if(!user) throw new Error('Sessão expirada. Entre novamente.');
   const body=Object.assign({operationId:(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''},payload);
@@ -20054,44 +20072,25 @@ function renderBalanceiro(){
 }
 
 function balExcluirTicket(tid){
-  const t=TICKETS_DB[tid];
-  if(!t){ showToast('Ticket '+tid+' não encontrado','error'); return; }
-  const adminUser=_usuarioAdminPerfil();
-  const adminName=(adminUser&&adminUser.name)||_usuarioAdminNome();
-  window._balDelTid=tid;
-  const ov=document.getElementById('modal-ov');
-  const body=document.getElementById('modal-body');
-  if(!ov||!body) return;
-  const forn=t.fornecedor||t.fornecedorNome||'—';
-  body.innerHTML=
-    '<h3 style="color:#c0392b;margin-bottom:12px">🔒 Excluir Ticket '+tid+'</h3>'+
-    '<p style="margin-bottom:16px;color:#555">Fornecedor: <b>'+forn+'</b><br>Esta ação <b>não pode ser desfeita</b>.</p>'+
-    '<div class="fg"><label>Senha da Administradora</label>'+
-    '<input id="_del-pwd" type="password" placeholder="Digite a senha de '+adminName+'" style="width:100%;padding:9px 12px;border:2px solid #c0392b;border-radius:7px;font-size:.95rem"></div>'+
-    '<div id="_del-err" style="color:#c0392b;font-size:.82rem;margin:6px 0;display:none">Senha incorreta.</div>'+
-    '<div style="display:flex;gap:10px;margin-top:16px">'+
-    '<button onclick="cm()" style="flex:1;padding:10px;border:2px solid #ccc;background:#fff;border-radius:8px;cursor:pointer;font-weight:700">Cancelar</button>'+
-    '<button onclick="_balConfirmarExclusao()" style="flex:1;padding:10px;background:#c0392b;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">🗑️ Confirmar Exclusão</button>'+
-    '</div>';
-  ov.classList.add('open');
-  setTimeout(function(){
-    var el=document.getElementById('_del-pwd');
-    if(el){ el.focus(); el.onkeydown=function(e){ if(e.key==='Enter') _balConfirmarExclusao(); }; }
-  },100);
-}
-function _balConfirmarExclusao(){
-  var tid=window._balDelTid;
-  var pwd=(document.getElementById('_del-pwd')?.value||'').trim();
-  var err=document.getElementById('_del-err');
-
-  if(err){ err.textContent='Confirmação administrativa segura indisponível.'; err.style.display='block'; }
-  return;
-  cm();
-  _ticketExcluir(tid);
-  _cpExcluirDaOrigem(CONTAS_PAGAR.filter(function(_cp){ return _cp&&(_cp.ticket===tid||(_cp.obs&&_cp.obs.indexOf('Ticket '+tid)>=0)); }).map(function(_cp){ return _cp.id; }),'O ticket foi excluído, mas a conta a pagar dele não');
-  saveDB(); renderBalanceiro(); balRenderHistorico();
+  const ref=String(tid||'').trim();
+  const key=TICKETS_DB[ref]?ref:Object.keys(TICKETS_DB).find(function(k){ return String(TICKETS_DB[k]&&TICKETS_DB[k].ticket||'')===ref; });
+  const t=key?TICKETS_DB[key]:null;
+  if(!t){ showToast('Pesagem '+ref+' não encontrada. Atualize a página.','error'); return; }
+  if(!_usuarioPodeOperarModulo('balanceiro')&&!_usuarioPodeOperarModulo('compra_sucata')){ showToast('Seu usuário não pode excluir pesagens.','error'); return; }
+  if(_compraConfirmadaNoServidor(t)){ showToast('O '+ref+' é uma notinha, não uma pesagem. Para excluir, use o Histórico de compras.','info',9000); return; }
+  if(t.status==='Consolidado'||t._consolidadoEm){ showToast('A pesagem '+ref+' já virou a notinha '+(t._consolidadoEm||'')+'. Exclua a notinha no Histórico de compras: a pesagem volta para "Aguardando preço" e aí pode ser excluída aqui.','info',11000); return; }
+  if(t.vendaId){ showToast('A pesagem '+ref+' está numa venda. Exclua a venda primeiro; depois a pesagem pode ser excluída.','info',10000); return; }
+  const nome=t.fornecedor||t.fornecedorNome||t.cliente||ref;
+  if(!confirm('Excluir a pesagem '+ref+' ('+nome+')?\n\nEla sai do Balanceiro e o peso dela sai do estoque. Essa ação não pode ser desfeita.')) return;
+  _ticketExcluir(key);
+  try{ delete _balBags[key]; }catch(e){}
+  if(_balTicketAtivo===key) _balTicketAtivo=null;
+  saveDB();
+  try{ fbSalvar(); }catch(e){}
+  try{ renderBalanceiro(); }catch(e){}
+  try{ balRenderHistorico(); }catch(e){}
   try{ renderTickets(); }catch(e){}
-  showToast('🗑️ Ticket '+tid+' excluído!','warn',3000);
+  showToast('Pesagem '+ref+' excluída.','success');
 }
 function balSelecionarTicket(tid){
   _balTicketAtivo = tid;
