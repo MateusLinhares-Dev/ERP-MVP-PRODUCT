@@ -185,6 +185,6 @@ test('edição: compensação feita depois do fechamento aparece com Desfazer, q
   assert.match(undo,/Object\.assign\(again,keep\)/);
   assert.match(undo,/reapplyAdvance/);
   assert.match(purchase,/laterPaymentsHtml\(state\)\+/);
-  assert.match(purchase,/if\(Number\(state\.reapplyAdvance\|\|0\)>0\.005\)\{/);
+  assert.match(purchase,/if\(Number\(state\.reapplyAdvance\|\|0\)>0\.005&&!options\?\.skipAdvanceOffer\)\{/);
   assert.match(purchase,/clique em "Desfazer"/);
 });

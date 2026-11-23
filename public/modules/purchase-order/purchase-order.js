@@ -605,24 +605,39 @@ global.phase4PurchaseUseAdvance=async function(){
   const state=body?currentState(body):null;
   if(!state?.editKey)return;
   if(typeof global.erpPayablesCompensateAdvance!=='function'){try{showToast('Abra Contas a Pagar uma vez e tente de novo.','error');}catch(e){}return;}
-  const payables=openPurchasePayables(state.editKey);
+  const key=String(state.editKey),code=state.supplierCode,name=state.supplierName;
+  const before=await saveBeforeFinanceAction(body,'usar o adiantamento');
+  if(!before.ok)return;
+  const number=String(tickets()[key]?.ticket||state.orderNumber||key);
+  const payables=openPurchasePayables(key);
   const open=payables.reduce(function(sum,cp){return sum+Number(cp.valor||0);},0);
-  const free=freeSupplierAdvance(state.supplierCode,state.editKey);
+  const free=freeSupplierAdvance(code,key);
   const amount=Math.round(Math.min(open,free)*100)/100;
-  if(amount<=0)return;
-  if(!confirm(advanceUseMessage(state.supplierName,state.orderNumber,open,free,amount,'Usar R$ '+money(amount)+' do adiantamento de '+state.supplierName+' no pedido '+state.orderNumber+'?')+
-    '\nAlterações nos itens que ainda não foram salvas serão descartadas.'))return;
-  if(!await compensatePurchaseFromAdvance(payables,amount))return;
-  try{showToast('Adiantamento usado no pedido '+state.orderNumber+'. Saldo e adiantamento atualizados.','success',8000);}catch(e){}
-  try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Adiantamento usado após o fechamento',state.orderNumber,null,{ticket:state.orderNumber});}catch(e){}
-  await global.phase4PurchaseEditTicket(state.editKey);
+  if(amount<=0){
+    if(before.saved){
+      try{showToast('Mudanças salvas. Não sobrou saldo a pagar ou adiantamento livre para usar neste pedido.','info',8000);}catch(e){}
+      await global.phase4PurchaseEditTicket(key);
+    }
+    return;
+  }
+  if(!confirm(advanceUseMessage(name,number,open,free,amount,'Usar R$ '+money(amount)+' do adiantamento de '+name+' no pedido '+number+'?'))){
+    if(before.saved)await global.phase4PurchaseEditTicket(key);
+    return;
+  }
+  if(!await compensatePurchaseFromAdvance(payables,amount)){if(before.saved)await global.phase4PurchaseEditTicket(key);return;}
+  try{showToast((before.saved?'Mudanças salvas e adiantamento usado':'Adiantamento usado')+' no pedido '+number+'. Saldo e adiantamento atualizados.','success',8000);}catch(e){}
+  try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Adiantamento usado após o fechamento',number,null,{ticket:number});}catch(e){}
+  await global.phase4PurchaseEditTicket(key);
 };
 global.phase4PurchaseUseAdvanceOldestFirst=async function(){
   const body=document.getElementById('cs-lanc-body');
   const state=body?currentState(body):null;
   if(!state?.editKey)return;
-  if(!await global.erpSupplierCompensateOldestFirst(state.supplierCode,state.supplierName))return;
-  await global.phase4PurchaseEditTicket(state.editKey);
+  const key=String(state.editKey),code=state.supplierCode,name=state.supplierName;
+  const before=await saveBeforeFinanceAction(body,'usar o adiantamento');
+  if(!before.ok)return;
+  const done=await global.erpSupplierCompensateOldestFirst(code,name);
+  if(done||before.saved)await global.phase4PurchaseEditTicket(key);
 };
 global.phase4PurchaseUndoPayment=async function(payableId,index){
   const body=document.getElementById('cs-lanc-body');
@@ -703,12 +718,14 @@ function paymentHtml(state){
     const total=Number(state.originalTotal||0);
     const balance=Number(state.originalBalance||0);
     const previouslySettled=Math.max(0,Math.round((total-balance-advances)*100)/100);
+    const settled=Math.max(0,Math.round((total-balance)*100)/100);
     return '<div class="phase4-po-empty-pay" role="status">'+
-      '<b>Histórico financeiro do pedido já registrado.</b> '+
-      'Adiantamentos/abatimentos: R$ '+money(advances)+'. '+
-      (previouslySettled>0.005?'Outras baixas ou ajustes já considerados: R$ '+money(previouslySettled)+'. ':'')+
-      'Saldo original: '+(balance<0?'crédito R$ ':'R$ ')+money(Math.abs(balance))+'. '+
-      'A edição dos itens não cria uma nova baixa nem reutiliza pagamentos. Alterações financeiras protegidas exigem conciliação.</div>'+
+      '<b>Esta notinha já está lançada.</b> '+
+      (settled>0.005?'Já descontado ou pago: R$ '+money(settled)+
+        (advances>0.005&&previouslySettled>0.005?' (R$ '+money(advances)+' no fechamento e R$ '+money(previouslySettled)+' depois)'
+          :previouslySettled>0.005?' (depois do fechamento)':' (no fechamento)')+'. ':'')+
+      (balance< -0.005?'Pago a mais: R$ '+money(Math.abs(balance))+'. ':'Falta pagar: R$ '+money(Math.max(0,balance))+'. ')+
+      'Se você mudar os itens, só a diferença do total vai para Contas a Pagar: nada é pago ou descontado de novo sozinho.</div>'+
       freeAdvanceHtml(state)+
       laterPaymentsHtml(state)+
       ((state.appliedAdvances||[]).length?'<div class="phase4-po-applied-advances"><b>Adiantamentos abatidos nesta compra</b>'+
@@ -986,7 +1003,7 @@ function render(body){
       '<section class="phase4-po-card"><h3>Totais da compra</h3><div class="phase4-po-summary"><div><span>Nº de itens</span><b id="phase4-po-item-count">0</b></div><div><span>Soma das quantidades</span><b id="phase4-po-qty-total">0 kg</b></div><div><span>Total dos produtos</span><b id="phase4-po-products-total">R$ 0,00</b></div><div class="grand"><span>Total do pedido</span><b id="phase4-po-grand-total">R$ 0,00</b></div></div><div class="phase4-po-form-grid two"><label class="phase4-po-field"><span>Desconto R$</span><input id="phase4-po-discount" inputmode="decimal" value="'+esc(state.discount?money(state.discount):'0,00')+'" oninput="phase4PurchaseRecalc()"></label><label class="phase4-po-field"><span>Frete R$</span><input id="phase4-po-freight" inputmode="decimal" value="'+esc(state.freight?money(state.freight):'0,00')+'" oninput="phase4PurchaseRecalc()"></label></div></section>'+
       '<section class="phase4-po-card"><h3>Detalhes da compra</h3><div class="phase4-po-form-grid"><label class="phase4-po-field"><span>Número do pedido</span><input id="phase4-po-number" value="'+esc(state.orderNumber||'')+'" readonly title="Número atribuído automaticamente pelo cadastro de compras"></label><label class="phase4-po-field"><span>Ordem de compra</span><input id="phase4-po-order" value="'+esc(state.purchaseOrder||'')+'" oninput="phase4PurchaseSyncMeta()"></label><label class="phase4-po-field"><span>Data da compra</span><input id="phase4-po-date" type="date" value="'+esc(state.purchaseDate||today())+'" onchange="phase4PurchaseSyncMeta()"></label></div></section>'+
     '</div>'+
-    '<section class="phase4-po-card"><h3>Pagamento</h3><div class="phase4-po-payment-head"><div class="phase4-po-payment-total"><span>Adiantamentos / abatimentos</span><b id="phase4-po-advance-total">R$ 0,00</b></div><div class="phase4-po-payment-total main"><span>Saldo a pagar</span><b id="phase4-po-balance">R$ 0,00</b></div></div><div class="phase4-po-pay-list">'+paymentHtml(state)+'</div>'+installmentsHtml(state)+'</section>'+
+    '<section class="phase4-po-card"><h3>Pagamento</h3><div class="phase4-po-payment-head"><div class="phase4-po-payment-total"><span>'+(state.editKey?'Já descontado ou pago':'Adiantamentos / abatimentos')+'</span><b id="phase4-po-advance-total">R$ 0,00</b></div><div class="phase4-po-payment-total main"><span>Saldo a pagar</span><b id="phase4-po-balance">R$ 0,00</b></div></div><div class="phase4-po-pay-list">'+paymentHtml(state)+'</div>'+installmentsHtml(state)+'</section>'+
     '<div class="phase4-po-footer"><button type="button" class="phase4-po-outline" onclick="phase4PurchaseCancel()">Cancelar</button><button type="button" class="phase4-po-save" onclick="phase4PurchaseSave()">Salvar pedido de compra</button></div>'+
   '</div>';
   renderItems(body,state);
@@ -1138,7 +1155,7 @@ global.phase4PurchaseRecalc=function(){
   set('phase4-po-qty-total',qty((state.items||[]).reduce(function(sum,item){return sum+Number(item.quantidade||0);},0))+' kg');
   set('phase4-po-products-total','R$ '+money(productTotal));
   set('phase4-po-grand-total','R$ '+money(total));
-  set('phase4-po-advance-total','R$ '+money(advances));
+  set('phase4-po-advance-total','R$ '+money(state.editKey?Math.max(0,Math.round((Number(state.originalTotal||0)-Number(state.originalBalance||0))*100)/100):advances));
   const reducesSettled=Boolean(state.editKey&&balance<0&&Number(state.originalBalance||0)>=0);
   const refundsAdvance=reducesSettled&&state.advanceRefundable===true&&Math.abs(balance)<=Number(state.appliedAdvance||0)+0.005;
   const requiresReconciliation=reducesSettled&&!refundsAdvance;
@@ -1772,10 +1789,7 @@ async function purchaseEditWithReconciliation(key,ticket,state){
   }
   return result.ticket;
 }
-global.phase4PurchaseSave=async function(){
-  if(saving)return;
-  const body=document.getElementById('cs-lanc-body');if(!body)return;
-  const state=currentState(body);
+function readEditForm(state){
   state.supplierName=selectedSupplierName()||state.supplierName;
   state.discount=Math.max(0,parseBR(document.getElementById('phase4-po-discount')?.value||state.discount));
   state.freight=Math.max(0,parseBR(document.getElementById('phase4-po-freight')?.value||state.freight));
@@ -1784,6 +1798,34 @@ global.phase4PurchaseSave=async function(){
   state.purchaseDate=document.getElementById('phase4-po-date')?.value||state.purchaseDate||today();
   state.dueDate=document.getElementById('cs-lanc-venc')?.value||state.dueDate||today();
   state.notes=readOrderNotes(state);
+  return state;
+}
+function editFormSignature(state){
+  return JSON.stringify({
+    items:(state.items||[]).filter(function(item){return String(item.mat||'').trim()||Number(item.quantidade||0)>0;}).map(function(item){
+      return [String(item.mat||'').trim().toUpperCase(),Math.round(Number(item.quantidade||0)*1000),Math.round(Number(item.preco||0)*10000),String(item.descricao||'').trim(),String(item.ident||'')];
+    }),
+    discount:Math.round(Number(state.discount||0)*100),freight:Math.round(Number(state.freight||0)*100),
+    notes:String(state.notes||'').trim(),order:String(state.purchaseOrder||''),date:String(state.purchaseDate||''),
+    due:String(state.dueDate||''),supplier:String(state.supplierName||'')
+  });
+}
+function editFormDirty(body){
+  try{global.phase4PurchaseRecalc();}catch(e){}
+  const state=currentState(body);
+  if(!state?.editKey||!state.openSignature)return false;
+  return editFormSignature(readEditForm(state))!==state.openSignature;
+}
+async function saveBeforeFinanceAction(body,action){
+  if(!editFormDirty(body))return {saved:false,ok:true};
+  if(!confirm('Você mudou esta notinha e ainda não salvou.\n\nPara '+action+', o sistema primeiro salva as suas mudanças e depois continua.\n\nSalvar agora e continuar?'))return {saved:false,ok:false};
+  const saved=await global.phase4PurchaseSave({skipAdvanceOffer:true});
+  return {saved:saved===true,ok:saved===true};
+}
+global.phase4PurchaseSave=async function(options){
+  if(saving)return;
+  const body=document.getElementById('cs-lanc-body');if(!body)return;
+  const state=readEditForm(currentState(body));
   if(state.editKey){
     setSaving(true);
     global.__ERP_PURCHASE_IN_PROGRESS__=true;
@@ -1815,7 +1857,7 @@ global.phase4PurchaseSave=async function(){
       }finally{purchasePendingKeys.delete(String(state.editKey));}
       afterConfirmedPurchaseEdit(confirmed,state,totals);
       editCommitted=true;
-      if(Number(state.reapplyAdvance||0)>0.005){
+      if(Number(state.reapplyAdvance||0)>0.005&&!options?.skipAdvanceOffer){
         const info={supplierCode:state.supplierCode,supplierName:state.supplierName,orderNumber:String(ticket.ticket||state.orderNumber||state.editKey)};
         const key=String(state.editKey);
         setTimeout(function(){offerAdvanceAgain(key,info).catch(function(){});},600);
@@ -1838,7 +1880,7 @@ global.phase4PurchaseSave=async function(){
       finishPurchaseDeferredSave(false);setSaving(false);
       if(editCommitted)schedulePostPurchaseSave();
     }
-    return;
+    return editCommitted;
   }
   let prepared;
   try{
@@ -1988,18 +2030,21 @@ global.phase4PurchaseDetachAdvance=async function(adtCod){
   if(!state?.editKey)return;
   const row=(state.appliedAdvances||[]).find(function(a){return a.cod===adtCod;});
   if(!row)return;
-  const ticket=state.ticketSnapshot?JSON.parse(state.ticketSnapshot):{};
+  const key=String(state.editKey);
+  const before=await saveBeforeFinanceAction(body,'tirar o adiantamento');
+  if(!before.ok)return;
+  const ticket=before.saved?Object.assign({},tickets()[key]||{}):(state.ticketSnapshot?JSON.parse(state.ticketSnapshot):{});
   const message='Tirar o adiantamento '+adtCod+' do pedido '+state.orderNumber+'?\n\n'+
     '• R$ '+money(row.valor)+' voltam a ficar disponíveis no adiantamento (ele pode ser usado em outra compra ou excluído).\n'+
-    '• O saldo a pagar deste pedido aumenta R$ '+money(row.valor)+' e a conta em Contas a Pagar acompanha.\n\n'+
-    'Alterações nos itens que ainda não foram salvas serão descartadas.';
-  if(!confirm(message))return;
+    '• O saldo a pagar deste pedido aumenta R$ '+money(row.valor)+' e a conta em Contas a Pagar acompanha.';
+  if(!confirm(message)){if(before.saved)await global.phase4PurchaseEditTicket(key);return;}
   try{
-    await purchaseDetachAdvance(state.editKey,adtCod,{adiantamento:ticket.adiantamento,saldoPagar:ticket.saldoPagar,totalGeral:ticket.totalGeral});
+    await purchaseDetachAdvance(key,adtCod,{adiantamento:ticket.adiantamento,saldoPagar:ticket.saldoPagar,totalGeral:ticket.totalGeral});
     try{showToast('R$ '+money(row.valor)+' voltou para o adiantamento '+adtCod+'. O saldo a pagar do pedido foi atualizado.','success',8000);}catch(e){}
-    await global.phase4PurchaseEditTicket(state.editKey);
+    await global.phase4PurchaseEditTicket(key);
   }catch(error){
     try{showToast(error.message||'Não foi possível tirar o adiantamento.','error',9000);}catch(e){}
+    if(before.saved)await global.phase4PurchaseEditTicket(key);
   }
 };
 function stateForExistingTicket(key,cloudTicket){
@@ -2091,6 +2136,7 @@ global.phase4PurchaseEditTicket=async function(ticketRef){
     body.dataset.saldoAnterior='0';
     storeState(body,state);
     render(body);
+    try{const shown=readEditForm(currentState(body));shown.openSignature=editFormSignature(shown);storeState(body,shown);}catch(e){}
     const sup=document.getElementById('phase4-po-supplier');if(sup&&state.supplierLocked){sup.readOnly=true;sup.title='Compra com adiantamento, cheque ou pagamento: o fornecedor não pode ser trocado';}
     try{document.getElementById('cst-lancamento')?.scrollIntoView({block:'start',behavior:'smooth'});}catch(e){}
   },0);
