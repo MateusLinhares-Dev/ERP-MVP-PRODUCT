@@ -144,3 +144,24 @@ test('renomear material (MEDALHA → GRANA GROSSA): os quilos das notinhas e ven
   assert.equal(JSON.stringify(ctx.PRECOS_FORN_DATA.F1), '{"_datas":{"GRANA GROSSA":"17/11/2026"},"GRANA GROSSA":30}');
   assert.equal(ctx.PRECOS_CLI_DATA.JOSE['GRANA GROSSA'], 35);
 });
+
+test('estoque de todos os materiais numa passada só dá o mesmo resultado que material por material (com nome antigo e variante de maiúsculas)', () => {
+  const pick = (from, to) => core.slice(core.indexOf(from), core.indexOf(to, core.indexOf(from)));
+  const code = pick('function _normalizarChaveMaterialEstoque(nome){', 'function _materialEfetivoDoItem(item){') + pick('function _pesagensConsolidadas(){', 'function _dedupeMetais(){');
+  const ctx = {
+    TICKETS_DB: { T1: { ticket: 'T1', status: 'Pago', itens: [{ mat: 'MEDALHA', pesoLiq: 50 }, { mat: 'latinha', pesoLiq: 7 }] }, T2: { ticket: 'T2', status: 'Pago', itens: [{ mat: 'LATINHA', pesoLiq: 3 }, { mat: 'GRANA GROSSA', pesoLiq: 5 }] }, V9: { ticket: 'V9', tipo: 'venda', itens: [{ mat: 'LATINHA', pesoLiq: 99 }] } },
+    VENDAS_DB: [{ itens: [{ mat: 'Medalha', qt: 4 }, { mat: 'LATINHA', qt: 1 }] }],
+    FC_LANC: { JOSE: [{ tipo: 'entrega', material: 'grana grossa', peso: 2 }] },
+    ESTOQUE_DB: { 'GRANA GROSSA': { nomesAnteriores: ['MEDALHA'] }, LATINHA: {} },
+    _materialEfetivoDoItem: (it) => it.mat,
+  };
+  runInNewContext(code + ';this.e=getEntradasMaterial;this.s=getSaidasMaterial;this.t=_estoqueTotaisPorChave;', ctx);
+  const tot = ctx.t();
+  for (const m of ['GRANA GROSSA', 'LATINHA']) {
+    assert.equal(tot.ent.get(m) || 0, ctx.e(m), 'entradas ' + m);
+    assert.equal(tot.sai.get(m) || 0, ctx.s(m), 'saídas ' + m);
+  }
+  assert.equal(tot.ent.get('GRANA GROSSA'), 55);
+  assert.equal(tot.sai.get('GRANA GROSSA'), 6);
+  assert.equal(tot.ent.get('LATINHA'), 10);
+});

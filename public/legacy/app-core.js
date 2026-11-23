@@ -1540,13 +1540,21 @@ function renderDashboard(){
 
   let totalEstoque=0;
   const estoqueMatData={};
+  const _totEst=typeof _estoqueTotaisPorChave==='function'?_estoqueTotaisPorChave():null;
+  const _gruposEst=new Map();
   Object.entries(ESTOQUE_DB||{}).forEach(([mat,e])=>{
-    const entradas=getEntradasMaterial(mat);
-    const saidas=getSaidasMaterial(mat)+Number(e.saidas||0);
-    const saldo=Number(e.inicial||0)+entradas-saidas;
+    const k=_totEst?_chaveEstoqueComAlias(mat,_totEst.mapa):String(mat);
+    const g=_gruposEst.get(k)||{mat:mat,inicial:0,saidas:0};
+    g.inicial+=Number(e&&e.inicial||0); g.saidas+=Number(e&&e.saidas||0);
+    _gruposEst.set(k,g);
+  });
+  _gruposEst.forEach((g,k)=>{
+    const entradas=_totEst?(_totEst.ent.get(k)||0):getEntradasMaterial(g.mat);
+    const saidas=(_totEst?(_totEst.sai.get(k)||0):getSaidasMaterial(g.mat))+g.saidas;
+    const saldo=g.inicial+entradas-saidas;
     const s=Math.max(0,saldo);
     totalEstoque+=s;
-    estoqueMatData[mat]=s;
+    estoqueMatData[g.mat]=s;
   });
 
   const funcAtivos=(FUNCIONARIOS||[]).filter(f=>f.status!=='Inativo').length;
@@ -7346,7 +7354,7 @@ function _fcMovimentos(cli){
     mov.push({ord:_fcData2Ord(a.data), data:a.data||'—', tipo:'adt', desc:'Adiantamento'+(a.forma?' ('+esc(a.forma)+')':'')+(a.vinculo?' — '+esc(a.vinculo):''), kg:0, deb:0, cred:Number(a.valor||0)});
   }); });
   Object.keys(CHEQUES_CLI||{}).filter(function(k){return _fcMesmoNome(k,cli);}).forEach(function(k){ (CHEQUES_CLI[k]||[]).forEach(function(c){
-    mov.push({ord:_fcData2Ord(c.bomPara||c.data), data:(c.bomPara||c.data||'—'), tipo:'cheq', desc:'Cheque nº '+esc(c.num||'—')+(c.banco?' — '+esc(c.banco):''), kg:0, deb:0, cred:Number(c.valor||0)});
+    mov.push({ord:_fcData2Ord(c.bomPara||c.data), data:(c.bomPara||c.data||'—'), tipo:'cheq', desc:'Cheque nº '+esc(c.num||'—')+(c.banco?' — '+esc(c.banco):'')+(c.status==='Devolvido'?' (devolvido, não conta)':''), kg:0, deb:0, cred:(c.status==='Devolvido'?0:Number(c.valor||0))});
   }); });
   try{
     const _ja=new Set(Object.keys(CHEQUES_CLI||{}).filter(function(k){return _fcMesmoNome(k,cli);}).flatMap(function(k){return CHEQUES_CLI[k]||[];}).map(function(c){ return String(c.num||'')+'|'+Number(c.valor||0).toFixed(2)+'|'+String(c.bomPara||c.data||''); }));
@@ -7365,6 +7373,22 @@ function _fcMovimentos(cli){
     if(cr.forma==='Adiantamento'||cr.forma==='Cheque') return; 
     mov.push({ord:_fcData2Ord(cr.dataReceb||cr.data), data:(cr.dataReceb||cr.data||'—'), tipo:'pag', desc:'Pagamento'+(cr.forma?' ('+esc(cr.forma)+')':'')+(cr.nf?' — NF '+esc(cr.nf):'')+(cr.obs?' — '+esc(cr.obs):''), kg:0, deb:0, cred:Number(cr.valor||0)});
   });
+  try{
+    const fcLanc=typeof FC_LANC==='object'&&FC_LANC?FC_LANC:{};
+    const nomesLanc={entrega:'Entrega de metal',deposito:'Depósito',ch_devol:'Cheque devolvido',reembolso:'Reembolso'};
+    Object.keys(fcLanc).filter(function(k){return _fcMesmoNome(k,cli);}).forEach(function(k){ (fcLanc[k]||[]).forEach(function(l){
+      if(!l||l.tipo==='pendente') return;
+      const deb=Math.max(0,Number(l.debito||0)), cred=Math.max(0,Number(l.credito||0));
+      if(deb<=0&&cred<=0) return;
+      mov.push({ord:_fcData2Ord(l.data), data:l.data||'—', tipo:'lanc', desc:esc(l.hist||nomesLanc[l.tipo]||'Lançamento da ficha'), kg:l.tipo==='entrega'?Number(l.peso||0):0, deb:deb, cred:cred});
+    }); });
+    const saldosIni=typeof FC_SALDO_INI==='object'&&FC_SALDO_INI?FC_SALDO_INI:{};
+    Object.keys(saldosIni).filter(function(k){return _fcMesmoNome(k,cli);}).forEach(function(k){
+      const si=saldosIni[k]; const v=Math.round(Number(si&&si.valor||0)*100)/100;
+      if(!v) return;
+      mov.push({ord:'0', data:(si&&si.data)||'—', tipo:'ini', desc:'Saldo anterior ao sistema'+(v>0?' (crédito do cliente)':' (cliente devia)'), kg:0, deb:v<0?-v:0, cred:v>0?v:0});
+    });
+  }catch(e){}
   mov.sort((a,b)=>a.ord.localeCompare(b.ord));
   return mov;
 }
@@ -7420,7 +7444,7 @@ function fcSelecionarCliente(cli){
   document.getElementById('fc-k-deb').textContent=_fcMoneyFmt(t.deb);
   document.getElementById('fc-k-cred').textContent=_fcMoneyFmt(t.cred);
   document.getElementById('fc-k-saldo').textContent=_fcMoneyFmt(t.saldo);
-  const pills={venda:['Venda','#fdecea','#c0392b'],adt:['Adiantamento','#e8f5e9','#1a5e2a'],cheq:['Cheque','#f3e9fb','#6a1b9a'],pag:['Pagamento','#e3f0fb','#1565c0']};
+  const pills={venda:['Venda','#fdecea','#c0392b'],adt:['Adiantamento','#e8f5e9','#1a5e2a'],cheq:['Cheque','#f3e9fb','#6a1b9a'],pag:['Pagamento','#e3f0fb','#1565c0'],lanc:['Lançamento','#fff8e1','#8a6d0b'],ini:['Saldo inicial','#eef2f7','#34495e']};
   let saldo=0;
   const tb=document.getElementById('fc-extrato');
   if(!t.mov.length){ tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:#999;padding:18px">Nenhum lançamento para este cliente ainda.</td></tr>'; }
@@ -13697,6 +13721,21 @@ function _ticketsNoEstoque(){
     return !!tk&&typeof tk==='object'&&String(tk.tipo||'').trim().toLowerCase()!=='venda'&&!consolidadas.has(k);
   }).map(function(k){ return base[k]; });
 }
+function _estoqueTotaisPorChave(){
+  const mapa=_aliasesEstoque();
+  const ent=new Map(), sai=new Map();
+  const somar=function(alvo,nome,valor){ const k=_chaveEstoqueComAlias(nome,mapa); if(k) alvo.set(k,(alvo.get(k)||0)+valor); };
+  _ticketsNoEstoque().forEach(function(tk){ (tk.itens||[]).forEach(function(it){ somar(ent,_materialEfetivoDoItem(it),Number(it&&it.pesoLiq||0)); }); });
+  (typeof VENDAS_DB!=='undefined'?VENDAS_DB:[]).forEach(function(vd){ (vd&&vd.itens||[]).forEach(function(it){ somar(sai,_materialEfetivoDoItem(it),Number(it&&it.qt||0)); }); });
+  try{
+    if(typeof FC_LANC==='object'&&FC_LANC){
+      Object.keys(FC_LANC).forEach(function(cli){
+        (FC_LANC[cli]||[]).forEach(function(l){ if(l&&l.tipo==='entrega') somar(sai,l.material,Number(l.peso||0)); });
+      });
+    }
+  }catch(e){}
+  return {mapa:mapa,ent:ent,sai:sai};
+}
 function getEntradasMaterial(mat){
   const mapa=_aliasesEstoque();
   const alvo=_chaveEstoqueComAlias(mat,mapa);
@@ -13805,10 +13844,11 @@ function renderEstoque(){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const _isEl=_usuarioAtualEhAdmin() || window.erpCanAccessTab?.('estoque')===true;
   const materiais=_semNomesAntigos((METAIS||[]).filter(function(m){ return !!m && !_estoqueMaterialExcluido(m); })).slice().sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{sensitivity:'base'}));
+  const totaisEstoque=_estoqueTotaisPorChave();
   const ajustesPorChave={};
   Object.keys(ESTOQUE_DB||{}).forEach(function(k){
     const x=ESTOQUE_DB[k]; if(!x) return;
-    const chave=_normalizarChaveMaterialEstoque(k);
+    const chave=_chaveEstoqueComAlias(k,totaisEstoque.mapa);
     const soma=ajustesPorChave[chave]||(ajustesPorChave[chave]={inicial:0,saidas:0});
     soma.inicial+=Number(x.inicial||0); soma.saidas+=Number(x.saidas||0);
   });
@@ -13819,10 +13859,11 @@ function renderEstoque(){
     chavesVistas.add(chave); return true;
   }).map(mat=>{
     const e=ESTOQUE_DB[mat]||{inicial:0,saidas:0,precoVenda:0};
-    const ajuste=ajustesPorChave[_normalizarChaveMaterialEstoque(mat)]||{inicial:Number(e.inicial||0),saidas:Number(e.saidas||0)};
+    const ajuste=ajustesPorChave[_chaveEstoqueComAlias(mat,totaisEstoque.mapa)]||{inicial:Number(e.inicial||0),saidas:Number(e.saidas||0)};
     const inicial=ajuste.inicial;
-    const entradas=getEntradasMaterial(mat);
-    const saidas=getSaidasMaterial(mat)+ajuste.saidas;
+    const chaveTotal=_chaveEstoqueComAlias(mat,totaisEstoque.mapa);
+    const entradas=totaisEstoque.ent.get(chaveTotal)||0;
+    const saidas=(totaisEstoque.sai.get(chaveTotal)||0)+ajuste.saidas;
     const preco=Number(e.precoVenda||0);
     const saldoBruto=inicial+entradas-saidas;
     const saldo=Math.abs(saldoBruto)<0.05?0:saldoBruto;

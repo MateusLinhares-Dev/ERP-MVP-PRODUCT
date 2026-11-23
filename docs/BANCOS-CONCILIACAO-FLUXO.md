@@ -221,6 +221,42 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## As duas fichas do cliente davam saldos diferentes (24/11/2026, v275)
+
+A cliente notou que há duas fichas do cliente e "uma não puxa a outra":
+- a aba **Ficha do Cliente** (botões com os clientes; extrato em `_fcMovimentos`);
+- a **Ficha** que abre pela aba Clientes (janela, `fcRenderFicha`, com editar e excluir por linha).
+
+A aba ignorava os lançamentos manuais da ficha (`fcLanc`: entrega, depósito, cheque devolvido, reembolso) e o saldo anterior (`fcSaldoIni`). Também contava cheque devolvido como pago. Com isso, o mesmo cliente tinha saldos diferentes nas duas telas.
+
+Correção (`_fcMovimentos`):
+- a aba soma os lançamentos manuais, menos os "ainda não pago", com a etiqueta "Lançamento";
+- soma o saldo anterior, com a etiqueta "Saldo inicial" (positivo é crédito do cliente, negativo é dívida, como na janela);
+- não conta o cheque devolvido, que aparece como "(devolvido, não conta)".
+
+Os cheques do "Cheques a compensar" com o nome do cliente continuam só na aba, como antes. O teste de tela tem venda, adiantamento, cheque bom e devolvido, entrega e depósito manuais, um "ainda não pago" e saldo anterior. As duas telas mostram "cliente deve R$ 850,00" (4/4).
+
+**Saldo anterior lançado duas vezes (caso Anderson):** ela lançou o saldo anterior como "Adiantamento (crédito)" e ele foi gravado duas vezes, provavelmente por clique duplo, que a v272 já impede. Não é defeito de cálculo. Para apagar o repetido: aba Ficha do Cliente → sub-aba "💳 Adiant/Cheques (detalhe)" → 🗑️ num dos dois adiantamentos de R$ 43.966,44 do Anderson. Também dá pela Ficha da aba Clientes, no 🗑️ da linha. A exclusão só é recusada se o adiantamento já foi usado numa venda.
+
+## Estoque mais rápido; Painel contava material repetido duas vezes (24/11/2026, v274)
+
+**Desempenho.** A tela do Estoque e o Painel calculavam cada material varrendo todas as notinhas e vendas: 110 materiais vezes todas as notinhas. Medido com 3.000 notinhas, 500 vendas e 110 materiais:
+- v269: cerca de 1 s;
+- v271: 1,6 s (a tradução pelo nome atual em cada item pesou).
+
+A tela é redesenhada a cada atualização da nuvem. Agora `_estoqueTotaisPorChave` soma entradas (notinhas e pesagens no estoque), saídas (vendas e entregas da Ficha do Cliente) e nomes antigos numa passada só: **21 ms**, com o mesmo resultado (teste compara com o cálculo material por material). Edição, exclusão de material e estoque da venda continuam usando o cálculo de um material só.
+
+**Painel → estoque total contava em dobro.** O Painel percorria o cadastro do estoque (`ESTOQUE_DB`), que ainda guarda a variante "latinha" (v266) e pode guardar um nome antigo de material renomeado (v271). Cada chave somava os mesmos quilos. Exemplo do teste: LATINHA 1.000 kg + MEDALHA/GRANA GROSSA 50 kg mostrava 2.100 kg em vez de 1.050 kg. Agora as chaves são agrupadas pelo nome atual, somando os ajustes manuais, como na tela do Estoque.
+
+**Revisado e sem defeito:**
+- tratamento de erro das chamadas ao servidor nas telas antigas (avisam a cliente; só a migração de documentos registra no console);
+- excluir pela Ficha do fornecedor a "Parte do adiantamento" encontra os pagamentos e oferece desfazer.
+
+Testes:
+- `test/stock-weighing-double-count.test.js` (uma passada só igual a material por material, com nome antigo e variante);
+- teste de tela do Painel (3/3);
+- os 8 testes de tela de estoque anteriores.
+
 ## Revisão: pesagem de venda na lista de compra; varredura de telas (24/11/2026, v273)
 
 **Varredura de telas:** no navegador simulado, com compra, venda, adiantamento, cheque e lançamento de banco de exemplo, abri as 44 abas e as 13 janelas de lançamento. Fiz isso como administradora e como secretária, com menos permissões. Não apareceu nenhum erro de JavaScript.

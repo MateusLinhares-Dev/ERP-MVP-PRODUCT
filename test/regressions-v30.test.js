@@ -176,8 +176,9 @@ test('v30 stock screen never consolidates LIMPO MISTO 100 percent or other forms
   assert.doesNotMatch(renderBlock,/formas/);
   assert.doesNotMatch(renderBlock,/_baseMaterial/);
   assert.match(renderBlock,/const materiais=_semNomesAntigos\(\(METAIS\|\|\[\]\)/);
-  assert.match(renderBlock,/getEntradasMaterial\(mat\)/);
-  assert.match(renderBlock,/getSaidasMaterial\(mat\)/);
+  assert.match(renderBlock,/const totaisEstoque=_estoqueTotaisPorChave\(\)/);
+  assert.match(renderBlock,/totaisEstoque\.ent\.get\(chaveTotal\)/);
+  assert.match(renderBlock,/totaisEstoque\.sai\.get\(chaveTotal\)/);
 });
 
 test('v30 supplier price editor clearly marks the row being edited by keyboard or mouse',()=>{
