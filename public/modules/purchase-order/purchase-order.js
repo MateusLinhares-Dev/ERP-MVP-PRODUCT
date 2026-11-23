@@ -665,6 +665,22 @@ global.phase4PurchaseUndoPayment=async function(payableId,index){
   }
   try{showToast(onlyAdvance?'Compensação desfeita: o valor voltou para o adiantamento. Agora salve a edição.':'Pagamento desfeito. Agora salve a edição.','success',8000);}catch(e){}
 };
+async function reopenPurchaseKeepingEdits(state){
+  const body=document.getElementById('cs-lanc-body');
+  if(!body||!state?.editKey)return;
+  const keep={
+    items:JSON.parse(JSON.stringify(state.items||[])),discount:state.discount,freight:state.freight,notes:state.notes,
+    purchaseOrder:state.purchaseOrder,purchaseDate:state.purchaseDate,reapplyAdvance:state.reapplyAdvance
+  };
+  await global.phase4PurchaseEditTicket(state.editKey);
+  await new Promise(function(resolve){setTimeout(resolve,30);});
+  const again=currentState(body);
+  if(again?.editKey===state.editKey){
+    Object.assign(again,keep);
+    storeState(body,again);
+    render(body);
+  }
+}
 async function offerAdvanceAgain(key,info){
   if(typeof global.erpPayablesCompensateAdvance!=='function')return;
   if(olderOpenLines(supplierAdvancePlan(info.supplierCode),info.orderNumber).length){
@@ -1412,6 +1428,28 @@ function purchaseStableSnapshot(value){
   if(value&&typeof value==='object')return '{'+Object.keys(value).sort().map(function(key){return JSON.stringify(key)+':'+purchaseStableSnapshot(value[key]);}).join(',')+'}';
   return JSON.stringify(value);
 }
+const PURCHASE_MONEY_FIELDS=['totalGeral','totalProdutos','saldoPagar','status','adiantamento','descontoCompra','freteCompra','parcelas',
+  'reciboFinanceiro','fornecedorCod','fornecedor','fornecedorNome','fornCod','_purchaseOperationId','saldoAnterior',
+  'creditoFornecedorOrigem','creditoFornecedorAplicado','_consolidado','_ticketsOrigemIds','ticket'];
+function purchaseSameValue(a,b){
+  const na=typeof a==='number'||(typeof a==='string'&&a.trim()!==''&&Number.isFinite(Number(a)))?Number(a):NaN;
+  const nb=typeof b==='number'||(typeof b==='string'&&b.trim()!==''&&Number.isFinite(Number(b)))?Number(b):NaN;
+  if(Number.isFinite(na)&&Number.isFinite(nb))return Math.abs(na-nb)<=0.005;
+  return purchaseStableSnapshot(a===undefined?null:a)===purchaseStableSnapshot(b===undefined?null:b);
+}
+function purchaseMergeEdit(base,payload,current){
+  if(!base||!payload||!current||typeof current!=='object')return null;
+  const merged=JSON.parse(JSON.stringify(current));
+  const keys=new Set([...Object.keys(base),...Object.keys(payload)]);
+  for(const key of keys){
+    if(purchaseSameValue(payload[key],base[key]))continue;
+    if(PURCHASE_MONEY_FIELDS.includes(key))return null;
+    if(!purchaseSameValue(current[key],base[key]))return null;
+    if(payload[key]===undefined)delete merged[key];
+    else merged[key]=JSON.parse(JSON.stringify(payload[key]));
+  }
+  return merged;
+}
 function purchaseRememberServerAck(key, ticket){
   if(!ticket || !ticket._purchaseOperationId)return;
   const recent=global.__ERP_PURCHASE_RECENT_CONFIRMED__ instanceof Map
@@ -1452,14 +1490,24 @@ async function purchaseConfirmCloud(key,ticket,options={}){
       return payload;
     }
     if(!current || typeof current!=='object')return;
-    if(options.expectedSnapshot && purchaseStableSnapshot(current)!==options.expectedSnapshot)return;
+    if(options.info)options.info.merged=false;
+    if(options.expectedSnapshot && purchaseStableSnapshot(current)!==options.expectedSnapshot){
+      const merged=purchaseMergeEdit(options.base,payload,current);
+      if(!merged)return;
+      if(expected && Math.abs(Number(current.totalGeral||0)-Number(expected.totalGeral||0))>0.01)return;
+      if(options.info)options.info.merged=true;
+      return merged;
+    }
     if(expected && (Math.abs(Number(current.totalGeral||0)-Number(expected.totalGeral||0))>0.01
       || Math.abs(Number(current.saldoPagar||0)-Number(expected.saldoPagar||0))>0.01))return;
     return payload;
   });
-  if(!tx || tx.committed!==true)throw new Error(create
-    ?'Número de pedido já existe no Firebase. Nenhum pedido existente foi substituído.'
-    :'O pedido foi alterado em outra sessão. Reabra o histórico antes de editar.');
+  if(!tx || tx.committed!==true){
+    if(create)throw new Error('Número de pedido já existe no Firebase. Nenhum pedido existente foi substituído.');
+    const changed=new Error('Este pedido mudou depois que você abriu a edição (por exemplo, um pagamento ou uma compensação de adiantamento).');
+    changed.code='PURCHASE_CHANGED';
+    throw changed;
+  }
   const verified=await ref.once('value');
   const saved=verified?.val?.();
   if(!saved || String(saved.ticket||'')!==String(payload.ticket||id)
@@ -1753,13 +1801,16 @@ global.phase4PurchaseSave=async function(){
       const ticket=saveEditedTicket(state,totals);
       purchasePendingKeys.add(String(state.editKey));
       let confirmed;
+      const saveInfo={merged:false};
       try{
         const financeChanged=totalChanged||planChanged||supplierChanged;
         confirmed=financeChanged
           ?await purchaseEditWithReconciliation(String(state.editKey),ticket,state)
           :await purchaseConfirmCloud(String(state.editKey),ticket,{
             expected:{totalGeral:state.originalTotal,saldoPagar:state.originalBalance},
-            expectedSnapshot:state.cloudSnapshot
+            expectedSnapshot:state.cloudSnapshot,
+            base:state.ticketSnapshot?JSON.parse(state.ticketSnapshot):null,
+            info:saveInfo
           });
       }finally{purchasePendingKeys.delete(String(state.editKey));}
       afterConfirmedPurchaseEdit(confirmed,state,totals);
@@ -1772,10 +1823,16 @@ global.phase4PurchaseSave=async function(){
       resetOrderState(body);
       manualMode=false;
       if(typeof global.csTab==='function')global.csTab('historico');
-      try{showToast('Pedido '+String(ticket.ticket||state.editKey)+' atualizado e confirmado.','success');}catch(e){}
+      try{showToast('Pedido '+String(ticket.ticket||state.editKey)+' atualizado e confirmado.'+
+        (saveInfo.merged?' Ele tinha um pagamento ou compensação registrado depois que você abriu: o saldo atual foi mantido.':''),'success',saveInfo.merged?9000:4000);}catch(e){}
     }catch(error){
       purchaseRollbackLocal(editSnapshot);
-      try{showToast(error.message||'Não foi possível atualizar o pedido. Nenhuma alteração financeira foi confirmada.','error',7000);}catch(e){}
+      if(['PURCHASE_CHANGED','TICKET_CHANGED','PAYABLE_CHANGED','ADVANCE_CHANGED','CREDIT_CHANGED'].includes(String(error?.code||''))){
+        await reopenPurchaseKeepingEdits(state);
+        try{showToast('Este pedido mudou depois que você abriu a edição (um pagamento ou uma compensação de adiantamento foi registrado). Abri o pedido de novo com os valores atuais e mantive o que você digitou: confira e clique em Salvar de novo.','info',12000);}catch(e){}
+      }else{
+        try{showToast(error.message||'Não foi possível atualizar o pedido. Nenhuma alteração financeira foi confirmada.','error',7000);}catch(e){}
+      }
     }
     finally{
       finishPurchaseDeferredSave(false);setSaving(false);
@@ -2008,7 +2065,15 @@ global.phase4PurchaseEditTicket=async function(ticketRef){
   }
   let state;
   try{
-    const remote=await purchaseCloudRef(entry[0]).once('value');
+    const local=entry[1]||{};
+    const differs=function(value){
+      return !value||['totalGeral','saldoPagar','status'].some(function(field){return !purchaseSameValue(value[field],local[field]);});
+    };
+    let remote=await purchaseCloudRef(entry[0]).once('value');
+    for(let attempt=0;attempt<4&&differs(remote?.val?.());attempt++){
+      await new Promise(function(resolve){setTimeout(resolve,350);});
+      remote=await purchaseCloudRef(entry[0]).once('value');
+    }
     const confirmed=remote?.val?.();
     if(!confirmed||typeof confirmed!=='object')throw new Error('Pedido não encontrado na nuvem. Nenhuma edição foi iniciada.');
     if(confirmed.status==='Aguard. Preço'||confirmed._balSessao||confirmed._rodEntrada)throw new Error('Finalize a pesagem antes de editar este pedido.');
@@ -2377,6 +2442,59 @@ function printAppliedAdvances(key,ticket,advance){
   }
   return rows;
 }
+function printAdvanceUsesDetailed(payment){
+  if(!payment||!Array.isArray(payment.adtUsos)||!payment.adtUsos.length)return false;
+  const used=payment.adtUsos.reduce(function(sum,use){return sum+Math.round(Number(use&&use.valor||0)*100);},0);
+  return used>0&&Math.abs(used-Math.round(Number(payment.adt||0)*100))<=1;
+}
+function printAdvanceUsedElsewhere(code,ticketNo,day){
+  if(!code)return false;
+  const all=tickets();
+  for(const k of Object.keys(all)){
+    const t=all[k];
+    const no=String(t&&t.ticket||k).trim();
+    if(!t||no===ticketNo)continue;
+    const tDay=isoDay(t.dataCompra||t.pedidoCompra?.dataCompra||t.data);
+    if(day&&tDay&&tDay>day)continue;
+    if((t.reciboFinanceiro?.adiantamentos||[]).some(function(a){return a&&String(a.cod||'')===code&&Number(a.valorAplicado||0)>0.005;}))return true;
+  }
+  try{
+    for(const cp of (CONTAS_PAGAR||[])){
+      if(!cp||String(cp.ticket||'').trim()===ticketNo)continue;
+      for(const p of (Array.isArray(cp.pagamentos)?cp.pagamentos:[])){
+        if(!p||!Array.isArray(p.adtUsos))continue;
+        const pDay=isoDay(p.data);
+        if(day&&pDay&&pDay>day)continue;
+        if(p.adtUsos.some(function(use){return use&&String(use.cod||'')===code;}))return true;
+      }
+    }
+  }catch(e){}
+  return false;
+}
+function printLaterAdvanceRows(key,ticket){
+  const ticketNo=String(ticket.ticket||key||'').trim();
+  const supplier=String(ticket.fornecedorCod||ticket.fornCod||'').trim();
+  let ledger=[],linked=[];
+  try{ledger=(ADT_POR_FORN[supplier]||[]).filter(Boolean);}catch(e){}
+  try{linked=(CONTAS_PAGAR||[]).filter(function(cp){return cp&&String(cp.ticket||'').trim()===ticketNo;});}catch(e){}
+  const rows=[];
+  linked.forEach(function(cp){
+    (Array.isArray(cp.pagamentos)?cp.pagamentos:[]).forEach(function(payment){
+      if(!printAdvanceUsesDetailed(payment))return;
+      payment.adtUsos.forEach(function(use){
+        const cents=Math.round(Number(use&&use.valor||0)*100);
+        if(!(cents>0))return;
+        const code=String(use.cod||'');
+        const record=ledger.find(function(a){return String(a.cod||'')===code&&a.origem!=='compensacao_cp';})||{};
+        const original=Math.max(Number(record.valorOriginal||0),Number(record.valor||0),cents/100);
+        rows.push({kind:'Adiantamento',ref:code,date:String(record.data||''),method:String(record.forma||''),
+          amount:cents/100,original:original,later:true,usedOn:String(payment.data||''),
+          usedElsewhere:printAdvanceUsedElsewhere(code,ticketNo,isoDay(payment.data))});
+      });
+    });
+  });
+  return rows;
+}
 function printCarriedCutoff(key,ticket){
   const supplier=String(ticket.fornecedorCod||ticket.fornCod||'').trim();
   const number=String(ticket.ticket||key||'').trim();
@@ -2424,6 +2542,11 @@ function printPaymentSnapshot(key,ticket,total){
       if(!payment)continue;
       const cash=safe(payment.valor),applied=safe(payment.adt);
       if(cash+applied<=0)continue;
+      if(printAdvanceUsesDetailed(payment)){
+        if(cash>0)payments.push({date:String(payment.data||''),amount:cash,description:'Pagamento',
+          details:String(payment.formaPagamento||payment.forma||payment.metodoPagamento||'').trim()});
+        continue;
+      }
       payments.push({date:String(payment.data||''),amount:cash+applied,
         description:applied>0&&cash>0?'Pagamento e adiantamento':(applied>0?'Compensação de adiantamento':'Pagamento'),
         details:String(payment.formaPagamento||payment.forma||payment.metodoPagamento||'').trim()});
@@ -2502,11 +2625,12 @@ function printHtml(key,ticket){
     (discount>0?totalRow('Desconto','- R$ '+money(discount)):'')+
     (freight>0?totalRow('Frete','R$ '+money(freight)):'')+
     totalRow('Total do pedido','R$ '+money(total),'grand');
-  const allAdvanceRows=printAppliedAdvances(key,ticket,advance);
+  const laterAdvanceRows=printLaterAdvanceRows(key,ticket);
+  const allAdvanceRows=printAppliedAdvances(key,ticket,advance).concat(laterAdvanceRows);
   const carriedCut=printCarriedCutoff(key,ticket);
   const isCarried=function(row){
     if(row.kind!=='Adiantamento')return false;
-    if((row.usedBeforeCents||0)>0)return true;
+    if(row.usedElsewhere||(row.usedBeforeCents||0)>0)return true;
     if(/cr[eé]dito|saldo/i.test(row.method||''))return true;
     const d=isoDay(row.date);
     return Boolean(carriedCut&&d&&d<=carriedCut);
@@ -2527,7 +2651,7 @@ function printHtml(key,ticket){
     '<tr><th>Total do pedido</th><td>R$ '+money(total)+'</td></tr>'+
     (finance.priorDebt>0?'<tr><th>Saldo anterior incorporado</th><td>R$ '+money(finance.priorDebt)+'</td></tr>':'')+
     (carried>0?'<tr class="advance-carried"><th>Saldo devedor anterior descontado</th><td>R$ '+money(carried)+'</td></tr>':'')+
-    (advance>0&&knownAdvances.length?'<tr class="advance-original"><th>'+originalLabel+'</th><td>R$ '+money(advanceOriginal)+'</td></tr>':'')+
+    (knownAdvances.length?'<tr class="advance-original"><th>'+originalLabel+'</th><td>R$ '+money(advanceOriginal)+'</td></tr>':'')+
     (usedBefore>0.005?'<tr><th>Já usado em compras anteriores</th><td>R$ '+money(usedBefore)+'</td></tr>':'')+
     '<tr><th>Adiantamentos / abatimentos no fechamento</th><td>R$ '+money(advance)+'</td></tr>'+
     '<tr><th>Pagamentos e abatimentos posteriores</th><td>R$ '+money(finance.sincePurchase)+'</td></tr>'+
@@ -2535,16 +2659,19 @@ function printHtml(key,ticket){
     '<tr class="due"><th>Saldo a pagar</th><td>R$ '+money(balance)+'</td></tr>'+ 
     (supplierCredit>0?'<tr class="supplier-credit"><th>Saldo devedor do fornecedor (adiantamento não utilizado, disponível para próximas compras)</th><td>R$ '+money(supplierCredit)+'</td></tr>':'')+
     '</tbody></table></section>';
-  const advanceDetails=advance>0
+  const advanceRowsTotal=Math.round(allAdvanceRows.reduce(function(sum,row){return sum+Math.round(Number(row.amount||0)*100);},0))/100;
+  const advanceDetails=advance>0||laterAdvanceRows.length
     ?'<section class="print-section applied-advances"><h2>Adiantamentos e abatimentos desta compra</h2>'+
       '<table class="installments"><colgroup><col class="col-date"><col class="col-origin"><col class="col-form"><col class="col-money"><col class="col-money"></colgroup>'+
       '<thead><tr><th>Data</th><th>Origem</th><th>Forma</th><th>Valor total do adiantamento</th><th>Valor aplicado</th></tr></thead><tbody>'+
       (carried>0?'<tr><td>—</td><td>Saldo devedor anterior</td><td>Sobra das compras anteriores</td><td class="numeric">—</td><td class="numeric">R$ '+money(carried)+'</td></tr>':'')+
       advanceRows.map(function(row){return '<tr><td>'+esc(row.date?dateBR(row.date):'—')+'</td>'+
-        '<td>'+esc(row.kind)+'</td><td>'+esc(printPaymentForm(row))+'</td>'+
+        '<td>'+esc(row.kind)+(row.later&&row.usedOn?' (usado em '+esc(dateBR(row.usedOn))+')':'')+'</td><td>'+esc(printPaymentForm(row))+'</td>'+
         '<td class="numeric">'+(row.original==null?'—':'R$ '+money(row.original))+'</td>'+
         '<td class="numeric">R$ '+money(row.amount)+'</td></tr>';}).join('')+
-      '<tr class="advance-total"><th colspan="4">Total abatido no fechamento</th><td class="numeric">R$ '+money(advance)+'</td></tr>'+
+      (laterAdvanceRows.length
+        ?'<tr class="advance-total"><th colspan="4">Total de adiantamentos abatidos'+(advance>0?' (no fechamento e depois)':' (depois do fechamento)')+'</th><td class="numeric">R$ '+money(advanceRowsTotal)+'</td></tr>'
+        :'<tr class="advance-total"><th colspan="4">Total abatido no fechamento</th><td class="numeric">R$ '+money(advance)+'</td></tr>')+
       '</tbody></table></section>':'';
   const laterPayments=finance.payments.length
     ?'<section class="print-section payment-history"><h2>Pagamentos registrados após o pedido</h2><table class="installments"><colgroup><col class="col-date"><col class="col-operation"><col class="col-money"></colgroup>'+
