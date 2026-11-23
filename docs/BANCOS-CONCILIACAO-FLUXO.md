@@ -221,6 +221,18 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Estoque zerado aparecia "OK" ou "-0.0 kg NEGATIVO" (23/11/2026, v269)
+
+Depois de zerar os cobres, a tela mostrou:
+- COBRE MEL com "0.0 kg" e situação OK;
+- COBRE MISTO com "-0.0 kg", "R$ -0,00" e NEGATIVO.
+
+As entradas têm mais casas do que a tela mostra (27.285,36 aparece como 27285.4). A cliente digitou nas saídas o número da tela, e sobraram ou faltaram 0,04 kg. A coluna mostra uma casa, mas a situação e o valor usavam o número exato.
+
+Correção (`renderEstoque` e `editEstoque`): saldo com menos de 0,05 kg para mais ou para menos conta como zero. É o que a tela já mostrava como "0.0". Situação, valor total e o "Saldo atual" da edição usam esse número. Um saldo de verdade de 0,1 kg continua OK. O campo "Quanto tem no pátio agora?" (v268) usa as entradas exatas e não deixa essa sobra.
+
+Teste de tela (5/5): COBRE MEL e COBRE MISTO com 0,04 kg de diferença aparecem ZERADO; um material com 0,1 kg continua OK; a edição mostra 0.0 kg.
+
 ## Estoque: "Quanto tem no pátio agora?" para acertar ou zerar (23/11/2026, v268)
 
 A cliente perguntou como zerar o estoque de cobre: "estou colocando em saída mas não zera". Na edição do estoque, o campo "Saídas manuais adicionais" **substitui** o total lançado à mão, não soma. O saldo do quadro também não mudava enquanto ela digitava. E quando o saldo está negativo (vendeu mais do que entrou com aquele nome), colocar saída deixa ainda mais negativo. Não era defeito de cálculo, mas o campo enganava.
