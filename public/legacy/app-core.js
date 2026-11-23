@@ -13820,6 +13820,14 @@ async function excluirMaterial(mat){
 
 function editEstoque(mat){
   const e=ESTOQUE_DB[mat]||{inicial:0,entradas:0,saidas:0,precoVenda:0,obs:''};
+  const chave=_normalizarChaveMaterialEstoque(mat);
+  const outros={inicial:0,saidas:0};
+  Object.keys(ESTOQUE_DB||{}).forEach(function(k){
+    if(k===mat||_normalizarChaveMaterialEstoque(k)!==chave||!ESTOQUE_DB[k]) return;
+    outros.inicial+=Number(ESTOQUE_DB[k].inicial||0); outros.saidas+=Number(ESTOQUE_DB[k].saidas||0);
+  });
+  window._eeBase={entradas:getEntradasMaterial(mat),automaticas:getSaidasMaterial(mat),outrosIni:outros.inicial,outrosSai:outros.saidas};
+  const saldoAgora=Number(e.inicial||0)+outros.inicial+window._eeBase.entradas-(window._eeBase.automaticas+Number(e.saidas||0)+outros.saidas);
   document.querySelectorAll('.modal-ov[data-dynamic="1"]').forEach(e=>e.remove());
   const _ovE=document.createElement('div'); _ovE.className='modal-ov'; _ovE.id='modal-ov'; _ovE.dataset.dynamic='1';
   const body=document.createElement('div'); body.id='modal-body'; body.className='modal';
@@ -13830,20 +13838,52 @@ function editEstoque(mat){
     '<input id="ee-nome" value="'+esc(mat)+'" style="width:100%;padding:8px;border:2px solid #1a3a2a;border-radius:7px;font-size:.9rem;font-weight:700;box-sizing:border-box" placeholder="Nome do material">'+
     '</div>'+
     '<input type="hidden" id="ee-mat" value="'+esc(mat)+'">'+
+    '<div style="background:#fff8e1;border:1.5px solid #f0c36d;border-radius:8px;padding:10px 14px;margin-bottom:12px">'+
+    '<label for="ee-real" style="font-weight:800;font-size:.85rem;display:block;margin-bottom:4px">Quanto tem no pátio agora? (kg)</label>'+
+    '<input id="ee-real" type="number" step="0.1" placeholder="Ex.: 0 para zerar" oninput="_eeUsarSaldoReal()" style="width:100%;padding:8px;border:2px solid #c9952b;border-radius:7px;font-size:.95rem;font-weight:700;box-sizing:border-box">'+
+    '<div style="font-size:.76rem;color:#6b5414;margin-top:4px">Digite o peso que você contou. O sistema acerta os campos de baixo sozinho. Para zerar, digite 0.</div></div>'+
     '<div style="background:#e8f5e9;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:.82rem">'+
-    '📦 Entradas automáticas (via Compras): <b>'+getEntradasMaterial(mat).toFixed(1)+' kg</b></div>'+
-    '<div class="fg"><label>Estoque Inicial (kg)</label><input id="ee-ini" type="number" min="0" step="0.1" value="'+(e.inicial||0)+'"></div>'+
+    '📦 Entradas automáticas (via Compras): <b>'+window._eeBase.entradas.toFixed(1)+' kg</b></div>'+
+    '<div class="fg"><label>Estoque Inicial (kg)</label><input id="ee-ini" type="number" min="0" step="0.1" value="'+(e.inicial||0)+'" oninput="_eeAtualizarSaldo()"></div>'+
     '<div style="background:#fde8e8;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:.82rem">'+
-    '📤 Saídas automáticas (via Vendas): <b>'+getSaidasMaterial(mat).toFixed(1)+' kg</b></div>'+
-    '<div class="fg"><label>Saídas manuais adicionais (kg)</label><input id="ee-sai" type="number" min="0" step="0.1" value="'+(e.saidas||0)+'"></div>'+
+    '📤 Saídas automáticas (via Vendas): <b>'+window._eeBase.automaticas.toFixed(1)+' kg</b></div>'+
+    '<div class="fg"><label>Saídas manuais (kg) — é o total lançado à mão, não soma com o que já estava</label><input id="ee-sai" type="number" min="0" step="0.1" value="'+(e.saidas||0)+'" oninput="_eeAtualizarSaldo()"></div>'+
     '<div class="fg"><label>Preço de Venda R$/kg</label><input id="ee-pv" type="number" min="0" step="0.01" value="'+(e.precoVenda||0)+'"></div>'+
     '<div class="fg"><label>Observações</label><textarea id="ee-obs" rows="2">'+esc(e.obs||'')+'</textarea></div>'+
     '<div style="background:#e8f5e9;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:.82rem">'+
-    '📊 Saldo atual: <b>'+(Number(e.inicial)+getEntradasMaterial(mat)-(getSaidasMaterial(mat)+Number(e.saidas||0))).toFixed(1)+' kg</b></div>'+
+    '📊 Saldo atual: <b>'+saldoAgora.toFixed(1)+' kg</b> · Depois de salvar: <b id="ee-saldo-novo">'+saldoAgora.toFixed(1)+' kg</b></div>'+
     '<div class="modal-ft"><button class="btn-cancel" onclick="cm()">Cancelar</button>'+
     '<button class="btn-save" onclick="salvarEditEstoque()">💾 Salvar</button></div>';
   _ovE.classList.add('open');
 }
+function _eeAtualizarSaldo(){
+  const b=window._eeBase||{entradas:0,automaticas:0,outrosIni:0,outrosSai:0};
+  const ini=parseFloat(document.getElementById('ee-ini')?.value)||0;
+  const sai=parseFloat(document.getElementById('ee-sai')?.value)||0;
+  const saldo=ini+b.outrosIni+b.entradas-(b.automaticas+sai+b.outrosSai);
+  const el=document.getElementById('ee-saldo-novo');
+  if(el) el.textContent=(Math.abs(saldo)<0.05?0:saldo).toFixed(1)+' kg';
+  return saldo;
+}
+function _eeUsarSaldoReal(){
+  const campo=document.getElementById('ee-real');
+  if(!campo||String(campo.value).trim()==='') return;
+  const alvo=parseFloat(campo.value);
+  if(!Number.isFinite(alvo)) return;
+  const b=window._eeBase||{entradas:0,automaticas:0,outrosIni:0,outrosSai:0};
+  const iniEl=document.getElementById('ee-ini'), saiEl=document.getElementById('ee-sai');
+  const ini=parseFloat(iniEl?.value)||0;
+  const r=function(v){ return Math.round(v*1000)/1000; };
+  const saidasNecessarias=r(ini+b.outrosIni+b.entradas-b.automaticas-b.outrosSai-alvo);
+  if(saidasNecessarias>=0){ if(saiEl) saiEl.value=String(saidasNecessarias); }
+  else{
+    if(saiEl) saiEl.value='0';
+    if(iniEl) iniEl.value=String(r(alvo-(b.outrosIni+b.entradas-b.automaticas-b.outrosSai)));
+  }
+  _eeAtualizarSaldo();
+}
+window._eeAtualizarSaldo=_eeAtualizarSaldo;
+window._eeUsarSaldoReal=_eeUsarSaldoReal;
 
 function novoMaterial(){
   document.querySelectorAll('.modal-ov[data-dynamic="1"]').forEach(e=>e.remove());
