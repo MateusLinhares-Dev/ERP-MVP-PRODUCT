@@ -265,6 +265,9 @@ test('notinha já salva: usar adiantamento lançado depois (caso T353) pelo mesm
     CONTAS_PAGAR: [{ id: 'CPPO_T353', ticket: 'T353', status: 'Pendente', valor: 18116.16 }, { id: 'CPPO_T001', ticket: 'T001', status: 'Pendente', valor: 10 }],
     ADT_POR_FORN: { F1: [{ cod: 'A1', status: 'Quitado', valor: 52506.24, ticket: 'T353' }, { cod: 'A2', status: 'Pendente', valor: 150093.96 }, { cod: 'A3', status: 'Pendente', valor: 99, ticket: 'T999' }] },
     money: (v) => Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    dateBR: (v) => String(v || ''),
+    esc: (v) => String(v ?? ''),
+    global: {},
   };
   ctx.tickets = () => ctx.TICKETS_DB;
   runInNewContext(purchase.slice(start, end), ctx);

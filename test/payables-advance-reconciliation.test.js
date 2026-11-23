@@ -150,3 +150,21 @@ test('conta legada com fornecedor divergente não consome crédito de outra pess
   await assert.rejects(()=>payPayable(actor,input,{db}),{code:'SUPPLIER_NOT_VERIFIED'});
   assert.equal(db.updates,0);
 });
+
+test('compensação usa primeiro o adiantamento mais antigo, mesmo que ele esteja depois na lista (caso Sergio Spader)',async()=>{
+  const db=fakeDb();
+  db.state.erp.adiantamentos.F089=[
+    {cod:'ADT-19',valor:32000,status:'Pendente',ticket:'',forma:'PIX',data:'19/11/2026'},
+    {cod:'ADT-17',valor:99990.80,status:'Pendente',ticket:'',forma:'PIX',data:'17/11/2026'},
+  ];
+  db.state.erp.contasPagar['CP-T089'].valor=29963.40;
+  db.state.erp.tickets.T089.saldoPagar=29963.40;
+  await payPayable(actor,{...input,advanceAmount:29963.40,expected:{valor:29963.40,status:'Pendente',paymentsCount:0}},{db});
+  const byCode=Object.fromEntries(db.state.erp.adiantamentos.F089.map(a=>[a.cod,a]));
+  assert.equal(byCode['ADT-17'].valor,70027.40);
+  assert.equal(byCode['ADT-17'].status,'Pendente');
+  assert.equal(byCode['ADT-19'].valor,32000);
+  const part=db.state.erp.adiantamentos.F089.find(a=>a.adiantamentoOrigem==='ADT-17');
+  assert.equal(part.valor,29963.40);
+  assert.equal(part.ticket,'T089');
+});
