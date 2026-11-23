@@ -221,6 +221,21 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Usar o adiantamento sem perder o que foi digitado; quadro Pagamento em linguagem simples (23/11/2026, v267)
+
+A cliente perdeu quatro vezes o que tinha digitado na notinha da T750: tirou a varredura e escreveu observações, clicou "Usar adiantamento nesta compra", e a notinha reabriu sem as mudanças. A confirmação avisava, mas ela não lia, e o caminho certo (salvar, abrir de novo, compensar) era longo.
+
+Melhorias (purchase-order.js):
+- **Salvar antes de mexer no financeiro.** Ao abrir a edição, a tela guarda uma assinatura do formulário (`editFormSignature`: itens, desconto, frete, observações, ordem, datas, fornecedor). "Usar adiantamento nesta compra", "Usar da mais antiga para a mais nova" e "Tirar desta compra" comparam com ela (`editFormDirty`). Se houver mudança não salva, perguntam uma vez ("Você mudou esta notinha e ainda não salvou… Salvar agora e continuar?"), salvam pelo caminho normal (`phase4PurchaseSave({skipAdvanceOffer:true})`, que agora devolve `true` quando grava) e depois seguem com a confirmação de sempre, já com os valores novos. Sem mudança, nada muda. Saiu o aviso "Alterações… serão descartadas".
+- **Quadro Pagamento na edição.**
+  - A caixa "Adiantamentos / abatimentos" mostrava R$ 0,00 quando o adiantamento tinha sido usado depois do fechamento. Na edição ela vira **"Já descontado ou pago"**, com total menos saldo.
+  - O texto técnico ("Histórico financeiro do pedido já registrado… Outras baixas ou ajustes… Saldo original… exigem conciliação") virou: "Esta notinha já está lançada. Já descontado ou pago: R$ X (no fechamento / depois do fechamento). Falta pagar: R$ Y. Se você mudar os itens, só a diferença do total vai para Contas a Pagar: nada é pago ou descontado de novo sozinho."
+
+Teste de tela (5/5):
+- notinha com varredura tirada e observação não salvas: "Usar adiantamento" salva e compensa o total novo, sem perder nada;
+- quadro com "Já descontado ou pago";
+- notinha sem mudança: só a confirmação de sempre.
+
 ## Saldo devedor anterior com o valor de antes; material repetido "latinha" (23/11/2026, v266)
 
 **Notinha (T750).** A cliente descontou R$ 69.519,42 de uma sobra de adiantamento de R$ 131.977,80. Era o adiantamento de R$ 150.093,96, já usado em R$ 18.116,16 na T353. A impressão mostrava a linha "Saldo devedor anterior" com "—" no valor total e só os R$ 69.519,42 abatidos. Os R$ 131.977,80 não apareciam em lugar nenhum. Esse "—" foi decisão minha na v263, e escondia a informação. Agora:

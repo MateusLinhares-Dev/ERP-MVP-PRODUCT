@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-23-2200-v266-saldo-anterior-e-latinha';
+  const _APP_BUILD = '2026-11-23-2300-v267-salvar-antes-de-usar-adiantamento';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
