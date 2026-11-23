@@ -2218,6 +2218,7 @@ global.phase4OpenTicketForPurchase=function(ticketKey){
   if(!t){try{showToast('Pesagem não encontrada.','error');}catch(e){}return;}
   const duplicate=existingPurchaseForSources([key]);
   if(duplicate){try{showToast('Esta pesagem já virou o pedido '+String(duplicate[1]?.ticket||duplicate[0])+'.','info',6000);}catch(e){}if(typeof global.csTab==='function')global.csTab('historico');return;}
+  if(t.tipo==='venda'){try{showToast('Esta é uma pesagem de venda. Ela fecha na tela Vendas, em "Pesagens a fechar".','info',8000);}catch(e){}return;}
   if(t.status!=='Aguard. Preço'||!t._balFinalizado||t._balSessao||t._rodEntrada){try{showToast('Esta pesagem não está aguardando fechamento.','error',6000);}catch(e){}return;}
   const state=stateForSourceTicket(key);
   if(!state){try{showToast('Fornecedor da pesagem não foi encontrado no cadastro.','error',6000);}catch(e){}return;}
@@ -2237,7 +2238,7 @@ global.phase4OpenTicketForPurchase=function(ticketKey){
   },0);
 };
 function pendingPurchaseTickets(){
-  return Object.entries(tickets()).filter(function(entry){const t=entry[1]||{};return t._balFinalizado&&t.status==='Aguard. Preço'&&!t._balSessao&&!t._rodEntrada;}).sort(function(a,b){return String(b[1]?.data||'').localeCompare(String(a[1]?.data||''))||String(b[1]?.ticket||b[0]).localeCompare(String(a[1]?.ticket||a[0]));});
+  return Object.entries(tickets()).filter(function(entry){const t=entry[1]||{};return t._balFinalizado&&t.status==='Aguard. Preço'&&!t._balSessao&&!t._rodEntrada&&t.tipo!=='venda';}).sort(function(a,b){return String(b[1]?.data||'').localeCompare(String(a[1]?.data||''))||String(b[1]?.ticket||b[0]).localeCompare(String(a[1]?.ticket||a[0]));});
 }
 function renderPendingQueue(){
   const host=document.getElementById('cs-pesagens-list');if(!host)return;
