@@ -13750,7 +13750,8 @@ function renderEstoque(){
     const entradas=getEntradasMaterial(mat);
     const saidas=getSaidasMaterial(mat)+ajuste.saidas;
     const preco=Number(e.precoVenda||0);
-    const saldo=inicial+entradas-saidas;
+    const saldoBruto=inicial+entradas-saidas;
+    const saldo=Math.abs(saldoBruto)<0.05?0:saldoBruto;
     const valor=saldo*preco;
     const st=saldo>0?'b-ativo':saldo<0?'b-pend':'b-zerado';
     const stTxt=saldo>0?'OK':saldo<0?'NEGATIVO':'ZERADO';
@@ -13827,7 +13828,8 @@ function editEstoque(mat){
     outros.inicial+=Number(ESTOQUE_DB[k].inicial||0); outros.saidas+=Number(ESTOQUE_DB[k].saidas||0);
   });
   window._eeBase={entradas:getEntradasMaterial(mat),automaticas:getSaidasMaterial(mat),outrosIni:outros.inicial,outrosSai:outros.saidas};
-  const saldoAgora=Number(e.inicial||0)+outros.inicial+window._eeBase.entradas-(window._eeBase.automaticas+Number(e.saidas||0)+outros.saidas);
+  const saldoCalc=Number(e.inicial||0)+outros.inicial+window._eeBase.entradas-(window._eeBase.automaticas+Number(e.saidas||0)+outros.saidas);
+  const saldoAgora=Math.abs(saldoCalc)<0.05?0:saldoCalc;
   document.querySelectorAll('.modal-ov[data-dynamic="1"]').forEach(e=>e.remove());
   const _ovE=document.createElement('div'); _ovE.className='modal-ov'; _ovE.id='modal-ov'; _ovE.dataset.dynamic='1';
   const body=document.createElement('div'); body.id='modal-body'; body.className='modal';
