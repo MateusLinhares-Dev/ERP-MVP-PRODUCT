@@ -221,6 +221,26 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Estoque: "Quanto tem no pátio agora?" para acertar ou zerar (23/11/2026, v268)
+
+A cliente perguntou como zerar o estoque de cobre: "estou colocando em saída mas não zera". Na edição do estoque, o campo "Saídas manuais adicionais" **substitui** o total lançado à mão, não soma. O saldo do quadro também não mudava enquanto ela digitava. E quando o saldo está negativo (vendeu mais do que entrou com aquele nome), colocar saída deixa ainda mais negativo. Não era defeito de cálculo, mas o campo enganava.
+
+Melhoria (`editEstoque` no app-core):
+- campo novo no topo, **"Quanto tem no pátio agora? (kg)"**. Ela digita o peso contado (0 para zerar) e a tela calcula sozinha (`_eeUsarSaldoReal`):
+  - se precisa tirar, acerta "Saídas manuais";
+  - se precisa pôr (saldo negativo), zera as saídas manuais e sobe o "Estoque inicial";
+- o quadro mostra "Saldo atual" e "Depois de salvar" e se atualiza enquanto ela digita (`_eeAtualizarSaldo`);
+- o rótulo virou "Saídas manuais (kg) — é o total lançado à mão, não soma com o que já estava";
+- a conta considera os ajustes das variantes antigas do mesmo nome (ex.: latinha), como a tabela da v266.
+
+A tabela de preços do fornecedor usa a mesma lista de materiais que a v266 limpa. A "latinha" repetida some dela quando a v266 estiver publicada e a página for recarregada.
+
+Teste de tela (8/8):
+- zerar COBRE com saldo positivo;
+- zerar FERRO com saldo negativo (sobe o inicial);
+- continua zerado depois do F5;
+- tabela de preços com uma LATINHA só.
+
 ## Usar o adiantamento sem perder o que foi digitado; quadro Pagamento em linguagem simples (23/11/2026, v267)
 
 A cliente perdeu quatro vezes o que tinha digitado na notinha da T750: tirou a varredura e escreveu observações, clicou "Usar adiantamento nesta compra", e a notinha reabriu sem as mudanças. A confirmação avisava, mas ela não lia, e o caminho certo (salvar, abrir de novo, compensar) era longo.
