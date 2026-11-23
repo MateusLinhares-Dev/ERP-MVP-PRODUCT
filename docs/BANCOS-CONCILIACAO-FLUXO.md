@@ -221,6 +221,54 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Renomear material: o nome antigo voltava com os quilos (24/11/2026, v271)
+
+A cliente renomeou MEDALHA para GRANA GROSSA (Estoque → Editar → Nome do material). Depois do F5, "sumiu a grana grossa e voltou a medalha": GRANA GROSSA ficou com 0 kg e MEDALHA voltou com os quilos.
+
+Causa: renomear mudava só o cadastro (`METAIS`/`ESTOQUE_DB`). As notinhas, vendas e entregas continuavam com o item "MEDALHA". O estoque soma pelo nome do item, então os quilos continuavam em MEDALHA. A recuperação de materiais com movimento (`_recuperarMateriaisComMovimento`) e `_garantirMetalCadastrado` (venda salva) recriavam MEDALHA. Reproduzido no teste de tela.
+
+Correção (app-core):
+- **Renomear guarda o nome antigo** em `ESTOQUE_DB[novo].nomesAnteriores`, junto com os nomes anteriores do material antigo, para valer em renomes em cadeia. Esse campo vai para a nuvem com o estoque.
+- O cálculo do estoque (`getEntradasMaterial`, `getSaidasMaterial`, inclusive entregas da Ficha do Cliente, e `_vendaEstoqueDisponivel`) usa `_chaveEstoqueComAlias`: item "MEDALHA" conta em GRANA GROSSA.
+- A lista de materiais (`_dedupeMetais`, `_mergeMetaisRemoto`, tabela do estoque) tira o nome antigo quando o novo existe (`_semNomesAntigos`). A recuperação e `_garantirMetalCadastrado` não recriam o nome antigo.
+- As tabelas de preço de fornecedor e de cliente levam o preço do nome antigo para o novo (`_renomearMaterialNosPrecos`).
+- **Renomear para um material que já existe junta os dois**: estoque inicial e saídas manuais são somados.
+- "Novo material" com um nome que virou outro avisa: "O material MEDALHA foi renomeado para GRANA GROSSA…".
+- Mudar só maiúsculas e minúsculas no nome não marca mais o material como excluído. Antes, a marca de exclusão (que ignora maiúsculas e minúsculas) apagava o próprio material.
+
+**Para a cliente consertar depois de atualizar:** no Estoque, Editar na MEDALHA, trocar o nome para GRANA GROSSA e salvar. Se GRANA GROSSA já existe, os dois viram um só, com os quilos somados.
+
+Testes:
+- `test/stock-weighing-double-count.test.js` (renomear: entradas, saídas, entregas, lista e preços);
+- teste de tela do renomear (7/7);
+- teste de tela de juntar com material existente (4/4), com F5.
+
+## Revisão geral: contas a pagar que sumiam, data da notinha, saldos de centavos (23/11/2026, v270)
+
+Varredura pelos tipos de defeito que mais apareceram com a cliente. Achados e corrigidos:
+
+- **Vale-transporte (Avisos → Vale-transporte)** criava as contas a pagar só no navegador (`CONTAS_PAGAR.push` + `saveContasPagar`). Desde a v242 só o servidor grava contas a pagar, então elas não iam para a nuvem e sumiam no F5. Agora usa `erpPayablesRequest({action:'create', …, installments})`, com origem nova `vale_transporte`. O valor do vale continua salvo no funcionário. Se a criação falha, a tela avisa.
+- **Contas fixas → "Gerar mês"** (phase1-finance) tinha o mesmo defeito. Agora cria pelo servidor com origem `conta_fixa` e vínculos `fixedId`/`fixedMonth`, para o aviso "já gerada neste mês" continuar funcionando. O servidor passou a aceitar essas duas origens e os dois vínculos (`PAYABLE_ORIGINS`, `LINK_FIELDS`).
+- **Data da notinha:** o extrato, o canhoto e a Ficha mostram o campo `data`. Mudar a "Data da compra" na edição só mudava `dataCompra`, e essas telas continuavam com a data antiga. Agora a edição atualiza também `data`. O "Corrigir data" antigo do Detalhe da compra mudava `data` só no navegador (voltava no F5). Para notinhas confirmadas pelo servidor, ele agora manda usar Editar.
+- **Ficha do fornecedor:** o saldo corrido somava números com casas flutuantes e podia mostrar "você deve R$ 0,00" em vez de "quitado". Agora é arredondado para centavos, também no quadro "Saldo atual".
+- **Estoque:** material com saldo negativo e preço 0 mostrava "R$ -0,00" no valor total.
+
+Visto e sem defeito:
+- criação de compra nova (a conta provisória local é trocada pelas do servidor);
+- Ficha do cliente (já usa tolerância);
+- nome de cliente nas vendas (já compara normalizado);
+- formulário antigo de compra (o `om('compra')` é desviado pelo módulo novo).
+
+Visto e deixado como está:
+- `desmarcarCompraPaga` só vale para notinhas antigas com marca manual de pago (`_pagoUndo`), que nenhum código cria mais;
+- mensagens de casos raros que dizem "solicite conciliação".
+
+Testes:
+- `test/payable-registry.test.js` (vale-transporte e conta fixa no servidor);
+- `test/server-owned-payables-client.test.js` (as duas telas não criam conta só no navegador);
+- `test/purchase-order-history-and-cheques.test.js` (data);
+- teste de tela do vale-transporte: 3 contas criadas e mantidas depois do F5.
+
 ## Estoque zerado aparecia "OK" ou "-0.0 kg NEGATIVO" (23/11/2026, v269)
 
 Depois de zerar os cobres, a tela mostrou:

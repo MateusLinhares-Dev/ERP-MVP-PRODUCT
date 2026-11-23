@@ -2160,6 +2160,7 @@ function saveEditedTicket(state,totals){
   const items=(state.items||[]).filter(function(item){return String(item.mat||'').trim()&&Number(item.quantidade||0)>0;});
   if(!items.length)throw new Error('Inclua pelo menos um material com quantidade.');
   const oldItems=(ticket.itens||[]).slice();
+  const oldPurchaseDay=isoDay(ticket.dataCompra||ticket.pedidoCompra?.dataCompra||ticket.data);
   ticket.itens=items.map(function(item){
     const original=Number.isInteger(item.originalIndex)?(oldItems[item.originalIndex]||{}):{};
     const quantity=Number(item.quantidade),price=Number(item.preco);
@@ -2179,6 +2180,8 @@ function saveEditedTicket(state,totals){
   ticket.numeroPedido=String(ticket.ticket||state.editKey);
   ticket.ordemCompra=state.purchaseOrder;
   ticket.dataCompra=state.purchaseDate;
+  if(state.purchaseDate&&isoDay(state.purchaseDate)!==oldPurchaseDay)
+    ticket.data=/^\d{2}\/\d{2}\/\d{4}$/.test(String(ticket.data||''))?dateBR(state.purchaseDate):state.purchaseDate;
   ticket.vencimentoSaldo=state.dueDate;
   ticket.observacoesPedido=String(state.notes||'').trim();
   ticket.saldoPagar=totals.balance;

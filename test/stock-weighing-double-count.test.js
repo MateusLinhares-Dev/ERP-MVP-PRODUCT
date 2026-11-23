@@ -76,6 +76,8 @@ test('estoque: pesagem que virou notinha não conta em dobro; pesagem de venda n
     },
     _normalizarChaveMaterialEstoque: (n) => String(n || '').trim().toUpperCase(),
     _materialEfetivoDoItem: (it) => it.mat,
+    _aliasesEstoque: () => ({}),
+    _chaveEstoqueComAlias: (n) => String(n || '').trim().toUpperCase(),
   };
   runInNewContext(code + ';this.entradas=getEntradasMaterial;', ctx);
   assert.equal(ctx.entradas('ferro'), 980 + 40 + 70 + 5);
@@ -108,4 +110,29 @@ test('material digitado em minúsculas ("latinha") não vira um segundo material
   runInNewContext(code + ';this.clean=_metaisSemVariantes;', ctx);
   assert.equal(JSON.stringify(ctx.clean(['FERRO', 'latinha', 'LATINHA', 'Cobre  Mel', 'COBRE MEL', ''])), '["FERRO","LATINHA","COBRE MEL"]');
   assert.equal(JSON.stringify(ctx.clean(['latinha', 'Latinha'])), '["latinha"]');
+});
+
+test('renomear material (MEDALHA → GRANA GROSSA): os quilos das notinhas e vendas antigas vão junto, o nome antigo não volta e o preço muda de nome', () => {
+  const pick = (from, to) => core.slice(core.indexOf(from), core.indexOf(to, core.indexOf(from)));
+  const code = pick('function _normalizarChaveMaterialEstoque(nome){', 'function _materialEfetivoDoItem(item){')
+    + pick('function _pesagensConsolidadas(){', 'function _dedupeMetais(){');
+  const ctx = {
+    TICKETS_DB: { T1: { ticket: 'T1', status: 'Pago', itens: [{ mat: 'MEDALHA', pesoLiq: 50 }] } },
+    VENDAS_DB: [{ itens: [{ mat: 'medalha', qt: 10 }] }],
+    FC_LANC: { JOSE: [{ tipo: 'entrega', material: 'MEDALHA', peso: 5 }] },
+    ESTOQUE_DB: { 'GRANA GROSSA': { mat: 'GRANA GROSSA', inicial: 0, saidas: 0, nomesAnteriores: ['MEDALHA'] } },
+    PRECOS_FORN_DATA: { F1: { MEDALHA: 30, _datas: { MEDALHA: '17/11/2026' } } },
+    PRECOS_CLI_DATA: { JOSE: { MEDALHA: 35 } },
+    localStorage: { setItem() {} },
+    _materialEfetivoDoItem: (it) => it.mat,
+  };
+  runInNewContext(code + ';this.e=getEntradasMaterial;this.s=getSaidasMaterial;this.limpa=_semNomesAntigos;this.atual=_nomeAtualDoMaterial;this.precos=_renomearMaterialNosPrecos;', ctx);
+  assert.equal(ctx.e('GRANA GROSSA'), 50);
+  assert.equal(ctx.s('GRANA GROSSA'), 15);
+  assert.equal(ctx.e('MEDALHA'), 50, 'quem procura pelo nome antigo chega no material novo');
+  assert.equal(JSON.stringify(ctx.limpa(['FERRO', 'MEDALHA', 'GRANA GROSSA'])), '["FERRO","GRANA GROSSA"]');
+  assert.equal(ctx.atual('Medalha'), 'GRANA GROSSA');
+  assert.equal(ctx.precos('MEDALHA', 'GRANA GROSSA'), true);
+  assert.equal(JSON.stringify(ctx.PRECOS_FORN_DATA.F1), '{"_datas":{"GRANA GROSSA":"17/11/2026"},"GRANA GROSSA":30}');
+  assert.equal(ctx.PRECOS_CLI_DATA.JOSE['GRANA GROSSA'], 35);
 });

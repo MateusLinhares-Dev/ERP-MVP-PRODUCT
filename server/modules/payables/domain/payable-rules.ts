@@ -27,6 +27,8 @@ export interface PayableFields {
   folhaMes?: string;
   ticket?: string;
   fornCod?: string;
+  fixedId?: string;
+  fixedMonth?: string;
 }
 
 export const PAYABLE_ORIGINS = [
@@ -36,9 +38,19 @@ export const PAYABLE_ORIGINS = [
   'tanque',
   'contrato',
   'compra_antiga',
+  'vale_transporte',
+  'conta_fixa',
 ] as const;
 export type PayableOrigin = (typeof PAYABLE_ORIGINS)[number];
-const LINK_FIELDS = ['despId', 'contratoId', 'folhaMes', 'ticket', 'fornCod'] as const;
+const LINK_FIELDS = [
+  'despId',
+  'contratoId',
+  'folhaMes',
+  'ticket',
+  'fornCod',
+  'fixedId',
+  'fixedMonth',
+] as const;
 
 export interface Installments {
   count: number;

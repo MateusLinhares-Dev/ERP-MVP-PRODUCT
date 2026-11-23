@@ -182,7 +182,7 @@
       '<div class="fg"><label>A partir do mês</label><input id="vtq-mes" type="month" value="'+mesAtual+'"></div>'+
       '<div style="display:flex;gap:8px;margin-top:14px">'+
         '<button onclick="cm()" style="flex:1;background:#eee;color:#333;border:none;border-radius:8px;padding:12px;font-weight:700;cursor:pointer">Cancelar</button>'+
-        '<button onclick="vtQuickSalvar()" style="flex:2;background:#1f6b34;color:#fff;border:none;border-radius:8px;padding:12px;font-weight:800;cursor:pointer">Salvar</button>'+
+        '<button id="vtq-salvar" onclick="vtQuickSalvar()" style="flex:2;background:#1f6b34;color:#fff;border:none;border-radius:8px;padding:12px;font-weight:800;cursor:pointer">Salvar</button>'+
       '</div>';
     document.getElementById('modal-ov').classList.add('open');
   };
@@ -200,26 +200,27 @@
 
       f.valeTransporte=valor; f._upd=Date.now();
       try{ localStorage.setItem('mm_funcionarios_edit', JSON.stringify(FUNCIONARIOS)); }catch(e){}
-
-      var hoje=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10).split('-').reverse().join('/');
-      var grupoId='vt_'+Date.now();
-      var criadas=0;
-      for(var i=0;i<meses;i++){
-        var m=mesI+i; var a=anoI+Math.floor((m-1)/12); m=((m-1)%12)+1;
-        var diaVenc=Math.min(dia, new Date(a,m,0).getDate());
-        var vencFmt=String(diaVenc).padStart(2,'0')+'/'+String(m).padStart(2,'0')+'/'+a;
-        CONTAS_PAGAR.push({ id:_novoIdCP(), lancto:hoje, desc:'Vale-transporte – '+f.nome, cred:f.nome, cat:'Vale Transporte', bancoCod:'', bancoNome:'', tipoForn:'despesa', empresa:f.empresa||'', venc:vencFmt, valor:valor, grupoId:grupoId, totalParcelas:meses, status:'Pendente', dataPgto:'', obs:'Lançado pelo botão de Vale-transporte' });
-        criadas++;
-      }
-      try{ saveContasPagar(); }catch(e){}
       try{ fbSalvar(); }catch(e){}
-      try{ renderContasPagar(); }catch(e){}
-      try{ renderTbFuncionarios(); }catch(e){}
-      try{ renderDashboard(); }catch(e){}
-      try{ cm(); }catch(e){}
-      try{ renderAvisos(); }catch(e){}
-      var msg='✅ Vale-transporte de R$ '+_fmtBR(valor)+' salvo para '+esc(f.nome)+' e '+criadas+' conta(s) criada(s) no Contas a Pagar.';
-      try{ showToast(msg,'success'); }catch(e){ alert(msg); }
+
+      if(typeof window.erpPayablesRequest!=='function'){ alert('Contas a Pagar indisponível. Atualize a página (F5) e tente de novo.'); return; }
+      var botao=document.getElementById('vtq-salvar'); if(botao){ botao.disabled=true; botao.textContent='Salvando…'; }
+      window.erpPayablesRequest({action:'create',
+        payable:{desc:'Vale-transporte – '+f.nome,cred:f.nome,cat:'Vale Transporte',tipoForn:'despesa',empresa:f.empresa||'',valor:valor,obs:'Lançado pelo botão de Vale-transporte',origem:'vale_transporte'},
+        installments:{count:meses,day:dia,firstMonth:anoI+'-'+String(mesI).padStart(2,'0')}
+      }).then(function(r){
+        var criadas=(r&&Array.isArray(r.payables))?r.payables.length:meses;
+        try{ renderContasPagar(); }catch(e){}
+        try{ renderTbFuncionarios(); }catch(e){}
+        try{ renderDashboard(); }catch(e){}
+        try{ cm(); }catch(e){}
+        try{ renderAvisos(); }catch(e){}
+        var msg='Vale-transporte de R$ '+_fmtBR(valor)+' salvo para '+f.nome+' e '+criadas+' conta(s) criada(s) no Contas a Pagar.';
+        try{ showToast(msg,'success'); }catch(e){ alert(msg); }
+      }).catch(function(error){
+        if(botao){ botao.disabled=false; botao.textContent='Salvar'; }
+        var msg='O valor do vale ficou salvo no funcionário, mas as contas a pagar não foram criadas: '+(error&&error.message||error);
+        try{ showToast(msg,'error',10000); }catch(e){ alert(msg); }
+      });
     }catch(err){ alert('Erro: '+(err&&err.message||err)); }
   };
 })();
