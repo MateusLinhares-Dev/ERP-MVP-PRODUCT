@@ -17966,6 +17966,14 @@ function initDespesas(){
 
         var infoDiv=document.getElementById('ff-forn-info');
         if(infoDiv) infoDiv.style.display='';
+        try{
+          var ffComp=document.getElementById('ff-compensar');
+          var ffPlano=typeof window.erpSupplierAdvancePlan==='function'?window.erpSupplierAdvancePlan(cod):null;
+          if(ffComp){
+            ffComp.style.display=ffPlano&&ffPlano.used>0.005?'':'none';
+            if(ffPlano) ffComp.textContent='Compensar adiantamentos (R$ '+fmt(ffPlano.used)+')';
+          }
+        }catch(e){}
         var tEl=document.getElementById('ff-titulo');
         if(tEl) tEl.textContent=forn.nome;
         var sEl=document.getElementById('ff-subtitulo');
@@ -17988,9 +17996,13 @@ function initDespesas(){
             entries.push({ data:tk.data, tipo:'saldo_anterior', sinal:1, raw:{valor:tk.saldoAnterior, ticket:tk.ticket} });
           }
         });
-        (ADT_POR_FORN[cod]||[]).forEach(function(a){
-          if(a.forma==='Crédito'||a.forma==='Credito') return;
-          entries.push({ data:a.data, tipo:'adiantamento', sinal:1, status:a.status, raw:a });
+        var ffAdts=(ADT_POR_FORN[cod]||[]).filter(function(a){ return a&&a.forma!=='Crédito'&&a.forma!=='Credito'; });
+        var ffParteDe=function(a){ return a.origem==='compensacao_cp'&&a.adiantamentoOrigem?ffAdts.find(function(x){ return x!==a&&x.cod===a.adiantamentoOrigem; })||null:null; };
+        ffAdts.forEach(function(a){
+          if(ffParteDe(a)) return;
+          var partes=ffAdts.filter(function(x){ return ffParteDe(x)===a; });
+          partes.forEach(function(x){ entries.push({ data:a.data||x.data, tipo:'adiantamento', sinal:1, status:x.status, raw:x, orig:a, partes:[] }); });
+          entries.push({ data:a.data, tipo:'adiantamento', sinal:1, status:a.status, raw:a, orig:null, partes:partes });
         });
         (CHEQUES_POR_FORN[cod]||[]).forEach(function(ch){
           entries.push({ data:ch.data, tipo:'cheque', sinal:1, status:ch.status, raw:ch });
@@ -18066,7 +18078,18 @@ function initDespesas(){
             saldo-=valor;
             badge=adtAplicado?'<span style="background:#e8f5e9;color:#1a5e2a;padding:1px 6px;border-radius:4px;font-size:.72rem;font-weight:700">Pago</span>':'<span style="background:#fff3cd;color:#856404;padding:1px 6px;border-radius:4px;font-size:.72rem;font-weight:700">Pendente</span>';
             var det=[(a.forma?'Forma: '+a.forma:''),(a.ticket?'Ticket: '+a.ticket:''),(a.obs||'')].filter(Boolean).join(' | ');
-            descHtml='<div style="font-weight:700;color:#27ae60">Adiantamento'+(a.cod?' ('+a.cod+')':'')+(adtAplicado?'':' — ainda sem compra vinculada')+'</div>'+(det?'<div style="font-size:.76rem;color:#555;margin-top:2px">'+det+'</div>':'');
+            var tituloAdt='Adiantamento'+(a.cod?' ('+a.cod+')':'')+(adtAplicado?'':' — ainda sem compra vinculada');
+            if(e.orig){
+              tituloAdt='Parte do adiantamento '+esc(e.orig.cod||'')+(e.orig.data?' de '+fmtD(e.orig.data):'')+(a.ticket?', usada no Ticket '+esc(a.ticket):'');
+              det=[(a.forma?'Forma: '+esc(a.forma):''),(a.data?'Compensado em '+fmtD(a.data):'')].filter(Boolean).join(' | ');
+            } else if(e.partes&&e.partes.length){
+              var somaPartes=e.partes.reduce(function(s2,x){ return s2+Number(x.valor||0); },0);
+              var totalAdt=Number(a.valorOriginal||0)||(valor+somaPartes);
+              det=[(a.forma?'Forma: '+esc(a.forma):''),
+                'Valor total R$ '+fmt(totalAdt)+': '+e.partes.map(function(x){ return 'R$ '+fmt(x.valor)+(x.ticket?' no Ticket '+esc(x.ticket):''); }).concat(valor>0.005?['R$ '+fmt(valor)+(adtAplicado?(a.ticket?' no Ticket '+esc(a.ticket):' usado'):' ainda livre')]:[]).join(', ')
+              ].filter(Boolean).join(' | ');
+            }
+            descHtml='<div style="font-weight:700;color:#27ae60">'+tituloAdt+'</div>'+(det?'<div style="font-size:.76rem;color:#555;margin-top:2px">'+det+'</div>':'');
           } else if(e.tipo==='pagamento_cp'){
             var cp=e.raw; valor=Number(cp.valor||0); saldo-=valor;
             badge='<span style="background:#e8f5e9;color:#1a5e2a;padding:1px 6px;border-radius:4px;font-size:.72rem;font-weight:700">Pago</span>';
@@ -18469,6 +18492,13 @@ function initDespesas(){
         }
       }
       window['ffSaldoInicial']=ffSaldoInicial;
+      window['ffCompensarAdiantamentos']=async function(){
+        var cod=_ffCodAtual;
+        var forn=(FORNECEDORES||[]).find(function(f){ return f&&f.cod===cod; });
+        if(!cod||!forn||typeof window.erpSupplierCompensateOldestFirst!=='function') return;
+        var feito=await window.erpSupplierCompensateOldestFirst(cod, forn.nome);
+        if(feito) ffRenderFicha(cod,(document.getElementById('ff-de')||{}).value||'',(document.getElementById('ff-ate')||{}).value||'');
+      };
       window['ffBuscaChange']=ffBuscaChange;
       window['ffReRender']=ffReRender;
       window['ffRenderFicha']=ffRenderFicha;

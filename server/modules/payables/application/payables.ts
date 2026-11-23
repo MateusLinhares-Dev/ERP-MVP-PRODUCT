@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { Database, Reference } from 'firebase-admin/database';
 import type { Identity } from '../../../shared/auth/identity.js';
+import { toISODate } from '../../../shared/domain/dates.js';
 import { hasControlChars } from '../../../shared/domain/text.js';
 import { AppError, fail } from '../../../shared/errors/app-error.js';
 import { acquireLease, releaseLease } from '../../../shared/firebase/rtdb-transaction.js';
@@ -230,10 +231,11 @@ function applyAdvances(
     (advance) =>
       advance.status === 'Pendente' && (!advance.ticket || String(advance.ticket).trim() === ticketCode),
   );
+  const dayOf = (advance: AdvanceRecord): string => toISODate(advance.data) || '9999-12-31';
   eligible.sort(
     (a, b) =>
       Number(String(b.ticket || '').trim() === ticketCode) -
-      Number(String(a.ticket || '').trim() === ticketCode),
+        Number(String(a.ticket || '').trim() === ticketCode) || dayOf(a).localeCompare(dayOf(b)),
   );
   for (const advance of eligible) {
     if (!remaining) break;

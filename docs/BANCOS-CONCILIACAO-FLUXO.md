@@ -221,6 +221,27 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Usar o adiantamento da compra mais antiga para a mais nova (23/11/2026, v262)
+
+Caso Sergio Spader. Havia duas notinhas, T259 (17/11, R$ 29.963,40) e T715 (19/11, R$ 103.573,25), e dois adiantamentos, de 17/11 (R$ 99.990,80) e de 19/11 (R$ 32.000,00). A cliente usou "Usar adiantamento nesta compra" na T715. O sistema pôs os R$ 99.990,80 inteiros e mais R$ 3.582,45 do de 19/11 na T715, e a T259, mais antiga, ficou em aberto. O saldo final estava certo (R$ 1.545,85), mas na compra errada. A cliente pensa como na Ficha: o adiantamento de 17/11 paga a T259, sobram R$ 70.027,40, e esses mais os R$ 32.000,00 vão para a T715, que fica com R$ 1.545,85. Ela desfez a compensação e não achou como fazer nessa ordem. A tela mostrava "Adiantamento livre R$ 131.990,80", e ela esperava R$ 102.027,40, porque a T259 ainda estava em aberto.
+
+Correção:
+- **Servidor** (`applyAdvances` em payables): entre os adiantamentos que valem para a conta, usa primeiro o ligado ao pedido e depois o **mais antigo pela data**. Antes usava a ordem da lista.
+- **Plano da compra mais antiga para a mais nova** (`erpSupplierAdvancePlan` / `erpSupplierCompensateOldestFirst` em purchase-order.js):
+  - pega as contas em aberto do fornecedor: notinhas e saldo inicial (`compra_antiga`);
+  - ordena pela data da compra e, dentro do pedido, pelo vencimento da parcela;
+  - simula o uso do adiantamento como o servidor faz;
+  - mostra numa confirmação o que cada pedido abate e com quanto fica;
+  - compensa conta por conta pelo mesmo caminho de Contas a Pagar.
+- **Edição da notinha:** se o fornecedor tem compra em aberto mais antiga, o quadro amarelo diz qual é e o resultado ("este pedido abate R$ 102.027,40 e fica com R$ 1.545,85 a pagar"). Ele oferece "Usar da mais antiga para a mais nova" ou "Usar só nesta compra". A oferta depois de salvar uma edição também segue a mais antiga primeiro.
+- **Ficha do fornecedor:** botão **Compensar adiantamentos (R$ …)**, que aparece quando há adiantamento livre e compra em aberto.
+- **Ficha mais clara:** a parte de um adiantamento usada numa compra aparece como "Parte do adiantamento X de 17/11/2026, usada no Ticket T259", com a data do adiantamento, logo antes do resto dele. O adiantamento original mostra a divisão: "Valor total R$ 99.990,80: R$ 29.963,40 no Ticket T259, R$ 70.027,40 no Ticket T715". O saldo acumulado lê como a cliente pensa: 29.963,40, depois 0,00, "te deve 70.027,40", 33.545,85 e por fim 1.545,85.
+
+Testes:
+- `test/supplier-advance-oldest-first.test.js`;
+- `test/payables-advance-reconciliation.test.js` (mais antigo primeiro no servidor);
+- teste de tela com o caso do Sergio, pela Ficha e pela edição da T715, com F5 (8/8 cada).
+
 ## Painel, Ficha e extrato do fornecedor contam só notinhas (23/11/2026, v260)
 
 Depois da v259 procurei o mesmo defeito em outras telas: somar **todo** ticket de `TICKETS_DB` como se fosse compra. A mesma lista guarda notinhas, pesagens da balança (em andamento, "Aguard. Preço", "Consolidado") e pesagens de venda. Estes lugares somavam tudo:

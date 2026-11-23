@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-23-1600-v261-vendas-so-exclusao-do-servidor';
+  const _APP_BUILD = '2026-11-23-1800-v262-adiantamento-da-mais-antiga';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){

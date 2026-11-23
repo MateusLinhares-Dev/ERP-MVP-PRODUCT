@@ -425,12 +425,125 @@ function freeSupplierAdvance(code,key){
     }).reduce(function(sum,a){return sum+Math.max(0,Number(a.valor||0));},0);
   }catch(e){return 0;}
 }
+function isoDay(value){
+  const raw=String(value||'').trim();
+  let match=/^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if(match)return match[1]+'-'+match[2]+'-'+match[3];
+  match=/^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(raw);
+  return match?match[3]+'-'+match[2].padStart(2,'0')+'-'+match[1].padStart(2,'0'):'';
+}
+function cents(value){return Math.round(Number(value||0)*100);}
+function supplierOpenPayables(code){
+  try{
+    const supplier=String(code||'').trim();
+    if(!supplier)return [];
+    const own={};
+    Object.keys(tickets()).forEach(function(key){
+      const t=tickets()[key];
+      if(t&&String(t.fornecedorCod||'').trim()===supplier&&String(t.tipo||'').toLowerCase()!=='venda')own[String(t.ticket||key).trim()]=t;
+    });
+    return (CONTAS_PAGAR||[]).filter(function(cp){
+      if(!cp||String(cp.status||'')==='Pago'||cents(cp.valor)<=0)return false;
+      const number=String(cp.ticket||'').trim();
+      if(number)return Boolean(own[number]);
+      return String(cp.fornCod||'').trim()===supplier&&String(cp.origem||'')==='compra_antiga';
+    }).map(function(cp){
+      const number=String(cp.ticket||'').trim();
+      const t=number?own[number]:null;
+      return {cp:cp,ticket:number,date:isoDay(t&&(t.dataCompra||t.data))||isoDay(cp.data)||isoDay(cp.venc)||'9999-12-31',due:isoDay(cp.venc)};
+    }).sort(function(a,b){
+      return a.date.localeCompare(b.date)||a.ticket.localeCompare(b.ticket,'pt-BR',{numeric:true})||
+        a.due.localeCompare(b.due)||String(a.cp.id||'').localeCompare(String(b.cp.id||''),'pt-BR',{numeric:true});
+    });
+  }catch(e){return [];}
+}
+function supplierAdvancePlan(code){
+  let pool=[];
+  try{
+    pool=(ADT_POR_FORN?.[code]||[]).map(function(a,index){
+      return a&&String(a.status||'')==='Pendente'&&cents(a.valor)>0
+        ?{left:cents(a.valor),ticket:String(a.ticket||'').trim(),day:isoDay(a.data)||'9999-12-31',index:index}:null;
+    }).filter(Boolean).sort(function(a,b){return a.day.localeCompare(b.day)||a.index-b.index;});
+  }catch(e){pool=[];}
+  const free=pool.reduce(function(sum,a){return sum+a.left;},0);
+  const rows=supplierOpenPayables(code);
+  const count={};
+  rows.forEach(function(row){if(row.ticket)count[row.ticket]=(count[row.ticket]||0)+1;});
+  const lines=rows.map(function(row){
+    const open=cents(row.cp.valor);
+    const tied=function(a){return Number(Boolean(row.ticket)&&a.ticket===row.ticket);};
+    let used=0;
+    pool.filter(function(a){return a.left>0&&(!a.ticket||a.ticket===row.ticket);})
+      .sort(function(a,b){return tied(b)-tied(a);})
+      .forEach(function(a){
+        if(used>=open)return;
+        const take=Math.min(a.left,open-used);
+        a.left-=take;used+=take;
+      });
+    const label=row.ticket
+      ?'Pedido '+row.ticket+(count[row.ticket]>1&&row.due?' (parcela de '+dateBR(row.due)+')':'')
+      :'Saldo inicial';
+    return {id:String(row.cp.id||''),ticket:row.ticket,label:label,date:row.date,open:open/100,use:used/100};
+  });
+  const used=lines.reduce(function(sum,line){return sum+cents(line.use);},0);
+  return {free:free/100,used:used/100,lines:lines};
+}
+function olderOpenLines(plan,number){
+  const first=plan.lines.findIndex(function(line){return line.ticket===String(number||'');});
+  return first>0?plan.lines.slice(0,first).filter(function(line){return line.ticket!==String(number||'');}):[];
+}
+function oldestFirstMessage(name,plan){
+  const steps=plan.lines.filter(function(line){return line.use>0.005;});
+  const rest=plan.lines.filter(function(line){return line.use<=0.005;});
+  return 'Usar o adiantamento de '+name+' nas compras em aberto, da mais antiga para a mais nova?\n\n'+
+    steps.map(function(line){
+      const left=Math.round((line.open-line.use)*100)/100;
+      return '• '+line.label+' ('+dateBR(line.date)+'): abate R$ '+money(line.use)+(left>0.005?' e fica R$ '+money(left)+' a pagar.':' e fica quitado.');
+    }).join('\n')+
+    (rest.length?'\n'+rest.map(function(line){return '• '+line.label+': continua com R$ '+money(line.open)+' a pagar (o adiantamento acabou).';}).join('\n'):'')+
+    '\n\nAdiantamento livre: de R$ '+money(plan.free)+' para R$ '+money(Math.round((plan.free-plan.used)*100)/100)+'.\n'+
+    'O banco não é mexido (o dinheiro do adiantamento já saiu). Para desfazer, use o botão Desfazer no quadro Pagamento da edição de cada pedido.';
+}
+global.erpSupplierAdvancePlan=supplierAdvancePlan;
+global.erpSupplierCompensateOldestFirst=async function(code,name){
+  const toast=function(message,kind,ms){try{showToast(message,kind,ms);}catch(e){}};
+  if(typeof global.erpPayablesCompensateAdvance!=='function'){toast('Abra Contas a Pagar uma vez e tente de novo.','error');return false;}
+  const plan=supplierAdvancePlan(code);
+  const steps=plan.lines.filter(function(line){return line.use>0.005;});
+  if(!steps.length){toast('Não há adiantamento livre de '+name+' para usar nas compras em aberto.','info',6000);return false;}
+  if(!confirm(oldestFirstMessage(name,plan)))return false;
+  const done=[];
+  for(const step of steps){
+    const outcome=await global.erpPayablesCompensateAdvance(step.id,step.use);
+    if(!outcome||outcome.kind!=='done'){
+      toast(((outcome&&outcome.message)||'Não foi possível usar o adiantamento.')+' Parou em '+step.label+'.'+(done.length?' Já feito: '+done.join(', ')+'.':''),'error',12000);
+      return false;
+    }
+    done.push(step.label);
+    try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Adiantamento usado (mais antiga primeiro)',step.label+' — R$ '+money(step.use),null,{ticket:step.ticket});}catch(e){}
+  }
+  toast('Adiantamento usado: '+steps.map(function(step){return step.label+' R$ '+money(step.use);}).join(' · ')+'.','success',9000);
+  return true;
+};
 function freeAdvanceHtml(state){
   if(!state.editKey||!tickets()[state.editKey]?._purchaseOperationId)return '';
   const open=openPurchasePayables(state.editKey).reduce(function(sum,cp){return sum+Number(cp.valor||0);},0);
   const free=freeSupplierAdvance(state.supplierCode,state.editKey);
   if(open<=0.005||free<=0.005)return '';
   const use=Math.min(open,free);
+  const plan=supplierAdvancePlan(state.supplierCode);
+  const older=olderOpenLines(plan,state.orderNumber);
+  if(older.length){
+    const here=plan.lines.filter(function(line){return line.ticket===String(state.orderNumber);}).reduce(function(sum,line){return sum+line.use;},0);
+    const left=Math.round((open-here)*100)/100;
+    return '<div class="phase4-po-free-advance phase4-po-free-advance--older"><span>Adiantamento livre deste fornecedor: <b>R$ '+money(free)+'</b>. '+
+      (older.length===1?'Outra compra dele está em aberto e é mais antiga: ':'Outras compras dele estão em aberto e são mais antigas: ')+
+      older.map(function(line){return '<b>'+esc(line.label)+'</b> ('+esc(dateBR(line.date))+', R$ '+money(line.open)+')';}).join(', ')+'. '+
+      'Usando da mais antiga para a mais nova, '+(older.length===1?'ela':'elas')+' abate'+(older.length===1?'':'m')+' primeiro e este pedido '+
+      (here>0.005?'abate R$ '+money(here)+(left>0.005?' e fica com R$ '+money(left)+' a pagar.':' e fica quitado.'):'continua com R$ '+money(open)+' a pagar.')+'</span>'+
+      '<span class="phase4-po-free-advance-actions"><button type="button" class="btn-save" onclick="phase4PurchaseUseAdvanceOldestFirst()">Usar da mais antiga para a mais nova</button>'+
+      '<button type="button" class="btn-edit" onclick="phase4PurchaseUseAdvance()">Usar só nesta compra</button></span></div>';
+  }
   return '<div class="phase4-po-free-advance"><span>Adiantamento livre deste fornecedor: <b>R$ '+money(free)+'</b>. '+
     'Usar R$ '+money(use)+' quita '+(use>=open-0.005?'o saldo desta compra':'parte do saldo desta compra')+' e sobra R$ '+money(free-use)+' de adiantamento.</span>'+
     '<button type="button" class="btn-save" onclick="phase4PurchaseUseAdvance()">Usar adiantamento nesta compra</button></div>';
@@ -504,6 +617,13 @@ global.phase4PurchaseUseAdvance=async function(){
   try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Adiantamento usado após o fechamento',state.orderNumber,null,{ticket:state.orderNumber});}catch(e){}
   await global.phase4PurchaseEditTicket(state.editKey);
 };
+global.phase4PurchaseUseAdvanceOldestFirst=async function(){
+  const body=document.getElementById('cs-lanc-body');
+  const state=body?currentState(body):null;
+  if(!state?.editKey)return;
+  if(!await global.erpSupplierCompensateOldestFirst(state.supplierCode,state.supplierName))return;
+  await global.phase4PurchaseEditTicket(state.editKey);
+};
 global.phase4PurchaseUndoPayment=async function(payableId,index){
   const body=document.getElementById('cs-lanc-body');
   try{global.phase4PurchaseRecalc();}catch(e){}
@@ -547,6 +667,10 @@ global.phase4PurchaseUndoPayment=async function(payableId,index){
 };
 async function offerAdvanceAgain(key,info){
   if(typeof global.erpPayablesCompensateAdvance!=='function')return;
+  if(olderOpenLines(supplierAdvancePlan(info.supplierCode),info.orderNumber).length){
+    await global.erpSupplierCompensateOldestFirst(info.supplierCode,info.supplierName);
+    return;
+  }
   const payables=openPurchasePayables(key);
   const open=payables.reduce(function(sum,cp){return sum+Number(cp.valor||0);},0);
   const free=freeSupplierAdvance(info.supplierCode,key);
