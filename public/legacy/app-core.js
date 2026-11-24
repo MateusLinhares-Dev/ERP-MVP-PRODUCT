@@ -6561,6 +6561,7 @@ function _fluxoTotaisAno(ano, fontes){
       const origemCod=String(a.adiantamentoOrigem||(parcial?parcial[1]:'')||'');
       const origem=origemCod&&origemCod!==String(a.cod||'')?porCod.get(origemCod):null;
       somar(totais.adiantamentos,origem&&origem.data?origem.data:a.data,a.valor);
+      if(Number(a.valorDevolvido)>0) somar(totais.adiantamentos,a.dataDevolucao||a.data,-Number(a.valorDevolvido));
     });
   });
   return totais;
@@ -18194,12 +18195,15 @@ function initDespesas(){
           }
         });
         var ffAdts=(ADT_POR_FORN[cod]||[]).filter(function(a){ return a&&a.forma!=='Crédito'&&a.forma!=='Credito'; });
-        var ffParteDe=function(a){ return a.origem==='compensacao_cp'&&a.adiantamentoOrigem?ffAdts.find(function(x){ return x!==a&&x.cod===a.adiantamentoOrigem; })||null:null; };
+        var ffParteDe=function(a){ return (a.origem==='compensacao_cp'||a.origem==='devolucao')&&a.adiantamentoOrigem?ffAdts.find(function(x){ return x!==a&&x.cod===a.adiantamentoOrigem; })||null:null; };
         ffAdts.forEach(function(a){
           if(ffParteDe(a)) return;
           var partes=ffAdts.filter(function(x){ return ffParteDe(x)===a; });
           partes.forEach(function(x){ entries.push({ data:a.data||x.data, tipo:'adiantamento', sinal:1, status:x.status, raw:x, orig:a, partes:[] }); });
           entries.push({ data:a.data, tipo:'adiantamento', sinal:1, status:a.status, raw:a, orig:null, partes:partes });
+          partes.concat([a]).forEach(function(x){
+            if(Number(x.valorDevolvido)>0) entries.push({ data:x.dataDevolucao||x.data, tipo:'devolucao_adt', sinal:-1, status:'Recebido', raw:{valor:-Number(x.valorDevolvido), cod:x.cod, adv:x, origemCod:a.cod} });
+          });
         });
         (CHEQUES_POR_FORN[cod]||[]).forEach(function(ch){
           entries.push({ data:ch.data, tipo:'cheque', sinal:1, status:ch.status, raw:ch });
@@ -18277,16 +18281,21 @@ function initDespesas(){
             var det=[(a.forma?'Forma: '+a.forma:''),(a.ticket?'Ticket: '+a.ticket:''),(a.obs||'')].filter(Boolean).join(' | ');
             var tituloAdt='Adiantamento'+(a.cod?' ('+a.cod+')':'')+(adtAplicado?'':' — ainda sem compra vinculada');
             if(e.orig){
-              tituloAdt='Parte do adiantamento '+esc(e.orig.cod||'')+(e.orig.data?' de '+fmtD(e.orig.data):'')+(a.ticket?', usada no Ticket '+esc(a.ticket):'');
+              tituloAdt='Parte do adiantamento '+esc(e.orig.cod||'')+(e.orig.data?' de '+fmtD(e.orig.data):'')+(a.origem==='devolucao'?', devolvida pelo fornecedor':(a.ticket?', usada no Ticket '+esc(a.ticket):''));
               det=[(a.forma?'Forma: '+esc(a.forma):''),(a.data?'Compensado em '+fmtD(a.data):'')].filter(Boolean).join(' | ');
             } else if(e.partes&&e.partes.length){
               var somaPartes=e.partes.reduce(function(s2,x){ return s2+Number(x.valor||0); },0);
               var totalAdt=Number(a.valorOriginal||0)||(valor+somaPartes);
               det=[(a.forma?'Forma: '+esc(a.forma):''),
-                'Valor total R$ '+fmt(totalAdt)+': '+e.partes.map(function(x){ return 'R$ '+fmt(x.valor)+(x.ticket?' no Ticket '+esc(x.ticket):''); }).concat(valor>0.005?['R$ '+fmt(valor)+(adtAplicado?(a.ticket?' no Ticket '+esc(a.ticket):' usado'):' ainda livre')]:[]).join(', ')
+                'Valor total R$ '+fmt(totalAdt)+': '+e.partes.map(function(x){ return 'R$ '+fmt(x.valor)+(x.origem==='devolucao'?' devolvido':(x.ticket?' no Ticket '+esc(x.ticket):'')); }).concat(valor>0.005?['R$ '+fmt(valor)+(Number(a.valorDevolvido)>0?' devolvido':(adtAplicado?(a.ticket?' no Ticket '+esc(a.ticket):' usado'):' ainda livre'))]:[]).join(', ')
               ].filter(Boolean).join(' | ');
             }
             descHtml='<div style="font-weight:700;color:#27ae60">'+tituloAdt+'</div>'+(det?'<div style="font-size:.76rem;color:#555;margin-top:2px">'+det+'</div>':'');
+          } else if(e.tipo==='devolucao_adt'){
+            var dv=e.raw.adv||{}; valor=Math.abs(Number(e.raw.valor||0)); saldo+=valor;
+            badge='<span style="background:#e3f2fd;color:#1565c0;padding:1px 6px;border-radius:4px;font-size:.72rem;font-weight:700">Recebido</span>';
+            descHtml='<div style="font-weight:700;color:#1565c0">Devolução do adiantamento '+esc(e.raw.origemCod||dv.cod||'')+'</div>'
+              +'<div style="font-size:.76rem;color:#555;margin-top:2px">O fornecedor devolveu R$ '+fmt(valor)+' em '+fmtD(dv.dataDevolucao)+' | '+esc(dv.bancoDevolucaoNome||'Dinheiro')+'</div>';
           } else if(e.tipo==='pagamento_cp'){
             var cp=e.raw; valor=Number(cp.valor||0); saldo-=valor;
             badge='<span style="background:#e8f5e9;color:#1a5e2a;padding:1px 6px;border-radius:4px;font-size:.72rem;font-weight:700">Pago</span>';
@@ -18308,7 +18317,7 @@ function initDespesas(){
               :'<span style="color:#27ae60;font-weight:700">\u2714\uFE0F quitado</span>';
           var saldoTxt='<span style="font-weight:800;color:'+sc+'">R$ '+fmt(Math.abs(saldo))+'</span><div style="font-size:.7rem;margin-top:2px;font-weight:400">'+_quemDeve+'</div>';
           var rowBg=e.tipo==='compra'||e.tipo==='conta_antiga'?'#fff8f0':e.tipo==='cheque'?'#f9f0ff':e.tipo==='saldo_anterior'||e.tipo==='saldo_devedor_pendente'?'#fffde7':'#f0fff4';
-          var valColor=_ffEhDebito(e.tipo)?'#c0392b':'#27ae60';
+          var valColor=_ffEhDebito(e.tipo)||e.tipo==='devolucao_adt'?'#c0392b':'#27ae60';
           var delKey='';
           if(e.tipo==='compra') delKey=e.raw.ticket||'';
           else if(e.tipo==='adiantamento') delKey=e.raw.cod||'';
@@ -18321,6 +18330,12 @@ function initDespesas(){
             :e.tipo==='saldo_devedor_pendente'
               ?'<button onclick="ffSaldoParaContas(this)" data-forn="'+cod+'" style="background:#8a6d0b;color:#fff;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:.8rem;margin-right:3px">Levar para Contas a Pagar</button>'
               :'';
+          if(e.tipo==='devolucao_adt'||(e.tipo==='adiantamento'&&(Number(e.raw.valorDevolvido)>0||e.raw.origem==='devolucao'))){ editBtn=''; delKey=''; }
+          var devBtn=e.tipo==='adiantamento'&&!e.orig&&String(e.raw.status||'')==='Pendente'&&Number(e.raw.valor||0)>0.005&&e.raw.forma!=='Crédito'
+            ?'<button onclick="ffRegistrarDevolucao(this)" data-forn="'+cod+'" data-cod="'+esc(e.raw.cod||'')+'" title="O fornecedor devolveu o dinheiro deste adiantamento" style="background:#1565c0;color:#fff;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:.8rem;margin-right:4px">↩ Devolvido</button>'
+            :e.tipo==='devolucao_adt'
+              ?'<button onclick="ffDesfazerDevolucao(this)" data-forn="'+cod+'" data-cod="'+esc(e.raw.cod||'')+'" title="Desfazer o registro desta devolução" style="background:#fff;color:#1565c0;border:1px solid #1565c0;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:.8rem;margin-right:4px">Desfazer</button>'
+              :'';
           var delBtn=delKey
             ?'<button onclick="ffExcluirEntry(this)" data-tipo="'+e.tipo+'" data-id="'+delKey+'" data-forn="'+cod+'" style="background:#e74c3c;color:#fff;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:.8rem">&#x1F5D1; Excluir</button>'
             :'';
@@ -18328,9 +18343,9 @@ function initDespesas(){
             +'<td style="padding:8px 10px;white-space:nowrap;font-size:.8rem;color:#555">'+fmtD(e.data)+'</td>'
             +'<td style="padding:8px 10px">'+badge+'</td>'
             +'<td style="padding:8px 10px">'+descHtml+'</td>'
-            +'<td style="padding:8px 10px;text-align:right;font-weight:700;color:'+valColor+'">'+(_ffEhDebito(e.tipo)?'+ ':'- ')+'R$ '+fmt(valor)+'</td>'
+            +'<td style="padding:8px 10px;text-align:right;font-weight:700;color:'+valColor+'">'+(_ffEhDebito(e.tipo)||e.tipo==='devolucao_adt'?'+ ':'- ')+'R$ '+fmt(valor)+'</td>'
             +'<td style="padding:8px 10px;text-align:right;font-weight:800;color:'+sc+';white-space:nowrap">'+saldoTxt+'</td>'
-            +'<td style="padding:6px 8px;text-align:center;white-space:nowrap">'+editBtn+delBtn+'</td>'
+            +'<td style="padding:6px 8px;text-align:center;white-space:nowrap">'+devBtn+editBtn+delBtn+'</td>'
             +'</tr>';
         }).join('');
 
@@ -18690,6 +18705,53 @@ function initDespesas(){
         }
       }
       window['ffSaldoInicial']=ffSaldoInicial;
+      window['ffRegistrarDevolucao']=function(btn){
+        var fornCod=btn&&btn.dataset.forn, adtCod=btn&&btn.dataset.cod;
+        var adt=(ADT_POR_FORN[fornCod]||[]).find(function(a){ return a&&a.cod===adtCod; });
+        if(!adt){ showToast('Adiantamento não encontrado. Atualize a ficha.','error'); return; }
+        var livre=Math.round(Number(adt.valor||0)*100)/100;
+        var forn=(FORNECEDORES||[]).find(function(f){ return f&&f.cod===fornCod; })||{};
+        var fmtV=function(v){ return Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+        var old=document.getElementById('ff-dev-ov'); if(old) old.remove();
+        var ov=document.createElement('div'); ov.id='ff-dev-ov';
+        ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10060;display:flex;align-items:center;justify-content:center;padding:16px';
+        var bancos=(Array.isArray(BANCOS_DB)?BANCOS_DB:[]).filter(Boolean).map(function(b){ var c=String(b.cod||b.id||''); return '<option value="'+esc(c)+'">'+esc(String(b.banco||c)+(b.empresa?' — '+b.empresa:''))+'</option>'; }).join('');
+        ov.innerHTML='<div style="background:#fff;border-radius:12px;max-width:440px;width:100%;padding:18px 20px;box-shadow:0 10px 40px rgba(0,0,0,.3)">'
+          +'<h3 style="margin:0 0 6px;color:#1565c0">Fornecedor devolveu o adiantamento</h3>'
+          +'<div style="font-size:.84rem;color:#555;margin-bottom:12px">'+esc(forn.nome||fornCod)+' · adiantamento '+esc(adtCod)+' · sobrou R$ '+fmtV(livre)+'</div>'
+          +'<div class="fg"><label>Valor devolvido (R$)</label><input id="ff-dev-valor" type="number" min="0.01" step="0.01" value="'+livre.toFixed(2)+'"></div>'
+          +'<div class="fg"><label>Data em que recebeu</label><input id="ff-dev-data" type="date" value="'+_hojeISO()+'"></div>'
+          +'<div class="fg"><label>Onde o dinheiro entrou</label><select id="ff-dev-banco"><option value="">Dinheiro (não entrou em banco)</option>'+bancos+'</select></div>'
+          +'<div style="font-size:.78rem;color:#666;margin:6px 0 12px">O adiantamento deixa de ficar livre para as próximas compras. Se escolher um banco, a entrada aparece no extrato dele.</div>'
+          +'<div style="display:flex;gap:8px;justify-content:flex-end"><button id="ff-dev-cancelar" class="btn-cancel">Cancelar</button><button id="ff-dev-salvar" class="btn-save">Registrar devolução</button></div></div>';
+        document.body.appendChild(ov);
+        document.getElementById('ff-dev-cancelar').onclick=function(){ ov.remove(); };
+        document.getElementById('ff-dev-salvar').onclick=async function(){
+          var valor=Math.round((parseFloat(document.getElementById('ff-dev-valor').value)||0)*100)/100;
+          var data=document.getElementById('ff-dev-data').value;
+          var bancoCod=document.getElementById('ff-dev-banco').value;
+          if(!(valor>0)||valor>livre+0.001){ showToast('Informe um valor entre R$ 0,01 e R$ '+fmtV(livre)+'.','error'); return; }
+          if(!data){ showToast('Informe a data em que recebeu.','error'); return; }
+          try{
+            await _adtCommitTransacional({action:'refund',fornCod:fornCod,adtCod:adtCod,valor:valor,data:data,bancoCod:bancoCod},this);
+            ov.remove();
+            showToast('Devolução de R$ '+fmtV(valor)+' registrada.'+(bancoCod?' A entrada aparece no extrato do banco.':''),'success',7000);
+            ffRenderFicha(fornCod,(document.getElementById('ff-de')||{}).value||'',(document.getElementById('ff-ate')||{}).value||'');
+          }catch(error){ showToast('Devolução não registrada: '+(error.message||error),'error',9000); this.disabled=false; }
+        };
+      };
+      window['ffDesfazerDevolucao']=async function(btn){
+        var fornCod=btn&&btn.dataset.forn, adtCod=btn&&btn.dataset.cod;
+        var adt=(ADT_POR_FORN[fornCod]||[]).find(function(a){ return a&&a.cod===adtCod; });
+        if(!adt){ showToast('Devolução não encontrada. Atualize a ficha.','error'); return; }
+        var v=Number(adt.valorDevolvido||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+        if(!confirm('Desfazer a devolução de R$ '+v+'?\n\nO valor volta a ficar livre no adiantamento'+(adt.movDevolucaoId?' e a entrada sai do extrato do banco':'')+'.')) return;
+        try{
+          await _adtCommitTransacional({action:'refund-undo',fornCod:fornCod,adtCod:adtCod},null);
+          showToast('Devolução desfeita.','success');
+          ffRenderFicha(fornCod,(document.getElementById('ff-de')||{}).value||'',(document.getElementById('ff-ate')||{}).value||'');
+        }catch(error){ showToast('Não foi possível desfazer: '+(error.message||error),'error',9000); }
+      };
       window['ffCompensarAdiantamentos']=async function(){
         var cod=_ffCodAtual;
         var forn=(FORNECEDORES||[]).find(function(f){ return f&&f.cod===cod; });

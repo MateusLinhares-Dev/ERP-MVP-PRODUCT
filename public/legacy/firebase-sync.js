@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-24-0300-v275-fichas-do-cliente-iguais';
+  const _APP_BUILD = '2026-11-24-1000-v276-devolucao-de-adiantamento';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){

@@ -664,6 +664,13 @@ export async function changeAdvance(identity: Identity, input: Row, deps: Advanc
     return editAdvanceCheques(identity, input, deps);
   if (input && typeof input === 'object' && !Array.isArray(input) && clean(input.action, 10) === 'company')
     return editAdvanceCompany(identity, input, deps);
+  if (
+    input &&
+    typeof input === 'object' &&
+    !Array.isArray(input) &&
+    /^refund(-undo)?$/.test(clean(input.action, 20))
+  )
+    return refundAdvance(identity, input, deps);
   const { db, now = () => Date.now(), uuid = randomUUID } = deps;
   requireFinance(identity);
   const instance = await resolveDatabase(db);
@@ -723,6 +730,12 @@ export async function changeAdvance(identity: Identity, input: Row, deps: Advanc
     }
   }
   if (candidate && expectedMatches(candidate, input.expected)) {
+    if (Number(candidate.valorDevolvido || 0) > 0 || candidate.origem === 'devolucao')
+      failure(
+        409,
+        'ADVANCE_REFUNDED',
+        'Este adiantamento tem devolução registrada. Desfaça a devolução na Ficha do fornecedor antes de alterar ou excluir.',
+      );
     if (Number(candidate.valorCompensado || 0) > 0 || candidate.origem === 'compensacao_cp') {
       failure(
         409,
@@ -791,6 +804,12 @@ export async function changeAdvance(identity: Identity, input: Row, deps: Advanc
         'O adiantamento foi alterado por outra sessão. Atualize antes de salvar.',
       );
     }
+    if (Number(previous.valorDevolvido || 0) > 0 || previous.origem === 'devolucao')
+      failure(
+        409,
+        'ADVANCE_REFUNDED',
+        'Este adiantamento tem devolução registrada. Desfaça a devolução na Ficha do fornecedor antes de alterar ou excluir.',
+      );
     if (Number(previous.valorCompensado || 0) > 0 || previous.origem === 'compensacao_cp') {
       failure(
         409,
@@ -978,6 +997,198 @@ const sameCheque = (cheque: ChequeRecord, fingerprint: string | undefined): bool
   (chequeFingerprint(cheque) === fingerprint ||
     chequeFingerprint({ ...cheque, s: 'A', cd: '' }) === fingerprint ||
     chequeFingerprint({ ...cheque, s: 'C', cd: cheque.d || '' }) === fingerprint);
+
+const REFUND_FIELDS = [
+  'valorDevolvido',
+  'dataDevolucao',
+  'bancoDevolucao',
+  'bancoDevolucaoNome',
+  'movDevolucaoId',
+];
+const centsOf = (value: unknown): number => Math.round(Number(value || 0) * 100);
+
+async function refundAdvance(
+  identity: Identity,
+  input: Row,
+  { db, now = () => Date.now(), uuid = randomUUID }: AdvanceDeps,
+) {
+  requireFinance(identity);
+  const instance = await resolveDatabase(db);
+  const undo = clean(input.action, 20) === 'refund-undo';
+  const fornCod = pathKey(input.fornCod);
+  const adtCod = pathKey(input.adtCod);
+  const operationId = pathKey(input.operationId);
+  if (!/^[a-f\d-]{36}$/i.test(operationId))
+    failure(422, 'INVALID_OPERATION', 'Identificador da operação inválido.');
+  const operationKey = operationKeyOf(identity, operationId);
+  const stored = (await instance.ref(OPERATIONS_PATH + operationKey).get()).val() as StoredOperation | null;
+  if (stored?.result)
+    return {
+      ...stored.result,
+      entries: advanceRecords((await instance.ref('erp/adiantamentos/' + fornCod).get()).val()),
+      alreadyCommitted: true,
+    };
+  const owner = uuid();
+  const lockRef = instance.ref('erpFinanceAdvanceLocks/' + fornCod);
+  if (
+    !(await acquireAdvanceLock(lockRef, owner, now, { db: instance, operationKey, fornCod, kind: 'change' }))
+  )
+    throw inProgress(
+      'Outra alteração financeira ainda está em processamento. Aguarde alguns segundos.',
+      (await lockRef.get()).val(),
+      now,
+    );
+  let committed = false;
+  try {
+    const [advancesSnap, banksSnap, suppliersSnap] = await Promise.all([
+      instance.ref('erp/adiantamentos/' + fornCod).get(),
+      instance.ref('erp/bancos').get(),
+      instance.ref('erp/fornecedores').get(),
+    ]);
+    const entries = advanceRecords(advancesSnap.val());
+    const matches = entries.filter((advance) => String(advance.cod) === adtCod);
+    if (matches.length !== 1)
+      failure(409, 'ADVANCE_CHANGED', 'Adiantamento não encontrado ou duplicado. Atualize os dados.');
+    const advance = matches[0] as AdvanceRecord;
+    const updates: Row = {};
+    let next: AdvanceRecord[];
+    let movement: Row | null = null;
+    let removedMovementId = '';
+    if (!undo) {
+      if (String(advance.status) !== 'Pendente')
+        failure(409, 'ADVANCE_NOT_FREE', 'Este adiantamento já foi usado ou devolvido. Atualize a ficha.');
+      const free = centsOf(advance.valor);
+      const value = Math.round(amount(input.valor) * 100);
+      if (value > free)
+        failure(
+          422,
+          'INVALID_AMOUNT',
+          'A devolução passa do que sobrou do adiantamento (R$ ' +
+            (free / 100).toFixed(2).replace('.', ',') +
+            ').',
+        );
+      const dataFmt = toDisplayDate(isoDate(input.data));
+      const bankCode = clean(input.bancoCod, 130);
+      const bank = bankCode ? bankEntries(banksSnap.val()).find((option) => option.cod === bankCode) : null;
+      if (bankCode && !bank)
+        failure(422, 'BANK_NOT_FOUND', 'Conta bancária não encontrada ou removida. Atualize a lista.');
+      const movementId = bank ? 'LB-DEV-' + now() + '-' + uuid().replace(/-/g, '').slice(0, 8) : '';
+      const info: Row = {
+        valorDevolvido: value / 100,
+        dataDevolucao: dataFmt,
+        bancoDevolucao: bank?.cod || '',
+        bancoDevolucaoNome: bank?.banco || 'Dinheiro',
+        ...(movementId ? { movDevolucaoId: movementId } : {}),
+      };
+      if (value === free) {
+        next = entries.map((row) =>
+          row === advance ? ({ ...row, status: 'Quitado', ...info } as AdvanceRecord) : row,
+        );
+      } else {
+        const rest = (free - value) / 100;
+        next = entries.map((row) =>
+          row === advance
+            ? ({
+                ...row,
+                valor: rest,
+                ...(row.valorDisponivel != null ? { valorDisponivel: rest } : {}),
+              } as AdvanceRecord)
+            : row,
+        );
+        next.push({
+          cod: 'ADT' + now().toString(36).toUpperCase() + uuid().replace(/-/g, '').slice(0, 8).toUpperCase(),
+          data: dataFmt,
+          valor: value / 100,
+          status: 'Quitado',
+          ticket: '',
+          forma: advance.forma || '',
+          bancoCod: advance.bancoCod || '',
+          bancoNome: advance.bancoNome || '',
+          empresa: advance.empresa || '',
+          origem: 'devolucao',
+          adiantamentoOrigem: advance.cod,
+          obs: 'Devolução parcial – ' + dataFmt,
+          ...info,
+        } as AdvanceRecord);
+      }
+      if (bank) {
+        const supplier = supplierNamed(suppliersSnap.val(), fornCod);
+        movement = {
+          id: movementId,
+          bancoCod: bank.cod,
+          data: dataFmt,
+          descricao: 'Devolução de adiantamento: ' + (clean(supplier?.nome) || fornCod) + ' (' + adtCod + ')',
+          tipo: 'Entrada',
+          valor: value / 100,
+          advanceCode: adtCod,
+          source: 'advance-refund',
+        };
+        updates['lancBanco/' + movementId] = movement;
+      }
+    } else {
+      if (!(centsOf(advance.valorDevolvido) > 0))
+        failure(409, 'NOT_REFUNDED', 'Este adiantamento não tem devolução registrada.');
+      removedMovementId = clean(advance.movDevolucaoId, 120);
+      if (advance.origem === 'devolucao' && advance.adiantamentoOrigem) {
+        const origin = entries.find(
+          (row) => String(row.cod) === String(advance.adiantamentoOrigem) && row !== advance,
+        );
+        if (!origin || String(origin.status) !== 'Pendente')
+          failure(
+            409,
+            'ADVANCE_CHANGED',
+            'O resto deste adiantamento já foi usado. Desfaça primeiro esse uso e depois a devolução.',
+          );
+        const back = (centsOf(origin.valor) + centsOf(advance.valor)) / 100;
+        next = entries
+          .filter((row) => row !== advance)
+          .map((row) =>
+            row === origin
+              ? ({
+                  ...row,
+                  valor: back,
+                  ...(row.valorDisponivel != null ? { valorDisponivel: back } : {}),
+                } as AdvanceRecord)
+              : row,
+          );
+      } else {
+        next = entries.map((row) => {
+          if (row !== advance) return row;
+          const copy: Row = { ...row, status: 'Pendente' };
+          return Object.fromEntries(
+            Object.entries(copy).filter(([field]) => !REFUND_FIELDS.includes(field)),
+          ) as AdvanceRecord;
+        });
+      }
+      if (removedMovementId) {
+        updates['lancBanco/' + pathKey(removedMovementId)] = null;
+        updates['lancBancoDeletedV2/' + pathKey(removedMovementId)] = true;
+      }
+    }
+    const receipt = {
+      action: undo ? 'refund-undo' : 'refund',
+      fornCod,
+      newFornCod: fornCod,
+      adtCod,
+      bankMovement: movement,
+      movementRemovedId: removedMovementId,
+    };
+    updates['adiantamentos/' + fornCod] = next;
+    updates['financeAdvanceOperations/' + operationKey] = {
+      action: receipt.action,
+      adtCod,
+      result: receipt,
+      createdAt: new Date(now()).toISOString(),
+      createdBy: clean(identity.erpUser),
+    };
+    updates._ts = now();
+    await commitAdvanceAndRelease(instance, updates, [fornCod], owner, now);
+    committed = true;
+    return { ...receipt, entries: next, targetEntries: null };
+  } finally {
+    if (!committed) await releaseAdvanceLocks([lockRef], owner);
+  }
+}
 
 async function editAdvanceCompany(
   identity: Identity,
