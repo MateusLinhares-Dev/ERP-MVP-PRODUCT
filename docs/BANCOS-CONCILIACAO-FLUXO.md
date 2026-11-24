@@ -221,6 +221,24 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Lista de apagados do estoque vazia na nuvem (24/11/2026, v278)
+
+Defeito da v277, achado na revisão. Quando o último nome sai de `erp/estoqueDeleted` (alguém recria ou restaura o único material apagado), a transação grava uma lista vazia e o Firebase apaga o nó. A leitura (`_lerErpSemPesados`) descarta nós vazios, então os carregadores não chamavam `_estoqueTombstonesDaNuvem`. O computador que estava aberto ficava com a marca antiga:
+- o material recriado continuava escondido nele sem F5;
+- ao salvar qualquer coisa, ele gravava `metais` sem o material (o nome só voltava pelo cadastro do estoque).
+
+Correção:
+- `_lerErpSemPesados` guarda em `d._lidos` todo nó lido com sucesso, inclusive os vazios;
+- os dois carregadores usam `_fbNoLido(d,'estoqueDeleted')`. Nó lido e vazio limpa a marca local; nó sem permissão de leitura não mexe nela;
+- excluir material lê a lista da nuvem com `_nomesTombstoneEstoque` (aceita lista ou objeto, compara sem diferença de maiúsculas);
+- se a transação da lista de apagados falhar ao recriar ou renomear, aparece um aviso para conferir a internet e salvar de novo.
+
+Testes:
+- `test/stock-weighing-double-count.test.js` (nó vazio conta como lido e limpa a marca);
+- `test/matriz-estoque-aniversarios-regression.test.js`;
+- teste de tela (8/8): o computador B aberto com MEDALHA apagada passa a mostrar a MEDALHA recriada em outro computador sem F5, esquece a marca, salva sem apagar nada da nuvem e continua igual depois do F5;
+- os testes de tela de estoque da v277.
+
 ## Material que some e volta (MEDALHA / GRANA GROSSA); WhatsApp Web (24/11/2026, v277)
 
 **Material sumindo.** A cliente: "já criei o item umas 3 vezes e ele fica sumindo; era MEDALHA, editei para GRANA GROSSA, sumiram os dois, depois a MEDALHA apareceu e agora sumiu de novo". Leitura (só leitura, autorizada) da produção:

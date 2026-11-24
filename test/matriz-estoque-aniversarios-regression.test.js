@@ -59,6 +59,7 @@ async function stockHarness({claims={erpAccess:true,canInventory:true},entries=0
   const context={window:{_fbDB:db,__fbRaw:{auth:{currentUser:{getIdTokenResult:async()=>({claims})}}}},
     ESTOQUE_DB:stock,METAIS:names,showToast:()=>{},console,confirm:()=>true,
     _normalizarTombstoneEstoque:s=>s.toUpperCase(),
+    _nomesTombstoneEstoque:v=>Array.isArray(v)?v.filter(x=>typeof x==='string'&&x):[],
     getEntradasMaterial:()=>entries,getSaidasMaterial:()=>0,
     _apagarChave:(name,store,key)=>{delete store[key];calls.push('local-deleted');},
     saveEstoque:()=>calls.push('save'),registrarHistorico:()=>{},renderEstoque:()=>{}};
