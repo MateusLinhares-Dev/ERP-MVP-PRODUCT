@@ -1453,6 +1453,12 @@
 
         <div class="tab-panel" id="tab-agenda_entregas">
       <div class="sec-title">📅 Agenda de Entregas de Material</div>
+      <div class="card" id="agd-whats-modo" style="padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <b style="font-size:.85rem">Abrir WhatsApp no:</b>
+        <button type="button" data-whats-modo="app" onclick="erpSetWhatsappMode('app');agendaWhatsModoRender()" style="padding:7px 14px;border-radius:7px;border:1.5px solid #6a1b9a;cursor:pointer;font-weight:700;font-size:.8rem">Aplicativo do computador</button>
+        <button type="button" data-whats-modo="web" onclick="erpSetWhatsappMode('web');agendaWhatsModoRender()" style="padding:7px 14px;border-radius:7px;border:1.5px solid #6a1b9a;cursor:pointer;font-weight:700;font-size:.8rem">WhatsApp Web</button>
+        <span style="font-size:.76rem;color:#666">Vale para todos os envios de WhatsApp deste computador. No WhatsApp Web, o sistema usa sempre a mesma aba.</span>
+      </div>
       <div class="kpi-grid">
         <div class="kpi g"><div class="kpi-lbl">Agendadas Hoje</div><div class="kpi-val" id="agd-kpi-hoje">0</div><div class="kpi-sub">entregas</div></div>
         <div class="kpi o"><div class="kpi-lbl">Aguardando</div><div class="kpi-val" id="agd-kpi-aguardando">0</div><div class="kpi-sub">ainda não chegaram</div></div>

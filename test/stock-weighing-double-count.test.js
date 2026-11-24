@@ -165,3 +165,23 @@ test('estoque de todos os materiais numa passada só dá o mesmo resultado que m
   assert.equal(tot.sai.get('GRANA GROSSA'), 6);
   assert.equal(tot.ent.get('LATINHA'), 10);
 });
+
+test('nomes apagados do estoque seguem a nuvem: o computador não guarda marca própria que faça o material sumir de novo', () => {
+  const pick = (from, to) => core.slice(core.indexOf(from), core.indexOf(to, core.indexOf(from)));
+  const code = pick('function _nomesTombstoneEstoque(v){', 'function _estoqueTombstoneNuvem(');
+  const store = new Map();
+  const ctx = {
+    _DEL_SETS: { estoque: new Set(['MEDALHA', 'GRANA GROSSA']) },
+    _DEL_LS_KEY: { estoque: 'mm_estoque_deletados' },
+    localStorage: { setItem: (k, v) => store.set(k, v) },
+    ESTOQUE_DB: { 'GRANA GROSSA': { mat: 'GRANA GROSSA' }, MEDALHA: { mat: 'MEDALHA' } },
+  };
+  runInNewContext(code + ';this.nomes=_nomesTombstoneEstoque;this.daNuvem=_estoqueTombstonesDaNuvem;', ctx);
+  assert.equal(JSON.stringify(ctx.nomes({ 0: 'A', 1: 'B' })), '["A","B"]');
+  assert.equal(JSON.stringify(ctx.nomes({ A: true, B: true })), '["A","B"]');
+  ctx.daNuvem(['CHAPA LIMPA', 'GRANA GROSSA']);
+  assert.equal(JSON.stringify([...ctx._DEL_SETS.estoque]), '["CHAPA LIMPA","GRANA GROSSA"]', 'MEDALHA marcada só neste computador deixa de valer');
+  assert.ok(ctx.ESTOQUE_DB.MEDALHA);
+  assert.equal(ctx.ESTOQUE_DB['GRANA GROSSA'], undefined);
+  assert.equal(store.get('mm_estoque_deletados'), '["CHAPA LIMPA","GRANA GROSSA"]');
+});

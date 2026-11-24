@@ -221,6 +221,34 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Material que some e volta (MEDALHA / GRANA GROSSA); WhatsApp Web (24/11/2026, v277)
+
+**Material sumindo.** A cliente: "já criei o item umas 3 vezes e ele fica sumindo; era MEDALHA, editei para GRANA GROSSA, sumiram os dois, depois a MEDALHA apareceu e agora sumiu de novo". Leitura (só leitura, autorizada) da produção:
+- `erp/metais` tem MEDALHA;
+- `erp/estoque` tem MEDALHA, sem `nomesAnteriores`;
+- `erp/estoqueDeleted` tem **GRANA GROSSA**;
+- o histórico mostra que em 23/11 às 12:26 a Elaine excluiu "GRANA GROSSA" ("Material sem movimento removido do catálogo"), durante uma limpeza do cadastro. A GRANA GROSSA estava zerada porque, antes da v271, renomear não levava os quilos.
+
+Causa: a lista de nomes apagados do estoque (`estoqueDeleted`) era **somada** entre os computadores e gravada inteira pelo `fbSalvar` de cada um. Criar de novo ou renomear para um nome apagado tirava o nome só da lista local (`_estoqueLimparExclusao`). Os outros computadores mandavam a lista deles de volta e o nome voltava a ser apagado. Renomear marcava o nome antigo como apagado só localmente. O resultado era o pingue-pongue: some um, some o outro, volta.
+
+Correção:
+- ao carregar, a lista local passa a ser **a da nuvem** (`_estoqueTombstonesDaNuvem`), sem somar a local. Uma marca que só existia num computador deixa de esconder material;
+- `fbSalvar` não grava mais `estoqueDeleted` inteiro;
+- as mudanças vão direto para a nuvem por transação (`_estoqueTombstoneNuvem`): excluir material (já era assim), renomear (o nome antigo entra e o novo sai) e criar ou reaproveitar um nome apagado (sai da lista).
+
+**Depois de publicar, todos os computadores precisam de F5.** Uma aba com versão antiga ainda grava a lista inteira e pode apagar de novo a GRANA GROSSA. No computador dela, a MEDALHA volta a aparecer (a marca era só local). Para ficar com o nome GRANA GROSSA: Editar na MEDALHA, nome GRANA GROSSA, Salvar. Os quilos vão junto (v271) e a GRANA GROSSA sai da lista de apagados na nuvem.
+
+**WhatsApp Web.** A Agenda (e todo o sistema) abria o WhatsApp por `wa.me`, que chama o aplicativo instalado. No computador da cliente, o aplicativo é um WhatsApp separado, só para comprovantes. Ela pediu a opção da outra agenda: aplicativo ou Web. Novo:
+- `whatsapp-format.js` guarda a escolha por computador (`localStorage` `erp_whatsapp_modo`);
+- no modo Web, troca todo `wa.me` / `api.whatsapp.com/send` aberto pelo sistema por `https://web.whatsapp.com/send?phone=…&text=…`, sempre na mesma aba (`erp_whatsapp_web`);
+- a escolha fica na Agenda de Entregas: "Abrir WhatsApp no: Aplicativo do computador / WhatsApp Web".
+
+Testes:
+- `test/whatsapp-web-mode.test.js`;
+- `test/stock-weighing-double-count.test.js` (lista de apagados segue a nuvem);
+- teste de tela do caso dela (7/7): MEDALHA marcada só no computador dela aparece; renomear para GRANA GROSSA (apagada pela Elaine) funciona e corrige a nuvem; navegador limpo e F5 mostram o mesmo; salvar não regrava a lista;
+- os testes de tela de estoque anteriores.
+
 ## Fornecedor devolveu o adiantamento (24/11/2026, v276)
 
 Caso Jeferson Serafim Borba. O adiantamento de R$ 15.000,00 foi usado em R$ 9.044,70 no T206, e a Ficha mostrava "Fornecedor deve R$ 5.955,30". Ele devolveu esse dinheiro, e a cliente perguntou como lançar. Não havia como:
