@@ -171,7 +171,18 @@ function agendaWhats(id){
   const msg='Olá, '+a.nome+'! 👋\n\nConfirmando sua entrega agendada na *'+(typeof _empresaPrincipalLabel==='function'?_empresaPrincipalLabel():'')+'*:\n📅 Data: '+_agdBr(a.data)+(a.hora?('\n🕐 Horário: '+a.hora):'')+(a.material?('\n📦 Material: '+a.material):'')+'\n\n📍 '+(typeof _empresaPrincipalEnderecoCurto==='function'?_empresaPrincipalEnderecoCurto():'')+'\n\nDetalhes como placa do veículo acertamos no dia. Qualquer imprevisto, é só avisar. Obrigado!';
   window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(msg),'_blank');
 }
+function agendaWhatsModoRender(){
+  const modo=typeof window.erpWhatsappMode==='function'?window.erpWhatsappMode():'app';
+  document.querySelectorAll('#agd-whats-modo [data-whats-modo]').forEach(function(b){
+    const ativo=b.getAttribute('data-whats-modo')===modo;
+    b.style.background=ativo?'#6a1b9a':'#fff';
+    b.style.color=ativo?'#fff':'#6a1b9a';
+    b.setAttribute('aria-pressed',ativo?'true':'false');
+  });
+}
+window.agendaWhatsModoRender=agendaWhatsModoRender;
 function agendaRender(){
+  try{ agendaWhatsModoRender(); }catch(e){}
   try{ _agdPrepararUI(); }catch(e){}
   const tb=document.getElementById('agd-tbody'); if(!tb) return;
   try{ agdCalRender(); }catch(e){}

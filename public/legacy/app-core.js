@@ -10906,7 +10906,35 @@ function _estoqueLimparExclusao(nome){
       if(mudou) localStorage.setItem(_DEL_LS_KEY.estoque, JSON.stringify([..._DEL_SETS.estoque]));
     }
   }catch(e){}
+  if(mudou) _estoqueTombstoneNuvem([],[nome]);
   return mudou;
+}
+function _nomesTombstoneEstoque(v){
+  if(Array.isArray(v)) return v.filter(function(x){ return typeof x==='string'&&x; });
+  if(v&&typeof v==='object') return Object.keys(v).map(function(k){ const x=v[k]; return typeof x==='string'?x:(x===true?k:''); }).filter(Boolean);
+  return [];
+}
+function _estoqueTombstonesDaNuvem(remoto){
+  const nomes=_nomesTombstoneEstoque(remoto);
+  try{
+    _DEL_SETS.estoque.clear();
+    nomes.forEach(function(n){ _DEL_SETS.estoque.add(n); });
+    localStorage.setItem(_DEL_LS_KEY.estoque, JSON.stringify([..._DEL_SETS.estoque]));
+  }catch(e){}
+  try{ nomes.forEach(function(n){ if(ESTOQUE_DB&&Object.prototype.hasOwnProperty.call(ESTOQUE_DB,n)) delete ESTOQUE_DB[n]; }); }catch(e){}
+}
+function _estoqueTombstoneNuvem(adicionar,remover){
+  const db=typeof window!=='undefined'?window._fbDB:null;
+  if(!db||typeof db.ref!=='function') return Promise.resolve(false);
+  const tirar=new Set((remover||[]).map(_normalizarTombstoneEstoque).filter(Boolean));
+  const por=(adicionar||[]).filter(Boolean);
+  return Promise.resolve().then(function(){
+    return db.ref('erp/estoqueDeleted').transaction(function(current){
+      let itens=_nomesTombstoneEstoque(current).filter(function(n){ return !tirar.has(_normalizarTombstoneEstoque(n)); });
+      por.forEach(function(n){ if(!itens.some(function(x){ return _normalizarTombstoneEstoque(x)===_normalizarTombstoneEstoque(n); })) itens.push(n); });
+      return itens;
+    },undefined,false);
+  }).then(function(tx){ return !!(tx&&tx.committed); }).catch(function(e){ console.warn('[Estoque] marca de exclusão não atualizada na nuvem',e); return false; });
 }
 function _garantirMetalCadastrado(nome){
   if(!nome) return;
@@ -14064,7 +14092,7 @@ function salvarEditEstoque(){
     ESTOQUE_DB[matNew]=Object.assign({},dados,existente||{},{mat:matNew});
     if(existente&&existente!==dados) somaJuntada={inicial:Number(existente.inicial||0),saidas:Number(existente.saidas||0)};
     if(anteriores.length) ESTOQUE_DB[matNew].nomesAnteriores=anteriores; else delete ESTOQUE_DB[matNew].nomesAnteriores;
-    if(_normalizarChaveMaterialEstoque(matOld)!==chaveNova) _apagarChave('estoque', ESTOQUE_DB, matOld);
+    if(_normalizarChaveMaterialEstoque(matOld)!==chaveNova){ _apagarChave('estoque', ESTOQUE_DB, matOld); _estoqueTombstoneNuvem([matOld],[matNew]); }
     else delete ESTOQUE_DB[matOld];
     _renomearMaterialNosPrecos(matOld,matNew);
   }

@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-24-1000-v276-devolucao-de-adiantamento';
+  const _APP_BUILD = '2026-11-24-1800-v277-estoque-apagados-da-nuvem-e-whatsapp-web';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -983,7 +983,6 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         adtPorFornDeleted: [..._DEL_SETS.adtPorForn],
         chequesPorFornDeleted: [..._DEL_SETS.chequesPorForn],
         saldoDevedorDeleted: [..._DEL_SETS.saldoDevedor],
-        estoqueDeleted: [..._DEL_SETS.estoque],
         fcSaldoIniDeleted: [..._DEL_SETS.fcSaldoIni],
         adtItensDeleted: [..._DEL_SETS.adtItens],
         chequeItensDeleted: [..._DEL_SETS.chequeItens],
@@ -1416,7 +1415,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _aplicarTombstonesRemotos('adtPorForn', ADT_POR_FORN, d.adtPorFornDeleted);
           _aplicarTombstonesRemotos('chequesPorForn', CHEQUES_POR_FORN, d.chequesPorFornDeleted);
           _aplicarTombstonesRemotos('saldoDevedor', SALDO_DEVEDOR_FORN, d.saldoDevedorDeleted);
-          _aplicarTombstonesRemotos('estoque', ESTOQUE_DB, d.estoqueDeleted);
+          if(d&&Object.prototype.hasOwnProperty.call(d,'estoqueDeleted')) _estoqueTombstonesDaNuvem(d.estoqueDeleted);
           _aplicarTombstonesRemotos('fcSaldoIni', FC_SALDO_INI, d.fcSaldoIniDeleted);
 
           _aplicarTombstonesItensPorForn('adtItens', ADT_POR_FORN, 'cod', d.adtItensDeleted);
@@ -1825,7 +1824,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _aplicarTombstonesRemotos('adtPorForn', ADT_POR_FORN, d.adtPorFornDeleted);
           _aplicarTombstonesRemotos('chequesPorForn', CHEQUES_POR_FORN, d.chequesPorFornDeleted);
           _aplicarTombstonesRemotos('saldoDevedor', SALDO_DEVEDOR_FORN, d.saldoDevedorDeleted);
-          _aplicarTombstonesRemotos('estoque', ESTOQUE_DB, d.estoqueDeleted);
+          if(d&&Object.prototype.hasOwnProperty.call(d,'estoqueDeleted')) _estoqueTombstonesDaNuvem(d.estoqueDeleted);
           _aplicarTombstonesRemotos('fcSaldoIni', FC_SALDO_INI, d.fcSaldoIniDeleted);
           _aplicarTombstonesItensPorForn('adtItens', ADT_POR_FORN, 'cod', d.adtItensDeleted);
           _aplicarTombstonesItensPorForn('chequeItens', CHEQUES_POR_FORN, 'id', d.chequeItensDeleted);
