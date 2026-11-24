@@ -185,3 +185,33 @@ test('nomes apagados do estoque seguem a nuvem: o computador não guarda marca p
   assert.equal(ctx.ESTOQUE_DB['GRANA GROSSA'], undefined);
   assert.equal(store.get('mm_estoque_deletados'), '["CHAPA LIMPA","GRANA GROSSA"]');
 });
+
+test('lista de apagados do estoque vazia na nuvem (nó some) limpa a marca antiga do computador e o material volta a aparecer', () => {
+  const sync = readFileSync(new URL('../public/legacy/firebase-sync.js', import.meta.url), 'utf8');
+  const reader = sync.slice(sync.indexOf('function _lerErpSemPesados('), sync.indexOf('function _fbCarregarDaNuvem('));
+  assert.match(reader, /lidos\.push\(p\[0\]\);\s*if\(p\[1\]!==undefined && p\[1\]!==null\)/);
+  assert.match(reader, /defineProperty\(d,'_lidos'/);
+  assert.equal(sync.split("if(_fbNoLido(d,'estoqueDeleted')) _estoqueTombstonesDaNuvem(d.estoqueDeleted);").length - 1, 2);
+  const helper = sync.slice(sync.indexOf('function _fbNoLido('), sync.indexOf('function _lerErpSemPesados('));
+  const ctx = {};
+  runInNewContext(helper + ';this.lido=_fbNoLido;', ctx);
+  const d = {};
+  Object.defineProperty(d, '_lidos', { value: ['estoqueDeleted'], enumerable: false });
+  assert.equal(ctx.lido(d, 'estoqueDeleted'), true, 'nó lido e vazio conta como lido');
+  assert.equal(ctx.lido({}, 'estoqueDeleted'), false, 'nó sem permissão de leitura não apaga marcas');
+  assert.equal(ctx.lido({ estoqueDeleted: ['X'] }, 'estoqueDeleted'), true);
+  const pick = (from, to) => core.slice(core.indexOf(from), core.indexOf(to, core.indexOf(from)));
+  const code = pick('function _nomesTombstoneEstoque(v){', 'function _estoqueTombstoneNuvem(');
+  const store = new Map();
+  const c2 = {
+    _DEL_SETS: { estoque: new Set(['MEDALHA']) },
+    _DEL_LS_KEY: { estoque: 'mm_estoque_deletados' },
+    localStorage: { setItem: (k, v) => store.set(k, v) },
+    ESTOQUE_DB: { MEDALHA: { mat: 'MEDALHA', inicial: 50 } },
+  };
+  runInNewContext(code + ';this.daNuvem=_estoqueTombstonesDaNuvem;', c2);
+  c2.daNuvem(undefined);
+  assert.equal(c2._DEL_SETS.estoque.size, 0);
+  assert.ok(c2.ESTOQUE_DB.MEDALHA);
+  assert.equal(store.get('mm_estoque_deletados'), '[]');
+});

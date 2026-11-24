@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-24-1800-v277-estoque-apagados-da-nuvem-e-whatsapp-web';
+  const _APP_BUILD = '2026-11-24-2130-v278-estoque-apagados-vazio-na-nuvem';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -1295,6 +1295,11 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     'chequesCli',
     'fcLanc'
   ];
+  function _fbNoLido(d,no){
+    if(!d) return false;
+    if(Object.prototype.hasOwnProperty.call(d,no)) return true;
+    return Array.isArray(d._lidos)&&d._lidos.indexOf(no)>=0;
+  }
   function _lerErpSemPesados(onOk, onErr){
     (async function(){
       try{
@@ -1329,12 +1334,16 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         }));
         var d={};
         var shallowKeys=[];
+        var lidos=[];
         partes.forEach(function(p){
           if(!p[2]) return;
+          lidos.push(p[0]);
           if(p[1]!==undefined && p[1]!==null){ d[p[0]]=p[1]; shallowKeys.push(p[0]); }
         });
         try{ Object.defineProperty(d,'_shallowKeys',{value:shallowKeys,enumerable:false,configurable:true}); }
         catch(e){ try{ d._shallowKeys=shallowKeys; }catch(_e){} }
+        try{ Object.defineProperty(d,'_lidos',{value:lidos,enumerable:false,configurable:true}); }
+        catch(e){ try{ d._lidos=lidos; }catch(_e){} }
         onOk(d);
       }catch(e){ if(onErr) onErr(e); else onOk(null); }
     })();
@@ -1415,7 +1424,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _aplicarTombstonesRemotos('adtPorForn', ADT_POR_FORN, d.adtPorFornDeleted);
           _aplicarTombstonesRemotos('chequesPorForn', CHEQUES_POR_FORN, d.chequesPorFornDeleted);
           _aplicarTombstonesRemotos('saldoDevedor', SALDO_DEVEDOR_FORN, d.saldoDevedorDeleted);
-          if(d&&Object.prototype.hasOwnProperty.call(d,'estoqueDeleted')) _estoqueTombstonesDaNuvem(d.estoqueDeleted);
+          if(_fbNoLido(d,'estoqueDeleted')) _estoqueTombstonesDaNuvem(d.estoqueDeleted);
           _aplicarTombstonesRemotos('fcSaldoIni', FC_SALDO_INI, d.fcSaldoIniDeleted);
 
           _aplicarTombstonesItensPorForn('adtItens', ADT_POR_FORN, 'cod', d.adtItensDeleted);
@@ -1824,7 +1833,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _aplicarTombstonesRemotos('adtPorForn', ADT_POR_FORN, d.adtPorFornDeleted);
           _aplicarTombstonesRemotos('chequesPorForn', CHEQUES_POR_FORN, d.chequesPorFornDeleted);
           _aplicarTombstonesRemotos('saldoDevedor', SALDO_DEVEDOR_FORN, d.saldoDevedorDeleted);
-          if(d&&Object.prototype.hasOwnProperty.call(d,'estoqueDeleted')) _estoqueTombstonesDaNuvem(d.estoqueDeleted);
+          if(_fbNoLido(d,'estoqueDeleted')) _estoqueTombstonesDaNuvem(d.estoqueDeleted);
           _aplicarTombstonesRemotos('fcSaldoIni', FC_SALDO_INI, d.fcSaldoIniDeleted);
           _aplicarTombstonesItensPorForn('adtItens', ADT_POR_FORN, 'cod', d.adtItensDeleted);
           _aplicarTombstonesItensPorForn('chequeItens', CHEQUES_POR_FORN, 'id', d.chequeItensDeleted);

@@ -10906,7 +10906,7 @@ function _estoqueLimparExclusao(nome){
       if(mudou) localStorage.setItem(_DEL_LS_KEY.estoque, JSON.stringify([..._DEL_SETS.estoque]));
     }
   }catch(e){}
-  if(mudou) _estoqueTombstoneNuvem([],[nome]);
+  if(mudou) _estoqueTombstoneNuvem([],[nome]).then(function(ok){ if(!ok) try{ showToast('Não consegui confirmar na nuvem que "'+nome+'" voltou ao cadastro. Confira a internet e salve de novo.','error',9000); }catch(e){} });
   return mudou;
 }
 function _nomesTombstoneEstoque(v){
@@ -13947,8 +13947,8 @@ async function excluirMaterial(mat){
   try{
     const deletedRef=db.ref('erp/estoqueDeleted');
     const tx=await deletedRef.transaction(function(current){
-      const items=Array.isArray(current)?current.filter(Boolean):current&&typeof current==='object'?Object.keys(current):[];
-      if(!items.includes(mat))items.push(mat);
+      const items=_nomesTombstoneEstoque(current);
+      if(!items.some(function(x){ return _normalizarTombstoneEstoque(x)===_normalizarTombstoneEstoque(mat); }))items.push(mat);
       return items;
     },undefined,false);
     if(!tx.committed)throw new Error('Exclusão não confirmada pelo Firebase.');
@@ -14092,7 +14092,7 @@ function salvarEditEstoque(){
     ESTOQUE_DB[matNew]=Object.assign({},dados,existente||{},{mat:matNew});
     if(existente&&existente!==dados) somaJuntada={inicial:Number(existente.inicial||0),saidas:Number(existente.saidas||0)};
     if(anteriores.length) ESTOQUE_DB[matNew].nomesAnteriores=anteriores; else delete ESTOQUE_DB[matNew].nomesAnteriores;
-    if(_normalizarChaveMaterialEstoque(matOld)!==chaveNova){ _apagarChave('estoque', ESTOQUE_DB, matOld); _estoqueTombstoneNuvem([matOld],[matNew]); }
+    if(_normalizarChaveMaterialEstoque(matOld)!==chaveNova){ _apagarChave('estoque', ESTOQUE_DB, matOld); _estoqueTombstoneNuvem([matOld],[matNew]).then(function(ok){ if(!ok) try{ showToast('A troca de nome não foi confirmada na nuvem. Confira a internet e salve de novo.','error',9000); }catch(e){} }); }
     else delete ESTOQUE_DB[matOld];
     _renomearMaterialNosPrecos(matOld,matNew);
   }
