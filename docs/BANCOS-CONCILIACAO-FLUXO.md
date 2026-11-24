@@ -221,6 +221,30 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Fornecedor devolveu o adiantamento (24/11/2026, v276)
+
+Caso Jeferson Serafim Borba. O adiantamento de R$ 15.000,00 foi usado em R$ 9.044,70 no T206, e a Ficha mostrava "Fornecedor deve R$ 5.955,30". Ele devolveu esse dinheiro, e a cliente perguntou como lançar. Não havia como:
+- adiantamento usado em parte não pode ser editado nem excluído ("já compensado");
+- não existia ação de devolução.
+
+Os R$ 5.955,30 ficavam presos como dívida do fornecedor.
+
+Novo:
+- **Servidor** (`changeAdvance` com `action: 'refund'` / `'refund-undo'`, mesmo endpoint `advance-change`, mesma trava do fornecedor e registro da operação):
+  - devolução total: o adiantamento vira "Quitado", com `valorDevolvido`, `dataDevolucao`, `bancoDevolucao`/`bancoDevolucaoNome` e `movDevolucaoId`;
+  - devolução parcial: a parte devolvida vira um registro próprio (`origem: 'devolucao'`, `adiantamentoOrigem`) e o resto continua livre;
+  - com banco escolhido, cria a **entrada** no extrato (`LB-DEV-…`, `source: 'advance-refund'`); "Dinheiro" não cria lançamento de banco;
+  - desfazer volta tudo e apaga a entrada (com `lancBancoDeletedV2`);
+  - recusa devolver adiantamento já usado e valor maior que o que sobrou;
+  - recusa desfazer o resto se ele já foi usado depois;
+  - editar ou excluir adiantamento com devolução registrada é recusado (`ADVANCE_REFUNDED`), para a entrada do banco não ficar solta.
+- **Ficha do fornecedor:** botão **↩ Devolvido** na linha do adiantamento livre. Ele abre uma janela com o valor (já preenchido com o que sobrou), a data e onde o dinheiro entrou (bancos ou "Dinheiro"). A Ficha ganha a linha "Devolução do adiantamento X" (+ valor, situação "Recebido", botão Desfazer) e o saldo fecha. A parte devolvida aparece como "Parte do adiantamento X…, devolvida pelo fornecedor", e o valor total do adiantamento mostra "R$ … devolvido". O "Total pago" desconta a devolução.
+- **Fluxo de caixa:** a devolução desconta da linha de adiantamentos no mês em que foi recebida.
+
+Testes:
+- `test/advance-refund.test.js` (total com banco, desfazer, parcial em dinheiro, recusas, editar e excluir travados);
+- teste de tela com o caso Jeferson (7/7): devolução, saldo quitado, extrato do banco, F5 e desfazer.
+
 ## As duas fichas do cliente davam saldos diferentes (24/11/2026, v275)
 
 A cliente notou que há duas fichas do cliente e "uma não puxa a outra":
