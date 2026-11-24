@@ -5546,7 +5546,6 @@ async function editarChequesAdiantamento(fornCod, adtCod){
   });
 }
 function editAdiantamento(fornCod, adtCod){
-  try{ adtCorrigeEmpresa(); }catch(_){}
   const lista=ADT_POR_FORN[fornCod]||[];
   const a=lista.find(x=>x.cod===adtCod);
   if(!a){alert('Adiantamento não encontrado.');return;}
@@ -7724,33 +7723,6 @@ async function salvarEdicaoChequeCli(cliNome,numOrig,bancoOrig,idx){
   try{showToast('Cheque atualizado!','success');}catch(e){}
 }
 
-function adtCorrigeEmpresa(){
-  let mudou=false;
-  Object.values(ADT_POR_FORN).forEach(lista=>{
-    (lista||[]).forEach(a=>{
-      if(a._empresaAuto){ a.empresa=''; delete a._empresaAuto; mudou=true; }
-
-      else if((a.bancoNome||'').toLowerCase().includes('terceiro') && a.empresa===_empresaPrincipalChave()){
-        a.empresa=''; mudou=true;
-      }
-    });
-  });
-  if(mudou) saveDB();
-}
-
-function _adtCorrigirDataCompensacaoParcial(){
-  let mudou=false;
-  Object.values(ADT_POR_FORN).forEach(function(lista){
-    (lista||[]).forEach(function(a){
-      if(!a || !a.obs) return;
-      const m=/Compensação parcial – CP (\d{2}\/\d{2}\/\d{4})/.exec(a.obs);
-      if(m && a.data!==m[1]){ a.data=m[1]; mudou=true; }
-    });
-  });
-  if(mudou) saveDB();
-  return mudou;
-}
-
 async function adtSetEmpresaInline(fornCod, adtCod, novaEmpresa){
   const lista=ADT_POR_FORN[fornCod]||[];
   const a=lista.find(x=>x.cod===adtCod);
@@ -7799,8 +7771,6 @@ function _adtIso(d){
 function renderAdiantamentos(){
   const tbody=document.getElementById('tb-adiantamentos-list');
   if(!tbody)return;
-  try{ adtCorrigeEmpresa(); }catch(_){}
-  try{ _adtCorrigirDataCompensacaoParcial(); }catch(_){}
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const empCor={}; _cfgFinanceCompanies().forEach(function(n){ empCor[n]=_cfgFinanceCompanyColor(n); });
   const all=[];
@@ -18188,7 +18158,6 @@ function initDespesas(){
         var forn=FORNECEDORES.find(function(f){ return f.cod===cod; });
         if(!forn) return;
 
-        try{ _adtCorrigirDataCompensacaoParcial(); }catch(e){}
 
         var infoDiv=document.getElementById('ff-forn-info');
         if(infoDiv) infoDiv.style.display='';

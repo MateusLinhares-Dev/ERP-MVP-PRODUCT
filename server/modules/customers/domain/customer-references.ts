@@ -115,6 +115,16 @@ export function moveReferences(data: ReferenceData, from: string, to: string): M
   return { updates, moved, invalidKey };
 }
 
+export function openingBalanceTombstoneCleared(tombstones: unknown, client: string): Row {
+  if (Array.isArray(tombstones))
+    return tombstones.some((item) => item === client)
+      ? { fcSaldoIniDeleted: tombstones.filter((item) => item !== client) }
+      : {};
+  if (tombstones && typeof tombstones === 'object' && client in tombstones)
+    return { [`fcSaldoIniDeleted/${client}`]: null };
+  return {};
+}
+
 export function openFinance(data: ReferenceData, name: string): string[] {
   const source = nameKey(name);
   if (!source) return [];

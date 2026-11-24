@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-24-2130-v278-estoque-apagados-vazio-na-nuvem';
+  const _APP_BUILD = '2026-11-24-2330-v279-cliente-codigo-e-adiantamento-sem-correcao-local';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){

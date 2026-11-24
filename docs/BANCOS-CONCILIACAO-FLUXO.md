@@ -221,6 +221,30 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Cliente novo nascendo escondido; adiantamento reescrito pela tela (24/11/2026, v279)
+
+Achado na revisão. Excluir um cliente ou juntá-lo em outro grava `erp/clientes/<código>: null` e `erp/clientesDeleted/<código>: true`. O próximo código (`nextCustomerCode`) olhava só os clientes que sobraram. Quando o cliente excluído era o de código mais alto, por exemplo juntar o cadastro duplicado mais novo no antigo:
+- o cliente seguinte recebia o mesmo código e já nascia na lista de excluídos. O servidor e as telas não o mostravam;
+- todo cadastro depois disso falhava com "Outro cadastro foi feito ao mesmo tempo. Tente de novo.", porque o código calculado já existia.
+
+Correção: `createOne` (`server/modules/customers/application/customer-registry.ts`) reserva também os códigos de `clientesDeleted`, como o cadastro de fornecedores já fazia com `fornDeleted`.
+
+Um cliente que já tenha nascido escondido continua escondido: o registro existe em `erp/clientes` com o mesmo código de `erp/clientesDeleted`. Para achar, é preciso ler esses dois nós na produção.
+
+Teste: `test/customer-registry.test.js` exclui o C003 e junta o C002 no C001. Os próximos cadastros recebem C004, C005 e C006, sem erro. Sem a correção, o teste falha.
+
+**Saldo inicial no juntar e no renomear.** Juntar ou renomear grava o saldo inicial no nome do cliente principal. Gravava sem tirar esse nome da lista antiga `fcSaldoIniDeleted`, que as telas aplicam ao carregar, e o saldo somado podia sumir da ficha. Agora as duas ações tiram o nome da lista, como "Saldo inicial" já fazia (`openingBalanceTombstoneCleared`, usado também em `client-credits.ts`). Teste em `test/customer-registry.test.js`, com a lista nos dois formatos.
+
+**Adiantamento que a tela reescrevia.** Duas correções antigas da tela mudavam adiantamentos só no navegador, a cada vez que a lista ou a Ficha abria:
+- `_adtCorrigirDataCompensacaoParcial` trocava a data de "Compensação parcial – CP dd/mm/aaaa" pela data escrita na observação;
+- `adtCorrigeEmpresa` apagava a empresa marcada `_empresaAuto` e a empresa principal de adiantamento de banco "terceiro".
+
+Desde que o servidor grava os adiantamentos, essas mudanças nunca chegavam à nuvem. A tela mostrava uma coisa e o servidor tinha outra. Corrigir a data dessa compensação parecia não salvar, e editar ou excluir esses adiantamentos falhava com "O adiantamento foi alterado por outra sessão. Atualize antes de salvar.", porque a tela mandava a cópia alterada como "o que eu vi". As duas foram removidas, e a tela mostra o que está gravado. A empresa se troca pela coluna Empresa; o servidor tira o `_empresaAuto` nessa hora.
+
+Testes:
+- `test/server-owned-sync-deletions.test.js`;
+- teste de tela (5/5) com a função real do servidor. Antes da correção dava 0/5: data errada na tela, edição e exclusão recusadas.
+
 ## Lista de apagados do estoque vazia na nuvem (24/11/2026, v278)
 
 Defeito da v277, achado na revisão. Quando o último nome sai de `erp/estoqueDeleted` (alguém recria ou restaura o único material apagado), a transação grava uma lista vazia e o Firebase apaga o nó. A leitura (`_lerErpSemPesados`) descarta nós vazios, então os carregadores não chamavam `_estoqueTombstonesDaNuvem`. O computador que estava aberto ficava com a marca antiga:

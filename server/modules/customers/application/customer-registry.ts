@@ -7,6 +7,7 @@ import {
   moveReferences,
   movedSummary,
   openFinance,
+  openingBalanceTombstoneCleared,
   type ReferenceData,
 } from '../domain/customer-references.js';
 import {
@@ -53,12 +54,17 @@ function requireCustomers(identity: Identity): void {
     fail(403, 'CUSTOMERS_REQUIRED', 'Seu perfil não pode alterar o cadastro de clientes.');
 }
 
-async function loadDirectory(db: Database): Promise<StoredCustomer[]> {
+async function loadBook(db: Database): Promise<{ entries: StoredCustomer[]; deleted: Set<string> }> {
   const [customersSnap, deletedSnap] = await Promise.all([
     db.ref('erp/clientes').get(),
     db.ref('erp/clientesDeleted').get(),
   ]);
-  return customerEntries(customersSnap.val(), tombstoneIds(deletedSnap.val()));
+  const deleted = tombstoneIds(deletedSnap.val());
+  return { entries: customerEntries(customersSnap.val(), deleted), deleted };
+}
+
+async function loadDirectory(db: Database): Promise<StoredCustomer[]> {
+  return (await loadBook(db)).entries;
 }
 
 async function loadReferences(db: Database, withTickets: boolean): Promise<ReferenceData> {
@@ -99,6 +105,11 @@ function checkDocument(entries: readonly StoredCustomer[], fields: CustomerField
   if (same) fail(409, 'CUSTOMER_DOCUMENT_EXISTS', `CPF/CNPJ já cadastrado no cliente ${describe(same)}.`);
 }
 
+async function keepOpeningBalance(db: Database, moved: Row, client: string): Promise<Row> {
+  if (!Object.prototype.hasOwnProperty.call(moved, 'fcSaldoIni/' + client)) return {};
+  return openingBalanceTombstoneCleared((await db.ref('erp/fcSaldoIniDeleted').get()).val(), client);
+}
+
 const prefixed = (updates: Row): Row =>
   Object.fromEntries(Object.entries(updates).map(([path, value]) => ['erp/' + path, value]));
 
@@ -106,10 +117,13 @@ async function createOne(db: Database, identity: Identity, input: unknown, now: 
   const fields = clean(input);
   const name = String(fields.nome ?? '');
   for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt++) {
-    const entries = await loadDirectory(db);
+    const { entries, deleted } = await loadBook(db);
     checkName(entries, name);
     checkDocument(entries, fields);
-    const cod = nextCustomerCode(entries.flatMap(({ key, record }) => [key, String(record.cod ?? '')]));
+    const cod = nextCustomerCode([
+      ...entries.flatMap(({ key, record }) => [key, String(record.cod ?? '')]),
+      ...deleted,
+    ]);
     const record: Row = {
       ...fields,
       id: cod,
@@ -161,7 +175,11 @@ async function updateOne(db: Database, identity: Identity, input: Row, now: () =
   if (renamed && oldName) {
     const result = moveReferences(await loadReferences(db, true), oldName, newName);
     if (result.invalidKey) fail(422, 'INVALID_CUSTOMER_NAME', 'O novo nome não pode ter . # $ [ ] /.');
-    Object.assign(updates, prefixed(result.updates));
+    Object.assign(
+      updates,
+      prefixed(result.updates),
+      prefixed(await keepOpeningBalance(db, result.updates, newName)),
+    );
     moved = movedSummary(result.moved);
   }
   await db.ref().update(updates);
@@ -218,7 +236,11 @@ async function mergeInto(db: Database, identity: Identity, input: Row, now: () =
       'INVALID_CUSTOMER_NAME',
       'O nome do cliente principal tem . # $ [ ] /. Renomeie antes de juntar.',
     );
-  const updates: Row = { ...prefixed(result.updates), 'erp/_ts': now() };
+  const updates: Row = {
+    ...prefixed(result.updates),
+    ...prefixed(await keepOpeningBalance(db, result.updates, to)),
+    'erp/_ts': now(),
+  };
   if (origin) {
     updates['erp/clientes/' + origin.key] = null;
     updates['erp/clientesDeleted/' + origin.key] = true;

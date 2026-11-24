@@ -63,3 +63,10 @@ test('contas a receber, extrato, bancos, clientes e fornecedores seguem a mesma 
   load(storage, { now: 5 })('combustivel', lista, 'CB').carregarDeRemoto({ X1: { id: 'X1', v: 1 } }, true);
   assert.equal(lista.length, 0);
 });
+
+test('a tela não reescreve adiantamentos (data da compensação parcial, empresa do banco de terceiro): editar e excluir enviam o que está no servidor', () => {
+  assert.doesNotMatch(core, /function adtCorrigeEmpresa\(/);
+  assert.doesNotMatch(core, /_adtCorrigirDataCompensacaoParcial/);
+  const render = core.slice(core.indexOf('function renderAdiantamentos(){'), core.indexOf('function renderAdiantamentos(){') + 400);
+  assert.doesNotMatch(render, /saveDB\(\)/);
+});

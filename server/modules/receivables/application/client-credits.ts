@@ -4,6 +4,7 @@ import { actorKey, type Identity } from '../../../shared/auth/identity.js';
 import { nameKey, tombstoneIds } from '../../../shared/domain/person.js';
 import { fail } from '../../../shared/errors/app-error.js';
 import { customerLockPath, withLocks } from '../../../shared/firebase/locks.js';
+import { openingBalanceTombstoneCleared } from '../../customers/domain/customer-references.js';
 import { customerEntries } from '../../customers/domain/customer-rules.js';
 import {
   MAX_CHEQUES,
@@ -348,10 +349,9 @@ async function setOpeningBalance(context: Context, body: Row) {
         : null,
       'erp/_ts': context.now(),
     };
-    if (fields && Array.isArray(tombstones) && tombstones.some((item) => item === client))
-      updates['erp/fcSaldoIniDeleted'] = tombstones.filter((item) => item !== client);
-    if (fields && isRow(tombstones) && client in tombstones)
-      updates['erp/fcSaldoIniDeleted/' + client] = null;
+    if (fields)
+      for (const [path, value] of Object.entries(openingBalanceTombstoneCleared(tombstones, client)))
+        updates['erp/' + path] = value;
     await context.db.ref().update(updates);
     return {
       action: 'set-opening-balance',
