@@ -10848,7 +10848,7 @@ function _materialEfetivoDoItem(item){
 }
 
 function _normalizarTombstoneEstoque(nome){
-  return String(nome||'').trim().toUpperCase();
+  return String(nome||'').trim().replace(/\s+/g,' ').toUpperCase();
 }
 function _estoqueMaterialExcluido(nome){
   const alvo=_normalizarTombstoneEstoque(nome);
@@ -14022,9 +14022,10 @@ function novoMaterial(){
 }
 
 function salvarNovoMaterial(){
-  const nome=(document.getElementById('nm-nome')?.value||'').trim().toUpperCase();
+  const nome=(document.getElementById('nm-nome')?.value||'').trim().replace(/\s+/g,' ').toUpperCase();
   if(!nome){ showToast('Digite o nome do material','error'); return; }
-  if(typeof METAIS!=='undefined' && METAIS.includes(nome) && !_estoqueMaterialExcluido(nome)){ showToast('Esse material já existe no cadastro','error'); return; }
+  const _igual=(typeof METAIS!=='undefined'?METAIS:[]).find(function(m){ return _normalizarChaveMaterialEstoque(m)===_normalizarChaveMaterialEstoque(nome); });
+  if(_igual && !_estoqueMaterialExcluido(_igual)){ showToast('Esse material já existe no cadastro ('+_igual+')','error'); return; }
   const _nomeNovoDele=_nomeAtualDoMaterial(nome);
   if(_nomeNovoDele){ showToast('O material '+nome+' foi renomeado para '+_nomeNovoDele+'. Use '+_nomeNovoDele+', ou clique em Editar nele para mudar o nome de volta.','error',9000); return; }
   _estoqueLimparExclusao(nome);
@@ -14045,7 +14046,7 @@ function salvarNovoMaterial(){
 
 function salvarEditEstoque(){
   const matOld=document.getElementById('ee-mat').value;
-  const matNew=(document.getElementById('ee-nome')?.value||matOld).trim().toUpperCase();
+  const matNew=(document.getElementById('ee-nome')?.value||matOld).trim().replace(/\s+/g,' ').toUpperCase();
   if(!matNew){showToast('Nome não pode ficar vazio','error');return;}
   
   let somaJuntada={inicial:0,saidas:0};
@@ -14064,8 +14065,12 @@ function salvarEditEstoque(){
     if(existente&&existente!==dados) somaJuntada={inicial:Number(existente.inicial||0),saidas:Number(existente.saidas||0)};
     if(anteriores.length) ESTOQUE_DB[matNew].nomesAnteriores=anteriores; else delete ESTOQUE_DB[matNew].nomesAnteriores;
     if(_normalizarChaveMaterialEstoque(matOld)!==chaveNova){ _apagarChave('estoque', ESTOQUE_DB, matOld); _estoqueTombstoneNuvem([matOld],[matNew]).then(function(ok){ if(!ok) try{ showToast('A troca de nome não foi confirmada na nuvem. Confira a internet e salve de novo.','error',9000); }catch(e){} }); }
-    else delete ESTOQUE_DB[matOld];
+    else if(matOld!==matNew){
+      delete ESTOQUE_DB[matOld];
+      try{ window._fbDB.ref('erp/estoque/'+matOld).remove().catch(function(){ try{ showToast('O nome antigo "'+matOld+'" não saiu da nuvem. Confira a internet e salve de novo, senão o estoque aparece em dobro.','error',9000); }catch(e){} }); }catch(e){}
+    }
     _renomearMaterialNosPrecos(matOld,matNew);
+    try{ registrarHistorico('Estoque','Renomeado','Material renomeado: '+matOld+' → '+matNew,null,{de:matOld,para:matNew}); }catch(e){}
   }
   if(!ESTOQUE_DB[matNew]) ESTOQUE_DB[matNew]={mat:matNew};
   ESTOQUE_DB[matNew].inicial    = (parseFloat(document.getElementById('ee-ini').value)||0)+somaJuntada.inicial;

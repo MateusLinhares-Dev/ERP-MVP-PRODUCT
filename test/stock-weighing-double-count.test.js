@@ -215,3 +215,30 @@ test('lista de apagados do estoque vazia na nuvem (nó some) limpa a marca antig
   assert.ok(c2.ESTOQUE_DB.MEDALHA);
   assert.equal(store.get('mm_estoque_deletados'), '[]');
 });
+
+test('nome de material com espaço repetido: grava com um espaço, a marca de apagado compara sem diferença de espaços e renomear só o espaçamento tira o registro antigo da nuvem (estoque não dobra)', () => {
+  const norm = core.slice(core.indexOf('function _normalizarTombstoneEstoque('), core.indexOf('function _estoqueMaterialExcluido('));
+  const ctx = {};
+  runInNewContext(norm + ';this.n=_normalizarTombstoneEstoque;', ctx);
+  assert.equal(ctx.n('  roda  de  caminhao '), 'RODA DE CAMINHAO');
+  const save = core.slice(core.indexOf('function salvarEditEstoque(){'), core.indexOf('function _supLog('));
+  assert.match(save, /\.trim\(\)\.replace\(\/\\s\+\/g,' '\)\.toUpperCase\(\);/);
+  assert.match(save, /else if\(matOld!==matNew\)\{\s*delete ESTOQUE_DB\[matOld\];\s*try\{ window\._fbDB\.ref\('erp\/estoque\/'\+matOld\)\.remove\(\)/);
+  assert.match(save, /registrarHistorico\('Estoque','Renomeado'/);
+  const novo = core.slice(core.indexOf('function salvarNovoMaterial(){'), core.indexOf('function salvarNovoMaterial(){') + 900);
+  assert.match(novo, /\.trim\(\)\.replace\(\/\\s\+\/g,' '\)\.toUpperCase\(\);/);
+  assert.match(novo, /_normalizarChaveMaterialEstoque\(m\)===_normalizarChaveMaterialEstoque\(nome\)/);
+});
+
+test('aba com versão antiga descobre a versão publicada sozinha (version.json), avisa e recarrega quando a tela está parada', () => {
+  const sync = readFileSync(new URL('../public/legacy/firebase-sync.js', import.meta.url), 'utf8');
+  const build = readFileSync(new URL('../scripts/build.mjs', import.meta.url), 'utf8');
+  assert.match(build, /writeFile\(path\.join\(dist,'version\.json'\)/);
+  assert.match(sync, /fetch\('\/version\.json\?t='\+Date\.now\(\),\{cache:'no-store'\}\)/);
+  assert.match(sync, /_fbEnsureLoaded\(0\);\n  try\{ _iniciarChecagemVersaoPublicada\(\); \}catch\(e\)\{\}/);
+  const parada = sync.slice(sync.indexOf('function _telaParadaParaRecarregar(){'), sync.indexOf('function _checarVersaoPublicada(){'));
+  assert.match(parada, /_fbPendente \|\| _fbSalvamentoEmAndamento/);
+  assert.match(parada, /#modal-ov\.open/);
+  assert.match(parada, /INPUT\|TEXTAREA\|SELECT/);
+  assert.match(parada, /60000/);
+});

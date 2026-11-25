@@ -9,6 +9,9 @@ for(const item of await fs.readdir(src,{withFileTypes:true})){
   await fs.cp(path.join(src,item.name),path.join(dist,item.name),{recursive:true});
 }
 await fs.copyFile(path.join(src,'index.template.html'),path.join(dist,'index.html'));
+const appBuild=/const _APP_BUILD = '([^']+)';/.exec(await fs.readFile(path.join(src,'legacy','firebase-sync.js'),'utf8'));
+if(!appBuild)throw new Error('_APP_BUILD não encontrado em firebase-sync.js');
+await fs.writeFile(path.join(dist,'version.json'),JSON.stringify({build:appBuild[1]})+'\n');
 await buildWeb({configFile:path.join(root,'vite.config.ts'),logLevel:'warn'});
 const viteManifestDir=path.join(dist,'.vite');
 const viteManifest=JSON.parse(await fs.readFile(path.join(viteManifestDir,'manifest.json'),'utf8'));

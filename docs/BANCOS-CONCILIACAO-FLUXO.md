@@ -221,6 +221,40 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## RODA DE CAMINHÃO sumindo; estoque em dobro ao corrigir espaços; abas antigas avisadas sozinhas (25/11/2026, v281)
+
+Queixa da cliente: "renomeei RODA DE CAMINHÃO para RODA DE CAMINHÃO OU RODA DE CARRO CROMADA; no outro dia apareceram as três; excluí as que estavam sem estoque, renomeei de novo e sumiu, igual à GRANA GROSSA".
+
+Leitura da produção em 25/11 (autorizada):
+- a RODA DE CAMINHAO (sem acento) tem 44,5 kg pela notinha T225 (IRIVALDO, 17/11);
+- a Elaine excluiu "RODA DE CAMINHAO OU RODA DE CARRO CROMADA" em 23/11 às 16:33, e a EVELIN excluiu "RODA··DE CAMINHAO OU RODA DE CARRO CROMADA" (com **dois espaços**) em 25/11 às 09:06. As duas exclusões passaram como "sem movimento", com o registro vazio que o sistema cria sozinho. Ou seja, o vínculo com a RODA DE CAMINHAO (e os 44,5 kg) já não existia;
+- de manhã, nem o nome antigo nem o novo estavam no estoque, os dois estavam na lista de apagados, e só a RODA aparecia;
+- `erp/_appBuild` estava em v276, embora o site já estivesse na v280: nenhum administrador tinha aberto o sistema desde 24/11, e as abas antigas nunca receberam o aviso de versão;
+- nenhum outro material com movimento estava sumido.
+
+Os dias 23 e 24 passaram por versões com as listas de apagados somadas entre computadores (até v276) e com a troca de nome que não levava os quilos (antes da v271). Com o código da v280 a sequência da cliente funciona no teste de tela, com um ou dois computadores abertos.
+
+Correção dos dados (gravação autorizada, com cópia salva antes):
+- `erp/estoque/RODA DE CAMINHAO OU RODA DE CARRO CROMADA` recriado zerado, igual ao cadastro original no snapshot de 24/11, com `nomesAnteriores: ["RODA DE CAMINHAO"]`. Ele volta a mostrar os 44,5 kg da T225;
+- o nome entrou em `erp/metais`;
+- as duas grafias do nome saíram de `erp/estoqueDeleted` (agora 27 nomes). A RODA DE CAMINHAO continua lá, porque virou nome antigo;
+- `erp/_appBuild` = v280, para que as abas antigas mostrem o aviso.
+
+Defeitos de código encontrados e corrigidos:
+- **Estoque em dobro ao corrigir espaços ou maiúsculas.** Renomear "RODA··DE CAMINHAO" para "RODA DE CAMINHAO" (ou "latinha" para "LATINHA") apagava o nome antigo só no navegador. A nuvem ficava com os dois registros, e no F5 o estoque dobrava (teste de tela: 30 kg viravam 60). Agora o registro antigo sai da nuvem (`erp/estoque/<antigo>`), com aviso se a gravação falhar.
+- **Nome com espaço repetido.** Criar e renomear material gravam com um espaço só (`replace(/\s+/g,' ')`). A marca de apagado (`_normalizarTombstoneEstoque`) passou a comparar sem diferença de espaços, como a chave do estoque já fazia. "Novo material" acusa repetido também quando só muda espaço ou maiúscula. A produção não tinha nenhum material ativo que essa comparação escondesse.
+- **Renomear não ficava registrado.** Agora entra no Histórico como "Estoque / Renomeado" (sem botão de restaurar).
+- **Aba antiga sem aviso.** O aviso de versão dependia de um administrador abrir a versão nova, e só começava quando a sessão era restaurada, não num login novo. O build passou a gerar `version.json` com o `_APP_BUILD`. Cada aba consulta esse arquivo (20 s depois de abrir, a cada 3 min e quando a aba volta a ficar visível). Se houver versão nova, mostra o aviso vermelho e recarrega sozinha quando a tela está parada: 1 min sem uso, sem janela aberta, sem campo em edição e sem gravação pendente.
+
+Testes:
+- `test/stock-weighing-double-count.test.js`;
+- testes de tela:
+  - corrigir espaços não dobra o estoque;
+  - renomear com dois espaços, com o nome de um espaço já apagado, mostra os 44,5 kg antes e depois do F5;
+  - dois computadores abertos;
+  - aviso e recarga da aba antiga (4/4);
+  - mesma versão: sem aviso nem recarga.
+
 ## Agenda: WhatsApp do cadastro, fornecedor excluído na lista, Fornecedor como padrão (25/11/2026, v280)
 
 Queixas da cliente sobre a agenda (`public/modules/phase1/phase1-agenda.js`, que substitui a janela de `app-agenda.js`):
