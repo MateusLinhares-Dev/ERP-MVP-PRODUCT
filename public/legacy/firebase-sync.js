@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-25-0900-v280-agenda-whatsapp-do-cadastro-e-fornecedor-padrao';
+  const _APP_BUILD = '2026-11-25-1100-v281-estoque-nome-com-espacos-e-aba-antiga-recarrega';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -66,6 +66,34 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         if(v && String(v) > String(_APP_BUILD)) _avisarVersaoDesatualizada();
       });
     }catch(e){ console.warn('_iniciarChecagemVersao erro:', e); }
+  }
+  let _versaoPublicadaTimer=null, _ultimoUsoDaTela=Date.now(), _versaoNovaPublicada=false;
+  function _telaParadaParaRecarregar(){
+    if(Date.now()-_ultimoUsoDaTela<60000) return false;
+    if(_fbPendente || _fbSalvamentoEmAndamento) return false;
+    try{ if(localStorage.getItem('mm_fb_pendente')==='1') return false; }catch(e){}
+    if(document.querySelector('#modal-ov.open')) return false;
+    const aberto=[...document.querySelectorAll('[id$="-ov"]')].some(function(el){ return el.id!=='modal-ov' && getComputedStyle(el).display!=='none' && getComputedStyle(el).position==='fixed'; });
+    if(aberto) return false;
+    const foco=document.activeElement;
+    if(foco && /^(INPUT|TEXTAREA|SELECT)$/.test(foco.tagName)) return false;
+    return true;
+  }
+  function _checarVersaoPublicada(){
+    if(_versaoNovaPublicada){ if(_telaParadaParaRecarregar()) location.reload(); return; }
+    fetch('/version.json?t='+Date.now(),{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).then(function(v){
+      if(!v || !v.build || !(String(v.build) > String(_APP_BUILD))) return;
+      _versaoNovaPublicada=true;
+      _avisarVersaoDesatualizada();
+      if(_telaParadaParaRecarregar()) location.reload();
+    }).catch(function(){});
+  }
+  function _iniciarChecagemVersaoPublicada(){
+    if(_versaoPublicadaTimer || location.protocol==='file:') return;
+    ['keydown','mousedown','touchstart','input','wheel'].forEach(function(ev){ document.addEventListener(ev,function(){ _ultimoUsoDaTela=Date.now(); },{capture:true,passive:true}); });
+    document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') _checarVersaoPublicada(); });
+    _versaoPublicadaTimer=setInterval(_checarVersaoPublicada,180000);
+    setTimeout(_checarVersaoPublicada,20000);
   }
   function _avisarVersaoDesatualizada(){
     if(document.getElementById('aviso-versao-nova') || !document.body) return;
@@ -169,6 +197,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     _fbInjetarScripts(function(){ setTimeout(function(){ _fbEnsureLoaded(attempt+1); }, 1500); });
   }
   _fbEnsureLoaded(0);
+  try{ _iniciarChecagemVersaoPublicada(); }catch(e){}
 
   const _FB_AUTH_MAP = {}; 
 
