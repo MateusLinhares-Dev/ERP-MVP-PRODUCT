@@ -242,3 +242,13 @@ test('aba com versão antiga descobre a versão publicada sozinha (version.json)
   assert.match(parada, /INPUT\|TEXTAREA\|SELECT/);
   assert.match(parada, /60000/);
 });
+
+test('recarga automática da versão nova não roda com janela de diálogo aberta nem com campo que a pessoa digitou ainda na tela', () => {
+  const sync = readFileSync(new URL('../public/legacy/firebase-sync.js', import.meta.url), 'utf8');
+  const parada = sync.slice(sync.indexOf('function _telaParadaParaRecarregar(){'), sync.indexOf('function _checarVersaoPublicada(){'));
+  assert.match(parada, /\[aria-modal="true"\],\[role="dialog"\]/);
+  assert.match(parada, /_camposMexidos\.forEach/);
+  assert.match(parada, /if\(!ev\.isTrusted \|\| !el/);
+  assert.match(parada, /busca\|filtro\|search\|pesq\|fil-/);
+  assert.match(sync, /\['input','change'\]\.forEach\(function\(ev\)\{ document\.addEventListener\(ev,_anotarCampoMexido,\{capture:true,passive:true\}\); \}\);/);
+});

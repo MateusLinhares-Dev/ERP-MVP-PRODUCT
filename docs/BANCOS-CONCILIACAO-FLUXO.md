@@ -221,6 +221,22 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Revisão depois da v285; recarga automática respeita formulário aberto (25/11/2026, v286)
+
+Verificações, todas sem defeito, no simulador com a cópia da produção e as permissões reais:
+- **Cliques:** 446 cliques nas 44 abas como Elaine, sem nenhum erro de tela.
+- **Dado do servidor alterado só na tela** (o padrão dos defeitos da v279 e da v282): depois de abrir todas as abas, notinhas, adiantamentos, contas a pagar e a receber, vendas, clientes, fornecedores, bancos e extrato ficaram iguais à nuvem, comparando registro a registro.
+- **Abrir abas:** não grava nada (só a marcação de chat lido).
+- **Conflito de notinha** (fonte possível do aviso "Conflito de sincronização em ticket…", mostrado como "Falha ao confirmar"): nenhuma notinha fica "pendente" sem edição. Até a v282, o arredondamento das 42 notinhas do servidor com sobra de centavos criava essas pendências falsas, e o pagamento seguinte pelo servidor gerava o conflito.
+- **Primeira gravação da sessão:** manda 41 itens (2 KB), dos quais 38 iguais (apagados e agenda); da segunda em diante, só o que mudou. Ficou como está.
+- **Produção:** `erpAudit` sem falha de salvamento.
+
+Defeito corrigido: a recarga automática da v281 só esperava por `#modal-ov`, janelas `*-ov` e campo com o cursor dentro. Uma janela das telas novas (React, `aria-modal`) ou um formulário preenchido pela metade, sem o cursor no campo, eram perdidos se a versão nova chegasse depois de 1 minuto sem uso. Agora `_telaParadaParaRecarregar` também espera:
+- com `[aria-modal="true"]` ou `[role="dialog"]` visível;
+- enquanto houver na tela um campo em que a pessoa digitou ou escolheu algo (eventos `input` e `change` com `isTrusted`), exceto pesquisa e filtro.
+
+Testes: `test/stock-weighing-double-count.test.js`; teste de tela (campo digitado, diálogo aberto, saída da tela: 3/3) e o da versão nova (4/4).
+
 ## Agenda grava a situação na hora; salvamento sem sessão não dá erro (25/11/2026, v285)
 
 Leitura da produção depois da v284 (só leitura):
