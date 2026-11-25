@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-25-1700-v283-clique-nao-se-perde-e-menos-download';
+  const _APP_BUILD = '2026-11-25-1800-v284-diagnostico-de-falha-e-pesquisa-contas-dona';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -806,6 +806,21 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       }).catch(function(){});
     }catch(e){}
   }
+  let _fbUltimaFalhaReportada={msg:'',t:0};
+  function _fbReportarFalhaSalvar(e){
+    try{
+      const msg=String((e&&e.message)||e||'erro').replace(/\s+/g,' ').slice(0,100);
+      const code=String((e&&e.code)||'salvar').slice(0,50);
+      if(_fbUltimaFalhaReportada.msg===msg && Date.now()-_fbUltimaFalhaReportada.t<600000) return;
+      _fbUltimaFalhaReportada={msg:msg,t:Date.now()};
+      const user=firebase.auth&&firebase.auth().currentUser;
+      if(!user) return;
+      const corpo=JSON.stringify({kind:'sync_rejected',module:'salvar',code:code,path:msg});
+      user.getIdToken().then(function(token){
+        return fetch('/api/engineering/telemetry',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:corpo});
+      }).catch(function(){});
+    }catch(_e){}
+  }
   async function _fbTratarRejeitadas(rejeitadas){
     if(!rejeitadas.length) return;
     const reais=[];
@@ -1156,6 +1171,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           console.warn('Firebase write error:',e);
           const _msgErro=(e&&e.message)?e.message:'Erro desconhecido (sem mensagem)';
           _fbPublicarRecibo({pending:true,error:_msgErro});
+          _fbReportarFalhaSalvar(e);
           if(window._fbTsPendentesProprios) window._fbTsPendentesProprios.delete(dados._ts);
 
           try{
@@ -1187,6 +1203,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     } catch(e) {
       console.warn('fbSalvar error:',e);
       _fbPublicarRecibo({pending:true,error:String(e&&e.message||'Falha na preparação do salvamento')});
+      _fbReportarFalhaSalvar(e);
       _fbSetStatus('error');
     }
   }
@@ -1831,6 +1848,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     const _fbTsRef=window._fbDB.ref('erp/_ts');
     const _fbTsOnValue = snap => {
       if(_fbAtualizando) return;
+      if(window.__ERP_LOGOUT_IN_PROGRESS__ || !_fbTemUsuarioAuth()) return;
       const ts = snap.val();
       if(!ts) return;
 

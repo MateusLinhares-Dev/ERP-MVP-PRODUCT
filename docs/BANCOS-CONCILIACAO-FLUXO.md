@@ -221,6 +221,32 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Aviso "Falha ao confirmar dados no Firebase", diagnóstico e pesquisa nas contas da Dona (25/11/2026, v284)
+
+Queixas:
+- o aviso "Falha ao confirmar dados no Firebase. As alterações ainda estão pendentes..." aparece sempre, até na tela de login;
+- a agenda mostrava EVANDRO com ✅, mas a janela dizia "Agendado" e não tinha VOLTAR;
+- a cliente pediu um campo de pesquisa nas Contas pessoais da Dona.
+
+Leitura da produção (só leitura): os 54 agendamentos estão todos como "Agendado", inclusive EVANDRO 25/11 13:00. O "Chegou" existia só no computador da Elaine. As duas primeiras queixas são o mesmo problema: os salvamentos daquele computador falham. O aviso fica preso até um salvamento dar certo, por isso aparece até depois do logout. A tela dela (v282, sem redesenho da agenda) mostrava a mudança local; a janela lia a cópia da nuvem.
+
+A falha não foi reproduzida:
+- simulador com a cópia da produção e as três usuárias com as permissões reais;
+- regras de `_ts` (até 10 min do servidor) e `_user` (igual ao `erpUser`) imitadas;
+- política do navegador comparada nó a nó com as regras (sem diferença);
+- logout com mudança pendente, na v282 e na v283.
+
+O emulador oficial precisa de Java, que a máquina de desenvolvimento não tem. Não havia nenhum registro do erro na produção.
+
+Mudanças:
+- **Diagnóstico.** Falha de salvamento vai para `erpAudit` (`action: sync_rejected`, `module: salvar`, `entityId` = código, `scope` = mensagem), no máximo uma vez por mensagem a cada 10 min (`_fbReportarFalhaSalvar`). O aviso passa a mostrar o motivo entre parênteses;
+- **Sem recarga depois de sair.** `_fbTsOnValue` não roda sem sessão nem durante o logout. Antes, cada gravação de outro computador gerava "Sessão Firebase não autenticada" na tela de login;
+- **Pesquisa nas Contas pessoais da Dona.** Campo "Pesquisar conta (ex.: internet)". Filtra os dois imóveis pela descrição, categoria e observação, sem diferenciar acento e maiúscula, e avisa quando a conta existe fora do mês escolhido. O cursor continua no campo enquanto se digita.
+
+Próximo passo: depois de publicar, ler `erpAudit` com `module: salvar` para ver o motivo real das falhas da Elaine.
+
+Testes: `test/server-owned-sync-deletions.test.js`; testes de tela (pesquisa, logout, agenda e três usuárias 6/6).
+
 ## Clique perdido na agenda, tela parada, consulta excessiva (25/11/2026, v283)
 
 Queixa: "cliquei sem querer em CHEGOU e não tem como voltar". Os botões existem (VOLTAR na janela e "Voltar" na lista). Leitura da produção: os 55 agendamentos estavam como "Agendado", inclusive o do LUCAS, ou seja, nenhum "Chegou" tinha sido gravado. Revisão geral pedida pelo Mateus, com medições no simulador usando cópia local da produção (só leitura), três navegadores com as permissões reais (elaine, marlene, thais) e o banco simulado ordenando os campos como o Firebase real.
