@@ -1984,7 +1984,8 @@ function onCanhotFornChange(){
   if(!cod){ painel.style.display='none'; return; }
 
   const forn=FORNECEDORES.find(f=>f.cod===cod);
-  if(forn && forn.tel) document.getElementById('wpp-phone').value=forn.tel.replace(/\D/g,'');
+  const fornWhats=forn?String(forn.wpp||forn.tel||''):'';
+  if(fornWhats) document.getElementById('wpp-phone').value=fornWhats.replace(/\D/g,'');
 
   const tickets=getTicketsPorForn(cod);
   tickets.forEach(_normalizarTicketFinanceiro);
@@ -18807,7 +18808,7 @@ function initDespesas(){
         var a=document.createElement('a');
         a.download='ficha_'+((forn&&forn.nome)||'fornecedor').replace(/\s+/g,'_')+'.png';
         a.href=canvas.toDataURL('image/png'); a.click();
-        setTimeout(function(){ var tel=((forn&&forn.tel)||'').replace(/\D/g,''); window.open('https://wa.me/'+(tel?'55'+tel:''),'_blank'); },800);
+        setTimeout(function(){ var tel=String((forn&&(forn.wpp||forn.tel))||'').replace(/\D/g,''); window.open('https://wa.me/'+(tel?'55'+tel:''),'_blank'); },800);
       }
 
       function excluirViagem(id){

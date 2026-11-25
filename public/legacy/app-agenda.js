@@ -153,8 +153,8 @@ function agendaExcluir(id){
 function _agdTelefonePor(nome){
   const alvo=String(nome||'').trim().toUpperCase();
   let tel='';
-  try{ (typeof FORNECEDORES!=='undefined'?FORNECEDORES:[]).forEach(f=>{ if(f&&f.nome&&String(f.nome).toUpperCase()===alvo && (f.tel||f.telefone)) tel=f.tel||f.telefone; }); }catch(e){}
-  if(!tel){ try{ (typeof CLIENTES!=='undefined'?CLIENTES:[]).forEach(c=>{ if(c&&c.nome&&String(c.nome).toUpperCase()===alvo && (c.tel||c.telefone)) tel=c.tel||c.telefone; }); }catch(e){} }
+  try{ (typeof FORNECEDORES!=='undefined'?FORNECEDORES:[]).forEach(f=>{ if(f&&f.nome&&String(f.nome).toUpperCase()===alvo && (f.wpp||f.tel||f.telefone)) tel=f.wpp||f.tel||f.telefone; }); }catch(e){}
+  if(!tel){ try{ (typeof CLIENTES!=='undefined'?CLIENTES:[]).forEach(c=>{ if(c&&c.nome&&String(c.nome).toUpperCase()===alvo && (c.wpp||c.tel||c.telefone)) tel=c.wpp||c.tel||c.telefone; }); }catch(e){} }
   return tel;
 }
 function agendaWhats(id){

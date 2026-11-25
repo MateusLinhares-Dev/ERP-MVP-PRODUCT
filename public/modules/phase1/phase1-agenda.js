@@ -7,6 +7,11 @@ const agendaRemoteParties={Cliente:[],Fornecedor:[]};
 let agendaPartiesRequestId=0;
 function agendaNorm(text){return String(text||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();}
 function agendaActive(row){return row&&row.nome&&row.ativo!==false&&row.inativo!==true&&!['inativo','excluido','excluído','desativado'].includes(agendaNorm(row.status));}
+function agendaDeletedParty(type,row){
+  if(type!=='Fornecedor')return false;
+  try{return typeof FORN_DELETED!=='undefined'&&(FORN_DELETED.has(String(row?.cod||''))||FORN_DELETED.has(String(row?.id||'')));}catch(error){return false;}
+}
+function agendaRemoteActive(type){return agendaRemoteParties[type].filter(p=>agendaActive(p)&&!agendaDeletedParty(type,p));}
 function agendaLocalNames(type){
   try{
     const list=type==='Cliente'?(CLIENTES||[]):(typeof getFornAtivos==='function'?getFornAtivos():(FORNECEDORES||[]));
@@ -15,7 +20,7 @@ function agendaLocalNames(type){
 }
 function agendaRenderPartyOptions(type,chosen){
   const select=document.getElementById('agd-novo-nome');if(!select)return;
-  const all=[...agendaLocalNames(type),...agendaRemoteParties[type].filter(agendaActive).map(p=>String(p.nome).trim())];
+  const all=[...agendaLocalNames(type),...agendaRemoteActive(type).map(p=>String(p.nome).trim())];
   const unique=new Map();for(const name of all){const k=agendaNorm(name);if(k&&!unique.has(k))unique.set(k,name);}
   const list=[...unique.values()].sort((a,b)=>a.localeCompare(b,'pt-BR',{sensitivity:'base'}));
   const selected=chosen ?? select.value;
@@ -29,7 +34,7 @@ function agendaRenderPartyOptions(type,chosen){
   if(info)info.textContent=list.length+' cadastro(s) disponíveis para busca';
 }
 async function agendaRefreshParties(type){
-  const select=document.getElementById('agd-novo-nome'),kind=type||document.getElementById('agd-novo-tipo')?.value||'Cliente';
+  const select=document.getElementById('agd-novo-nome'),kind=type||document.getElementById('agd-novo-tipo')?.value||'Fornecedor';
   if(!select)return;
   agendaRenderPartyOptions(kind);
   const repository=global.__businessRepository;
@@ -52,7 +57,7 @@ function enhanceModal(){
   const who=document.getElementById('agd-novo-nome');if(!who)return;
   const type=document.getElementById('agd-novo-tipo');
   if(type){
-    type.value='Cliente';
+    type.value='Fornecedor';
     type.parentElement?.classList.add('phase1-agenda-party-type');
     type.onchange=()=>{try{if(typeof _agdNovoAtualizaNomes==='function')_agdNovoAtualizaNomes();}catch(e){}agendaRefreshParties(type.value);};
     try{if(typeof _agdNovoAtualizaNomes==='function')_agdNovoAtualizaNomes();}catch(e){}
@@ -62,7 +67,7 @@ function enhanceModal(){
   if(typeof global.ERPEnhanceSearchableSelect==='function'){
     global.ERPEnhanceSearchableSelect(who,{placeholder:'Buscar pelo nome, digite para filtrar…',label:'Cliente ou fornecedor da entrega'});
   }
-  if(whoWrap){const label=whoWrap.querySelector('label');if(label)label.textContent='CLIENTE / FORNECEDOR';const info=document.createElement('small');info.id='phase1-agenda-party-status';info.style.cssText='display:block;margin-top:4px;color:#64776d;font-size:.7rem';whoWrap.appendChild(info);whoWrap.addEventListener('focusin',ev=>{if(ev.target.classList?.contains('erp-search-select-input'))agendaRefreshParties(type?.value||'Cliente');});const quick=document.createElement('button');quick.type='button';quick.className='phase1-agenda-quick';quick.textContent='＋ Cadastro rápido de cliente';quick.onclick=global.phase1AgendaQuickClient;whoWrap.appendChild(quick);}
+  if(whoWrap){const label=whoWrap.querySelector('label');if(label)label.textContent='CLIENTE / FORNECEDOR';const info=document.createElement('small');info.id='phase1-agenda-party-status';info.style.cssText='display:block;margin-top:4px;color:#64776d;font-size:.7rem';whoWrap.appendChild(info);whoWrap.addEventListener('focusin',ev=>{if(ev.target.classList?.contains('erp-search-select-input'))agendaRefreshParties(type?.value||'Fornecedor');});const quick=document.createElement('button');quick.type='button';quick.className='phase1-agenda-quick';quick.textContent='＋ Cadastro rápido de cliente';quick.onclick=global.phase1AgendaQuickClient;whoWrap.appendChild(quick);}
   const material=document.getElementById('agd-novo-material');const obs=document.getElementById('agd-novo-obs');const obsWrap=obs?.parentElement;
   if(obsWrap){
     const before=document.createElement('div');before.className='phase1-agenda-fields phase1-agenda-fields-before';before.innerHTML=`<label><span>SERVIÇO</span><select id="agd-novo-servico"><option value="ENTREGA DE MATERIAL">ENTREGA DE MATERIAL</option><option value="RETIRADA DE MATERIAL">RETIRADA DE MATERIAL</option><option value="COLETA DE MATERIAL">COLETA DE MATERIAL</option><option value="ATENDIMENTO">ATENDIMENTO</option></select></label><label><span>FORMA DE PAGAMENTO</span><select id="agd-novo-pagamento"><option value="">— Não informado —</option><option>PIX</option><option>Dinheiro</option><option>Cheque</option><option>Transferência</option><option>A prazo</option><option>Outro</option></select></label>`;obsWrap.insertAdjacentElement('beforebegin',before);
@@ -81,7 +86,7 @@ function enhanceModal(){
     refreshServices().catch(e=>showServiceError('Serviços não sincronizados: '+e.message));
   }
   card.dataset.phase1='1';
-  agendaRefreshParties(type?.value||'Cliente');
+  agendaRefreshParties(type?.value||'Fornecedor');
   setTimeout(()=>document.querySelector('#agd-novo-ov .erp-search-select-input')?.focus(),35);
 }
 if(typeof original.open==='function')global.agendaAbrirNovo=function(){const result=original.open.apply(this,arguments);enhanceModal();return result;};
@@ -91,7 +96,7 @@ document.addEventListener('erp:catalog-updated',()=>{
   try{if(typeof _agdNovoAtualizaNomes==='function')_agdNovoAtualizaNomes();}catch(e){}
   if(old&&[...select.options].some(x=>x.value===old))select.value=old;
   global.ERPRefreshSearchableSelect?.('agd-novo-nome');
-  agendaRefreshParties(document.getElementById('agd-novo-tipo')?.value||'Cliente');
+  agendaRefreshParties(document.getElementById('agd-novo-tipo')?.value||'Fornecedor');
 });
 if(typeof original.save==='function')global.agendaNovo=function(){
   let before=[];try{before=(AGENDA_DB||[]).map(x=>x&&x.id).filter(Boolean);}catch(e){}
@@ -181,10 +186,23 @@ async function deleteService(id){
   }catch(e){serviceManagerStatus(e.message,true);}
   finally{serviceBusy=false;renderServiceManager();}
 }
-function phoneFor(name){const key=String(name||'').trim().toUpperCase();let phone='';try{[...(CLIENTES||[]),...(FORNECEDORES||[]),...agendaRemoteParties.Cliente,...agendaRemoteParties.Fornecedor].forEach(p=>{if(String(p?.nome||'').trim().toUpperCase()===key)phone=p.tel||p.telefone||p.celular||phone;});}catch(e){}return String(phone||'').replace(/\D/g,'');}
+function partyWhats(p){return String(p?.wpp||p?.whatsapp||p?.tel||p?.telefone||p?.celular||'').replace(/\D/g,'');}
+function phoneFor(name,type){
+  const key=agendaNorm(name);if(!key)return '';
+  const pick=list=>{for(const p of list){if(p&&agendaNorm(p.nome)===key){const digits=partyWhats(p);if(digits)return digits;}}return '';};
+  const suppliers=()=>[...(typeof getFornAtivos==='function'?getFornAtivos():(FORNECEDORES||[])),...agendaRemoteActive('Fornecedor')];
+  const clients=()=>[...(CLIENTES||[]),...agendaRemoteActive('Cliente')];
+  try{for(const list of type==='Cliente'?[clients,suppliers]:[suppliers,clients]){const digits=pick(list());if(digits)return digits;}}catch(e){}
+  let saved='',when=-1;
+  try{(AGENDA_DB||[]).forEach(x=>{const digits=String(x?.whats||'').replace(/\D/g,'');if(digits&&agendaNorm(x.nome)===key&&Number(x._upd||0)>=when){saved=digits;when=Number(x._upd||0);}});}catch(e){}
+  return saved;
+}
+function rememberPhone(item,digits){
+  try{item.whats=digits;item._upd=Date.now();if(typeof agendaPersist==='function')agendaPersist();if(typeof fbSalvar==='function')fbSalvar();}catch(e){console.warn('[agenda] número não guardado',e);}
+}
 global.agendaWhats=function(id){
   let a=null;try{a=(AGENDA_DB||[]).find(x=>x&&x.id===id);}catch(e){}if(!a)return;
-  let phone=phoneFor(a.nome);if(!phone){phone=String(prompt(`Informe o WhatsApp de ${a.nome}:`,'47')||'').replace(/\D/g,'');if(!phone)return;}if(phone.length===10||phone.length===11)phone='55'+phone;
+  let phone=phoneFor(a.nome,a.tipo);if(!phone){phone=String(prompt(`Informe o WhatsApp de ${a.nome}:\n(o número fica guardado na agenda para os próximos lembretes)`,'47')||'').replace(/\D/g,'');if(!phone)return;if(phone.length<10){try{showToast('Número incompleto: digite o DDD e o número do WhatsApp.','error',6000);}catch(e){}return;}rememberPhone(a,phone);}if(phone.length===10||phone.length===11)phone='55'+phone;
   const date=String(a.data||'').split('-').reverse().join('/');const service=a.servico||a.material||'—';
   const message=`Oi ${a.nome}, tudo bem?\nEste é um lembrete para o seu atendimento, dia ${date} às ${a.hora||'—'}.\nServiço: ${service}\nPODENDO HAVER ATRASOS DEVIDO A DEMANDA.\nObrigada    🤝`;
   global.open('https://wa.me/'+phone+'?text='+encodeURIComponent(message),'_blank');

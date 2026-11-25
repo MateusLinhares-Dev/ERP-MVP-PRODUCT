@@ -221,6 +221,34 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Agenda: WhatsApp do cadastro, fornecedor excluído na lista, Fornecedor como padrão (25/11/2026, v280)
+
+Queixas da cliente sobre a agenda (`public/modules/phase1/phase1-agenda.js`, que substitui a janela de `app-agenda.js`):
+1. "Cada vez que encaminho o lembrete, pede o número. O Silvio tem o número no cadastro e não puxa."
+2. "Ao agendar, aparecem BM SUCATA e BM SUCATAS (e THIAGO HANSEN e THIAGO LEANDRO HANSEN OLIVEIRA), mas em Fornecedores só tem um."
+3. "Todo agendamento é de fornecedor, mas o tipo vem sempre em Cliente."
+
+Leitura da produção (só leitura, autorizada) em 25/11:
+- o WhatsApp do Silvio (F010) está no campo `wpp` do cadastro; `tel` está vazio;
+- BM SUCATAS (F510) e THIAGO HANSEN (F042) são fornecedores excluídos: o registro continua em `erp/fornecedores` e o código está em `erp/fornDeleted`;
+- os 51 agendamentos são de fornecedor, e já existia um agendamento em BM SUCATAS.
+
+Causas:
+- `phoneFor` só olhava `tel`, `telefone` e `celular`;
+- a agenda completava a lista com uma leitura direta de `erp/fornecedores` (para mostrar cadastro novo de outro computador sem F5) e não tirava os excluídos;
+- `enhanceModal` fixava `type.value='Cliente'`.
+
+Correção:
+- o telefone vem de `wpp`, `whatsapp`, `tel`, `telefone` ou `celular`, primeiro no tipo do agendamento (fornecedor ou cliente) e só entre os fornecedores ativos;
+- quando o cadastro não tem número, a agenda pede uma vez e guarda em `whats` no agendamento. Ele vai para a nuvem com o resto da agenda e vale para os próximos lembretes da mesma pessoa, em qualquer computador. Número sem DDD (o "47" que já vem escrito) é recusado, em vez de abrir `wa.me/47`;
+- a leitura direta tira os fornecedores de `FORN_DELETED`, a mesma regra da tela de Fornecedores (`getFornAtivos`);
+- a janela abre em Fornecedor; Cliente continua disponível;
+- o mesmo campo `wpp` passou a valer no número já preenchido ao enviar a notinha pelo WhatsApp (`wpp-phone`), no WhatsApp da Ficha do fornecedor, no compartilhamento da Ficha do cliente (`phase1-commercial.js`) e na agenda antiga (`_agdTelefonePor`).
+
+Testes:
+- `test/erp-critical-integrations.test.js`;
+- teste de tela (12/12) com os dados da produção. Com o código antigo dá 2/12: abre em Cliente, não acha o WhatsApp do Silvio, aceita "47" e pede o número toda vez.
+
 ## Cliente novo nascendo escondido; adiantamento reescrito pela tela (24/11/2026, v279)
 
 Achado na revisão. Excluir um cliente ou juntá-lo em outro grava `erp/clientes/<código>: null` e `erp/clientesDeleted/<código>: true`. O próximo código (`nextCustomerCode`) olhava só os clientes que sobraram. Quando o cliente excluído era o de código mais alto, por exemplo juntar o cadastro duplicado mais novo no antigo:
