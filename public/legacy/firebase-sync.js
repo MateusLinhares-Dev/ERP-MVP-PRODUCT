@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-25-2000-v286-recarga-automatica-respeita-formulario';
+  const _APP_BUILD = '2026-11-25-2130-v287-historico-de-compra-lancada-e-excluida';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){

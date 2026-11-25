@@ -9445,6 +9445,7 @@ async function excluirEntradaCompra(ticket,jaConfirmado){
       ADT_POR_FORN[result.supplierCode]=result.advances;
       try{renderAdiantamentos();}catch(_error){}
     }
+    try{registrarHistorico('Compra de Sucata','Compra excluída',id+' — '+String(tk.fornecedor||tk.fornecedorNome||'')+' — R$ '+Number(tk.totalGeral||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}),tk,{ticket:id,fornCod:String(result.supplierCode||tk.fornecedorCod||tk.fornCod||'')});}catch(_error){}
     try{renderTickets();renderContasPagar();}catch(_error){}
     try{if(document.getElementById('tb-canhotos'))renderCanhotos();}catch(_error){}
     const _devolvido=result.advanceRefund&&Number(result.advanceRefund.valor)>0

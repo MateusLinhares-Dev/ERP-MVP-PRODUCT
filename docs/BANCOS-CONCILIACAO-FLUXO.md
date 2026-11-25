@@ -221,6 +221,29 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Notinha "sumida" T1247; compra lançada e excluída entram no Histórico (25/11/2026, v287)
+
+Queixa: a notinha de ALAN CACHIMBO de R$ 61.643,20, lançada hoje, sumiu; só a T1049 aparecia. Leitura da produção (autorizada):
+- `purchaseCreateOperations/erp_thais_5fd08d57…`: T1247 criada às 14:27:14 por thais (12 itens, 1.834,9 kg, sem adiantamento e sem pesagem de origem, conta `CPPO_T1247` com vencimento em 25/11/2026);
+- `purchaseDeleteOperations/thais_195d5e12…`: excluída às 14:29:59 por thais, `CONFIRMED`, com a conta `CPPO_T1247`;
+- nenhuma outra notinha nem conta de R$ 61.643,20 (não foi lançada de novo).
+
+Não foi falha de gravação: a exclusão só acontece pela lixeira do Histórico de compras ou da Ficha do fornecedor, depois de clicar OK em "Excluir a compra T1247?". Nesse horário, a mesma pessoa mexia na T1049 (adiantamento às 14:28, pagamentos desfeitos às 14:31 e 14:32, edição às 14:33), e a lixeira da T1247 fica na linha logo acima.
+
+Recuperação na produção (backup em `scratchpad/backup-t1247-antes-restaurar.json`), em uma gravação só:
+- `tickets/T1247` e `contasPagar/CPPO_T1247` voltaram do registro de criação;
+- `ticketsDeletedV2/T1247` e `contasPagarDeleted/CPPO_T1247` apagados;
+- `_untomb/tickets/T1247` e `_untomb/contasPagar/CPPO_T1247`, para que o computador que excluiu tire a compra da lista local de excluídos;
+- entrada no Histórico ("Compra Sucata", "Restaurado") e `_ts`.
+
+O estoque é calculado pelas notinhas, então voltou junto. Conferido no simulador com a lista local de excluídos da thais: a compra aparece no filtro "cach" ao lado da T1049, inclusive depois do F5, e o navegador não tenta apagá-la de novo. Na produção, a compra continuou lá nos 4 minutos seguintes.
+
+Defeito corrigido: o Histórico mostrava "Pedido editado", mas não o lançamento nem a exclusão de uma compra. Por isso a exclusão parecia sumiço. Agora:
+- `finishPurchaseSave` (só depois da confirmação do servidor) registra "Pedido lançado", com número, fornecedor e total;
+- `excluirEntradaCompra`, depois do `CONFIRMED`, registra "Compra excluída", com número, fornecedor e valor, e guarda a cópia da compra no registro do Histórico. Exclusão recusada não entra.
+
+Testes: `test/purchase-order-delete-guard.test.js`.
+
 ## Revisão depois da v285; recarga automática respeita formulário aberto (25/11/2026, v286)
 
 Verificações, todas sem defeito, no simulador com a cópia da produção e as permissões reais:

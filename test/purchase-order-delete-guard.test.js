@@ -146,20 +146,22 @@ function frontend(response,shouldThrow=false){
   const state={TICKETS_DB:{T310:{ticket:'T310',fornecedorCod:'F675',totalGeral:50}},
     CONTAS_PAGAR:[{id:'CPPO_T310',ticket:'T310',status:'Pendente',valor:50}],
     TICKETS_DELETED:new Set(),CONTAS_PAGAR_DELETED:new Set(),_ticketsSnapJSON:{T310:'snapshot'}};
-  const messages=[];
+  const messages=[],historico=[];
   const scope={...state,localStorage:{setItem(){}},console:{error(){}},document:{getElementById:()=>null},
+    registrarHistorico:(...args)=>historico.push(args),
     window:{firebase:{auth:()=>({currentUser:{getIdToken:async()=> 'token'}})},crypto:{randomUUID:()=>op}},
     confirm:()=>true,showToast:(message,level)=>messages.push({message,level}),
     renderTickets(){},renderContasPagar(){},
     fetch:async()=>{if(shouldThrow)throw new Error('network timeout');return response;}};
   runInNewContext(core.slice(begin,end)+';this.executePurchaseDelete=excluirEntradaCompra;',scope);
-  return {scope,messages};
+  return {scope,messages,historico};
 }
 
 test('navegador não oculta compra ou título quando API retorna vínculo financeiro',async()=>{
-  const {scope,messages}=frontend({ok:false,status:409,json:async()=>({code:'PURCHASE_HAS_LINKS',message:'Existem vínculos financeiros nesta compra. Não é possível excluí-la sem estorno e conciliação.'})});
+  const {scope,messages,historico}=frontend({ok:false,status:409,json:async()=>({code:'PURCHASE_HAS_LINKS',message:'Existem vínculos financeiros nesta compra. Não é possível excluí-la sem estorno e conciliação.'})});
   await scope.executePurchaseDelete('T310');
   assert.ok(scope.TICKETS_DB.T310);
+  assert.equal(historico.length,0,'exclusão recusada não entra no Histórico');
   assert.equal(scope.CONTAS_PAGAR.length,1);
   assert.equal(scope.TICKETS_DELETED.size,0);
   assert.match(messages.at(-1).message,/vínculos financeiros/,'mostra o motivo real enviado pelo servidor');
@@ -183,4 +185,25 @@ test('falha de rede não pode confirmar exclusão na interface',async()=>{
   await scope.executePurchaseDelete('T310');
   assert.ok(scope.TICKETS_DB.T310);
   assert.equal(scope.CONTAS_PAGAR.length,1);
+});
+
+test('exclusão confirmada fica no Histórico com fornecedor, valor e cópia da compra',async()=>{
+  const {scope,historico}=frontend({ok:true,status:200,json:async()=>({status:'CONFIRMED',ticketNo:'T310',supplierCode:'F675',deletedPayableIds:['CPPO_T310']})});
+  scope.TICKETS_DB.T310.fornecedor='ALAN CACHIMBO';scope.TICKETS_DB.T310.totalGeral=61643.2;
+  await scope.executePurchaseDelete('T310');
+  assert.equal(historico.length,1);
+  const [modulo,acao,resumo,registro,extra]=historico[0];
+  assert.equal(modulo,'Compra de Sucata');
+  assert.equal(acao,'Compra excluída');
+  assert.match(resumo,/^T310 — ALAN CACHIMBO — R\$ 61\.643,20$/);
+  assert.equal(registro.ticket,'T310');
+  assert.deepEqual({...extra},{ticket:'T310',fornCod:'F675'});
+});
+
+test('pedido de compra confirmado pelo servidor entra no Histórico como lançado',()=>{
+  const src=readFileSync(new URL('../public/modules/purchase-order/purchase-order.js',import.meta.url),'utf8');
+  const start=src.indexOf('function finishPurchaseSave('),end=src.indexOf('\n}',start);
+  const body=src.slice(start,end);
+  assert.match(body,/registrarHistorico\('Compra de Sucata','Pedido lançado'/);
+  assert.ok(src.indexOf('await purchaseCreateAtomic(key,ticket,state,body);')<src.indexOf('finishPurchaseSave(body,key,TICKETS_DB[key],totals);'),'só registra depois da confirmação do servidor');
 });

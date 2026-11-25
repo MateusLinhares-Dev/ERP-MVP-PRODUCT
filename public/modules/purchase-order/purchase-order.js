@@ -1653,6 +1653,7 @@ function resetOrderState(body){
 function finishPurchaseSave(body,key,ticket,totals){
   manualMode=false;
   resetOrderState(body);
+  try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Pedido lançado',String(ticket?.ticket||key)+' — '+String(ticket?.fornecedor||ticket?.fornecedorNome||'')+' — R$ '+money(totals.total),null,{ticket:String(ticket?.ticket||key)});}catch(e){}
   try{if(typeof csRenderPesagens==='function')csRenderPesagens();}catch(e){}
   try{if(typeof renderTickets==='function')renderTickets();}catch(e){}
   if(typeof global.csTab==='function')global.csTab('historico');
