@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-25-1100-v281-estoque-nome-com-espacos-e-aba-antiga-recarrega';
+  const _APP_BUILD = '2026-11-25-1400-v282-sem-regravacao-em-laco';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -617,7 +617,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     let pulados=0;
     Object.keys(dados).forEach(function(k){
       if(k==='_ts'||k==='_user'){ filtrado[k]=dados[k]; return; }
-      if(dados[k]===null){ if(_fbRejeitadoIgual(k,'null')){ pulados++; return; } filtrado[k]=null; return; }
+      if(dados[k]===null){ if(_fbRejeitadoIgual(k,'null')||_fbEnviadoOk[k]==='null'){ pulados++; return; } filtrado[k]=null; return; }
       let str; try{ str=JSON.stringify(dados[k]); }catch(e){ str=undefined; }
       if(str!==undefined && (_fbEnviadoOk[k]===str||_fbRejeitadoIgual(k,str))){ pulados++; return; }
       filtrado[k]=dados[k];
@@ -629,6 +629,15 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     Object.keys(objLote).forEach(function(k){
       if(k==='_ts'||k==='_user') return;
       try{ _fbEnviadoOk[k]=JSON.stringify(objLote[k]); }catch(e){}
+    });
+  }
+  function _fbReabrirApagadosQueVoltaram(d){
+    if(!d||typeof d!=='object')return;
+    Object.keys(_fbEnviadoOk).forEach(function(k){
+      if(_fbEnviadoOk[k]!=='null')return;
+      const i=k.indexOf('/'); if(i<1)return;
+      const registros=d[k.slice(0,i)], id=k.slice(i+1);
+      if(registros&&typeof registros==='object'&&!Array.isArray(registros)&&Object.prototype.hasOwnProperty.call(registros,id)&&registros[id]!=null) delete _fbEnviadoOk[k];
     });
   }
   function _fbRegistrarBaseConfirmada(d){
@@ -1599,6 +1608,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         _fcRedesenharSeAberta();
         _fbDadosCarregados = Boolean(d._ts);
         window.__FB_DATA_READY__ = _fbDadosCarregados;
+        _fbReabrirApagadosQueVoltaram(d);
         if(_fbConfiavel && _fbDadosCarregados) _fbRegistrarBaseConfirmada(d);
         _fbSetStatus(_fbDadosCarregados?'ok':'error');
 
@@ -1971,6 +1981,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
             });
             try{ localStorage.setItem(no==='precosForn'?'mm_precos_forn':'mm_precos_cli', JSON.stringify(alvo)); }catch(e){}
           });
+          _fbReabrirApagadosQueVoltaram(d);
           if(_fbConf2) _fbRegistrarBaseConfirmada(d);
         } catch(e){}
         _fbAtualizando = false;

@@ -21,7 +21,7 @@ test('Firebase: carregar snapshot confirma base sem ReferenceError de _fbConfiav
     _lerErpSemPesados:cb=>cb({_ts:123,adiantamentos:{}}),
     _verificarReset:()=>false,_normalizarDeletedV2EmD:()=>{},_aplicarConfigNegocio:()=>{},
     ADT_POR_FORN:{},CHEQUES_POR_FORN:{},SALDO_DEVEDOR_FORN:{},
-    _fbRegistrarBaseConfirmada:()=>{confirmed++;},
+    _fbRegistrarBaseConfirmada:()=>{confirmed++;},_fbReabrirApagadosQueVoltaram:()=>{},
     _fcRedesenharSeAberta:()=>{},_fbSetStatus:()=>{},
     localStorage:{setItem:()=>{},getItem:()=>null},
     console:{warn:(message)=>{if(String(message).includes('Firebase load error'))remoteErrors++;},log(){}}

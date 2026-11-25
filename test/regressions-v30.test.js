@@ -136,7 +136,9 @@ test('v30 reconnect does not blindly overwrite cloud and deletions are never ski
   const connectedBlock=firebaseSyncV30.slice(connectedStart,connectedEnd);
   assert.match(connectedBlock,/fbCarregar\(function\(\)\{\}\)/);
   assert.doesNotMatch(connectedBlock,/setTimeout\(_fbSalvarAgora/);
-  assert.match(firebaseSyncV30,/if\(dados\[k\]===null\)\{ if\(_fbRejeitadoIgual\(k,'null'\)\)\{ pulados\+\+; return; \} filtrado\[k\]=null; return; \}/);
+  assert.match(firebaseSyncV30,/if\(dados\[k\]===null\)\{ if\(_fbRejeitadoIgual\(k,'null'\)\|\|_fbEnviadoOk\[k\]==='null'\)\{ pulados\+\+; return; \} filtrado\[k\]=null; return; \}/,'exclusão já confirmada não é reenviada a cada salvamento');
+  assert.match(firebaseSyncV30,/_fbReabrirApagadosQueVoltaram\(d\);\n\s+if\(_fbConfiavel && _fbDadosCarregados\) _fbRegistrarBaseConfirmada\(d\);/,'registro apagado que reapareceu na nuvem volta a receber a exclusão');
+  assert.match(firebaseSyncV30,/_fbReabrirApagadosQueVoltaram\(d\);\n\s+if\(_fbConf2\) _fbRegistrarBaseConfirmada\(d\);/);
   assert.match(firebaseSyncV30,/if\(remoto===null\)\{ _fbRejeitados\[item\.chave\]=\{s:'null',t:Date\.now\(\)\}; continue; \}/,'só pula exclusão recusada que o servidor confirmou não existir');
 });
 

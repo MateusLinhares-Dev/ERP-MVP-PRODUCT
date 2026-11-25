@@ -10932,17 +10932,11 @@ function _arredondarDinheiro2Casas(){
     var mud=false;
     if(typeof TICKETS_DB!=='undefined'){
       Object.keys(TICKETS_DB).forEach(function(k){
-        var t=TICKETS_DB[k]; if(!t) return;
+        var t=TICKETS_DB[k]; if(!t || t._purchaseOperationId) return;
         (t.itens||[]).forEach(function(it){ if(it && it.total!=null){ var r=_r2(it.total); if(r!==it.total){ it.total=r; mud=true; } } });
         ['totalGeral','saldoPagar','adiantamento','saldoAnterior','acrescimo','valorExtra','totalKg'].forEach(function(c){
           if(t[c]!=null && typeof t[c]==='number'){ var r=_r2(t[c]); if(r!==t[c]){ t[c]=r; mud=true; } }
         });
-      });
-    }
-    if(typeof ADT_POR_FORN!=='undefined'){
-      Object.keys(ADT_POR_FORN).forEach(function(cod){
-        var lst=ADT_POR_FORN[cod]; if(!Array.isArray(lst)) return;
-        lst.forEach(function(a){ if(a && a.valor!=null){ var r=_r2(a.valor); if(r!==a.valor){ a.valor=r; mud=true; } } });
       });
     }
     if(mud){ try{ if(typeof saveDB==='function') saveDB(); else if(typeof fbSalvar==='function') fbSalvar(); }catch(e){} }
