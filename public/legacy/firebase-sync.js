@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-25-1800-v284-diagnostico-de-falha-e-pesquisa-contas-dona';
+  const _APP_BUILD = '2026-11-25-1900-v285-agenda-grava-na-hora-e-sem-erro-sem-sessao';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -948,6 +948,10 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   }
 
   async function _fbSalvarAgoraInterno() {
+    if(!_fbTemUsuarioAuth()){
+      try{ localStorage.setItem('mm_fb_pendente','1'); }catch(e){}
+      return;
+    }
     if(window.__ERP_PURCHASE_IN_PROGRESS__===true){
       window.__ERP_PURCHASE_DEFERRED_SAVE__=true;
       return;

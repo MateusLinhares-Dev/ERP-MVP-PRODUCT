@@ -168,3 +168,14 @@ test('Contas pessoais da Dona: pesquisa por texto nos dois imóveis, sem acento/
   assert.match(src, /global\.phase3OwnerSearch=v=>\{ownerSearch=String\(v\|\|''\)\.slice\(0,80\);renderOwnerBillsV3\(\);const el=\$\('#p3-owner-search'\);if\(el\)\{el\.focus\(\);/);
   assert.match(src, /também cadastrada\(s\) fora deste mês/);
 });
+
+test('agenda: CHEGOU/CANCELAR/VOLTAR grava na nuvem na hora (com _ts e _user), volta a tela e avisa se a nuvem recusar; sem sessão o salvamento espera em silêncio', () => {
+  const agenda = readFileSync(new URL('../public/legacy/app-agenda.js', import.meta.url), 'utf8');
+  const fn = agenda.slice(agenda.indexOf('function agendaStatus(id, novo){'), agenda.indexOf('function agendaExcluir('));
+  assert.match(fn, /mudanca\['agendaEntregas\/'\+id\+'\/status'\]=novo;/);
+  assert.match(fn, /mudanca\._ts=agora;\s*mudanca\._user=usuario;/);
+  assert.match(fn, /db\.ref\('erp'\)\.update\(mudanca\)\.then/);
+  assert.match(fn, /atual\.status=antes\.status; atual\._upd=antes\._upd;/);
+  const sync = readFileSync(new URL('../public/legacy/firebase-sync.js', import.meta.url), 'utf8');
+  assert.match(sync, /async function _fbSalvarAgoraInterno\(\) \{\s*if\(!_fbTemUsuarioAuth\(\)\)\{\s*try\{ localStorage\.setItem\('mm_fb_pendente','1'\); \}catch\(e\)\{\}\s*return;\s*\}/);
+});

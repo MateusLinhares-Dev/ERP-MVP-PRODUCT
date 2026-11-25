@@ -221,6 +221,26 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Agenda grava a situação na hora; salvamento sem sessão não dá erro (25/11/2026, v285)
+
+Leitura da produção depois da v284 (só leitura):
+- nenhuma falha de salvamento em `erpAudit` desde a publicação;
+- regras publicadas idênticas a `database.rules.json` (lidas por `/.settings/rules.json`);
+- os backups diários de 20/11 a 25/11 e a agenda atual (55 agendamentos) nunca tiveram um "Chegou".
+
+Criar agendamento sempre funcionou; mudar a situação nunca chegou à nuvem. Era o laço de gravações (corrigido na v282), que recarregava várias vezes por segundo, somado à recarga que copiava a nuvem por cima do clique ainda não salvo (corrigida na v283).
+
+Mudanças:
+- `agendaStatus` (CHEGOU, CANCELAR, VOLTAR) grava na hora em `erp/agendaEntregas/<id>/status` e `_upd`, com `_ts` e `_user` no mesmo `update`, sem esperar os 0,8 s do salvamento geral. Se a nuvem recusar, a tela volta à situação anterior e avisa o motivo;
+- `_fbSalvarAgoraInterno` sem sessão (logout, inclusive por inatividade, ou sessão caída) não tenta gravar nem publica erro. Mantém `mm_fb_pendente` e grava depois do próximo login.
+
+Testes:
+- `test/server-owned-sync-deletions.test.js`;
+- teste de tela com outro computador gravando a cada 0,3 s: 5 CHEGOU e 1 VOLTAR gravados, e o outro computador vê;
+- recusa da nuvem: volta a "Agendado" e avisa;
+- queda de sessão com mudança pendente: aviso amarelo de pendência, sem erro;
+- três usuárias com dados reais (6/6).
+
 ## Aviso "Falha ao confirmar dados no Firebase", diagnóstico e pesquisa nas contas da Dona (25/11/2026, v284)
 
 Queixas:
