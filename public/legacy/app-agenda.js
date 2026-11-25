@@ -138,9 +138,24 @@ function agendaNovo(){
 }
 function agendaStatus(id, novo){
   const it=AGENDA_DB.find(a=>a&&a.id===id); if(!it) return;
-  it.status=novo; it._upd=Date.now();
-  agendaPersist(); try{ fbSalvar(); }catch(e){}
+  const antes={status:it.status,_upd:it._upd};
+  const agora=(typeof window.__erpServerNow==='function'?window.__erpServerNow():Date.now());
+  it.status=novo; it._upd=agora;
+  agendaPersist();
   agendaRender();
+  const db=window._fbDB;
+  const usuario=String((window.__ERP_RTD_CLAIMS__&&window.__ERP_RTD_CLAIMS__.erpUser)||'');
+  if(!db||typeof db.ref!=='function'||!usuario){ try{ fbSalvar(); }catch(e){} return; }
+  const mudanca={};
+  mudanca['agendaEntregas/'+id+'/status']=novo;
+  mudanca['agendaEntregas/'+id+'/_upd']=agora;
+  mudanca._ts=agora;
+  mudanca._user=usuario;
+  db.ref('erp').update(mudanca).then(function(){ try{ fbSalvar(); }catch(e){} }).catch(function(e){
+    const atual=AGENDA_DB.find(a=>a&&a.id===id);
+    if(atual&&atual.status===novo&&atual._upd===agora){ atual.status=antes.status; atual._upd=antes._upd; agendaPersist(); agendaRender(); }
+    try{ showToast('A situação de '+(it.nome||'')+' não foi gravada na nuvem ('+((e&&e.message)||e)+'). Confira a internet e tente de novo.','error',9000); }catch(_e){}
+  });
 }
 function agendaExcluir(id){
   const it=AGENDA_DB.find(a=>a&&a.id===id); if(!it) return;
