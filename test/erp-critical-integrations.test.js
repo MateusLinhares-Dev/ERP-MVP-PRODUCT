@@ -81,3 +81,29 @@ test('Clientes: abertura de contas reutiliza editor multibanco completo',()=>{
  const src=read('web/erp/customers.tsx');
  assert.match(src,/phase3OpenPartyBanks\?\.\('cliente'/);
 });
+
+test('Agenda: fornecedor excluído (BM SUCATAS, THIAGO HANSEN) não aparece de novo pela leitura direta do Firebase',async()=>{
+  const begin=agendaSrc.indexOf('const agendaRemoteParties=');
+  const end=agendaSrc.indexOf('function esc(v)',begin);
+  const select={value:'',options:[],replaceChildren(){this.options=[];},append(item){this.options.push(item);}};
+  const type={value:'Fornecedor'},status={textContent:''};
+  const document={getElementById(id){return id==='agd-novo-nome'?select:id==='agd-novo-tipo'?type:id==='phase1-agenda-party-status'?status:null;},createElement(){return {value:'',textContent:''};}};
+  const remote={fornecedores:{a:{id:'a',cod:'F617',nome:'BM SUCATA'},b:{id:'b',cod:'F510',nome:'BM SUCATAS'},c:{id:'c',cod:'F042',nome:'THIAGO HANSEN'},d:{id:'d',cod:'F202',nome:'THIAGO LEANDRO HANSEN OLIVEIRA'}}};
+  const context={document,console,CLIENTES:[],FORNECEDORES:[],FORN_DELETED:new Set(['F510','F042']),
+    global:{ERPRefreshSearchableSelect(){},__businessRepository:{async read(k){return remote[k]||{};}}}};
+  vm.createContext(context);
+  vm.runInContext(agendaSrc.slice(begin,end)+'\nglobal.__t={refresh:agendaRefreshParties};',context);
+  await context.global.__t.refresh('Fornecedor');
+  const names=select.options.map(x=>x.value).filter(Boolean);
+  assert.deepEqual(names,['BM SUCATA','THIAGO LEANDRO HANSEN OLIVEIRA']);
+});
+
+test('Agenda: lembrete usa o WhatsApp do cadastro (campo wpp), guarda o número digitado e começa em Fornecedor',()=>{
+  assert.match(agendaSrc,/p\?\.wpp\|\|p\?\.whatsapp\|\|p\?\.tel/);
+  assert.match(agendaSrc,/rememberPhone\(a,phone\)/);
+  assert.match(agendaSrc,/phone\.length<10/);
+  assert.match(agendaSrc,/type\.value='Fornecedor'/);
+  assert.doesNotMatch(agendaSrc,/type\.value='Cliente';\n/);
+  const commercial=read('public/modules/phase1/phase1-commercial.js');
+  assert.match(commercial,/c\.wpp\|\|c\.whatsapp\|\|c\.tel/);
+});

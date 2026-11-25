@@ -221,6 +221,58 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Agenda: WhatsApp do cadastro, fornecedor excluído na lista, Fornecedor como padrão (25/11/2026, v280)
+
+Queixas da cliente sobre a agenda (`public/modules/phase1/phase1-agenda.js`, que substitui a janela de `app-agenda.js`):
+1. "Cada vez que encaminho o lembrete, pede o número. O Silvio tem o número no cadastro e não puxa."
+2. "Ao agendar, aparecem BM SUCATA e BM SUCATAS (e THIAGO HANSEN e THIAGO LEANDRO HANSEN OLIVEIRA), mas em Fornecedores só tem um."
+3. "Todo agendamento é de fornecedor, mas o tipo vem sempre em Cliente."
+
+Leitura da produção (só leitura, autorizada) em 25/11:
+- o WhatsApp do Silvio (F010) está no campo `wpp` do cadastro; `tel` está vazio;
+- BM SUCATAS (F510) e THIAGO HANSEN (F042) são fornecedores excluídos: o registro continua em `erp/fornecedores` e o código está em `erp/fornDeleted`;
+- os 51 agendamentos são de fornecedor, e já existia um agendamento em BM SUCATAS.
+
+Causas:
+- `phoneFor` só olhava `tel`, `telefone` e `celular`;
+- a agenda completava a lista com uma leitura direta de `erp/fornecedores` (para mostrar cadastro novo de outro computador sem F5) e não tirava os excluídos;
+- `enhanceModal` fixava `type.value='Cliente'`.
+
+Correção:
+- o telefone vem de `wpp`, `whatsapp`, `tel`, `telefone` ou `celular`, primeiro no tipo do agendamento (fornecedor ou cliente) e só entre os fornecedores ativos;
+- quando o cadastro não tem número, a agenda pede uma vez e guarda em `whats` no agendamento. Ele vai para a nuvem com o resto da agenda e vale para os próximos lembretes da mesma pessoa, em qualquer computador. Número sem DDD (o "47" que já vem escrito) é recusado, em vez de abrir `wa.me/47`;
+- a leitura direta tira os fornecedores de `FORN_DELETED`, a mesma regra da tela de Fornecedores (`getFornAtivos`);
+- a janela abre em Fornecedor; Cliente continua disponível;
+- o mesmo campo `wpp` passou a valer no número já preenchido ao enviar a notinha pelo WhatsApp (`wpp-phone`), no WhatsApp da Ficha do fornecedor, no compartilhamento da Ficha do cliente (`phase1-commercial.js`) e na agenda antiga (`_agdTelefonePor`).
+
+Testes:
+- `test/erp-critical-integrations.test.js`;
+- teste de tela (12/12) com os dados da produção. Com o código antigo dá 2/12: abre em Cliente, não acha o WhatsApp do Silvio, aceita "47" e pede o número toda vez.
+
+## Cliente novo nascendo escondido; adiantamento reescrito pela tela (24/11/2026, v279)
+
+Achado na revisão. Excluir um cliente ou juntá-lo em outro grava `erp/clientes/<código>: null` e `erp/clientesDeleted/<código>: true`. O próximo código (`nextCustomerCode`) olhava só os clientes que sobraram. Quando o cliente excluído era o de código mais alto, por exemplo juntar o cadastro duplicado mais novo no antigo:
+- o cliente seguinte recebia o mesmo código e já nascia na lista de excluídos. O servidor e as telas não o mostravam;
+- todo cadastro depois disso falhava com "Outro cadastro foi feito ao mesmo tempo. Tente de novo.", porque o código calculado já existia.
+
+Correção: `createOne` (`server/modules/customers/application/customer-registry.ts`) reserva também os códigos de `clientesDeleted`, como o cadastro de fornecedores já fazia com `fornDeleted`.
+
+Um cliente que já tenha nascido escondido continua escondido: o registro existe em `erp/clientes` com o mesmo código de `erp/clientesDeleted`. Para achar, é preciso ler esses dois nós na produção.
+
+Teste: `test/customer-registry.test.js` exclui o C003 e junta o C002 no C001. Os próximos cadastros recebem C004, C005 e C006, sem erro. Sem a correção, o teste falha.
+
+**Saldo inicial no juntar e no renomear.** Juntar ou renomear grava o saldo inicial no nome do cliente principal. Gravava sem tirar esse nome da lista antiga `fcSaldoIniDeleted`, que as telas aplicam ao carregar, e o saldo somado podia sumir da ficha. Agora as duas ações tiram o nome da lista, como "Saldo inicial" já fazia (`openingBalanceTombstoneCleared`, usado também em `client-credits.ts`). Teste em `test/customer-registry.test.js`, com a lista nos dois formatos.
+
+**Adiantamento que a tela reescrevia.** Duas correções antigas da tela mudavam adiantamentos só no navegador, a cada vez que a lista ou a Ficha abria:
+- `_adtCorrigirDataCompensacaoParcial` trocava a data de "Compensação parcial – CP dd/mm/aaaa" pela data escrita na observação;
+- `adtCorrigeEmpresa` apagava a empresa marcada `_empresaAuto` e a empresa principal de adiantamento de banco "terceiro".
+
+Desde que o servidor grava os adiantamentos, essas mudanças nunca chegavam à nuvem. A tela mostrava uma coisa e o servidor tinha outra. Corrigir a data dessa compensação parecia não salvar, e editar ou excluir esses adiantamentos falhava com "O adiantamento foi alterado por outra sessão. Atualize antes de salvar.", porque a tela mandava a cópia alterada como "o que eu vi". As duas foram removidas, e a tela mostra o que está gravado. A empresa se troca pela coluna Empresa; o servidor tira o `_empresaAuto` nessa hora.
+
+Testes:
+- `test/server-owned-sync-deletions.test.js`;
+- teste de tela (5/5) com a função real do servidor. Antes da correção dava 0/5: data errada na tela, edição e exclusão recusadas.
+
 ## Lista de apagados do estoque vazia na nuvem (24/11/2026, v278)
 
 Defeito da v277, achado na revisão. Quando o último nome sai de `erp/estoqueDeleted` (alguém recria ou restaura o único material apagado), a transação grava uma lista vazia e o Firebase apaga o nó. A leitura (`_lerErpSemPesados`) descarta nós vazios, então os carregadores não chamavam `_estoqueTombstonesDaNuvem`. O computador que estava aberto ficava com a marca antiga:

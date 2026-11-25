@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-24-2130-v278-estoque-apagados-vazio-na-nuvem';
+  const _APP_BUILD = '2026-11-25-0900-v280-agenda-whatsapp-do-cadastro-e-fornecedor-padrao';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){

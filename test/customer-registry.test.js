@@ -177,3 +177,58 @@ test('documentos, perfil sem permissão, repetição da mesma operação e endpo
   assert.equal(rules.clientesDeleted['.write'], false);
   assert.deepEqual(rules.customerOperations, { '.read': false, '.write': false });
 });
+
+test('cliente excluído ou juntado não empresta o código ao próximo cadastro (não nasce escondido nem trava os seguintes)', async () => {
+  srv.reset({
+    erp: {
+      _ts: 1,
+      clientes: {
+        C001: { id: 'C001', cod: 'C001', nome: 'RAFA' },
+        C002: { id: 'C002', cod: 'C002', nome: 'RAFA METAIS' },
+        C003: { id: 'C003', cod: 'C003', nome: 'BETO' },
+      },
+    },
+  });
+  await call({ action: 'delete', ids: ['C003'] });
+  const first = await call({ action: 'create', customer: { nome: 'NOVO' } });
+  assert.equal(first.key, 'C004');
+  await call({ action: 'merge', into: 'C001', from: 'C002' }, admin);
+  const deleted = await read('erp/clientesDeleted');
+  assert.equal(deleted.C002, true);
+  assert.equal(deleted.C003, true);
+  const second = await call({ action: 'create', customer: { nome: 'OUTRO' } });
+  assert.equal(second.key, 'C005');
+  const third = await call({ action: 'create', customer: { nome: 'MAIS UM' } });
+  assert.equal(third.key, 'C006');
+  const clientes = await read('erp/clientes');
+  assert.deepEqual(Object.keys(clientes).sort(), ['C001', 'C004', 'C005', 'C006']);
+});
+
+test('juntar ou renomear cliente tira o nome do principal da lista antiga de saldo inicial apagado (o saldo somado não some da ficha)', async () => {
+  srv.reset({
+    erp: {
+      _ts: 1,
+      clientes: {
+        C001: { id: 'C001', cod: 'C001', nome: 'RAFA' },
+        C002: { id: 'C002', cod: 'C002', nome: 'RAFA METAIS' },
+        C003: { id: 'C003', cod: 'C003', nome: 'BETO' },
+      },
+      fcSaldoIni: { 'RAFA METAIS': { valor: 300, data: '01/11/2026' } },
+      fcSaldoIniDeleted: ['RAFA', 'OUTRO'],
+    },
+  });
+  await call({ action: 'merge', into: 'C001', from: 'C002' }, admin);
+  assert.deepEqual(await read('erp/fcSaldoIni'), { RAFA: { valor: 300, data: '01/11/2026' } });
+  assert.deepEqual(await read('erp/fcSaldoIniDeleted'), ['OUTRO']);
+  srv.reset({
+    erp: {
+      _ts: 1,
+      clientes: { C003: { id: 'C003', cod: 'C003', nome: 'BETO' }, C004: { id: 'C004', cod: 'C004', nome: 'ZE' } },
+      fcSaldoIni: { BETO: { valor: 50, data: '02/11/2026' } },
+      fcSaldoIniDeleted: { 'BETO SUCATA': true, OUTRO: true },
+    },
+  });
+  await call({ action: 'update', id: 'C003', customer: { nome: 'BETO SUCATA' } });
+  assert.deepEqual(await read('erp/fcSaldoIni'), { 'BETO SUCATA': { valor: 50, data: '02/11/2026' } });
+  assert.deepEqual(await read('erp/fcSaldoIniDeleted'), { OUTRO: true });
+});
