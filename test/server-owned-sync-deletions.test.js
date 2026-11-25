@@ -110,3 +110,41 @@ test('registro apagado que reaparece na nuvem (outro computador regravou) volta 
   const enviado = ctx.filtrar({ 'agendaEntregas/AG1': null, 'estoque/MEDALHA': null, _ts: 1 });
   assert.deepEqual(Object.keys(enviado).sort(), ['_ts', 'agendaEntregas/AG1']);
 });
+
+test('recarga vinda de outro computador não desfaz clique ainda não salvo (agenda "Chegou" sumia): salva antes, e leitura que pegou mudança no meio não é aplicada', () => {
+  const sync = readFileSync(new URL('../public/legacy/firebase-sync.js', import.meta.url), 'utf8');
+  const onTs = sync.slice(sync.indexOf('const _fbTsOnValue = snap => {'), sync.indexOf('_normalizarDeletedV2EmD(d);', sync.indexOf('const _fbTsOnValue = snap => {')));
+  assert.match(onTs, /if\(_temPendenteLocal\)\{\s*Promise\.resolve\(\)\.then\(function\(\)\{ return _fbSalvarAgora\(\); \}\)\.catch\(function\(\)\{\}\)\.then\(function\(\)\{ _fbAgendarSyncCompletoDeferido\(\); \}\);\s*return;\s*\}/);
+  assert.match(onTs, /const _versaoAntesDaLeitura=_fbChangeVersion;/);
+  assert.match(onTs, /if\(_fbChangeVersion!==_versaoAntesDaLeitura \|\| _fbPendente\)\{ _fbAgendarSyncCompletoDeferido\(\); return; \}/);
+  const deferido = sync.slice(sync.indexOf('function _fbAgendarSyncCompletoDeferido(){'), sync.indexOf('const _fbTsRef='));
+  assert.match(deferido, /if\(pendenteAgora\)\{/);
+  assert.match(core, /else if\(Number\(atual\._upd\|\|0\)>Number\(item\._upd\|\|0\)\) return;\s*else Object\.assign\(atual,item\);/);
+});
+
+test('consulta: cada nó fica com um ouvinte permanente (a recarga lê da cópia local e o Firebase manda só o que mudou); sair do sistema solta os ouvintes', () => {
+  const sync = readFileSync(new URL('../public/legacy/firebase-sync.js', import.meta.url), 'utf8');
+  const ler = sync.slice(sync.indexOf('function _lerErpSemPesados(onOk, onErr){'), sync.indexOf('function _fbCarregarDaNuvem('));
+  assert.match(ler, /keys\.forEach\(_fbGarantirOuvinte\);\s*var partes=await Promise\.all/);
+  const garantir = sync.slice(sync.indexOf('const _fbNosOuvidos=new Map();'), sync.indexOf('function _fbNoLido('));
+  assert.match(garantir, /ref\.on\('value',fn,function\(\)\{ _fbNosOuvidos\.delete\(no\); \}\);/);
+  assert.match(garantir, /window\.__erpSoltarOuvintesDeDados=_fbSoltarOuvintes;/);
+  assert.match(garantir, /const fn=function\(\)\{ _fbUltimaChegadaDeDados=Date\.now\(\); \};/);
+  assert.match(sync, /_fbEsperarDadosAssentarem\(function\(\)\{ _lerErpSemPesados\(function\(d\)\{/, 'o aviso _ts pode chegar antes dos dados: espera assentar antes de ler a cópia local (senão outro computador via o material renomeado sumir)');
+  assert.match(core, /window\.__erpSoltarOuvintesDeDados\(\);/);
+  const ctx = { window: {}, calls: [] };
+  ctx.window._fbDB = { ref: (p) => ({ on: (ev, fn) => ctx.calls.push('on ' + p), off: () => ctx.calls.push('off') }) };
+  runInNewContext(garantir + ';this.g=_fbGarantirOuvinte;this.s=_fbSoltarOuvintes;', ctx);
+  ctx.g('agendaEntregas'); ctx.g('agendaEntregas'); ctx.g('estoque');
+  assert.deepEqual(ctx.calls, ['on erp/agendaEntregas', 'on erp/estoque'], 'um ouvinte por nó, sem duplicar');
+  ctx.s();
+  assert.deepEqual(ctx.calls.filter((c) => c === 'off').length, 2);
+});
+
+test('aba Avisos não pisca: recarga só avisa "funcionários/documentos mudaram" quando mudaram; agenda e listas se redesenham com dados de outro computador', () => {
+  const sync = readFileSync(new URL('../public/legacy/firebase-sync.js', import.meta.url), 'utf8');
+  assert.match(sync, /var _funcAntes2=JSON\.stringify\(FUNCIONARIOS\);[\s\S]{0,300}if\(JSON\.stringify\(FUNCIONARIOS\)!==_funcAntes2\)\{\s*try\{ document\.dispatchEvent\(new CustomEvent\('erp:alert-source-changed'/);
+  assert.match(sync, /if\(JSON\.stringify\(DOCS_EMPRESAS\)!==_docsAntes2\)\{ try\{ document\.dispatchEvent/);
+  const aba = sync.slice(sync.indexOf('function _fbAtualizarAbaAtivaSilenciosamente(){'), sync.indexOf('let _fbListenerAtivo'));
+  for (const par of ["agenda_entregas:'agendaRender'", "afazeres:'renderAfazeres'", "vales:'renderVales'", "lista_compras:'renderListaCompras'", "epi:'renderEpi'"]) assert.ok(aba.includes(par), par);
+});

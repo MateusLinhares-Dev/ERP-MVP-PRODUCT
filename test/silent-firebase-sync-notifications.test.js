@@ -50,7 +50,7 @@ test('sincronização em tempo real e atualização adiada usam apenas refresh p
   assert.match(sync,/ref\('erp\/_ts'\)/);
   assert.match(sync,/_fbTsRef\.on\('value'/);
   assert.match(sync,/function _fbAgendarSyncCompletoDeferido\(/);
-  assert.equal((sync.match(/_fbAtualizarAbaAtivaSilenciosamente\(\);/g)||[]).length,2);
+  assert.equal((sync.match(/_fbAtualizarAbaAtivaSilenciosamente\(\);/g)||[]).length,3);
   assert.doesNotMatch(sync,/Dados atualizados por outro usuário/);
   assert.doesNotMatch(sync,/Dados da nuvem chegaram — telas atualizadas/);
 });

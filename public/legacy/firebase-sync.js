@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-25-1400-v282-sem-regravacao-em-laco';
+  const _APP_BUILD = '2026-11-25-1700-v283-clique-nao-se-perde-e-menos-download';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -1333,6 +1333,30 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     'chequesCli',
     'fcLanc'
   ];
+  const _fbNosOuvidos=new Map();
+  let _fbUltimaChegadaDeDados=0;
+  function _fbEsperarDadosAssentarem(cb){
+    if(!_fbNosOuvidos.size){ cb(); return; }
+    const inicio=Date.now();
+    setTimeout(function espera(){
+      if(Date.now()-_fbUltimaChegadaDeDados>=150 || Date.now()-inicio>1500){ cb(); return; }
+      setTimeout(espera,60);
+    },200);
+  }
+  function _fbGarantirOuvinte(no){
+    if(_fbNosOuvidos.has(no)||!window._fbDB) return;
+    try{
+      const ref=window._fbDB.ref('erp/'+no);
+      const fn=function(){ _fbUltimaChegadaDeDados=Date.now(); };
+      _fbNosOuvidos.set(no,{ref:ref,fn:fn});
+      ref.on('value',fn,function(){ _fbNosOuvidos.delete(no); });
+    }catch(e){ _fbNosOuvidos.delete(no); }
+  }
+  function _fbSoltarOuvintes(){
+    _fbNosOuvidos.forEach(function(item){ try{ item.ref.off('value',item.fn); }catch(e){} });
+    _fbNosOuvidos.clear();
+  }
+  window.__erpSoltarOuvintesDeDados=_fbSoltarOuvintes;
   function _fbNoLido(d,no){
     if(!d) return false;
     if(Object.prototype.hasOwnProperty.call(d,no)) return true;
@@ -1360,6 +1384,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         var keys=_ERP_NOS_SINCRONIZADOS.filter(function(no){
           return _rtdbPodeAcessar(no,'read',claims);
         });
+        keys.forEach(_fbGarantirOuvinte);
         var partes=await Promise.all(keys.map(async function(k){
           try{
             var snap=await window._fbDB.ref('erp/'+k).once('value');
@@ -1690,7 +1715,18 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
         funcionarios:'renderTbFuncionarios',
         frota:'renderFrota',
         vendas:'renderVendas',
-        fornecedores:'renderTabelaFornecedores'
+        fornecedores:'renderTabelaFornecedores',
+        agenda_entregas:'agendaRender',
+        afazeres:'renderAfazeres',
+        cheques:'renderCheques',
+        vales:'renderVales',
+        epi:'renderEpi',
+        lista_compras:'renderListaCompras',
+        viagem_motorista:'renderViagens',
+        custo_casa:'renderCustoCasa',
+        fluxo_caixa:'renderFluxo',
+        folha_pagamento:'renderFolha',
+        documentos_empresas:'renderDocsEmpresas'
       };
       const fn=renders[tab];
       if(fn && typeof window[fn]==='function') window[fn]();
@@ -1772,6 +1808,16 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
             _fbDeferredSyncTimer=setTimeout(tentar,1200);
             return;
           }
+          let pendenteAgora=false;
+          try{ pendenteAgora=_fbPendente||!!_fbSalvamentoEmAndamento||localStorage.getItem('mm_fb_pendente')==='1'; }catch(e){ pendenteAgora=_fbPendente; }
+          if(pendenteAgora){
+            if(_fbTimer){ clearTimeout(_fbTimer); _fbTimer=null; }
+            Promise.resolve().then(function(){ return _fbSalvarAgora(); }).catch(function(){}).then(function(){
+              window.__ERP_DEFERRED_FULL_SYNC__=false;
+              if(typeof fbCarregar==='function') fbCarregar(function(){ _fbAtualizarAbaAtivaSilenciosamente(); });
+            });
+            return;
+          }
           window.__ERP_DEFERRED_FULL_SYNC__=false;
           if(typeof fbCarregar==='function'){
             fbCarregar(function(){
@@ -1813,9 +1859,15 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
       let _temPendenteLocal=false;
       try{ _temPendenteLocal=!!_fbTimer||_fbPendente||localStorage.getItem('mm_fb_pendente')==='1'; }catch(e){ _temPendenteLocal=!!_fbTimer||_fbPendente; }
       if(_fbTimer){ clearTimeout(_fbTimer); _fbTimer=null; }
-      _lerErpSemPesados(function(d){
+      if(_temPendenteLocal){
+        Promise.resolve().then(function(){ return _fbSalvarAgora(); }).catch(function(){}).then(function(){ _fbAgendarSyncCompletoDeferido(); });
+        return;
+      }
+      const _versaoAntesDaLeitura=_fbChangeVersion;
+      _fbEsperarDadosAssentarem(function(){ _lerErpSemPesados(function(d){
         if(!d) return;
         if(_verificarReset(d)) return;
+        if(_fbChangeVersion!==_versaoAntesDaLeitura || _fbPendente){ _fbAgendarSyncCompletoDeferido(); return; }
         _fbAtualizando = true;
         try {
 
@@ -1918,10 +1970,13 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           {
             var _mrgFE2 = _mesclarFuncEdit(d.funcEdit, d.funcEditDel);
             if(_mrgFE2 && _mrgFE2.length && typeof FUNCIONARIOS!=='undefined'){
+              var _funcAntes2=JSON.stringify(FUNCIONARIOS);
               FUNCIONARIOS.length=0; _mrgFE2.forEach(f=>FUNCIONARIOS.push(f));
               try{ localStorage.setItem('mm_funcionarios_edit', JSON.stringify(_mrgFE2)); }catch(e){}
-              try{ document.dispatchEvent(new CustomEvent('erp:alert-source-changed',{detail:{source:'funcionarios'}})); }catch(e){}
-              try{ if(typeof renderTbFuncionarios==='function')renderTbFuncionarios(); }catch(e){console.warn('Falha ao atualizar RH',e);}
+              if(JSON.stringify(FUNCIONARIOS)!==_funcAntes2){
+                try{ document.dispatchEvent(new CustomEvent('erp:alert-source-changed',{detail:{source:'funcionarios'}})); }catch(e){}
+                try{ if(typeof renderTbFuncionarios==='function')renderTbFuncionarios(); }catch(e){console.warn('Falha ao atualizar RH',e);}
+              }
               var _remLen2 = Array.isArray(d.funcEdit)?d.funcEdit.length:0;
               if(_mrgFE2.length > _remLen2){
                 try{ _funcEditSnapJSON=null; }catch(e){}
@@ -1957,9 +2012,10 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           try{ populateFornSelects(); }catch(e){}
           _syncContratos.carregarDeRemoto(d.contratos, _fbConf2);
           _syncContratos.aplicarTombstonesRemotos(d.contratosDeleted);
+          var _docsAntes2=JSON.stringify(DOCS_EMPRESAS);
           _syncDocsEmpresas.carregarDeRemoto(d.docsEmpresas, _fbConf2);
           _syncDocsEmpresas.aplicarTombstonesRemotos(d.docsEmpresasDeleted);
-          try{ document.dispatchEvent(new CustomEvent('erp:alert-source-changed',{detail:{source:'documentos_empresas'}})); }catch(e){}
+          if(JSON.stringify(DOCS_EMPRESAS)!==_docsAntes2){ try{ document.dispatchEvent(new CustomEvent('erp:alert-source-changed',{detail:{source:'documentos_empresas'}})); }catch(e){} }
           if(d.fiscal && typeof d.fiscal==='object' && typeof FISCAL_DB!=='undefined'){
             Object.keys(FISCAL_DB).forEach(k=>delete FISCAL_DB[k]);
             Object.assign(FISCAL_DB, d.fiscal);
@@ -1993,7 +2049,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
           _fbAtualizarAbaAtivaSilenciosamente();
         }
         if(_temPendenteLocal) setTimeout(function(){ try{ _fbSalvarAgora(); }catch(e){} },0);
-      });
+      }); });
     };
     let _fbTsRetryTimer=null;
     function _fbTsOnCancel(errCancel){
