@@ -645,6 +645,7 @@ function _criarSincroniaPorChave(nome, lista, prefixoId){
       if(oculto(item.id)) return;
       const atual=porIdLocal[item.id];
       if(!atual){ lista.push(item); porIdLocal[item.id]=item; }
+      else if(Number(atual._upd||0)>Number(item._upd||0)) return;
       else Object.assign(atual,item);
     });
     if(remotoEhArray) migrar();
@@ -1257,6 +1258,7 @@ async function doLogout(){
     try{
       if(typeof _fbSalvarAgora==='function') await _fbSalvarAgora();
     }catch(e){}
+    try{ if(typeof window.__erpSoltarOuvintesDeDados==='function') window.__erpSoltarOuvintesDeDados(); }catch(e){}
 
     try{
       if(window.secureAuth && typeof window.secureAuth.logout==='function') await window.secureAuth.logout();

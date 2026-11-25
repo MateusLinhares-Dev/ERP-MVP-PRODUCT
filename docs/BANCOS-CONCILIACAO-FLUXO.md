@@ -221,6 +221,37 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Clique perdido na agenda, tela parada, consulta excessiva (25/11/2026, v283)
+
+Queixa: "cliquei sem querer em CHEGOU e não tem como voltar". Os botões existem (VOLTAR na janela e "Voltar" na lista). Leitura da produção: os 55 agendamentos estavam como "Agendado", inclusive o do LUCAS, ou seja, nenhum "Chegou" tinha sido gravado. Revisão geral pedida pelo Mateus, com medições no simulador usando cópia local da produção (só leitura), três navegadores com as permissões reais (elaine, marlene, thais) e o banco simulado ordenando os campos como o Firebase real.
+
+| Problema | Nome técnico | O que acontecia | Correção |
+|---|---|---|---|
+| Clique desfeito | Atualização perdida (*lost update*) por condição de corrida (*race condition*) | O salvamento espera 0,8 s. Se chegava uma recarga nesse intervalo, a cópia da nuvem era copiada por cima do registro local (`Object.assign(atual,item)`). Teste: 5 de 5 cliques em CHEGOU perdidos | Com mudança pendente, salva antes e recarrega depois. Leitura que pegou mudança no meio não é aplicada. Na mescla, o registro local com `_upd` mais novo fica |
+| Tela parada | Dados desatualizados na tela (*stale UI*) | Agenda, afazeres, cheques, vales, EPI, lista de compras, viagens, custo da casa, fluxo, folha e documentos só redesenhavam ao trocar de aba. A guarita marcava "Chegou" e o escritório não via | Essas telas entram em `_fbAtualizarAbaAtivaSilenciosamente` |
+| Banco inteiro a cada mudança | Consulta excessiva (*over-fetching*) e efeito manada (*thundering herd*) | Cada mudança fazia todos os computadores baixarem de novo todos os nós (medido: 3.006 KB nos três por um agendamento alterado; banco de 3,2 MB) | Cada nó fica com um ouvinte permanente (`_fbGarantirOuvinte`). O Firebase manda só a diferença e a recarga lê a cópia local (medido: 42 KB, 70 vezes menos). Sair do sistema solta os ouvintes |
+| Leitura antes do dado chegar | Ordem de eventos (*event ordering*) | O aviso `_ts` pode chegar antes dos dados (cada caminho vem numa mensagem). Ao ler a cópia local na hora, outro computador não via o material renomeado e, ao salvar, gravava `metais` sem ele | `_fbEsperarDadosAssentarem`: espera 0,2 s e depois 0,15 s sem dado novo (limite 1,5 s) antes de ler |
+| Avisos piscando | Redesenho desnecessário (*re-render*) | Toda recarga disparava "funcionários/documentos mudaram" e redesenhava Avisos | Só dispara quando o conteúdo mudou (a primeira carga continua disparando) |
+
+A regravação do mesmo conteúdo, ou escrita redundante (*redundant write*, *write amplification*), em laço entre computadores (*feedback loop*, *write storm*) foi corrigida na v282. Medição na produção depois dela: 0 mudanças de `_ts` em 30 s.
+
+Verificado e sem defeito:
+- abrir cada uma das 44 abas não grava nada;
+- nenhuma aba parada se redesenha sozinha. A única exceção é chamar `switchTab('lancamento_rapido')`, que não tem painel; nenhum usuário chega a esse estado (o Lançamento rápido abre em `/rapido/`);
+- os temporizadores (`setInterval`) não leem nem gravam no banco.
+
+Fica para depois: operações do servidor que leem um nó inteiro (por exemplo, todas as notinhas ao criar uma com crédito antigo, todo o extrato ao conciliar). São pontuais, e melhorar exige índices nas regras do Firebase.
+
+Testes:
+- `test/server-owned-sync-deletions.test.js` e `test/silent-firebase-sync-notifications.test.js`;
+- testes de tela:
+  - clique com outro computador gravando: 5/5 perdidos antes, 0/5 depois;
+  - agenda recebendo mudança de outro computador;
+  - três usuários reais (6/6; a v282 publicada falha na agenda);
+  - tempestade (0);
+  - medição de download;
+  - estoque e agenda/WhatsApp (12/12).
+
 ## Aba Avisos piscando: computadores regravando sem parar (25/11/2026, v282)
 
 Queixa: "a aba Avisos fica dando refresh, piscando direto".
