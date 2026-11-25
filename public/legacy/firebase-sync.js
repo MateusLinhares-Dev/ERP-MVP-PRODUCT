@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-25-1900-v285-agenda-grava-na-hora-e-sem-erro-sem-sessao';
+  const _APP_BUILD = '2026-11-25-2130-v287-historico-de-compra-lancada-e-excluida';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
@@ -77,7 +77,21 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     if(aberto) return false;
     const foco=document.activeElement;
     if(foco && /^(INPUT|TEXTAREA|SELECT)$/.test(foco.tagName)) return false;
+    if([...document.querySelectorAll('[aria-modal="true"],[role="dialog"]')].some(function(el){ return el.offsetParent!==null || getComputedStyle(el).position==='fixed'; })) return false;
+    let campoMexido=false;
+    _camposMexidos.forEach(function(el){
+      if(!el.isConnected){ _camposMexidos.delete(el); return; }
+      if(el.offsetParent!==null) campoMexido=true;
+    });
+    if(campoMexido) return false;
     return true;
+  }
+  const _camposMexidos=new Set();
+  function _anotarCampoMexido(ev){
+    const el=ev&&ev.target;
+    if(!ev.isTrusted || !el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+    if(el.type==='search' || /busca|filtro|search|pesq|fil-/i.test(String(el.id||'')+' '+String(el.className||''))) return;
+    _camposMexidos.add(el);
   }
   function _checarVersaoPublicada(){
     if(_versaoNovaPublicada){ if(_telaParadaParaRecarregar()) location.reload(); return; }
@@ -91,6 +105,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
   function _iniciarChecagemVersaoPublicada(){
     if(_versaoPublicadaTimer || location.protocol==='file:') return;
     ['keydown','mousedown','touchstart','input','wheel'].forEach(function(ev){ document.addEventListener(ev,function(){ _ultimoUsoDaTela=Date.now(); },{capture:true,passive:true}); });
+    ['input','change'].forEach(function(ev){ document.addEventListener(ev,_anotarCampoMexido,{capture:true,passive:true}); });
     document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') _checarVersaoPublicada(); });
     _versaoPublicadaTimer=setInterval(_checarVersaoPublicada,180000);
     setTimeout(_checarVersaoPublicada,20000);
