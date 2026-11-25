@@ -148,3 +148,23 @@ test('aba Avisos não pisca: recarga só avisa "funcionários/documentos mudaram
   const aba = sync.slice(sync.indexOf('function _fbAtualizarAbaAtivaSilenciosamente(){'), sync.indexOf('let _fbListenerAtivo'));
   for (const par of ["agenda_entregas:'agendaRender'", "afazeres:'renderAfazeres'", "vales:'renderVales'", "lista_compras:'renderListaCompras'", "epi:'renderEpi'"]) assert.ok(aba.includes(par), par);
 });
+
+test('falha ao salvar: o aviso mostra o motivo e o erro vai para o registro técnico (erpAudit) para diagnóstico; recarga não roda sem sessão', () => {
+  const sync = readFileSync(new URL('../public/legacy/firebase-sync.js', import.meta.url), 'utf8');
+  const feedback = readFileSync(new URL('../public/legacy/persistence-feedback.js', import.meta.url), 'utf8');
+  assert.match(sync, /_fbPublicarRecibo\(\{pending:true,error:_msgErro\}\);\n\s+_fbReportarFalhaSalvar\(e\);/);
+  const rep = sync.slice(sync.indexOf('function _fbReportarFalhaSalvar(e){'), sync.indexOf('async function _fbTratarRejeitadas('));
+  assert.match(rep, /kind:'sync_rejected',module:'salvar'/);
+  assert.match(rep, /Date\.now\(\)-_fbUltimaFalhaReportada\.t<600000/);
+  assert.match(feedback, /'Falha ao confirmar dados no Firebase' \+ \(motivo \? ' \(' \+ motivo \+ '\)' : ''\)/);
+  assert.match(sync, /const _fbTsOnValue = snap => \{\s*if\(_fbAtualizando\) return;\s*if\(window\.__ERP_LOGOUT_IN_PROGRESS__ \|\| !_fbTemUsuarioAuth\(\)\) return;/);
+});
+
+test('Contas pessoais da Dona: pesquisa por texto nos dois imóveis, sem acento/maiúscula, e avisa se a conta existe fora do mês', () => {
+  const src = readFileSync(new URL('../public/modules/phase3/phase3-homologation.js', import.meta.url), 'utf8');
+  assert.match(src, /function ownerMatches\(b\)\{const q=norm\(ownerSearch\);if\(!q\)return true;return norm\(\[b\?\.desc,b\?\.category,b\?\.obs\]\.join\(' '\)\)\.includes\(q\);\}/);
+  assert.match(src, /const visible=active\.filter\(x=>\(ownerFilter==='todos'\|\|ownerStatus\(x,ownerMonth\)===ownerFilter\)&&ownerMatches\(x\)\);/);
+  assert.match(src, /id="p3-owner-search"[^>]*oninput="phase3OwnerSearch\(this\.value\)"/);
+  assert.match(src, /global\.phase3OwnerSearch=v=>\{ownerSearch=String\(v\|\|''\)\.slice\(0,80\);renderOwnerBillsV3\(\);const el=\$\('#p3-owner-search'\);if\(el\)\{el\.focus\(\);/);
+  assert.match(src, /também cadastrada\(s\) fora deste mês/);
+});

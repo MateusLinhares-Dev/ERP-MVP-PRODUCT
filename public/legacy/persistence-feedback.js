@@ -50,7 +50,8 @@
       }
     }
     if (state.error) {
-      render('Falha ao confirmar dados no Firebase. As alterações ainda estão pendentes; confira a conexão e não feche a tela antes de confirmar.', true);
+      const motivo = String(state.error || '').replace(/\s+/g, ' ').slice(0, 140);
+      render('Falha ao confirmar dados no Firebase' + (motivo ? ' (' + motivo + ')' : '') + '. As alterações ainda estão pendentes; confira a conexão e não feche a tela antes de confirmar.', true);
     } else if (state.pending) {
       pendingTimer = setTimeout(function () {
         if (global.__ERP_CLOUD_SAVE_STATE__?.pending && !global.__ERP_CLOUD_SAVE_STATE__?.error) {

@@ -600,7 +600,8 @@ let ownerBills={};
 let ownerBillsLoaded=false;
 let ownerBillsError='';
 let ownerReloadRequest=0;
-let ownerMonth=today().slice(0,7),ownerFilter='todos';
+let ownerMonth=today().slice(0,7),ownerFilter='todos',ownerSearch='';
+function ownerMatches(b){const q=norm(ownerSearch);if(!q)return true;return norm([b?.desc,b?.category,b?.obs].join(' ')).includes(q);}
 const OWNER_PROPERTIES=Object.freeze([
   {id:'sitio',name:'Sítio',icon:'🌳'},
   {id:'casa-gloria',name:'Casa Glória',icon:'🏡'},
@@ -684,7 +685,10 @@ function renderOwnerBillsV3(){
     return;
   }
   const active=Object.values(ownerBills||{}).filter(x=>x&&x.active!==false&&ownerOccurs(x,ownerMonth));
-  const visible=active.filter(x=>ownerFilter==='todos'||ownerStatus(x,ownerMonth)===ownerFilter);
+  const visible=active.filter(x=>(ownerFilter==='todos'||ownerStatus(x,ownerMonth)===ownerFilter)&&ownerMatches(x));
+  const propName=x=>(OWNER_PROPERTIES.find(p=>p.id===ownerPropertyId(x))||{}).name||'Sem imóvel';
+  const otherMonths=ownerSearch.trim()?Object.values(ownerBills||{}).filter(x=>x&&x.active!==false&&!ownerOccurs(x,ownerMonth)&&ownerMatches(x)):[];
+  const searchNote=ownerSearch.trim()?`<p class="p3-owner-search-note">${visible.length} conta(s) com "${esc(ownerSearch.trim())}" neste mês${otherMonths.length?` · também cadastrada(s) fora deste mês: ${otherMonths.slice(0,8).map(x=>`<b>${esc(x.desc)}</b> (${esc(propName(x))}${x.startMonth?', desde '+esc(String(x.startMonth).split('-').reverse().join('/')):''})`).join(', ')}`:''}</p>`:'';
   const totals=ownerTotals(active,ownerMonth);
   const over=active.filter(x=>ownerStatus(x,ownerMonth)==='atrasado').length;
   const todayCount=active.filter(x=>ownerStatus(x,ownerMonth)==='hoje').length;
@@ -695,7 +699,7 @@ function renderOwnerBillsV3(){
   });
   const unassigned=groups[2].all.length;
   host.innerHTML=`<div class="p3-owner-head"><div><h2>🏠 Contas pessoais da Dona</h2><p>Despesas organizadas por imóvel. Os totais consideram o mês selecionado, independentemente do filtro de situação.</p></div><button class="p3-primary" onclick="phase3OwnerOpen()">＋ Nova conta</button></div>
-    <div class="p3-owner-toolbar"><input type="month" aria-label="Competência" value="${ownerMonth}" onchange="phase3OwnerMonth(this.value)"><select aria-label="Situação" onchange="phase3OwnerFilter(this.value)"><option value="todos">Todos</option><option value="pendente" ${ownerFilter==='pendente'?'selected':''}>Pendentes</option><option value="hoje" ${ownerFilter==='hoje'?'selected':''}>Vence hoje</option><option value="atrasado" ${ownerFilter==='atrasado'?'selected':''}>Atrasadas</option><option value="pago" ${ownerFilter==='pago'?'selected':''}>Pagas</option></select></div>
+    <div class="p3-owner-toolbar"><input type="month" aria-label="Competência" value="${ownerMonth}" onchange="phase3OwnerMonth(this.value)"><select aria-label="Situação" onchange="phase3OwnerFilter(this.value)"><option value="todos">Todos</option><option value="pendente" ${ownerFilter==='pendente'?'selected':''}>Pendentes</option><option value="hoje" ${ownerFilter==='hoje'?'selected':''}>Vence hoje</option><option value="atrasado" ${ownerFilter==='atrasado'?'selected':''}>Atrasadas</option><option value="pago" ${ownerFilter==='pago'?'selected':''}>Pagas</option></select><input type="search" id="p3-owner-search" class="p3-owner-search" aria-label="Pesquisar conta" placeholder="Pesquisar conta (ex.: internet)" value="${esc(ownerSearch)}" oninput="phase3OwnerSearch(this.value)"></div>${searchNote}
     <div class="p3-owner-property-totals">${groups.slice(0,2).map(g=>`<div class="p3-owner-property-total"><small>${g.icon} ${g.name}</small><b>R$ ${money(g.totals.expected)}</b><span>Pago: R$ ${money(g.totals.paid)} · Pendente: R$ ${money(g.totals.pending)}</span></div>`).join('')}<div class="p3-owner-property-total grand"><small>∑ Total geral</small><b>R$ ${money(totals.expected)}</b><span>Pago: R$ ${money(totals.paid)} · Pendente: R$ ${money(totals.pending)}</span></div></div>
     ${unassigned?`<p class="p3-owner-unassigned-notice">${unassigned} conta(s) sem imóvel definido. Abra <b>Editar</b> para classificá-las, sem perder o histórico.</p>`:''}
     <div class="p3-owner-kpis"><div><small>Previsto (geral)</small><b>R$ ${money(totals.expected)}</b></div><div><small>Pago (geral)</small><b>R$ ${money(totals.paid)}</b></div><div class="warn"><small>Atrasadas</small><b>${over}</b></div><div class="today"><small>Vence hoje</small><b>${todayCount}</b></div></div>
@@ -722,6 +726,7 @@ if(typeof document!=='undefined' && typeof document.addEventListener==='function
 }
 global.phase3OwnerMonth=v=>{ownerMonth=/^\d{4}-\d{2}$/.test(String(v||''))?v:ownerMonth;renderOwnerBillsV3();};
 global.phase3OwnerFilter=v=>{ownerFilter=['todos','pendente','hoje','atrasado','pago'].includes(v)?v:'todos';renderOwnerBillsV3();};
+global.phase3OwnerSearch=v=>{ownerSearch=String(v||'').slice(0,80);renderOwnerBillsV3();const el=$('#p3-owner-search');if(el){el.focus();const n=el.value.length;try{el.setSelectionRange(n,n);}catch(e){}}};
 global.phase3OwnerOpen=function(id='',property=''){
   if(!ownerBillsLoaded || ownerBillsError){loadOwnerBills();notify('Aguarde a leitura confirmada das contas pessoais.','error');return;}
   const b=id?ownerBills[id]:null,body=$('#modal-body');if(!body)return;
