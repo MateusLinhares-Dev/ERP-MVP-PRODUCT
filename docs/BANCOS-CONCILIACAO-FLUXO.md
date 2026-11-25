@@ -221,6 +221,39 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Aba Avisos piscando: computadores regravando sem parar (25/11/2026, v282)
+
+Queixa: "a aba Avisos fica dando refresh, piscando direto".
+
+Medição na produção (só leitura, autorizada), com o `_ts` mudando sem parar:
+
+| Horário | Mudanças de `_ts` | Ritmo |
+|---|---|---|
+| 1ª medição | 290 em 60 s | ~5 por segundo |
+| 2ª medição | 48 em 20 s | ~2,4 por segundo |
+| 3ª medição | 58 em 15 s | ~4 por segundo |
+
+- `_user` se alterna entre elaine, marlene e thais;
+- nenhum dos 73 nós mudou de valor no período. Os computadores regravavam valores idênticos, e o único efeito era o `_ts` novo, que faz os outros recarregarem;
+- a aba Avisos se redesenha a cada recarga (evento `erp:alert-source-changed` dos funcionários), por isso piscava.
+
+Reprodução: cópia local do banco (só leitura) no simulador, com o banco simulado ordenando os campos como o Firebase real. Com dois computadores, bastou um salvamento qualquer para começar: 15 gravações de `_ts` em 25 s, todas em `erp/estoque`, 27 por vez, os 27 nomes de `estoqueDeleted`.
+
+Causa, em duas partes:
+- **"Apagar" reenviado sempre.** O `fbSalvar` manda `estoque/<nome apagado>: null` (e o mesmo para as outras listas de apagados) em todo salvamento. O filtro `_fbFiltrarJaEnviado` deixava passar todo `null`, mesmo já aplicado na nuvem. O valor não muda, mas a gravação leva um `_ts` novo.
+- **Toda recarga virava salvamento.** `_arredondarDinheiro2Casas`, que roda dentro do salvamento, arredondava na memória as notinhas do servidor: 42 delas chegam da nuvem com sobra de centavos, como `1223.6000000000001`. Ele também arredondava os adiantamentos (do servidor) e chamava `saveDB()`, mantendo a gravação pendente. Cada recarga trazia os valores de volta sem arredondar, e o ciclo recomeçava. É o mesmo erro da v279: tela corrigindo dado do servidor.
+
+Correção:
+- `_fbFiltrarJaEnviado` não reenvia um `null` cuja base já é `null` (`_fbEnviadoOk[k]==='null'`, gravada por `_fbMarcarEnviado` depois de enviar). Se o registro reaparece na nuvem, `_fbRegistrarBaseConfirmada` troca a base e o apagar volta a ser enviado;
+- `_arredondarDinheiro2Casas` ignora notinhas com `_purchaseOperationId` e não mexe mais em `ADT_POR_FORN`.
+
+Testes:
+- `test/server-owned-sync-deletions.test.js` (os dois falham sem a correção);
+- teste de tela com a cópia da produção: 0 gravações (antes 15 `_ts`/405 gravações em 25 s);
+- os testes de tela de estoque (renomear, espaços, dois computadores) e da agenda (12/12).
+
+Depois da publicação, as abas na v281 se atualizam sozinhas quando ficam paradas; abas mais antigas precisam de F5. Para conferir: contar as mudanças de `erp/_ts` por um minuto (deve ser perto de zero com todos parados).
+
 ## RODA DE CAMINHÃO sumindo; estoque em dobro ao corrigir espaços; abas antigas avisadas sozinhas (25/11/2026, v281)
 
 Queixa da cliente: "renomeei RODA DE CAMINHÃO para RODA DE CAMINHÃO OU RODA DE CARRO CROMADA; no outro dia apareceram as três; excluí as que estavam sem estoque, renomeei de novo e sumiu, igual à GRANA GROSSA".

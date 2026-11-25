@@ -70,3 +70,43 @@ test('a tela não reescreve adiantamentos (data da compensação parcial, empres
   const render = core.slice(core.indexOf('function renderAdiantamentos(){'), core.indexOf('function renderAdiantamentos(){') + 400);
   assert.doesNotMatch(render, /saveDB\(\)/);
 });
+
+test('tempestade de gravações: um "apagar" já confirmado não é reenviado a cada salvamento (só volta se o registro reaparecer na nuvem)', () => {
+  const sync = readFileSync(new URL('../public/legacy/firebase-sync.js', import.meta.url), 'utf8');
+  const start = sync.indexOf('const _fbEnviadoOk = {};');
+  const end = sync.indexOf('function _fbRegistrarBaseConfirmada(d){');
+  const fim = sync.indexOf('\n  function _dividirEmLotes(', end);
+  const ctx = { console, window: {}, _fbRejeitadoIgual: () => false };
+  runInNewContext(sync.slice(start, fim) + ';this.filtrar=_fbFiltrarJaEnviado;this.marcar=_fbMarcarEnviado;this.base=_fbRegistrarBaseConfirmada;', ctx);
+  let enviado = ctx.filtrar({ 'estoque/MEDALHA': null, _ts: 1 });
+  assert.deepEqual(Object.keys(enviado).sort(), ['_ts', 'estoque/MEDALHA'], 'primeira vez o apagar vai');
+  ctx.marcar(enviado);
+  enviado = ctx.filtrar({ 'estoque/MEDALHA': null, _ts: 2 });
+  assert.deepEqual(Object.keys(enviado), ['_ts'], 'depois de confirmado não vai de novo (antes ia em todo salvamento e acordava os outros computadores)');
+  ctx.base({ estoque: { MEDALHA: { mat: 'MEDALHA', inicial: 1 } } });
+  enviado = ctx.filtrar({ 'estoque/MEDALHA': null, _ts: 3 });
+  assert.deepEqual(Object.keys(enviado).sort(), ['_ts', 'estoque/MEDALHA'], 'se o registro voltou na nuvem, o apagar é enviado de novo');
+});
+
+test('arredondamento de centavos não mexe em notinha nem adiantamento gravados pelo servidor (cada recarga pedia um novo salvamento)', () => {
+  const fn = core.slice(core.indexOf('function _arredondarDinheiro2Casas(){'), core.indexOf("window['_arredondarDinheiro2Casas']"));
+  assert.match(fn, /if\(!t \|\| t\._purchaseOperationId\) return;/);
+  assert.doesNotMatch(fn, /ADT_POR_FORN/);
+  const ctx = { TICKETS_DB: { T1: { _purchaseOperationId: 'op', itens: [{ total: 1223.6000000000001 }], totalKg: 176.42000000000002 }, T2: { itens: [{ total: 10.005 }] } }, _r2: (v) => Math.round((v + Number.EPSILON) * 100) / 100, saveDB: () => { ctx.salvou = true; }, console };
+  runInNewContext(fn + ';_arredondarDinheiro2Casas();', ctx);
+  assert.equal(ctx.TICKETS_DB.T1.itens[0].total, 1223.6000000000001);
+  assert.equal(ctx.TICKETS_DB.T2.itens[0].total, 10.01);
+  assert.equal(ctx.salvou, true);
+});
+
+test('registro apagado que reaparece na nuvem (outro computador regravou) volta a receber o apagar em qualquer recarga', () => {
+  const sync = readFileSync(new URL('../public/legacy/firebase-sync.js', import.meta.url), 'utf8');
+  const start = sync.indexOf('const _fbEnviadoOk = {};');
+  const fim = sync.indexOf('\n  function _dividirEmLotes(', sync.indexOf('function _fbRegistrarBaseConfirmada(d){'));
+  const ctx = { console, window: {}, _fbRejeitadoIgual: () => false };
+  runInNewContext(sync.slice(start, fim) + ';this.filtrar=_fbFiltrarJaEnviado;this.marcar=_fbMarcarEnviado;this.reabrir=_fbReabrirApagadosQueVoltaram;', ctx);
+  ctx.marcar({ 'agendaEntregas/AG1': null, 'estoque/MEDALHA': null });
+  ctx.reabrir({ agendaEntregas: { AG1: { id: 'AG1' } }, estoque: {} });
+  const enviado = ctx.filtrar({ 'agendaEntregas/AG1': null, 'estoque/MEDALHA': null, _ts: 1 });
+  assert.deepEqual(Object.keys(enviado).sort(), ['_ts', 'agendaEntregas/AG1']);
+});
