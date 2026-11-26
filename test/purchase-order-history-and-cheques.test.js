@@ -177,11 +177,28 @@ test('janela Contas / PIX do fornecedor leva ao cadastro onde a conta é editada
   assert.match(compat,/window\.phase3OpenPartyBanks\('fornecedor',String\(f\.cod\|\|''\),String\(f\.nome\|\|''\)\)/);
 });
 
+test('edição: compensação que usou dois adiantamentos mostra cada um com data, forma e valor, com um só Desfazer',()=>{
+  const code=extract(purchase,'function purchaseLaterPayments(key){','function laterPaymentKind(payment){')+
+    extract(purchase,'function laterPaymentKind(payment){','async function compensatePurchaseFromAdvance(');
+  const ctx={
+    CONTAS_PAGAR:[{id:'CPPO_T863',ticket:'T863',pagamentos:[{data:'25/11/2026',valor:0,adt:85723.52,adtUsos:[{cod:'ADTMWTIC0UK13C164E9',valor:10723.52},{cod:'ADTMWUNG19715256A3B',valor:75000}]},{data:'26/11/2026',valor:0,adt:50,adtUsos:{0:{cod:'ADT-SUMIU',valor:50}}}]}],
+    ADT_POR_FORN:{F023:[{cod:'ADTMWTIC0UK13C164E9',data:'16/11/2026',forma:'PIX',status:'Quitado'},{cod:'ADTMWUNG19715256A3B',data:'23/11/2026',forma:'PIX',status:'Quitado'}]},
+    tickets:()=>({T863:{ticket:'T863',_purchaseOperationId:'op'}}),
+    money:v=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}),
+    esc:v=>String(v),dateBR:v=>String(v),
+  };
+  const html=runInNewContext(`${code}\nlaterPaymentsHtml({editKey:'T863',supplierCode:'F023'})`,ctx);
+  assert.match(html,/25\/11\/2026 · Compensação de adiantamento<\/span><strong>R\$ 85\.723,52<\/strong>/);
+  assert.match(html,/<li>Adiantamento de 16\/11\/2026 \(PIX\): R\$ 10\.723,52<\/li><li>Adiantamento de 23\/11\/2026 \(PIX\): R\$ 75\.000,00<\/li>/);
+  assert.match(html,/<li>Adiantamento ADT-SUMIU: R\$ 50,00<\/li>/);
+  assert.equal((html.match(/>Desfazer</g)||[]).length,2);
+});
+
 test('edição: compensação feita depois do fechamento aparece com Desfazer, que usa o estorno de Contas a Pagar e mantém os itens; ao salvar oferece usar o adiantamento de novo',()=>{
   const code=extract(purchase,'function purchaseLaterPayments(key){','function laterPaymentKind(payment){');
   const ctx={CONTAS_PAGAR:[{id:'CPPO_T1',ticket:'T1',pagamentos:[{data:'2026-11-19',valor:0,adt:9915.84},null,{data:'2026-11-20',valor:50,adt:0,banco:'Sicredi'}]},{id:'X',ticket:'T2',pagamentos:[{valor:10}]}],tickets:()=>({T1:{ticket:'T1'}})};
   const rows=runInNewContext(`${code}\npurchaseLaterPayments('T1')`,ctx);
-  assert.deepEqual(JSON.parse(JSON.stringify(rows)),[{payableId:'CPPO_T1',index:0,date:'2026-11-19',cash:0,advance:9915.84,bank:''},{payableId:'CPPO_T1',index:2,date:'2026-11-20',cash:50,advance:0,bank:'Sicredi'}]);
+  assert.deepEqual(JSON.parse(JSON.stringify(rows)),[{payableId:'CPPO_T1',index:0,date:'2026-11-19',cash:0,advance:9915.84,uses:[],bank:''},{payableId:'CPPO_T1',index:2,date:'2026-11-20',cash:50,advance:0,uses:[],bank:'Sicredi'}]);
   const undo=extract(purchase,'global.phase4PurchaseUndoPayment=async function(payableId,index){','async function offerAdvanceAgain(key,info){');
   assert.match(undo,/global\.erpPayablesReverse\(payment\.payableId,payment\.index\)/);
   assert.match(undo,/Object\.assign\(again,keep\)/);
