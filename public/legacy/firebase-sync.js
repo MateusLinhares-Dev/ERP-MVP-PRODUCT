@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-26-1700-v289-adiantamentos-da-carga-primeiro';
+  const _APP_BUILD = '2026-11-26-1900-v290-material-excluido-volta-ao-ser-usado';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){

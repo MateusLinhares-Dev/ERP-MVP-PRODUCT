@@ -221,6 +221,35 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Varredura depois da v289; material excluído volta ao cadastro quando a compra o usa (26/11/2026, v290)
+
+Verificações sem defeito:
+- **Simulador:**
+  - 44 abas e 316 cliques sem erro;
+  - dois computadores no mesmo banco: o que um lança aparece no outro com o "Pedido lançado" no Histórico; a exclusão feita no outro devolve o adiantamento;
+  - nenhuma gravação repetida com a tela parada, antes ou depois de cada ação.
+- **Produção (leitura autorizada):**
+  - nenhum erro de gravação registrado pelas telas em 48 h e `_ts` parado em 20 s;
+  - as 122 compras do servidor batem com as contas a pagar. A T1431 só tem `CP-AJUSTE-T1431-…`, criada por "Tirar desta compra", e não `CPPO_`;
+  - adiantamentos: valores, compensado e usos (recibos + `adtUsos`) fecham;
+  - extrato: as 246 saídas têm origem, e todo adiantamento e pagamento em dinheiro tem sua saída;
+  - vendas x contas a receber batem. A V0016 está "Pendente" porque vence no dia da venda (regra de `sale-order.ts`);
+  - nenhuma pesagem presa a compra excluída.
+- **Estoque negativo de RODA (−3.604,5 kg) e CHUMBO (−961,9 kg):** é dado, não defeito. As vendas de 19/11 (5.820 kg e 1.035 kg) passam das compras lançadas, e o estoque inicial desses materiais está zerado.
+
+Defeito: a CHAPA DURA foi excluída do cadastro em 23/11 como "material sem movimento". Em 25/11, a edição da T781 passou a usar 223,5 kg dela. A tela nova de compra não cadastrava o material usado: só o fechamento antigo cadastrava as variantes, e a edição pelo servidor não cadastrava nada. O material continuou marcado como excluído, e a tela de Estoque escondia os 223,5 kg. A recuperação automática pula de propósito material excluído (regra da v30: compra antiga não ressuscita material excluído).
+
+Correção:
+- **Código:** `registerPurchaseMaterials` (purchase-order.js), chamado em `finishPurchaseSave` e `afterConfirmedPurchaseEdit`, passa cada material da compra confirmada por `_garantirMetalCadastrado`, que tira a marca de excluído e devolve o material ao cadastro. Isso só vale quando o material não está no cadastro ou está marcado como excluído; nome antigo de material renomeado continua no nome novo. Usar o material numa compra nova conta como reativação, como já era no fluxo antigo.
+- **Produção:** feito backup em `scratchpad/prod/backup-chapa-dura.json`. Depois:
+  - `CHAPA DURA` saiu de `erp/estoqueDeleted` (transação);
+  - voltou a `erp/metais` e ganhou `erp/estoque/CHAPA DURA`;
+  - entrou uma linha no Histórico ("Estoque", "Restaurado") e o `_ts` foi atualizado.
+
+  A tela de Estoque mostra 223,5 kg. As outras quatro marcas com movimento (LATINHA SOLTA BATIDA, CROMO MAG, RODA DE CAMINHAO, MEDALHA) são nomes antigos de materiais renomeados e contam no nome novo.
+
+Testes: `test/purchase-advance-load-first.test.js` e teste de tela (compra editada com material excluído: marca sai da nuvem, material volta ao cadastro e aparece no Estoque).
+
 ## Adiantamentos desta carga antes da sobra antiga; fechamento mostra quanto entra de cada um (26/11/2026, v289)
 
 Queixa da cliente (CICLO, F619): na primeira notinha (T1379, R$ 62.280,20) os adiantamentos apareciam separados. Depois de tirar um material, a tabela virou só "Saldo devedor anterior". Ela excluiu e lançou de novo (T1421, R$ 32.040,20), marcou os adiantamentos e a tabela continuou só com o acumulado.
