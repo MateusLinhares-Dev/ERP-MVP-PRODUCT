@@ -301,7 +301,7 @@ function currentState(body){
     installments:[],
     paymentCondition:'',
     sourceTicketKeys:jsonDataset(body,'ticketKeys',[]),
-    adts:loadFirstAdvances(fin.adts,supplier?.cod||body?.dataset?.fornCod||''),
+    adts:fin.adts,
     cheques:fin.cheques,
     previousCredit:fin.balance,
     creditSource:fin.creditSource||'',
@@ -433,51 +433,6 @@ function isoDay(value){
   return match?match[3]+'-'+match[2].padStart(2,'0')+'-'+match[1].padStart(2,'0'):'';
 }
 function cents(value){return Math.round(Number(value||0)*100);}
-function advanceUsedHereCents(code,ticketNo){
-  if(!code||!ticketNo)return 0;
-  let total=0;
-  const own=tickets()[ticketNo]||Object.values(tickets()).find(function(t){return t&&String(t.ticket||'').trim()===ticketNo;});
-  ((own&&own.reciboFinanceiro&&own.reciboFinanceiro.adiantamentos)||[]).forEach(function(a){if(a&&String(a.cod||'')===code)total+=cents(a.valorAplicado);});
-  try{
-    (CONTAS_PAGAR||[]).forEach(function(cp){
-      if(!cp||String(cp.ticket||'').trim()!==ticketNo)return;
-      (Array.isArray(cp.pagamentos)?cp.pagamentos:[]).forEach(function(p){
-        (p&&Array.isArray(p.adtUsos)?p.adtUsos:[]).forEach(function(use){if(use&&String(use.cod||'')===code)total+=cents(use.valor);});
-      });
-    });
-  }catch(e){}
-  return total;
-}
-function advanceIsLeftover(advance,ticketNo,cut){
-  const code=String(advance&&advance.cod||'');
-  if(/cr[eé]dito|saldo/i.test(String(advance&&advance.forma||'')))return true;
-  if(code&&printAdvanceUsedElsewhere(code,ticketNo,''))return true;
-  if(cents(advance&&advance.valorCompensado)-advanceUsedHereCents(code,ticketNo)>0)return true;
-  const day=isoDay(advance&&advance.data);
-  return Boolean(cut&&day&&day<=cut);
-}
-function advancesThisLoadFirst(list,key,ticket){
-  const ticketNo=String(ticket&&ticket.ticket||key||'').trim();
-  const cut=printCarriedCutoff(key||'',ticket||{});
-  return (list||[]).map(function(advance,index){
-    return {advance,index,old:advanceIsLeftover(advance,ticketNo,cut),day:isoDay(advance&&advance.data)||'9999-12-31'};
-  }).sort(function(a,b){return Number(a.old)-Number(b.old)||a.day.localeCompare(b.day)||a.index-b.index;})
-    .map(function(entry){return entry.advance;});
-}
-function loadFirstAdvances(adts,code){
-  let number='',day='';
-  try{number=String(document.getElementById('phase4-po-number')?.value||(typeof getNextTicketId==='function'?getNextTicketId():'')||'').trim();}catch(e){number='';}
-  try{day=String(document.getElementById('phase4-po-date')?.value||'');}catch(e){day='';}
-  return advancesThisLoadFirst(adts,'',{ticket:number,fornecedorCod:String(code||''),dataCompra:day||today()});
-}
-function purchaseAdvanceOrder(key,code){
-  const ticket=tickets()[key]||{};
-  const number=String(ticket.ticket||key||'').trim();
-  const free=(ADT_POR_FORN?.[code]||[]).filter(function(a){
-    return a&&String(a.status||'')==='Pendente'&&cents(a.valor)>0&&(!String(a.ticket||'').trim()||String(a.ticket).trim()===number);
-  });
-  return advancesThisLoadFirst(free,key,ticket).map(function(a){return String(a.cod||'');}).filter(Boolean);
-}
 function supplierOpenPayables(code){
   try{
     const supplier=String(code||'').trim();
@@ -655,12 +610,12 @@ function showAdvanceUse(state,total,credit){
       :used<value?'Usa R$ '+money(used/100)+' e sobram R$ '+money((value-used)/100)+'.':'Usa o valor todo.';
   });
 }
-async function compensatePurchaseFromAdvance(payables,amount,order){
+async function compensatePurchaseFromAdvance(payables,amount){
   let remaining=Math.round(amount*100)/100;
   for(const cp of payables){
     if(remaining<=0.005)break;
     const portion=Math.round(Math.min(remaining,Number(cp.valor||0))*100)/100;
-    const outcome=await global.erpPayablesCompensateAdvance(cp.id,portion,order||[]);
+    const outcome=await global.erpPayablesCompensateAdvance(cp.id,portion);
     if(!outcome||outcome.kind!=='done'){
       try{showToast((outcome&&outcome.message)||'Não foi possível usar o adiantamento.','error',9000);}catch(e){}
       return false;
@@ -699,7 +654,7 @@ global.phase4PurchaseUseAdvance=async function(){
     if(before.saved)await global.phase4PurchaseEditTicket(key);
     return;
   }
-  if(!await compensatePurchaseFromAdvance(payables,amount,purchaseAdvanceOrder(key,code))){if(before.saved)await global.phase4PurchaseEditTicket(key);return;}
+  if(!await compensatePurchaseFromAdvance(payables,amount)){if(before.saved)await global.phase4PurchaseEditTicket(key);return;}
   try{showToast((before.saved?'Mudanças salvas e adiantamento usado':'Adiantamento usado')+' no pedido '+number+'. Saldo e adiantamento atualizados.','success',8000);}catch(e){}
   try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Adiantamento usado após o fechamento',number,null,{ticket:number});}catch(e){}
   await global.phase4PurchaseEditTicket(key);
@@ -783,7 +738,7 @@ async function offerAdvanceAgain(key,info){
   const amount=Math.round(Math.min(open,free)*100)/100;
   if(amount<=0.005)return;
   if(!confirm(advanceUseMessage(info.supplierName,info.orderNumber,open,free,amount,'Usar de novo o adiantamento de '+info.supplierName+' no pedido '+info.orderNumber+'? (R$ '+money(amount)+')')))return;
-  if(!await compensatePurchaseFromAdvance(payables,amount,purchaseAdvanceOrder(key,info.supplierCode)))return;
+  if(!await compensatePurchaseFromAdvance(payables,amount))return;
   try{showToast('Adiantamento usado de novo no pedido '+info.orderNumber+'.','success',8000);}catch(e){}
   try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Adiantamento usado após o fechamento',info.orderNumber,null,{ticket:info.orderNumber});}catch(e){}
 }
@@ -811,7 +766,7 @@ function paymentHtml(state){
   }
   const adts=(state.adts||[]).map(function(a,index){
     return '<label class="phase4-po-pay-row"><input type="checkbox" id="csadt-'+index+'" value="'+Number(a.valor||0)+'" onchange="phase4PurchaseRecalc()"><span><b>'+esc(a.cod||'Adiantamento')+'</b><small>'+esc(a.data||'')+' · '+esc(a.forma||a.bancoNome||'')+'</small><em class="phase4-po-adt-use" id="csadt-use-'+index+'"></em></span><strong>R$ '+money(a.valor)+'</strong></label>';
-  }).join('')+((state.adts||[]).length>1?'<small class="phase4-po-adt-order">Os marcados são usados de cima para baixo: primeiro os adiantamentos desta carga, depois a sobra das compras anteriores.</small>':'');
+  }).join('')+((state.adts||[]).length>1?'<small class="phase4-po-adt-order">Os marcados são usados de cima para baixo, até pagar o pedido.</small>':'');
   const cheques=(state.cheques||[]).map(function(c,index){
     return '<label class="phase4-po-pay-row"><input type="checkbox" id="cscheq-'+index+'" value="'+Number(c.valor||0)+'" onchange="phase4PurchaseRecalc()"><span><b>Cheque '+esc(c.num||c.cod||'')+'</b><small>'+esc(c.bomPara||c.data||'')+' · '+esc(c.banco||c.bancoNome||c.forma||'')+'</small></span><strong>R$ '+money(c.valor)+'</strong></label>';
   }).join('');
@@ -1286,7 +1241,7 @@ global.phase4PurchaseSupplierChanged=function(){
       const fin=financialData(null,supplier.cod);
       next.supplierName=supplier.nome;
       next.supplierCode=supplier.cod||'';
-      next.adts=loadFirstAdvances(fin.adts,supplier.cod);
+      next.adts=fin.adts;
       next.cheques=fin.cheques;
       next.previousCredit=fin.balance;
       next.creditSource=fin.creditSource||'';
@@ -2303,7 +2258,7 @@ function stateForSourceTicket(ticketKey){
   fillTablePrices({supplierCode:supplier.cod||'',items});
   if(!items.length)items=[newItem()];
   let number='';try{number=typeof getNextTicketId==='function'?getNextTicketId():'';}catch(e){}
-  return {supplierName:supplier.nome,supplierCode:supplier.cod||'',items,discount:0,freight:0,orderNumber:number,purchaseOrder:'',purchaseDate:today(),dueDate:today(),sourceTicketKeys:[ticketKey],adts:loadFirstAdvances(fin.adts,supplier.cod||''),cheques:fin.cheques,previousCredit:fin.balance,creditSource:fin.creditSource||'',creditIssues:fin.issues||[],notes:''};
+  return {supplierName:supplier.nome,supplierCode:supplier.cod||'',items,discount:0,freight:0,orderNumber:number,purchaseOrder:'',purchaseDate:today(),dueDate:today(),sourceTicketKeys:[ticketKey],adts:fin.adts,cheques:fin.cheques,previousCredit:fin.balance,creditSource:fin.creditSource||'',creditIssues:fin.issues||[],notes:''};
 }
 global.phase4OpenTicketForPurchase=function(ticketKey){
   const key=String(ticketKey||'').trim();
@@ -2358,7 +2313,7 @@ function renderFromLegacy(forceName){
     const fin=financialData(body,supplier.cod);
     state.supplierName=supplier.nome;
     state.supplierCode=supplier.cod||'';
-    state.adts=loadFirstAdvances(fin.adts,supplier.cod);
+    state.adts=fin.adts;
     state.cheques=fin.cheques;
     state.previousCredit=fin.balance;
     const loaded=sourceItems(body);
@@ -2416,7 +2371,6 @@ if(typeof legacy.tab==='function'){
           const state=currentState(body);
           if(!state.editKey&&state.supplierCode){
             const fresh=financialData(body,state.supplierCode);
-            fresh.adts=loadFirstAdvances(fresh.adts,state.supplierCode);
             const signature=function(items){return JSON.stringify((items||[]).map(function(i){return [i.cod||i.id||i.num,i.valor,i.status];}));};
             if(signature(fresh.adts)!==signature(state.adts)||signature(fresh.cheques)!==signature(state.cheques)||Math.abs(fresh.balance-Number(state.previousCredit||0))>0.005||JSON.stringify(fresh.issues||[])!==JSON.stringify(state.creditIssues||[])){
               global.phase4PurchaseRecalc();

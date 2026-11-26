@@ -9954,7 +9954,6 @@ function salvarCompra(forcar, ignorarFaltantes){
   const _adtSelecionados=_adtChks.length ? new Set(_adtChks.filter(c=>c.checked).map(c=>c.dataset.cod)) : null;
   const _approved=window.__ERP_PURCHASE_APPROVED_ADVANCES__?.supplierCode===fornCod?window.__ERP_PURCHASE_APPROVED_ADVANCES__.amounts:null;
   const pendentesAdt=ADT_POR_FORN[fornCod].filter(a=>a.status==='Pendente'&&(_approved?Object.prototype.hasOwnProperty.call(_approved,String(a.cod||'')):(!_adtSelecionados||_adtSelecionados.has(a.cod))));
-  if(_approved){ const _ordem=Object.keys(_approved); pendentesAdt.sort((a,b)=>_ordem.indexOf(String(a.cod||''))-_ordem.indexOf(String(b.cod||''))); }
   const _approvedCheques=window.__ERP_PURCHASE_APPROVED_ADVANCES__?.supplierCode===fornCod?window.__ERP_PURCHASE_APPROVED_ADVANCES__.cheques:null;
   const pendentesCheq=CHEQUES_POR_FORN[fornCod].filter(c=>c.status==='Pendente'&&(!_approvedCheques||Object.prototype.hasOwnProperty.call(_approvedCheques,String(c.id||c.num||c.numero||''))));
   const _adtDisponivel=a=>_approved?Math.max(0,Math.min(Number(a.valor||0),Number(_approved[String(a.cod||'')]||0))):Number(a.valor||0);
