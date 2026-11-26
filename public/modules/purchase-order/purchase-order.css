@@ -143,6 +143,7 @@
 .phase4-po-later-payment{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .phase4-po-later-payment span{flex:1 1 220px;color:#4d5b53}
 .phase4-po-later-payment strong{color:#1a3a2a}
+.phase4-po-later-payment-uses{flex:1 0 100%;margin:0;padding:0 0 0 18px;display:grid;gap:2px;color:#6b5b3a;font-size:.78rem}
 .phase4-po-free-advance{margin-top:10px;border:1px solid #cfe3d6;border-radius:9px;padding:10px 12px;background:#f1f8f3;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:.84rem;color:#1f3b2b}
 .phase4-po-free-advance span{flex:1 1 320px}
 .phase4-po-free-advance--older{background:#fff8e6;border-color:#efd08a;color:#4a3708}

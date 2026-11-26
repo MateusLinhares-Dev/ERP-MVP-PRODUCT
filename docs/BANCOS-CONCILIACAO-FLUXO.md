@@ -221,6 +221,14 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Edição da compra mostra cada adiantamento da compensação (25/11/2026, v288)
+
+Dúvida da cliente na T863 (HUMBERTO MESCH): a notinha e a Ficha do fornecedor mostravam os dois adiantamentos separados (R$ 10.723,52 de 16/11 e R$ 75.000,00 de 23/11), mas a edição da compra mostrava uma linha só, "Compensação de adiantamento R$ 85.723,52". Os valores estavam certos: os dois foram usados depois do fechamento, num clique só, e o servidor grava isso como um pagamento com `adtUsos` (código e valor de cada adiantamento).
+
+Agora, em "Pagamentos e compensações feitos depois do fechamento", cada linha continua com o total e um só "Desfazer" (o estorno devolve todos os adiantamentos daquele pagamento), e embaixo lista os adiantamentos usados: "Adiantamento de 16/11/2026 (PIX): R$ 10.723,52". Data e forma vêm de `ADT_POR_FORN` do fornecedor; se o adiantamento não for encontrado, mostra o código. Pagamentos antigos sem `adtUsos` ficam como antes.
+
+Testes: `test/purchase-order-history-and-cheques.test.js`; teste de tela com a T863 da cópia da produção.
+
 ## Notinha "sumida" T1247; compra lançada e excluída entram no Histórico (25/11/2026, v287)
 
 Queixa: a notinha de ALAN CACHIMBO de R$ 61.643,20, lançada hoje, sumiu; só a T1049 aparecia. Leitura da produção (autorizada):

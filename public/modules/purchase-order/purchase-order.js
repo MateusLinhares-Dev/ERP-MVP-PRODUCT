@@ -557,7 +557,10 @@ function purchaseLaterPayments(key){
         if(!payment)return;
         const cash=Math.max(0,Number(payment.valor||0)),advance=Math.max(0,Number(payment.adt||0));
         if(cash+advance<=0.005)return;
-        out.push({payableId:String(cp.id||''),index,date:String(payment.data||''),cash,advance,bank:String(payment.banco||cp.bancoNome||'')});
+        const uses=(Array.isArray(payment.adtUsos)?payment.adtUsos:Object.values(payment.adtUsos||{}))
+          .filter(function(use){return use&&Number(use.valor||0)>0.005;})
+          .map(function(use){return {cod:String(use.cod||''),value:Number(use.valor||0)};});
+        out.push({payableId:String(cp.id||''),index,date:String(payment.data||''),cash,advance,uses,bank:String(payment.banco||cp.bancoNome||'')});
       });
     });
     return out;
@@ -568,6 +571,16 @@ function laterPaymentKind(payment){
   if(payment.advance>0.005)return 'Pagamento e adiantamento';
   return 'Pagamento';
 }
+function laterPaymentAdvancesHtml(payment,supplierCode){
+  if(!payment.uses||!payment.uses.length)return '';
+  const known=typeof ADT_POR_FORN!=='undefined'&&supplierCode?ADT_POR_FORN[supplierCode]:null;
+  const advances=Array.isArray(known)?known:Object.values(known||{});
+  return '<ul class="phase4-po-later-payment-uses">'+payment.uses.map(function(use){
+    const advance=advances.find(function(a){return a&&use.cod&&String(a.cod||'')===use.cod;});
+    const label=advance?'Adiantamento de '+dateBR(advance.data)+(advance.forma?' ('+String(advance.forma)+')':''):'Adiantamento '+(use.cod||'sem código');
+    return '<li>'+esc(label)+': R$ '+money(use.value)+'</li>';
+  }).join('')+'</ul>';
+}
 function laterPaymentsHtml(state){
   if(!tickets()[state.editKey]?._purchaseOperationId)return '';
   const rows=purchaseLaterPayments(state.editKey);
@@ -577,7 +590,8 @@ function laterPaymentsHtml(state){
     rows.map(function(payment){
       return '<div class="phase4-po-later-payment"><span>'+esc(payment.date?dateBR(payment.date):'—')+' · '+esc(laterPaymentKind(payment))+
         (payment.cash>0.005&&payment.bank?' · '+esc(payment.bank):'')+'</span><strong>R$ '+money(payment.cash+payment.advance)+'</strong>'+
-        '<button type="button" class="btn-edit" onclick="phase4PurchaseUndoPayment(\''+esc(payment.payableId)+'\','+payment.index+')">Desfazer</button></div>';
+        '<button type="button" class="btn-edit" onclick="phase4PurchaseUndoPayment(\''+esc(payment.payableId)+'\','+payment.index+')">Desfazer</button>'+
+        laterPaymentAdvancesHtml(payment,state.supplierCode)+'</div>';
     }).join('')+'</div>';
 }
 async function compensatePurchaseFromAdvance(payables,amount){
