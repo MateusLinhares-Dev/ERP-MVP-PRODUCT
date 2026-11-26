@@ -168,22 +168,3 @@ test('compensação usa primeiro o adiantamento mais antigo, mesmo que ele estej
   assert.equal(part.valor,29963.40);
   assert.equal(part.ticket,'T089');
 });
-
-test('compensação segue a ordem enviada pela compra (adiantamentos da carga antes da sobra antiga) e recusa ordem inválida',async()=>{
-  const db=fakeDb();
-  db.state.erp.adiantamentos.F089=[
-    {cod:'ADT-SOBRA',valor:46130.98,valorOriginal:90000,valorCompensado:43869.02,status:'Pendente',ticket:'',forma:'PIX',data:'24/11/2026'},
-    {cod:'ADT-4010',valor:4010,valorOriginal:4010,status:'Pendente',ticket:'',forma:'PIX',data:'25/11/2026'},
-    {cod:'ADT-8645',valor:8645.15,valorOriginal:8645.15,status:'Pendente',ticket:'',forma:'PIX',data:'25/11/2026'},
-  ];
-  db.state.erp.contasPagar['CP-T089'].valor=32040.20;
-  db.state.erp.tickets.T089.saldoPagar=32040.20;
-  const request={...input,advanceAmount:32040.20,expected:{valor:32040.20,status:'Pendente',paymentsCount:0}};
-  await assert.rejects(payPayable(actor,{...request,advanceOrder:'ADT-4010'},{db}),{code:'INVALID_ADVANCE_ORDER'});
-  await assert.rejects(payPayable(actor,{...request,advanceOrder:['ADT-4010','ADT-4010']},{db}),{code:'INVALID_ADVANCE_ORDER'});
-  await payPayable(actor,{...request,advanceOrder:['ADT-4010','ADT-8645','ADT-NAO-EXISTE','ADT-SOBRA']},{db});
-  const usos=db.state.erp.contasPagar['CP-T089'].pagamentos[0].adtUsos.map(u=>[u.cod,u.valor]);
-  assert.deepEqual(usos,[['ADT-4010',4010],['ADT-8645',8645.15],['ADT-SOBRA',19385.05]]);
-  const sobra=db.state.erp.adiantamentos.F089.find(a=>a.cod==='ADT-SOBRA');
-  assert.equal(sobra.valor,26745.93);
-});

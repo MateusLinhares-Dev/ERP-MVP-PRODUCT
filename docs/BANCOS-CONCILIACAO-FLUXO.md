@@ -221,6 +221,26 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Volta a ordem antiga dos adiantamentos: primeiro a sobra (saldo devedor) (26/11/2026, v291)
+
+Depois da v289, a cliente explicou que o certo é continuar descontando primeiro do saldo devedor do fornecedor (a sobra das compras anteriores), como era antes. Ela não estava entendendo o que acontecia. Por isso a ordem "adiantamentos desta carga primeiro" da v289 saiu toda:
+- `advancesThisLoadFirst`, `loadFirstAdvances` e `purchaseAdvanceOrder` (purchase-order.js);
+- o terceiro parâmetro de `erpPayablesCompensateAdvance` (web/erp/payables.tsx);
+- `advanceOrder` em `payPayable`/`applyAdvances` (payables.ts);
+- a ordenação de `pendentesAdt` por `_approved` (app-core.js).
+
+Voltou a regra de antes:
+- **no fechamento,** os marcados são usados na ordem da lista do fornecedor (a ordem de cadastro, com a sobra antes dos adiantamentos novos);
+- **depois do fechamento,** o servidor usa primeiro o adiantamento reservado à compra e depois os outros, do mais antigo para o mais novo.
+
+Ficou da v289 a parte que ajudou a cliente a entender: cada adiantamento marcado no fechamento mostra "Usa o valor todo.", "Usa R$ X e sobram R$ Y." ou "Não entra: o pedido já fica pago com os de cima.". O aviso de baixo agora diz só "Os marcados são usados de cima para baixo, até pagar o pedido.".
+
+Notas dos dois exemplos:
+- **T1421 (R$ 32.040,20):** "Usa R$ 32.040,20 e sobram R$ 14.090,78." na sobra, e "Não entra" nos PIX de 25/11.
+- **T863 (v288):** a edição continua mostrando cada adiantamento usado na compensação.
+
+Testes: `test/purchase-order-advance-notes-and-materials.test.js`, que substitui `purchase-advance-load-first.test.js`, e teste de tela do fechamento e do "Usar adiantamento nesta compra".
+
 ## Varredura depois da v289; material excluído volta ao cadastro quando a compra o usa (26/11/2026, v290)
 
 Verificações sem defeito:

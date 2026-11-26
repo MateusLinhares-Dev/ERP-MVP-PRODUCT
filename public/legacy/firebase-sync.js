@@ -34,7 +34,7 @@ const _FB_CONFIG = (window.__APP_CONFIG__ && window.__APP_CONFIG__.firebase) || 
     }
     throw lastError;
   };
-  const _APP_BUILD = '2026-11-26-1900-v290-material-excluido-volta-ao-ser-usado';
+  const _APP_BUILD = '2026-11-26-2000-v291-adiantamento-volta-a-usar-a-sobra-primeiro';
   let _versaoChecagemAtiva=false;
   function _iniciarChecagemVersao(){
     if(location.protocol==='file:'){
