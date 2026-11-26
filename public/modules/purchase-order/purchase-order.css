@@ -51,6 +51,10 @@
 .phase4-po-pay-row span{display:grid;gap:2px}
 .phase4-po-pay-row small{color:#7a857f}
 .phase4-po-pay-row.credit{background:#fff9e8}
+.phase4-po-adt-use{font-style:normal;font-size:.76rem;color:#1f6b45}
+.phase4-po-adt-use:empty{display:none}
+.phase4-po-adt-use.unused{color:#a15c00}
+.phase4-po-adt-order{display:block;color:#6b7670;font-size:.76rem;margin:2px 2px 0}
 .phase4-po-empty-pay{color:#89938e;font-size:.8rem;padding:6px 0}
 .phase4-po-installments{margin-top:14px;padding-top:12px;border-top:1px solid #edf1ee}
 .phase4-po-installments-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}

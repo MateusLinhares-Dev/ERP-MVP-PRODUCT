@@ -87,6 +87,7 @@ export interface PaymentInput {
   advanceAmount?: unknown;
   fornCod?: unknown;
   obs?: unknown;
+  advanceOrder?: unknown;
   expected?: { valor?: unknown; status?: unknown; paymentsCount?: unknown };
 }
 
@@ -217,6 +218,16 @@ export async function listPaymentBanks(identity: Identity, { db }: { db?: Databa
   return { banks: items };
 }
 
+function advanceOrderList(value: unknown): string[] {
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.length > 200)
+    fail(422, 'INVALID_ADVANCE_ORDER', 'Ordem dos adiantamentos inválida.');
+  const codes = value.map((item) => key(item));
+  if (new Set(codes).size !== codes.length)
+    fail(422, 'INVALID_ADVANCE_ORDER', 'Ordem dos adiantamentos inválida.');
+  return codes;
+}
+
 function applyAdvances(
   advanceList: AdvanceRecord[],
   ticketCode: string,
@@ -224,6 +235,7 @@ function applyAdvances(
   date: string,
   now: () => number,
   uuid: () => string,
+  order: string[] = [],
 ): AdvanceUse[] {
   const uses: AdvanceUse[] = [];
   let remaining = amount;
@@ -232,10 +244,14 @@ function applyAdvances(
       advance.status === 'Pendente' && (!advance.ticket || String(advance.ticket).trim() === ticketCode),
   );
   const dayOf = (advance: AdvanceRecord): string => toISODate(advance.data) || '9999-12-31';
+  const rank = new Map(order.map((code, index) => [code, index]));
+  const position = (advance: AdvanceRecord): number => rank.get(String(advance.cod || '')) ?? order.length;
   eligible.sort(
     (a, b) =>
       Number(String(b.ticket || '').trim() === ticketCode) -
-        Number(String(a.ticket || '').trim() === ticketCode) || dayOf(a).localeCompare(dayOf(b)),
+        Number(String(a.ticket || '').trim() === ticketCode) ||
+      position(a) - position(b) ||
+      dayOf(a).localeCompare(dayOf(b)),
   );
   for (const advance of eligible) {
     if (!remaining) break;
@@ -347,6 +363,7 @@ export async function payPayable(
   if (!/^[a-f0-9-]{36}$/i.test(operationId)) fail(422, 'INVALID_OPERATION', 'Operação inválida.');
   const payCents = cents(input.amount, true);
   const advanceCents = cents(input.advanceAmount ?? 0, true);
+  const advanceOrder = advanceOrderList(input.advanceOrder);
   if (payCents + advanceCents <= 0)
     fail(422, 'INVALID_AMOUNT', 'Informe o valor do pagamento ou da compensação.');
   if (payCents && !bankCode) fail(422, 'BANK_REQUIRED', 'Selecione a conta bancária.');
@@ -362,7 +379,16 @@ export async function payPayable(
     fail(422, 'INVALID_EXPECTED', 'Versão esperada inválida.');
   const signature = createHash('sha256')
     .update(
-      JSON.stringify({ id, date, bankCode, payCents, advanceCents, fornCod: clean(input.fornCod), expected }),
+      JSON.stringify({
+        id,
+        date,
+        bankCode,
+        payCents,
+        advanceCents,
+        fornCod: clean(input.fornCod),
+        expected,
+        ...(advanceOrder.length ? { advanceOrder } : {}),
+      }),
     )
     .digest('hex');
   const resultIfCommitted = (record: unknown): Row | null => {
@@ -512,7 +538,15 @@ export async function payPayable(
       }
     }
     const advanceUses = advanceList
-      ? applyAdvances(advanceList, String(original.ticket || '').trim(), advanceCents, date, now, uuid)
+      ? applyAdvances(
+          advanceList,
+          String(original.ticket || '').trim(),
+          advanceCents,
+          date,
+          now,
+          uuid,
+          advanceOrder,
+        )
       : [];
     const amountTotal = payCents + advanceCents;
     const rest = currentCents - amountTotal;
