@@ -1729,6 +1729,7 @@ function resetOrderState(body){
 function finishPurchaseSave(body,key,ticket,totals){
   manualMode=false;
   resetOrderState(body);
+  try{registerPurchaseMaterials(ticket);}catch(e){}
   try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Pedido lançado',String(ticket?.ticket||key)+' — '+String(ticket?.fornecedor||ticket?.fornecedorNome||'')+' — R$ '+money(totals.total),null,{ticket:String(ticket?.ticket||key)});}catch(e){}
   try{if(typeof csRenderPesagens==='function')csRenderPesagens();}catch(e){}
   try{if(typeof renderTickets==='function')renderTickets();}catch(e){}
@@ -2274,7 +2275,22 @@ function saveEditedTicket(state,totals){
   });
   return ticket;
 }
+function registerPurchaseMaterials(ticket){
+  if(typeof _garantirMetalCadastrado!=='function')return;
+  let changed=false;
+  (Array.isArray(ticket?.itens)?ticket.itens:[]).forEach(function(item){
+    const name=String(item&&item.mat||'').trim();
+    if(!name||(typeof _nomeAtualDoMaterial==='function'&&_nomeAtualDoMaterial(name)))return;
+    const missing=typeof METAIS==='undefined'||!METAIS.includes(name);
+    const deleted=typeof _estoqueMaterialExcluido==='function'&&_estoqueMaterialExcluido(name);
+    if(!missing&&!deleted)return;
+    _garantirMetalCadastrado(name);
+    changed=true;
+  });
+  if(changed){try{if(typeof saveEstoque==='function')saveEstoque();}catch(e){}}
+}
 function afterConfirmedPurchaseEdit(ticket,state,totals){
+  try{registerPurchaseMaterials(ticket);}catch(e){}
   try{if(typeof registrarHistorico==='function')registrarHistorico('Compra de Sucata','Pedido editado',String(ticket.ticket||state.editKey),ticket,{ticket:ticket.ticket||state.editKey});}catch(e){}
   ['renderTickets','renderContasPagar','renderEstoque','renderDashboard','renderFluxo'].forEach(function(name){try{if(typeof global[name]==='function')global[name]();}catch(e){}});
 }

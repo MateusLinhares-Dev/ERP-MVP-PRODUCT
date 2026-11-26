@@ -80,3 +80,18 @@ test('usar adiantamento depois do fechamento e usar de novo após editar mandam 
   const bridge=readFileSync(new URL('../web/erp/payables.tsx',import.meta.url),'utf8');
   assert.match(bridge,/advanceOrder\.length \? \{ \.\.\.plan\.payload, advanceOrder \} : plan\.payload/);
 });
+
+test('compra lançada ou editada pela tela nova volta ao cadastro o material excluído que ela usa (caso CHAPA DURA da T781)',()=>{
+  const code=extract('function registerPurchaseMaterials(ticket){','function afterConfirmedPurchaseEdit(ticket,state,totals){');
+  const registrados=[];let salvou=0;
+  const ctx={METAIS:['FERRO','GRANA GROSSA'],_estoqueMaterialExcluido:n=>['CHAPA DURA','MEDALHA'].includes(n),
+    _nomeAtualDoMaterial:n=>n==='MEDALHA'?'GRANA GROSSA':'',_garantirMetalCadastrado:n=>registrados.push(n),saveEstoque:()=>{salvou++;}};
+  runInNewContext(code+'\nthis.registerPurchaseMaterials=registerPurchaseMaterials;',ctx);
+  ctx.registerPurchaseMaterials({itens:[{mat:'FERRO'},{mat:'CHAPA DURA'},{mat:'MEDALHA'},{mat:'COBRE NOVO'},{mat:''}]});
+  assert.deepEqual(registrados,['CHAPA DURA','COBRE NOVO'],'nome renomeado continua no nome novo; material do cadastro não é regravado');
+  assert.equal(salvou,1);
+  ctx.registerPurchaseMaterials({itens:[{mat:'FERRO'}]});
+  assert.equal(salvou,1,'nada a cadastrar não grava');
+  assert.match(purchase,/function finishPurchaseSave\(body,key,ticket,totals\)\{\n  manualMode=false;\n  resetOrderState\(body\);\n  try\{registerPurchaseMaterials\(ticket\);\}catch\(e\)\{\}/);
+  assert.match(purchase,/function afterConfirmedPurchaseEdit\(ticket,state,totals\)\{\n  try\{registerPurchaseMaterials\(ticket\);\}catch\(e\)\{\}/);
+});
