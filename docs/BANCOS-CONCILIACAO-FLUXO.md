@@ -221,6 +221,44 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
 
+## Adiantamentos desta carga antes da sobra antiga; fechamento mostra quanto entra de cada um (26/11/2026, v289)
+
+Queixa da cliente (CICLO, F619): na primeira notinha (T1379, R$ 62.280,20) os adiantamentos apareciam separados. Depois de tirar um material, a tabela virou só "Saldo devedor anterior". Ela excluiu e lançou de novo (T1421, R$ 32.040,20), marcou os adiantamentos e a tabela continuou só com o acumulado.
+
+Leitura da produção (autorizada):
+- **T1379, 11:28:** lançada sem adiantamento. Às 11:29 foram usados R$ 58.786,13: a sobra do PIX de R$ 90.000,00 de 24/11 (R$ 46.130,98, porque R$ 30.653,18 foram para a T983 e R$ 13.215,84 para o saldo inicial), mais os PIX de 25/11 de R$ 4.010,00 e R$ 8.645,15.
+- **14:02 a 14:09:** a compensação foi desfeita e usada de novo três vezes, com o total já em R$ 32.040,20, até a exclusão da T1379.
+- **T1421, 14:11:** marcados os adiantamentos. O servidor aplicou na ordem da lista, a sobra de 24/11 primeiro, e ela sozinha pagava tudo. Os dois PIX de 25/11 ficaram livres.
+- **Saldos:** todos certos. O CICLO tem R$ 26.745,93 livres (14.090,78 + 4.010,00 + 8.645,15). Nada mudou na produção.
+
+O "acumulado" é a regra da v263: a sobra de adiantamento já usado em outra compra aparece como "Saldo devedor anterior". O defeito era outro: no fechamento, a tela deixava marcar adiantamentos que não iam entrar, sem avisar. Além disso, ao usar de novo depois de uma edição, o sistema sempre começava pela sobra mais antiga, e os adiantamentos dados durante a carga saíam da notinha.
+
+Mudanças:
+- **Ordem "desta carga primeiro"** (`advancesThisLoadFirst` em purchase-order.js). Um adiantamento é sobra quando:
+  - já foi usado em outra compra ou conta (`printAdvanceUsedElsewhere`, ou `valorCompensado` maior que o usado nesta compra);
+  - é crédito ou saldo;
+  - ou tem data até o último dia em que uma notinha anterior do fornecedor usou adiantamento (`printCarriedCutoff`).
+
+  É a mesma regra da impressão. Os outros adiantamentos são desta carga e vêm primeiro; dentro de cada grupo, vale a data mais antiga.
+- **Fechamento:**
+  - a lista de adiantamentos vem nessa ordem (`loadFirstAdvances` nos pontos que montam a lista e na conferência de atualização);
+  - os marcados seguem para o servidor (`advanceCodes`) e para o cálculo local (`pendentesAdt` em app-core) na mesma ordem;
+  - cada adiantamento marcado mostra "Usa o valor todo.", "Usa R$ X e sobram R$ Y." ou "Não entra: o pedido já fica pago com os de cima." (`showAdvanceUse`, que desconta antes o crédito antigo marcado, como o servidor);
+  - com dois ou mais adiantamentos, a tela avisa que os marcados são usados de cima para baixo.
+- **Depois do fechamento** ("Usar adiantamento nesta compra" e "usar de novo" depois de desfazer e salvar a edição): `purchaseAdvanceOrder` manda a ordem em `erpPayablesCompensateAdvance(id, valor, ordem)` (web/erp/payables.tsx), que envia `advanceOrder` ao servidor.
+- **Servidor** (`payPayable`, `applyAdvances` em payables.ts):
+  - aceita `advanceOrder`, com até 200 códigos sem repetição; formato inválido dá `INVALID_ADVANCE_ORDER`;
+  - continua usando primeiro o adiantamento reservado ao próprio ticket; depois segue a ordem recebida, e o que não estiver na lista vai por data;
+  - a ordem entra na assinatura da operação.
+
+  Sem ordem (Contas a Pagar e "Usar da mais antiga para a mais nova", que reparte entre várias compras), nada muda: vale a data.
+
+Com a regra nova, na T1421 os PIX de 25/11 entrariam inteiros, e a sobra só com R$ 19.385,05.
+
+Testes:
+- `test/purchase-advance-load-first.test.js`: caso CICLO, uso parcial só nesta compra, notas de uso e passagem da ordem;
+- `test/payables-advance-reconciliation.test.js`: ordem no servidor e ordem inválida.
+
 ## Edição da compra mostra cada adiantamento da compensação (25/11/2026, v288)
 
 Dúvida da cliente na T863 (HUMBERTO MESCH): a notinha e a Ficha do fornecedor mostravam os dois adiantamentos separados (R$ 10.723,52 de 16/11 e R$ 75.000,00 de 23/11), mas a edição da compra mostrava uma linha só, "Compensação de adiantamento R$ 85.723,52". Os valores estavam certos: os dois foram usados depois do fechamento, num clique só, e o servidor grava isso como um pagamento com `adtUsos` (código e valor de cada adiantamento).

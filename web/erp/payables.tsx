@@ -200,7 +200,7 @@ export function installPayables(): void {
     excluirContaPagar: (index: unknown, id?: unknown) => send({ kind: 'delete', id: idAt(index, id) }),
     pagarContaRapido: (index: unknown, id?: unknown) => send({ kind: 'pay', id: idAt(index, id) }, false),
     verHistoricoPagamentosCP: (id: unknown) => send({ kind: 'history', id: String(id ?? '') }, false),
-    erpPayablesCompensateAdvance: async (id: unknown, amount: unknown) => {
+    erpPayablesCompensateAdvance: async (id: unknown, amount: unknown, order?: unknown) => {
       const row = rowsNow().find((item) => item.id === String(id ?? ''));
       if (!row) return { kind: 'error', message: 'Conta a pagar não encontrada. Atualize a tela.' };
       const context = legacy().erpPayablesPaymentContext?.(row.id) ?? {
@@ -225,7 +225,8 @@ export function installPayables(): void {
         { fornCod: context.fornCod, advanceLimit: options.limit, operationId: window.crypto.randomUUID() },
       );
       if (!plan.ok) return { kind: 'error', message: plan.message };
-      return submitPayment(deps, plan.payload);
+      const advanceOrder = Array.isArray(order) ? order.map(String).filter(Boolean) : [];
+      return submitPayment(deps, advanceOrder.length ? { ...plan.payload, advanceOrder } : plan.payload);
     },
     erpPayablesReverse: (id: unknown, index: unknown) => {
       const row = rowsNow().find((item) => item.id === String(id ?? ''));
