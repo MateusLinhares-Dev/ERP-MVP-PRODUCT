@@ -6554,15 +6554,33 @@ function _fluxoTotaisAno(ano, fontes){
   listaDe(fontes&&fontes.contasReceber).forEach(function(c){
     if(c.status==='Recebido'||c.status==='Pago') somar(totais.vendas,c.dataReceb||c.data,c.valor);
   });
+  const closingUses=(fontes&&fontes.closingUses)||{};
   Object.values((fontes&&fontes.adiantamentos)||{}).forEach(function(bruto){
     const lista=listaDe(bruto);
     const porCod=new Map(lista.filter(function(a){ return a.cod; }).map(function(a){ return [String(a.cod),a]; }));
-    lista.forEach(function(a){
-      if(a.forma==='Crédito') return;
+    const originOf=function(a){
       const parcial=/^Quita[cç][aã]o parcial de (\S+)/i.exec(String(a.obs||''));
       const origemCod=String(a.adiantamentoOrigem||(parcial?parcial[1]:'')||'');
-      const origem=origemCod&&origemCod!==String(a.cod||'')?porCod.get(origemCod):null;
-      somar(totais.adiantamentos,origem&&origem.data?origem.data:a.data,a.valor);
+      return origemCod&&origemCod!==String(a.cod||'')?porCod.get(origemCod)||null:null;
+    };
+    const partsByRoot=new Map();
+    lista.forEach(function(a){
+      const origem=a.forma==='Crédito'?null:originOf(a);
+      if(origem) partsByRoot.set(origem,(partsByRoot.get(origem)||0)+Number(a.valor||0));
+    });
+    const rootAmount=function(a){
+      const uses=closingUses[String(a.cod||'')]||[];
+      const original=Number(a.valorOriginal||0);
+      if(!uses.length||!(original>0)) return a.valor;
+      const parts=partsByRoot.get(a)||0;
+      const used=uses.reduce(function(sum,use){ return sum+Number(use&&use.valor||0); },0);
+      if(Math.round((original-parts-used)*100)<-0.5) return a.valor;
+      return Math.round((original-parts)*100)/100;
+    };
+    lista.forEach(function(a){
+      if(a.forma==='Crédito') return;
+      const origem=originOf(a);
+      somar(totais.adiantamentos,origem&&origem.data?origem.data:a.data,origem?a.valor:rootAmount(a));
       if(Number(a.valorDevolvido)>0) somar(totais.adiantamentos,a.dataDevolucao||a.data,-Number(a.valorDevolvido));
     });
   });
@@ -6577,7 +6595,7 @@ function renderFluxo(){
   const fmt=v=>_numFinito(v,0).toLocaleString('pt-BR',{minimumFractionDigits:2});
   const mNomes=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
-  const totaisAno=_fluxoTotaisAno(ano,{contasPagar:CONTAS_PAGAR,contasReceber:CONTAS_RECEBER,adiantamentos:ADT_POR_FORN});
+  const totaisAno=_fluxoTotaisAno(ano,{contasPagar:CONTAS_PAGAR,contasReceber:CONTAS_RECEBER,adiantamentos:ADT_POR_FORN,closingUses:_ffClosingAdvanceUses()});
   const cats=[
     {key:'vendas',   lbl:'Vendas de Metais',        tipo:'entrada', fn:(m)=>totaisAno.vendas[m-1]},
     {key:'receb-repasse',lbl:'Dinheiro recebido para repasse',tipo:'entrada',fn:(m,y)=>window.SupplierCashRepasse?.flowTotal(m,y,'entradas')||0},
@@ -16002,6 +16020,42 @@ function _saldoFornEsperado(cod){
   return typeof atual==='object'?{valor:Number(atual.valor||0),ticket:String(atual.ticket||'')}:{valor:Number(atual||0),ticket:''};
 }
 function _ffEhDebito(tipo){ return tipo==='compra'||tipo==='saldo_anterior'||tipo==='saldo_devedor_pendente'||tipo==='conta_antiga'; }
+function _ffEntryAmount(entry){ return entry&&entry.amount!=null?Number(entry.amount):Number(entry&&entry.raw&&entry.raw.valor||0); }
+function _ffClosingAdvanceUses(){
+  const uses={};
+  _ticketsDeCompra().forEach(function(ticket){
+    const receipt=ticket&&ticket.reciboFinanceiro;
+    const rows=Array.isArray(receipt&&receipt.adiantamentos)?receipt.adiantamentos:Object.values(receipt&&receipt.adiantamentos||{});
+    rows.forEach(function(row){
+      const amount=_r2(row&&row.valorAplicado);
+      if(!row||!row.cod||amount<=0.005) return;
+      (uses[row.cod]=uses[row.cod]||[]).push({ticket:String(ticket.ticket||''),valor:amount,data:ticket.dataCompra||ticket.data||''});
+    });
+  });
+  return uses;
+}
+function _ffAdvanceClosingSplit(advance,parts,uses){
+  const own=_r2(advance&&advance.valor);
+  const original=_r2(advance&&advance.valorOriginal);
+  if(!uses.length||original<=0) return {slices:[],rest:own};
+  const partsTotal=parts.reduce(function(sum,part){ return sum+Number(part&&part.valor||0); },0);
+  const usedTotal=uses.reduce(function(sum,use){ return sum+use.valor; },0);
+  let rest=_r2(original-partsTotal-usedTotal);
+  if(rest<-0.005) return {slices:[],rest:own};
+  const slices=uses.slice();
+  if(rest<=0.005&&String(advance.status||'')!=='Pendente'){
+    let index=slices.length-1;
+    slices.forEach(function(use,i){ if(use.ticket===String(advance.ticket||'')) index=i; });
+    rest=_r2(Math.max(0,rest)+slices[index].valor);
+    slices.splice(index,1);
+  }
+  return {
+    slices:slices.map(function(use){
+      return {cod:advance.cod,data:use.data,valor:use.valor,ticket:use.ticket,status:'Quitado',forma:advance.forma||'',bancoNome:advance.bancoNome||'',fechamento:true};
+    }),
+    rest:Math.max(0,rest),
+  };
+}
 function _cpAjustarCompraAntiga(t, extra){
   try{
     const pend=CONTAS_PAGAR.find(function(cp){ return cp&&cp.ticket===t.ticket&&cp.status==='Pendente'; });
@@ -18196,11 +18250,14 @@ function initDespesas(){
         });
         var ffAdts=(ADT_POR_FORN[cod]||[]).filter(function(a){ return a&&a.forma!=='Crédito'&&a.forma!=='Credito'; });
         var ffParteDe=function(a){ return (a.origem==='compensacao_cp'||a.origem==='devolucao')&&a.adiantamentoOrigem?ffAdts.find(function(x){ return x!==a&&x.cod===a.adiantamentoOrigem; })||null:null; };
+        var ffClosingUses=_ffClosingAdvanceUses();
         ffAdts.forEach(function(a){
           if(ffParteDe(a)) return;
           var partes=ffAdts.filter(function(x){ return ffParteDe(x)===a; });
-          partes.forEach(function(x){ entries.push({ data:a.data||x.data, tipo:'adiantamento', sinal:1, status:x.status, raw:x, orig:a, partes:[] }); });
-          entries.push({ data:a.data, tipo:'adiantamento', sinal:1, status:a.status, raw:a, orig:null, partes:partes });
+          var split=_ffAdvanceClosingSplit(a,partes,ffClosingUses[a.cod]||[]);
+          partes=partes.concat(split.slices);
+          partes.forEach(function(x){ entries.push({ data:a.data||x.data, tipo:'adiantamento', sinal:1, status:x.status, raw:x, orig:a, partes:[], amount:x.fechamento?x.valor:null }); });
+          entries.push({ data:a.data, tipo:'adiantamento', sinal:1, status:a.status, raw:a, orig:null, partes:partes, amount:split.rest });
           partes.concat([a]).forEach(function(x){
             if(Number(x.valorDevolvido)>0) entries.push({ data:x.dataDevolucao||x.data, tipo:'devolucao_adt', sinal:-1, status:'Recebido', raw:{valor:-Number(x.valorDevolvido), cod:x.cod, adv:x, origemCod:a.cod} });
           });
@@ -18274,7 +18331,7 @@ function initDespesas(){
               +'<div style="font-size:.76rem;color:#888;margin-top:2px">Vencimento '+esc(e.raw.venc||'—')+'. Pagamento e histórico em Contas a Pagar.</div>';
           } else if(e.tipo==='adiantamento'){
 
-            var a=e.raw; valor=Number(a.valor||0);
+            var a=e.raw; valor=_ffEntryAmount(e);
             var adtAplicado=a.status==='Pago'||a.status==='Quitado';
             saldo-=valor;
             badge=adtAplicado?'<span style="background:#e8f5e9;color:#1a5e2a;padding:1px 6px;border-radius:4px;font-size:.72rem;font-weight:700">Pago</span>':'<span style="background:#fff3cd;color:#856404;padding:1px 6px;border-radius:4px;font-size:.72rem;font-weight:700">Pendente</span>';
@@ -18282,7 +18339,7 @@ function initDespesas(){
             var tituloAdt='Adiantamento'+(a.cod?' ('+a.cod+')':'')+(adtAplicado?'':' — ainda sem compra vinculada');
             if(e.orig){
               tituloAdt='Parte do adiantamento '+esc(e.orig.cod||'')+(e.orig.data?' de '+fmtD(e.orig.data):'')+(a.origem==='devolucao'?', devolvida pelo fornecedor':(a.ticket?', usada no Ticket '+esc(a.ticket):''));
-              det=[(a.forma?'Forma: '+esc(a.forma):''),(a.data?'Compensado em '+fmtD(a.data):'')].filter(Boolean).join(' | ');
+              det=[(a.forma?'Forma: '+esc(a.forma):''),(a.data?(a.fechamento?'Usada no fechamento da compra em ':'Compensado em ')+fmtD(a.data):'')].filter(Boolean).join(' | ');
             } else if(e.partes&&e.partes.length){
               var somaPartes=e.partes.reduce(function(s2,x){ return s2+Number(x.valor||0); },0);
               var totalAdt=Number(a.valorOriginal||0)||(valor+somaPartes);
@@ -18330,7 +18387,7 @@ function initDespesas(){
             :e.tipo==='saldo_devedor_pendente'
               ?'<button onclick="ffSaldoParaContas(this)" data-forn="'+cod+'" style="background:#8a6d0b;color:#fff;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:.8rem;margin-right:3px">Levar para Contas a Pagar</button>'
               :'';
-          if(e.tipo==='devolucao_adt'||(e.tipo==='adiantamento'&&(Number(e.raw.valorDevolvido)>0||e.raw.origem==='devolucao'))){ editBtn=''; delKey=''; }
+          if(e.tipo==='devolucao_adt'||(e.tipo==='adiantamento'&&(Number(e.raw.valorDevolvido)>0||e.raw.origem==='devolucao'||e.raw.fechamento))){ editBtn=''; delKey=''; }
           var devBtn=e.tipo==='adiantamento'&&!e.orig&&String(e.raw.status||'')==='Pendente'&&Number(e.raw.valor||0)>0.005&&e.raw.forma!=='Crédito'
             ?'<button onclick="ffRegistrarDevolucao(this)" data-forn="'+cod+'" data-cod="'+esc(e.raw.cod||'')+'" title="O fornecedor devolveu o dinheiro deste adiantamento" style="background:#1565c0;color:#fff;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:.8rem;margin-right:4px">↩ Devolvido</button>'
             :e.tipo==='devolucao_adt'
@@ -18354,7 +18411,7 @@ function initDespesas(){
 
         var totP=filtered.filter(function(e){
           return !_ffEhDebito(e.tipo);
-        }).reduce(function(s,e){return s+Number(e.raw.valor||0);},0);
+        }).reduce(function(s,e){return s+_ffEntryAmount(e);},0);
         var sF=Math.round((totC-totP)*100)/100;
         var scF=sF>0?'#2980b9':sF<0?'#c0392b':'#27ae60', bgF=sF>0?'#e8f0fe':sF<0?'#fff0f0':'#e8f5e9';
         var kpiBgF=sF>0?'R$ '+fmt(sF)+' a pagar':sF<0?'Forn. deve R$ '+fmt(Math.abs(sF)):'Quitado';

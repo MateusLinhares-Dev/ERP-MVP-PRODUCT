@@ -10,6 +10,7 @@ O fluxo agora conta o dinheiro **na data em que ele saiu ou entrou**. A função
 | Conta paga, total ou em parte, com adiantamento | A parte do adiantamento contava duas vezes: quando o adiantamento foi dado e de novo na conta | Conta só o dinheiro pago no banco. O adiantamento já entrou em "Adiantamentos Forn." |
 | Adiantamento compensado em parte numa compra ou conta | A parte usada mudava para o mês da compra | Fica no mês em que o adiantamento foi pago |
 | Conta paga sem histórico de pagamentos (registro antigo) | — | Igual a antes: o valor entra na data de pagamento |
+| Adiantamento usado em parte no fechamento da compra (v292) | A parte usada no fechamento não entrava; se o adiantamento terminava no fechamento depois de uma compensação, a compensação contava duas vezes | Entra o valor pago ao fornecedor (`valorOriginal`), no mês do adiantamento |
 
 O cálculo é feito em uma passada só, e não mais 48 passadas por ano.
 
@@ -220,6 +221,34 @@ A cliente escrevia nas observações "descontado adiantamento de 9.999,48, fican
 - depois, como antes: abatido no fechamento, pagamentos posteriores, saldo a pagar e saldo devedor do fornecedor.
 
 A coluna do detalhe passou a se chamar "Valor total do adiantamento". Compras antigas sem recibo usam o `valorOriginal` do próprio adiantamento.
+
+## Ficha do fornecedor e Fluxo de caixa contam o adiantamento usado no fechamento (26/11/2026, v292)
+
+Varredura depois da v291 (leitura da produção autorizada). Compras, contas, adiantamentos, extrato e notinhas impressas das 135 compras batem. A conferência da ficha de cada fornecedor achou 3 fichas com o saldo errado:
+
+| Fornecedor | Ficha mostrava | Certo |
+|---|---|---|
+| CICLO | R$ 5.294,27 a pagar | CICLO deve R$ 26.745,93 (adiantamentos livres) |
+| FABIO DARCI BERTUZZI (KUKA) | R$ 421.784,18 a pagar | R$ 406.311,18 a pagar |
+| ISMAEL GILBERTO ULLER | R$ 12.687,23 a pagar | R$ 14.690,14 a pagar (T1511) |
+
+Causa: quando o fechamento da compra usa só parte de um adiantamento, o servidor (`create-purchase-order.ts`) baixa o `valor` do adiantamento e guarda o uso no recibo da compra (`reciboFinanceiro.adiantamentos`). Ele não cria um registro de "parte", como a compensação feita depois do fechamento cria (`origem: 'compensacao_cp'`). Quando o fechamento termina um adiantamento que já tinha parte usada, o `valor` volta a ser o valor original. A ficha (`ffRenderFicha`) e o Fluxo de caixa somavam o `valor` de cada registro, então:
+- **CICLO:** os R$ 32.040,20 do adiantamento de R$ 90.000 usados no fechamento da T1421 não apareciam;
+- **KUKA:** faltavam os R$ 15.473,00 usados no fechamento da T1117;
+- **ISMAEL:** os R$ 2.002,91 já compensados na T701 contavam duas vezes.
+
+Correção, só na tela (os dados estão certos e não mudam):
+- `_ffClosingAdvanceUses` lê os usos no fechamento dos recibos das compras, e `_ffAdvanceClosingSplit` divide o adiantamento em partes, uso no fechamento e o que sobra, somando o valor original;
+- **ficha:** cada uso no fechamento vira uma linha "Parte do adiantamento … usada no Ticket T…" com "Usada no fechamento da compra em …", sem Editar nem Excluir (o uso se desfaz editando a compra). Quando o fechamento terminou o adiantamento, o último pedaço fica na própria linha do adiantamento, como antes. O "Total pago" usa o valor de cada linha;
+- **Fluxo de caixa:** "Adiantamentos Forn." de novembro passou de R$ 6.600.412,17 para R$ 6.645.922,46, que é a soma dos adiantamentos pagos no mês.
+
+Adiantamento sem uso no fechamento, ou com dado que não fecha com o valor original, continua como antes.
+
+Fora do código, no cadastro de fornecedores: 3 códigos são de duas pessoas diferentes, de cadastros de agosto e setembro: F001 (NARDO e MAICON DIAS), F006 (ADRIANA DA SILVA e JAIR ESTACIO) e F279 (CLEITON FERRARI e MARCIO SANTANA). As telas mostram só um por código, então MAICON DIAS, JAIR ESTACIO e MARCIO SANTANA não aparecem. Salvar a edição do visível grava os mesmos dados no escondido. Nenhum dos três escondidos tem compra ou adiantamento.
+
+Corrigido na produção em 27/11/2026, com autorização e backup: MAICON DIAS ficou F692, JAIR ESTACIO F693 e MARCIO SANTANA F694. Mudou só o `cod` desses 3 cadastros, com uma linha "Código corrigido" no Histórico para cada um. Os outros códigos repetidos são a mesma pessoa cadastrada duas vezes (NARDO, SILVIO ELIAS JUNIOR, FERNANDO JUNG, GILBERTO/GIBA DUTRA, LUIZ GONZAGA, ALEXANDRE) e ficaram como estão.
+
+Testes: `test/supplier-ledger-closing-advances.test.js` e um caso novo em `test/cash-flow.test.js`.
 
 ## Volta a ordem antiga dos adiantamentos: primeiro a sobra (saldo devedor) (26/11/2026, v291)
 
