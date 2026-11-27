@@ -67,6 +67,24 @@ test('fluxo: compensação parcial do adiantamento fica no mês em que ele foi p
   assert.equal(totals.adiantamentos[10], 0);
 });
 
+test('fluxo: adiantamento usado em parte no fechamento da compra entra pelo valor pago ao fornecedor', () => {
+  const totals = cashFlow(2026, {
+    adiantamentos: {
+      F619: [
+        { cod: 'A1', data: '24/11/2026', valor: 14090.78, valorOriginal: 90000, valorCompensado: 75909.22, status: 'Pendente', forma: 'PIX' },
+        { cod: 'A2', data: '24/11/2026', valor: 30653.18, status: 'Quitado', adiantamentoOrigem: 'A1', origem: 'compensacao_cp' },
+        { cod: 'A3', data: '26/11/2026', valor: 13215.84, status: 'Quitado', adiantamentoOrigem: 'A1', origem: 'compensacao_cp' },
+      ],
+      F122: [
+        { cod: 'B1', data: '19/11/2026', valor: 7775.07, valorOriginal: 7775.07, valorCompensado: 7775.07, status: 'Quitado', ticket: 'T937', forma: 'PIX' },
+        { cod: 'B2', data: '23/11/2026', valor: 2002.91, status: 'Quitado', adiantamentoOrigem: 'B1', origem: 'compensacao_cp' },
+      ],
+    },
+    closingUses: { A1: [{ ticket: 'T1421', valor: 32040.2 }], B1: [{ ticket: 'T937', valor: 5772.16 }] },
+  });
+  assert.equal(Math.round(totals.adiantamentos[10] * 100) / 100, 97775.07);
+});
+
 test('fluxo: conta paga sem histórico usa a data de pagamento; outro ano não entra', () => {
   const totals = cashFlow(2026, {
     contasPagar: {
